@@ -1,6 +1,7 @@
 name: Guardar cierre diario
 on:
   schedule:
+    # 17:30 y 18:30 hora Argentina (20:30 y 21:30 UTC), lunes a viernes; el segundo es respaldo (es idempotente)
     - cron: "30 20 * * 1-5"
     - cron: "30 21 * * 1-5"
   workflow_dispatch: {}
@@ -12,6 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 scripts/save_close.py
+      - name: Volumen del día
+        if: always()
+        run: python3 scripts/save_volume.py
       - name: Indices BCRA (CER, TAMAR, A3500)
         if: always()
         run: python3 scripts/save_indices.py
@@ -21,7 +25,7 @@ jobs:
           if [ -n "$(git status --porcelain data)" ]; then
             git config user.name "cierre-bot"
             git config user.email "bot@users.noreply.github.com"
-            git add data/closes.json data/closes_ars.json data/indices.json
+            git add data/closes.json data/closes_ars.json data/indices.json data/volumen.json
             git commit -m "cierre $(date -u +%F)"
             git push
           fi
