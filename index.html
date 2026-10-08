@@ -2666,7 +2666,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var ch = chartCtl(c[2], c[1], sel[c[1]]), dd = document.getElementById('psD' + c[2]), data = by(c[3]);
       var dm = dd ? +dd.value : 0; if (dm > 0) data = data.concat(by('dual').filter(function (o) { return c[2] === 3 || (c[2] === 2 && o.isCer); })); // en CER solo los CER/TAMAR; en TAMAR todos (flujo TAMAR)
       var gm = null, sp = ch.spec;
-      if (false && sp.gsc) { gm = {}; data.forEach(function (o) { var v = sp.gsc(o, SC); if (v != null && isFinite(v)) gm[o.k] = v; }); }
+      if (sp.gsc && /breakeven/.test(sp.label)) { // breakeven: cada bono se compara con tu escenario (difuminado sobre la línea, con la distancia en pb)
+        var uval = parseFloat(cardV(c[2], { 2: 'psPi', 3: 'psTam', 4: 'psDev' }[c[2]])); if (isFinite(uval)) { gm = {}; data.forEach(function (o) { if (o.be != null && isFinite(o.be)) gm[o.k] = uval / 100; }); }
+      }
       else if (S0 && !sp.gsc) { var b0 = {}; S0.forEach(function (o0) { b0[o0.k] = o0; }); gm = {}; data.forEach(function (o) { var v = sp.val(o); if (v != null && isFinite(v)) gm[o.k] = v; }); data = data.map(function (o) { return b0[o.k]; }).filter(Boolean); }
       fairChart(c[0], c[1], data, ch.spec, ch.cap, dm, gm, ch.model);
     });
@@ -2763,7 +2765,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     return ['pi', 'tam', 'dev'].some(function (k) { return (pathIn[k] || []).some(function (e) { return e && e.value !== ''; }); });
   }
   function syncMir() { root.querySelectorAll('.psMir').forEach(function (e) { var m = document.getElementById(e.getAttribute('data-for')); if (m && document.activeElement !== e && e.value !== m.value) e.value = m.value; }); }
-  [2, 3, 4, 5].forEach(function (n) { ['psPi', 'psTam', 'psDev', 'psRem'].forEach(function (id) { var e = document.getElementById(id + n); if (e) e.onchange = function () { window.renderPesos(); }; }); });
+  var psTyping = null;
+  [2, 3, 4, 5].forEach(function (n) { ['psPi', 'psTam', 'psDev', 'psRem'].forEach(function (id) { var e = document.getElementById(id + n); if (!e) return; e.onchange = function () { clearTimeout(psTyping); window.renderPesos(); }; if (id !== 'psRem') e.oninput = function () { clearTimeout(psTyping); if (isFinite(parseFloat(e.value))) psTyping = setTimeout(window.renderPesos, 350); }; }); }); // el gráfico se actualiza mientras se escribe
   window.renderPesos = function () {
     if (typeof Chart === 'undefined') return;
     syncMir();
