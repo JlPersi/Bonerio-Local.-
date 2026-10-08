@@ -2439,8 +2439,14 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
   function vcells() { return ''; }
   function renderTables(S, s, sc, fc, only) { // only: número de tarjeta (1 a 5); renderiza solo su tabla con los supuestos de esa tarjeta
     valuate(S, s, sc, fc);
+    // el breakeven se compara contra la curva Lecap al mismo plazo: más allá de la Lecap más larga no hay tasa con la que comparar (no se extrapola plano)
+    var lmax = fc.length ? fc[fc.length - 1][0] : 0, outNote = 'Vence después de la Lecap más larga (' + lmax + ' días): no hay tasa Lecap con la que comparar';
+    var isOut = function (o) { o.beLmax = lmax; return (o.beOut = o.d > lmax + 5); };
+    var beTd = function (o, be, d) { return o.beOut ? '<td title="' + outNote + '" style="color:var(--mu)">—</td>' : '<td style="' + (be == null ? '' : BE) + '">' + pcs(be, d) + '</td>'; };
+    var remOut = function (o, be, d) { return o.beOut ? '<td>' + pcs(o.rem, d) + '</td><td style="color:var(--mu)">—</td>' : remTd(be, o.rem, d); };
+    var outRow = function (L, what) { var n = L.filter(function (o) { return o.beOut; }).map(function (o) { return o.k; }); return n.length ? '<tr><td colspan="30" class="note" style="text-align:left;white-space:normal">— ' + what + ' sin calcular para ' + n.join(', ') + ': vence' + (n.length > 1 ? 'n' : '') + ' después de la Lecap más larga (' + lmax + ' días) y no hay tasa Lecap con la que comparar.</td></tr>' : ''; };
     var cs = only ? chartSel(only) : null, capOk = function (o) { return !cs || o.d <= cs.cap; };
-    var mh = cs ? '<th style="' + AC + '">' + cs.spec.label.replace(/ \(%\)$/, '') + '<br>(gráfico)</th>' : '', mc = function (o) { return cs ? '<td style="' + BE + '">' + (o.miss ? '—' : pcs(cs.spec.val(o), 2)) + '</td>' : ''; };
+    var mh = cs ? '<th style="' + AC + '">' + cs.spec.label.replace(/ \(%\)$/, '') + '<br>(gráfico)</th>' : '', mc = function (o) { return cs ? '<td style="' + BE + '">' + (o.miss || (o.beOut && /breakeven/.test(cs.spec.label)) ? '—' : pcs(cs.spec.val(o), 2)) + '</td>' : ''; };
     var met = METN(), remOn = only >= 2 && cardV(only, 'psRem') === '1', scOn = scenChangedFor(only), by = function (f) { return S.filter(function (o) { return o.fam === f && capOk(o); }).sort(function (a, b) { return a.mat - b.mat; }); }, h;
         if (!only || only === 1) {
 h = '<tr><th class="l">Ticker</th><th>Vencimiento</th><th>Días</th><th>Precio</th><th>Pago final<br>(c/100)</th><th>TEM</th><th>TNA<br>simple</th><th>TNA<br>30/365</th><th>TEA</th><th>MD</th>' + mh + '</tr>';
@@ -2453,31 +2459,34 @@ h = '<tr><th class="l">Ticker</th><th>Vencimiento</th><th>Días</th><th>Precio</
 h = '<tr><th class="l">Ticker</th><th>Vencimiento</th><th>Días</th><th>Precio</th><th>TIR real<br>(TEA)</th><th>TNA real<br>30/365</th>' + (scOn ? '<th>TEA nominal<br>(esc.)</th>' : '') + '<th>' + met + '<br>nominal</th><th>Inflación BE<br>(mensual)</th>' + (remOn ? '<th>REM<br>(mensual)</th><th>BE − REM<br>(pp)</th>' : '') + '' + VH + mh + '</tr>';
     by('cer').forEach(function (o) {
       if (o.miss) { h += '<tr>' + tkcell(o) + '<td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td>' + fm(o.P, 2) + '</td><td colspan="' + (4 + (scOn ? 1 : 0)) + '" class="note" style="margin:0">Sin CER de emisión para calcular el coeficiente</td></tr>'; return; }
-      var tgt = interp(fc, o.d), known = bdBack(o.mat, 10) <= lastOf(IDX.CER) + 20 /* con menos de 20 días de CER por proyectar el breakeven no es estable */, be = tgt == null || known ? null : beSolve(o, s, sc, 'pi', tgt, -0.05, 0.25); o.be = be;
-      h += '<tr>' + tkcell(o) + '<td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td>' + fm(o.P, 2) + '</td><td>' + pcs(o.realTea) + '</td><td style="' + AC + '">' + pcs(o.realTna30) + '</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + '<td>' + pcs(MET(o)) + '</td><td style="' + (be == null ? '' : BE) + '">' + pcs(be, 2) + '</td>' + (o.rem = remCer(o), remOn ? remTd(be, o.rem, 2) : '') + '' + vcells(o, 2) + mc(o) + '</tr>';
+      var tgt = interp(fc, o.d), known = bdBack(o.mat, 10) <= lastOf(IDX.CER) + 20 /* con menos de 20 días de CER por proyectar el breakeven no es estable */, be = isOut(o) || tgt == null || known ? null : beSolve(o, s, sc, 'pi', tgt, -0.05, 0.25); o.be = be;
+      h += '<tr>' + tkcell(o) + '<td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td>' + fm(o.P, 2) + '</td><td>' + pcs(o.realTea) + '</td><td style="' + AC + '">' + pcs(o.realTna30) + '</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + '<td>' + pcs(MET(o)) + '</td>' + beTd(o, be, 2) + (o.rem = remCer(o), remOn ? remOut(o, be, 2) : '') + '' + vcells(o, 2) + mc(o) + '</tr>';
     });
     if (only === 2 && document.getElementById('psD2').value === '2') S.filter(function (o) { return o.fam === 'dual' && o.isCer && !o.miss && capOk(o); }).sort(function (a, b) { return a.mat - b.mat; }).forEach(function (o) { // duales que se suman a la curva: se marcan con * y toman el color del gráfico
       h += '<tr>' + tkcell(o, true) + '<td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td>' + fm(o.P, 2) + '</td><td>' + pcs(o.realTea) + '</td><td style="' + AC + '">' + pcs(o.realTna30) + '</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + '<td>' + pcs(MET(o)) + '</td><td style="' + BE + '">—</td>' + (remOn ? '<td>—</td><td>—</td>' : '') + mc(o) + '</tr>';
     });
+    h += outRow(by('cer'), 'Inflación breakeven');
     document.getElementById('psCer').innerHTML = h;
     }
         if (!only || only === 3) {
 h = '<tr><th class="l">Ticker</th><th>Emisión</th><th>Vencimiento</th><th>Días</th><th>Margen</th><th>Precio</th><th>Pago final<br>(esc.)</th><th>Margen<br>s/ TAMAR</th><th>TAMAR +<br>margen (TNA)</th>' + (scOn ? '<th>TEA<br>(esc.)</th>' : '') + '<th>TAMAR BE<br>(TNA)</th>' + (remOn ? '<th>REM<br>(prom.)</th><th>BE − REM<br>(pp)</th>' : '') + '' + VH + mh + '</tr>';
     by('tamar').forEach(function (o) {
-      var tgt = interp(fc, o.d), be = tgt == null ? null : beSolve(o, s, sc, 'tam', tgt, 0, 3); o.be = be;
-      h += '<tr>' + tkcell(o) + '<td>' + dstr(o.ins.iss) + '</td><td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td>' + pcs(o.sp, 2) + '</td><td>' + fm(o.P, 2) + '</td><td>' + fm(o.M, 2) + '</td><td style="' + AC + '">' + fm(o.dm, 2) + '%</td><td>' + fm(o.tnaT, 1) + '%</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + '<td style="' + BE + '">' + pcs(be, 1) + '</td>' + (o.rem = remTam(o), remOn ? remTd(be, o.rem, 1) : '') + '' + vcells(o, 2) + mc(o) + '</tr>';
+      var tgt = interp(fc, o.d), be = isOut(o) || tgt == null ? null : beSolve(o, s, sc, 'tam', tgt, 0, 3); o.be = be;
+      h += '<tr>' + tkcell(o) + '<td>' + dstr(o.ins.iss) + '</td><td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td>' + pcs(o.sp, 2) + '</td><td>' + fm(o.P, 2) + '</td><td>' + fm(o.M, 2) + '</td><td style="' + AC + '">' + fm(o.dm, 2) + '%</td><td>' + fm(o.tnaT, 1) + '%</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + beTd(o, be, 1) + (o.rem = remTam(o), remOn ? remOut(o, be, 1) : '') + '' + vcells(o, 2) + mc(o) + '</tr>';
     });
     if (only === 3 && document.getElementById('psD3').value === '2') S.filter(function (o) { return o.fam === 'dual' && !o.miss && capOk(o); }).sort(function (a, b) { return a.mat - b.mat; }).forEach(function (o) {
       h += '<tr>' + tkcell(o, true) + '<td>' + dstr(o.ins.iss) + '</td><td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td>' + pcs(o.sp, 2) + '</td><td>' + fm(o.P, o.isCer || o.isFix ? 2 : 0) + '</td><td>' + (o.bv ? fm(o.bv.tam, o.isCer || o.isFix ? 2 : 0) : '—') + '</td><td style="' + AC + '">' + fm(o.dm, 2) + '%</td><td>' + fm(o.tnaT, 1) + '%</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + '<td style="' + BE + '">—</td>' + (remOn ? '<td>—</td><td>—</td>' : '') + mc(o) + '</tr>';
     });
+    h += outRow(by('tamar'), 'TAMAR breakeven');
     document.getElementById('psTamar').innerHTML = h;
     }
         if (!only || only === 4) {
 h = '<tr><th class="l">Ticker</th><th>Vencimiento</th><th>Días</th><th>Precio<br>($ por USD 100)</th><th>vs spot<br>A3500</th><th>TNA USD<br>30/365</th><th>TEA USD<br>(TC cte.)</th>' + (scOn ? '<th>TEA pesos<br>(esc.)</th>' : '') + '<th>' + met + '<br>pesos</th><th>Devaluación BE<br>(mensual)</th>' + (remOn ? '<th>REM<br>(prom.)</th><th>BE − REM<br>(pp)</th>' : '') + '' + VH + mh + '</tr>';
     by('dl').forEach(function (o) {
-      var tgt = interp(fc, o.d), be = tgt == null ? null : beSolve(o, s, sc, 'dev', tgt, -0.05, 0.25); o.be = be;
-      h += '<tr>' + tkcell(o) + '<td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td>' + fm(o.P, 0) + '</td><td>' + sg(o.prem * 100, 2) + '%</td><td style="' + AC + '">' + pcs(o.usdTna30) + '</td><td>' + pcs(o.usdTea) + '</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + '<td>' + pcs(MET(o)) + '</td><td style="' + BE + '">' + pcs(be, 2) + '</td>' + (o.rem = remFx(o), remOn ? remTd(be, o.rem, 2) : '') + '' + vcells(o, 0) + mc(o) + '</tr>';
+      var tgt = interp(fc, o.d), be = isOut(o) || tgt == null ? null : beSolve(o, s, sc, 'dev', tgt, -0.05, 0.25); o.be = be;
+      h += '<tr>' + tkcell(o) + '<td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td>' + fm(o.P, 0) + '</td><td>' + sg(o.prem * 100, 2) + '%</td><td style="' + AC + '">' + pcs(o.usdTna30) + '</td><td>' + pcs(o.usdTea) + '</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + '<td>' + pcs(MET(o)) + '</td>' + beTd(o, be, 2) + (o.rem = remFx(o), remOn ? remOut(o, be, 2) : '') + '' + vcells(o, 0) + mc(o) + '</tr>';
     });
+    h += outRow(by('dl'), 'Devaluación breakeven');
     document.getElementById('psDl').innerHTML = h;
     }
         if (!only || only === 5) {
@@ -2587,6 +2596,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var col = function (p) { if (p.byDiff) return (p.y - p.y0) * -cheapSign > 0 ? GR : RD; if (spec.zero) return p.y >= 0 ? GR : RD; if (!fit) return pcol; if (p.out) return '#94a3b8'; var r = p.res * cheapSign; return Math.abs(r) < 0.25 * fit.sigma ? '#60a5fa' : r > 0 ? GR : RD; };
     CMAP[ref] = {}; P.forEach(function (p) { CMAP[ref][p.k] = col(p); });
     var kn = document.getElementById(id.replace('psC', 'psKn')); if (kn) kn.textContent = fit ? 'Curva: ' + fit.name + ' · dispersión ±1σ = ' + fm(fit.sigma, 2) + (spec.sfx == null || spec.sfx === '%' ? ' pp' : '') + ' (banda sombreada)' : '';
+    var beOut = /breakeven/.test(spec.label) ? S.filter(function (o) { return o.beOut && !o.miss && o.d <= cap; }).sort(function (a, b) { return a.d - b.d; }) : []; // sin breakeven: vencen después de la Lecap más larga
+    if (kn && beOut.length) kn.textContent += (kn.textContent ? ' · ' : '') + 'Sin graficar: ' + beOut.map(function (o) { return o.k; }).join(', ') + ' (vence' + (beOut.length > 1 ? 'n' : '') + ' después de la Lecap más larga, ' + beOut[0].beLmax + ' días; no hay tasa Lecap con la que comparar)';
     var G = []; if (gmap) P.forEach(function (p) { var gv = gmap[p.k]; if (gv == null || !isFinite(gv)) return; var y1 = gv * 100; if (Math.abs(y1 - p.y) < 0.005) return; var g = { x: p.x, y: y1, k: p.k, y0: p.y, gh: true, dual: p.dual, byDiff: !!spec.gsc }; if (fit) { if (p.out) g.out = true; else { g.fy = p.fy; g.res = y1 - p.fy; } } G.push(g); });
     sets.push({ type: 'scatter', label: 'Instrumentos', data: P, fairPts: !!fit, backgroundColor: P.map(col), borderColor: P.map(col), pointRadius: 7, hoverRadius: 9, pointStyle: P.map(function (p) { return p.dual ? 'triangle' : 'circle'; }), order: 1 });
     var sf = spec.sfx == null ? '%' : spec.sfx;
