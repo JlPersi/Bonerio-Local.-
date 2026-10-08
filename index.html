@@ -1446,19 +1446,17 @@ window.fetchLive = async function() {
   });
 }
 
-// marca chiquita abajo a la derecha (logo + "Bonerío Local") en una franja agregada al pie, para no tapar datos
-window.addBrandMark = function(src, sc, bgCol) {
-    const u = sc || 1, pad = 8 * u, logo = 16 * u, fs = 11 * u, strip = logo + pad * 2;
-    const out = document.createElement('canvas');
-    out.width = src.width; out.height = src.height + Math.round(strip);
-    const ctx = out.getContext('2d');
-    ctx.fillStyle = bgCol; ctx.fillRect(0, 0, out.width, out.height);
-    ctx.drawImage(src, 0, 0);
-    const css = getComputedStyle(document.body), txCol = css.getPropertyValue('--mu').trim() || '#a8a29e';
+// marca arriba a la derecha (logo + "Bonerío Local"), sobre el hueco que dejan los botones de la tarjeta (no salen en la imagen)
+window.addBrandMark = function(cv, sc) {
+    const u = sc || 1, pad = 14 * u, logo = 22 * u, fs = 14 * u, gap = 7 * u;
+    const ctx = cv.getContext('2d');
+    const txCol = getComputedStyle(document.body).getPropertyValue('--mu').trim() || '#a8a29e';
     const label = 'Bonerío Local';
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); // html2canvas deja el contexto escalado
     ctx.font = '600 ' + fs + 'px "JetBrains Mono", monospace';
-    const tw = ctx.measureText(label).width, gap = 5 * u;
-    const lx = out.width - pad - tw - gap - logo, ly = src.height + pad;
+    const tw = ctx.measureText(label).width;
+    const lx = cv.width - pad - tw - gap - logo, ly = pad;
+    ctx.globalAlpha = 0.9;
     // logo (mismo dibujo que favicon.svg, viewBox 64x64)
     ctx.save(); ctx.translate(lx, ly); ctx.scale(logo / 64, logo / 64);
     ctx.fillStyle = '#1c1917'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(0, 0, 64, 64, 14); else ctx.rect(0, 0, 64, 64); ctx.fill();
@@ -1469,35 +1467,53 @@ window.addBrandMark = function(src, sc, bgCol) {
     ctx.restore();
     ctx.fillStyle = txCol; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
     ctx.fillText(label, lx + logo + gap, ly + logo / 2);
-    return out;
+    ctx.restore();
+    return cv;
 };
 
-window.downloadSnapshotHD = function(targetId, fileName, scale) {
+// la captura se hace sin el zoom del 90% y con el mismo ancho de diseño que la pantalla. Para que la página no se mueva, el zoom pasa
+// del <html> a cada hijo del <body> (se ve igual) y la copia de html2canvas, que va en un iframe nuevo del body, queda sin zoom.
+// hide: nodos que no van en la imagen (se ocultan solo en la copia)
+window.downloadSnapshotHD = function(targetId, fileName, scale, hide) {
     if (!targetId) return;
     const target = document.getElementById(targetId);
     if (!target) return;
     if (typeof html2canvas === 'undefined') { $('statusTxt').textContent = 'No se pudo cargar html2canvas (¿sin conexión?)'; return; }
 
-    const oldOverflow = target.style.overflowX;
-    target.style.overflowX = 'visible';
-    document.documentElement.style.zoom = '1'; // la captura se hace sin el zoom del 90%
     const bgCol = getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#1c1917';
+    const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+    (hide || []).forEach(function(n) { n.setAttribute('data-dlhide', '1'); });
+    const unhide = function() { (hide || []).forEach(function(n) { n.removeAttribute('data-dlhide'); }); };
+    const kids = z !== 1 ? [].slice.call(document.body.children) : [];
+    kids.forEach(function(n) { n._dlZoom = n.style.zoom; n.style.zoom = String(z); });
+    if (kids.length) document.documentElement.style.zoom = '1';
+    const unzoom = function() { if (!kids.length) return; document.documentElement.style.zoom = ''; kids.forEach(function(n) { n.style.zoom = n._dlZoom; delete n._dlZoom; }); };
 
-    // calidad máxima sin importar la pantalla: los gráficos se redibujan a 3x de resolución y la imagen se genera a 3x (acotado por el tamaño máximo del canvas)
+    // calidad máxima sin importar la pantalla: los gráficos se redibujan a 3x de resolución (mismo tamaño en pantalla) y la imagen se genera a 3x (acotado por el tamaño máximo del canvas)
     const HQ = 3, charts = (window.Chart && Chart.instances) ? Object.keys(Chart.instances).map(function(k) { return Chart.instances[k]; }).filter(function(c) { return c && c.canvas && target.contains(c.canvas); }) : [];
     charts.forEach(function(c) { try { c._hqPrev = c.options.devicePixelRatio; c.options.devicePixelRatio = HQ; c.resize(); } catch (e) {} });
     const w0 = Math.max(1, target.scrollWidth), h0 = Math.max(1, target.scrollHeight);
     const sc = Math.max(1.5, Math.min(scale || HQ, 16000 / Math.max(w0, h0), Math.sqrt(1.3e8 / (w0 * h0))));
     const restoreHQ = function() { charts.forEach(function(c) { try { if (c._hqPrev === undefined) delete c.options.devicePixelRatio; else c.options.devicePixelRatio = c._hqPrev; delete c._hqPrev; c.resize(); } catch (e) {} }); };
-    new Promise(function(r) { setTimeout(r, 200); }).then(function() { return html2canvas(target, { scale: sc, backgroundColor: bgCol, useCORS: true, logging: false, onclone: function(doc) { var st = doc.createElement('style'); st.textContent = '*{font-variant-numeric:normal !important}'; doc.head.appendChild(st); try { if (window.dlOnClone) window.dlOnClone(doc, targetId); } catch (e) {} } }); }).then(function(canvas) {
-        target.style.overflowX = oldOverflow; document.documentElement.style.zoom = ''; restoreHQ();
-        try { canvas = window.addBrandMark(canvas, sc, bgCol); } catch (e) { console.error(e); }
+    const done = function() { unzoom(); unhide(); restoreHQ(); };
+    new Promise(function(r) { setTimeout(r, 60); }).then(function() {
+        return html2canvas(target, { scale: sc, backgroundColor: bgCol, useCORS: true, logging: false,
+            windowWidth: Math.round(window.innerWidth / z), windowHeight: Math.round(window.innerHeight / z),
+            onclone: function(doc) {
+                doc.documentElement.style.zoom = '1'; [].forEach.call(doc.body.children, function(n) { n.style.zoom = ''; });
+                var st = doc.createElement('style'); st.textContent = '*{font-variant-numeric:normal !important}[data-dlhide]{display:none !important}'; doc.head.appendChild(st);
+                var t = doc.getElementById(targetId); if (t) t.style.overflowX = 'visible';
+                try { if (window.dlOnClone) window.dlOnClone(doc, targetId); } catch (e) {}
+            } });
+    }).then(function(canvas) {
+        done();
+        try { window.addBrandMark(canvas, sc); } catch (e) { console.error(e); }
         const link = document.createElement('a');
         link.download = fileName + '_' + new Date().toISOString().slice(0, 10) + '.png';
         link.href = canvas.toDataURL('image/png');
         link.click();
     }).catch(function(err) {
-        console.error(err); target.style.overflowX = oldOverflow; document.documentElement.style.zoom = ''; restoreHQ(); $('statusTxt').textContent = 'Error al generar la imagen: ' + err.message;
+        console.error(err); done(); $('statusTxt').textContent = 'Error al generar la imagen: ' + err.message;
     });
 }
 
@@ -3630,12 +3646,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     } catch (e) { console.error('vol', e); var s2 = document.getElementById('vlSub'); if (s2) s2.textContent = 'Error: ' + e.message; }
   }
   window.vlDlRank = function () { // la imagen lleva todas las filas del ranking, no solo las que entran en el recuadro con scroll
-    var c = document.getElementById('vlSc2'), mh = c.style.maxHeight, ov = c.style.overflow; c.style.maxHeight = 'none'; c.style.overflow = 'visible';
     if (window.downloadSnapshotHD) window.downloadSnapshotHD('vlS2', 'Soberanos_Volumen_Ranking');
-    setTimeout(function () { c.style.maxHeight = mh; c.style.overflow = ov; }, 2500);
   };
   window.dlOnClone = function (doc, id) { // las imágenes de cada sección llevan arriba los filtros que se usaron
     if (!/^vlS[123]$/.test(id)) return;
+    var sc2 = doc.getElementById('vlSc2'); if (sc2 && id === 'vlS2') { sc2.style.maxHeight = 'none'; sc2.style.overflow = 'visible'; }
     var src = document.querySelector('#vol .rc.rs'), host = doc.getElementById(id); if (!src || !host) return;
     var c = src.cloneNode(true), a = src.querySelectorAll('select'), b = c.querySelectorAll('select'), k;
     for (k = 0; k < a.length; k++) b[k].selectedIndex = a[k].selectedIndex;
@@ -3844,11 +3859,9 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   }
   function run(id, name, scale, mode) {
     var card = document.getElementById(id), hid = [];
-    if (mode !== 'both') hideSet(card, mode).forEach(function (n) { hid.push([n, n.style.display]); n.style.display = 'none'; });
+    if (mode !== 'both') hid = hideSet(card, mode);
     var suffix = mode === 'chart' ? '_grafico' : mode === 'table' ? '_tabla' : (hid.length || card.querySelector('canvas') && card.querySelector('table') ? '_completo' : '');
-    orig(id, name + suffix, scale);
-    if (!hid.length) return;
-    var t0 = Date.now(), iv = setInterval(function () { if (document.documentElement.style.zoom !== '1' || Date.now() - t0 > 30000) { clearInterval(iv); hid.forEach(function (h) { h[0].style.display = h[1]; }); } }, 120);
+    orig(id, name + suffix, scale, hid);
   }
   window.downloadSnapshotHD = function (id, name, scale) {
     var card = id && document.getElementById(id);
