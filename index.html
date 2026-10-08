@@ -1329,10 +1329,10 @@ window.updateSpreadChart = function() {
   if (windowHist.length === 0) throw new Error('No hay datos en ese rango de fechas.');
 
   const labels = windowHist.map(function(x) { return x[0]; });
-  const vals = windowHist.map(function(x) { return x[1]; });
+  const vals = windowHist.map(function(x) { return x[1] * 100; }); // en pb
   const mean = vals.reduce(function(s, v) { return s + v; }, 0) / vals.length;
   const std = Math.sqrt(vals.reduce(function(s, v) { return s + Math.pow(v - mean, 2); }, 0) / vals.length);
-  const actual = liveSpreadFor(key);
+  const actual = liveSpreadFor(key) == null ? null : liveSpreadFor(key) * 100;
 
   const line = function(n) { return labels.map(function() { return n; }); };
   
@@ -1370,13 +1370,13 @@ window.updateSpreadChart = function() {
         plugins: { title: { display: !window.matchMedia('(max-width:700px)').matches, text: 'Spread Legislación · ' + p.loc + ' vs ' + p.ny + ' · ' + lo + ' a ' + hi, font: { size: 16, weight: 'bold' }, color: colorTx, padding: { bottom: 14 } }, legend: { labels: { usePointStyle: true, boxWidth: 14, boxHeight: 6, padding: 16 } } },
         scales: { 
             x: { grid: { color: colorBd, drawBorder: false }, ticks: { maxTicksLimit: 12, font: { size: 14 } } }, 
-            y: { grid: { color: colorBd, drawBorder: false }, title: { display: true, text: 'Spread (pp)', font: { weight: 'bold' } }, ticks: { font: { size: 14 }, callback: function(v) { return v.toFixed(1) + '%'; } } } 
+            y: { grid: { color: colorBd, drawBorder: false }, title: { display: true, text: 'Spread (pb)', font: { weight: 'bold' } }, ticks: { font: { size: 14 }, callback: function(v) { return Math.round(v) + ' pb'; } } } 
         }
        }
       });
   }
 
-  const fmt = function(v) { return v == null || !isFinite(v) ? 'n/a' : v.toFixed(2) + '%'; };
+  const fmt = function(v) { return v == null || !isFinite(v) ? 'n/a' : Math.round(v) + ' pb'; };
   const zNow = actual != null && std > 0 ? (actual - mean) / std : null;
   const pctl = actual != null ? 100 * vals.filter(function(v) { return v <= actual; }).length / vals.length : null;
   const nLog = logDays().length;
@@ -2007,7 +2007,7 @@ setInterval(window.fetchLive, 90000);
       var hist = spreadHistFor(key, c.sp).map(function (x) { return x[1] * 100; }), cur = (a.tir - n.tir) * 1e4;
       var m = mean(hist), s = std(hist), z = s ? (cur - m) / s : null, pr = hist.length ? pctl(hist, cur) : null, cap = (cur - m) / 1e4 * a.md * 100;
       var idea = z == null ? '' : z > 1 ? '<span class="tag up">comprar Local / vender NY</span>' : z < -1 ? '<span class="tag dn">comprar NY / vender Local</span>' : '<span class="tag">neutral</span>';
-      h += '<tr><td class="k">' + p.loc + ' / ' + p.ny + '</td><td>' + fm(a.clean, 2) + '</td><td>' + fm(n.clean, 2) + '</td><td>' + fm(a.clean / n.clean, 3) + '</td><td style="color:var(--ac);font-weight:700">' + fm(cur, 0) + '</td><td>' + fm(m, 0) + '</td><td style="' + colorOf(z, 3) + '">' + sg(z, 1) + '</td><td>' + (pr == null ? 'n/a' : fm(pr, 0) + '°') + '</td><td>' + sg(cap, 2) + '%</td><td>' + sg((a.cy - n.cy) * 100, 2) + ' pp</td><td>' + idea + '</td></tr>';
+      h += '<tr><td class="k">' + p.loc + ' / ' + p.ny + '</td><td>' + fm(a.clean, 2) + '</td><td>' + fm(n.clean, 2) + '</td><td>' + fm(a.clean / n.clean, 3) + '</td><td style="color:var(--ac);font-weight:700">' + fm(cur, 0) + '</td><td>' + fm(m, 0) + '</td><td style="' + colorOf(z, 3) + '">' + sg(z, 1) + '</td><td>' + (pr == null ? 'n/a' : fm(pr, 0) + '°') + '</td><td>' + sg(cap, 2) + '%</td><td>' + sg((a.cy - n.cy) * 1e4, 0) + ' pb</td><td>' + idea + '</td></tr>';
     });
     document.getElementById('qSwap').innerHTML = h;
   }
@@ -2285,7 +2285,7 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
   function remCer(o, sc) { var T = bdBack(o.mat, 10), l = lastOf(IDX.CER); if (T <= l) return null; return Math.pow(cerAt(T, sc || REMSC) / IDX.CER.v[IDX.CER.v.length - 1], 30.4375 / (T - l)) - 1; }
   function remFx(o, sc) { var T = bdBack(o.mat, 3), l = lastOf(IDX.FX); if (T <= l) return null; return Math.pow(fxAt(T, sc || REMSC) / IDX.FX.v[IDX.FX.v.length - 1], 30.4375 / (T - l)) - 1; }
   function remTam(o, sc) { var lt = lastOf(IDX.TAMAR), a = 0, n = 0; for (var t = lt + 1; t < o.mat; t++) { a += tamAt(t, sc || REMSC); n++; } return n ? a / n : null; }
-  var remTd = function (be, rem, d) { return '<td>' + pcs(rem, d) + '</td><td>' + (be == null || rem == null ? 'n/a' : sg((be - rem) * 100, 2)) + '</td>'; };
+  var remTd = function (be, rem, d) { return '<td>' + pcs(rem, d) + '</td><td>' + (be == null || rem == null ? 'n/a' : sg((be - rem) * 1e4, 0)) + '</td>'; };
 
   /* ---------- CSS: mismo estilo que Quant ---------- */
   (function () {
@@ -2456,7 +2456,7 @@ h = '<tr><th class="l">Ticker</th><th>Vencimiento</th><th>Días</th><th>Precio</
     document.getElementById('psFija').innerHTML = h;
     }
         if (!only || only === 2) {
-h = '<tr><th class="l">Ticker</th><th>Vencimiento</th><th>Días</th><th>Precio</th><th>TIR real<br>(TEA)</th><th>TNA real<br>30/365</th>' + (scOn ? '<th>TEA nominal<br>(esc.)</th>' : '') + '<th>' + met + '<br>nominal</th><th>Inflación BE<br>(mensual)</th>' + (remOn ? '<th>REM<br>(mensual)</th><th>BE − REM<br>(pp)</th>' : '') + '' + VH + mh + '</tr>';
+h = '<tr><th class="l">Ticker</th><th>Vencimiento</th><th>Días</th><th>Precio</th><th>TIR real<br>(TEA)</th><th>TNA real<br>30/365</th>' + (scOn ? '<th>TEA nominal<br>(esc.)</th>' : '') + '<th>' + met + '<br>nominal</th><th>Inflación BE<br>(mensual)</th>' + (remOn ? '<th>REM<br>(mensual)</th><th>BE − REM<br>(pb)</th>' : '') + '' + VH + mh + '</tr>';
     by('cer').forEach(function (o) {
       if (o.miss) { h += '<tr>' + tkcell(o) + '<td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td>' + fm(o.P, 2) + '</td><td colspan="' + (4 + (scOn ? 1 : 0)) + '" class="note" style="margin:0">Sin CER de emisión para calcular el coeficiente</td></tr>'; return; }
       var tgt = interp(fc, o.d), known = bdBack(o.mat, 10) <= lastOf(IDX.CER) + 20 /* con menos de 20 días de CER por proyectar el breakeven no es estable */, be = isOut(o) || tgt == null || known ? null : beSolve(o, s, sc, 'pi', tgt, -0.05, 0.25); o.be = be;
@@ -2469,7 +2469,7 @@ h = '<tr><th class="l">Ticker</th><th>Vencimiento</th><th>Días</th><th>Precio</
     document.getElementById('psCer').innerHTML = h;
     }
         if (!only || only === 3) {
-h = '<tr><th class="l">Ticker</th><th>Emisión</th><th>Vencimiento</th><th>Días</th><th>Margen</th><th>Precio</th><th>Pago final<br>(esc.)</th><th>Margen<br>s/ TAMAR</th><th>TAMAR +<br>margen (TNA)</th>' + (scOn ? '<th>TEA<br>(esc.)</th>' : '') + '<th>TAMAR BE<br>(TNA)</th>' + (remOn ? '<th>REM<br>(prom.)</th><th>BE − REM<br>(pp)</th>' : '') + '' + VH + mh + '</tr>';
+h = '<tr><th class="l">Ticker</th><th>Emisión</th><th>Vencimiento</th><th>Días</th><th>Margen</th><th>Precio</th><th>Pago final<br>(esc.)</th><th>Margen<br>s/ TAMAR</th><th>TAMAR +<br>margen (TNA)</th>' + (scOn ? '<th>TEA<br>(esc.)</th>' : '') + '<th>TAMAR BE<br>(TNA)</th>' + (remOn ? '<th>REM<br>(prom.)</th><th>BE − REM<br>(pb)</th>' : '') + '' + VH + mh + '</tr>';
     by('tamar').forEach(function (o) {
       var tgt = interp(fc, o.d), be = isOut(o) || tgt == null ? null : beSolve(o, s, sc, 'tam', tgt, 0, 3); o.be = be;
       h += '<tr>' + tkcell(o) + '<td>' + dstr(o.ins.iss) + '</td><td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td>' + pcs(o.sp, 2) + '</td><td>' + fm(o.P, 2) + '</td><td>' + fm(o.M, 2) + '</td><td style="' + AC + '">' + fm(o.dm, 2) + '%</td><td>' + fm(o.tnaT, 1) + '%</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + beTd(o, be, 1) + (o.rem = remTam(o), remOn ? remOut(o, be, 1) : '') + '' + vcells(o, 2) + mc(o) + '</tr>';
@@ -2481,7 +2481,7 @@ h = '<tr><th class="l">Ticker</th><th>Emisión</th><th>Vencimiento</th><th>Días
     document.getElementById('psTamar').innerHTML = h;
     }
         if (!only || only === 4) {
-h = '<tr><th class="l">Ticker</th><th>Vencimiento</th><th>Días</th><th>Precio<br>($ por USD 100)</th><th>vs spot<br>A3500</th><th>TNA USD<br>30/365</th><th>TEA USD<br>(TC cte.)</th>' + (scOn ? '<th>TEA pesos<br>(esc.)</th>' : '') + '<th>' + met + '<br>pesos</th><th>Devaluación BE<br>(mensual)</th>' + (remOn ? '<th>REM<br>(prom.)</th><th>BE − REM<br>(pp)</th>' : '') + '' + VH + mh + '</tr>';
+h = '<tr><th class="l">Ticker</th><th>Vencimiento</th><th>Días</th><th>Precio<br>($ por USD 100)</th><th>vs spot<br>A3500</th><th>TNA USD<br>30/365</th><th>TEA USD<br>(TC cte.)</th>' + (scOn ? '<th>TEA pesos<br>(esc.)</th>' : '') + '<th>' + met + '<br>pesos</th><th>Devaluación BE<br>(mensual)</th>' + (remOn ? '<th>REM<br>(prom.)</th><th>BE − REM<br>(pb)</th>' : '') + '' + VH + mh + '</tr>';
     by('dl').forEach(function (o) {
       var tgt = interp(fc, o.d), be = isOut(o) || tgt == null ? null : beSolve(o, s, sc, 'dev', tgt, -0.05, 0.25); o.be = be;
       h += '<tr>' + tkcell(o) + '<td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td>' + fm(o.P, 0) + '</td><td>' + sg(o.prem * 100, 2) + '%</td><td style="' + AC + '">' + pcs(o.usdTna30) + '</td><td>' + pcs(o.usdTea) + '</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + '<td>' + pcs(MET(o)) + '</td>' + beTd(o, be, 2) + (o.rem = remFx(o), remOn ? remOut(o, be, 2) : '') + '' + vcells(o, 0) + mc(o) + '</tr>';
@@ -2610,7 +2610,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     if (allx.length) { var mn = Math.min.apply(null, allx), mx = Math.max.apply(null, allx), rg = Math.max(mx - mn, 1); if (fit) { mn = Math.min(mn, cu0); mx = Math.max(mx, cu1); } ax0 = useLog ? Math.max(5, mn * 0.85) : Math.max(0, mn - 0.03 * rg); ax1 = useLog ? mx * 1.12 : mx + 0.04 * rg; }
     var col = function (p) { if (p.byDiff) return (p.y - p.y0) * -cheapSign > 0 ? GR : RD; if (spec.zero) return p.y >= 0 ? GR : RD; if (!fit) return pcol; if (p.out) return '#94a3b8'; var r = p.res * cheapSign; return Math.abs(r) < 0.25 * fit.sigma ? '#60a5fa' : r > 0 ? GR : RD; };
     CMAP[ref] = {}; P.forEach(function (p) { CMAP[ref][p.k] = col(p); });
-    var kn = document.getElementById(id.replace('psC', 'psKn')); if (kn) kn.textContent = fit ? 'Curva: ' + fit.name + ' · dispersión ±1σ = ' + fm(fit.sigma, 2) + (spec.sfx == null || spec.sfx === '%' ? ' pp' : '') + ' (banda sombreada)' : '';
+    var kn = document.getElementById(id.replace('psC', 'psKn')); if (kn) kn.textContent = fit ? 'Curva: ' + fit.name + ' · dispersión ±1σ = ' + (spec.sfx == null || spec.sfx === '%' ? fm(fit.sigma * 100, 0) + ' pb' : fm(fit.sigma, 2)) + ' (banda sombreada)' : '';
     var beOut = /breakeven/.test(spec.label) ? S.filter(function (o) { return o.beOut && !o.miss && o.d <= cap; }).sort(function (a, b) { return a.d - b.d; }) : []; // sin breakeven: vencen después de la Lecap más larga
     if (kn && beOut.length) kn.textContent += (kn.textContent ? ' · ' : '') + 'Sin graficar: ' + beOut.map(function (o) { return o.k; }).join(', ') + ' (vence' + (beOut.length > 1 ? 'n' : '') + ' después de la Lecap más larga, ' + beOut[0].beLmax + ' días; no hay tasa Lecap con la que comparar)';
     var G = []; if (gmap) P.forEach(function (p) { var gv = gmap[p.k]; if (gv == null || !isFinite(gv)) return; var y1 = gv * 100; if (Math.abs(y1 - p.y) < 0.005) return; var g = { x: p.x, y: y1, k: p.k, y0: p.y, gh: true, dual: p.dual, byDiff: !!spec.gsc }; if (fit) { if (p.out) g.out = true; else { g.fy = p.fy; g.res = y1 - p.fy; } } G.push(g); });
@@ -2716,8 +2716,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       } else {
         var yA = ts.map(function (t) { return mapA[t].y; }); dsets.push(line(kA + ' (' + yieldLab(kA) + ')', yA, cA)); scales.y.title.text = 'Rendimiento (%)'; scales.y.ticks.callback = function (v) { return fm(v, 1) + '%'; };
         var lastOf_ = function (a) { for (var i = a.length - 1; i >= 0; i--) if (a[i] != null) return a[i]; return null; }, firstOf_ = function (a) { for (var i = 0; i < a.length; i++) if (a[i] != null) return a[i]; return null; };
-        stats += box(kA + ' · ' + yieldLab(kA), fm(lastOf_(yA), 2) + '%', 'Cambio ' + sg(lastOf_(yA) - firstOf_(yA), 2) + ' pp');
-        if (B) { var yB = ts.map(function (t) { return mapB[t].y; }); dsets.push(line(kB + ' (' + yieldLab(kB) + ')', yB, cB)); stats += box(kB + ' · ' + yieldLab(kB), fm(lastOf_(yB), 2) + '%', 'Cambio ' + sg(lastOf_(yB) - firstOf_(yB), 2) + ' pp'); if (yieldLab(kA) === yieldLab(kB)) stats += box('Spread A − B', sg(lastOf_(yA) - lastOf_(yB), 2) + ' pp', 'Hoy'); }
+        stats += box(kA + ' · ' + yieldLab(kA), fm(lastOf_(yA), 2) + '%', 'Cambio ' + sg((lastOf_(yA) - firstOf_(yA)) * 100, 0) + ' pb');
+        if (B) { var yB = ts.map(function (t) { return mapB[t].y; }); dsets.push(line(kB + ' (' + yieldLab(kB) + ')', yB, cB)); stats += box(kB + ' · ' + yieldLab(kB), fm(lastOf_(yB), 2) + '%', 'Cambio ' + sg((lastOf_(yB) - firstOf_(yB)) * 100, 0) + ' pb'); if (yieldLab(kA) === yieldLab(kB)) stats += box('Spread A − B', sg((lastOf_(yA) - lastOf_(yB)) * 100, 0) + ' pb', 'Hoy'); }
       }
     }
     document.getElementById('psHStats').innerHTML = stats;
