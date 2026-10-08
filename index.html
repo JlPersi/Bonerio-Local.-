@@ -1446,6 +1446,32 @@ window.fetchLive = async function() {
   });
 }
 
+// marca chiquita abajo a la derecha (logo + "Bonerío Local") en una franja agregada al pie, para no tapar datos
+window.addBrandMark = function(src, sc, bgCol) {
+    const u = sc || 1, pad = 8 * u, logo = 16 * u, fs = 11 * u, strip = logo + pad * 2;
+    const out = document.createElement('canvas');
+    out.width = src.width; out.height = src.height + Math.round(strip);
+    const ctx = out.getContext('2d');
+    ctx.fillStyle = bgCol; ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(src, 0, 0);
+    const css = getComputedStyle(document.body), txCol = css.getPropertyValue('--mu').trim() || '#a8a29e';
+    const label = 'Bonerío Local';
+    ctx.font = '600 ' + fs + 'px "JetBrains Mono", monospace';
+    const tw = ctx.measureText(label).width, gap = 5 * u;
+    const lx = out.width - pad - tw - gap - logo, ly = src.height + pad;
+    // logo (mismo dibujo que favicon.svg, viewBox 64x64)
+    ctx.save(); ctx.translate(lx, ly); ctx.scale(logo / 64, logo / 64);
+    ctx.fillStyle = '#1c1917'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(0, 0, 64, 64, 14); else ctx.rect(0, 0, 64, 64); ctx.fill();
+    ctx.save(); ctx.translate(13, 12); ctx.scale(0.5, 0.5); ctx.strokeStyle = '#f6b40e'; ctx.lineWidth = 9;
+    ['M4.5 0 V56', 'M4.5 4.5 H20 A10.5 10.5 0 0 1 20 25.5 H4.5', 'M4.5 25.5 H22 A13 13 0 0 1 22 51.5 H4.5', 'M50.5 0 V56', 'M46 51.5 H76'].forEach(function(d) { ctx.stroke(new Path2D(d)); });
+    ctx.restore();
+    ctx.fillStyle = '#75aadb'; ctx.fillRect(12, 47, 40, 3.6); ctx.fillStyle = '#fff'; ctx.fillRect(12, 52, 40, 3.6);
+    ctx.restore();
+    ctx.fillStyle = txCol; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    ctx.fillText(label, lx + logo + gap, ly + logo / 2);
+    return out;
+};
+
 window.downloadSnapshotHD = function(targetId, fileName, scale) {
     if (!targetId) return;
     const target = document.getElementById(targetId);
@@ -1465,6 +1491,7 @@ window.downloadSnapshotHD = function(targetId, fileName, scale) {
     const restoreHQ = function() { charts.forEach(function(c) { try { if (c._hqPrev === undefined) delete c.options.devicePixelRatio; else c.options.devicePixelRatio = c._hqPrev; delete c._hqPrev; c.resize(); } catch (e) {} }); };
     new Promise(function(r) { setTimeout(r, 200); }).then(function() { return html2canvas(target, { scale: sc, backgroundColor: bgCol, useCORS: true, logging: false, onclone: function(doc) { var st = doc.createElement('style'); st.textContent = '*{font-variant-numeric:normal !important}'; doc.head.appendChild(st); try { if (window.dlOnClone) window.dlOnClone(doc, targetId); } catch (e) {} } }); }).then(function(canvas) {
         target.style.overflowX = oldOverflow; document.documentElement.style.zoom = ''; restoreHQ();
+        try { canvas = window.addBrandMark(canvas, sc, bgCol); } catch (e) { console.error(e); }
         const link = document.createElement('a');
         link.download = fileName + '_' + new Date().toISOString().slice(0, 10) + '.png';
         link.href = canvas.toDataURL('image/png');
