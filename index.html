@@ -2499,6 +2499,21 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     });
     document.getElementById('psDual').innerHTML = h;
     }
+    if (cs) ['psFija', 'psCer', 'psTamar', 'psDl', 'psDual'].forEach(function (id) { var t = document.getElementById(id); if (t) dedupGraphCol(t); });
+  }
+  // si la columna "(gráfico)" repite una que ya está en la tabla, se saca y la original queda resaltada en naranja
+  function dedupGraphCol(t) {
+    var R = [].slice.call(t.rows), hd = R[0]; if (!hd) return; var n = hd.cells.length, L = n - 1; if (L < 1 || !/\(gráfico\)/i.test(hd.cells[L].textContent)) return;
+    var D = R.slice(1).filter(function (r) { return r.cells.length === n; }); if (!D.length) return;
+    var num = function (x) { x = x.trim(); var pc = /%$/.test(x), v = x.replace(/[%\s+]/g, '').replace(/\./g, '').replace(',', '.').replace('−', '-'); if (!/^-?\d+(\.\d+)?$/.test(v)) return null; return { v: +v, pc: pc, d: (v.split('.')[1] || '').length }; };
+    var same = function (a, b) { var x = num(a), y = num(b); if (!x || !y) return !x && !y && a.trim() === b.trim() ? 0 : -1; if (x.pc !== y.pc) return -1; return Math.abs(x.v - y.v) <= 0.5 * Math.pow(10, -Math.min(x.d, y.d)) + 1e-9 ? 1 : -1; };
+    var best = -1, bs = 0; // la columna que coincide en todas las filas (al menos un número y dos filas), y entre esas la de más números iguales
+    for (var j = 1; j < L; j++) {
+      var nn = 0, bad = false; D.forEach(function (r) { var c = same(r.cells[L].textContent, r.cells[j].textContent); if (c < 0) bad = true; else nn += c; });
+      if (!bad && nn >= 1 && D.length >= 2 && nn > bs) { best = j; bs = nn; }
+    }
+    if (best < 0) return; var j = best;
+    R.forEach(function (r) { if (r.cells.length !== n) return; r.deleteCell(L); [].forEach.call(r.cells, function (c, k) { c.style.cssText = c.style.cssText.replace(/color:\s*var\(--ac\);?\s*font-weight:\s*700;?/g, ''); if (k === j) { c.style.color = 'var(--ac)'; c.style.fontWeight = '700'; } }); });
   }
 
   /* ---------- gráficos por universo: curva fair suavizada + puntos barato / caro ---------- */
