@@ -1035,7 +1035,7 @@ window.updateCFChart = function() {
         y1: { position: 'right', beginAtZero: true, grid: { display: false }, title: { display: true, text: 'Acumulado (USD)', font: { weight: 'bold' } }, ticks: { font: { size: 13 }, callback: function(v) { return '$' + v.toLocaleString('es-AR'); } } }
     };
     const plug = { id: 'cfClipLabels', afterDatasetsDraw: function(ch) {
-        if (!ch.$clip) return; const ctx = ch.ctx, a = ch.chartArea;
+        if (!ch.$clip || !ch.isDatasetVisible(0)) return; const ctx = ch.ctx, a = ch.chartArea;
         ctx.save(); ctx.font = 'bold 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = style.getPropertyValue('--bad').trim();
         const meta = ch.getDatasetMeta(0);
         ch.$clip.forEach(function(c) { const el = meta.data[c.i]; if (el) ctx.fillText('▲ ' + usd(c.v), el.x, a.top - 6); });
@@ -1249,6 +1249,7 @@ window.updateCurveChart = function() {
                     ctx.textAlign = "left"; ctx.textBaseline = "middle";
 
                     chart.data.datasets.forEach(function(dataset, i) {
+                        if (!chart.isDatasetVisible(i)) return; // serie oculta desde la leyenda: sin rótulos
                         if (dataset.data && dataset.data.length && dataset.data[0] && dataset.data[0].bono) {
                             const meta = chart.getDatasetMeta(i);
                             meta.data.forEach(function(element, index) {
@@ -1561,7 +1562,8 @@ window.downloadSnapshotHD = function(targetId, fileName, scale, hide) {
     afterDatasetsDraw: function (ch) {
       var s = ch.$ph; if (!s) return;
       var x = ch.scales.x, y = ch.scales.y, a = ch.chartArea, ctx = ch.ctx;
-      var L = s.labels.map(function (l) { return { t: l.t, c: l.c, b: l.b, py: y.getPixelForValue(l.v) }; })
+      var vis = function (l) { if (!l.d) return true; var i = ch.data.datasets.findIndex(function (d) { return d.label === l.d; }); return i < 0 || ch.isDatasetVisible(i); }; // rótulo de una serie oculta desde la leyenda: no va
+      var L = s.labels.filter(vis).map(function (l) { return { t: l.t, c: l.c, b: l.b, py: y.getPixelForValue(l.v) }; })
         .filter(function (l) { return l.py > a.top && l.py < a.bottom; })
         .sort(function (p, q) { return (q.b ? 1 : 0) - (p.b ? 1 : 0) || p.py - q.py; });
       var used = [];
@@ -1633,15 +1635,15 @@ window.downloadSnapshotHD = function(targetId, fileName, scale, hide) {
         var colr = 'hsl(' + Math.round(150 - i * 12) + ',70%,55%)';
         var pts = cleanLine(y, Math.ceil(a), z);
         ds.push({ label: 'TIR ' + Math.round(y * 100) + '%', data: pts, borderColor: colr, borderWidth: 1, pointRadius: 0, isIso: true, order: 5, fill: false });
-        if (pts.length) labels.push({ t: 'TIR ' + Math.round(y * 100) + '%', c: colr, v: pts[pts.length - 1].y });
+        if (pts.length) labels.push({ t: 'TIR ' + Math.round(y * 100) + '%', c: colr, v: pts[pts.length - 1].y, d: 'TIR ' + Math.round(y * 100) + '%' });
       });
       ds.push({ label: 'Cotización (precio clean)', data: W, borderColor: cTx, borderWidth: 2, pointRadius: 0, tip: true, order: 2, fill: false });
       if (mktLine.length) ds.push({ label: 'TIR mercado ' + pc(mktTir), data: mktLine, borderColor: cMu, borderDash: [6, 5], borderWidth: 2, pointRadius: 0, tip: true, order: 3, fill: false });
       if (Math.abs(clean0s - clean0m) > 0.005) ds.push({ label: 'Salto simulado', data: [{ x: today, y: clean0m }, { x: today, y: clean0s }], borderColor: cAc, borderDash: [2, 3], borderWidth: 2, pointRadius: [0, 5], isIso: true, order: 1, fill: false });
       ds.push({ label: 'Trayectoria TIR simulada ' + pc(simTir), data: simLine, borderColor: cAc, borderWidth: 4, pointRadius: 0, tip: true, order: 0, fill: false });
       ds.push({ label: 'Precio al corte', data: [simLine[simLine.length - 1]], showLine: false, backgroundColor: cAc, borderColor: cAc, pointRadius: 7, isIso: true, order: 0 });
-      labels.push({ t: 'Sim ' + pc(simTir, 1), c: cAc, b: 1, v: simLine[simLine.length - 1].y });
-      if (mktLine.length) labels.push({ t: 'Mkt ' + pc(mktTir, 1), c: cMu, b: 1, v: mktLine[mktLine.length - 1].y });
+      labels.push({ t: 'Sim ' + pc(simTir, 1), c: cAc, b: 1, v: simLine[simLine.length - 1].y, d: 'Trayectoria TIR simulada ' + pc(simTir) });
+      if (mktLine.length) labels.push({ t: 'Mkt ' + pc(mktTir, 1), c: cMu, b: 1, v: mktLine[mktLine.length - 1].y, d: 'TIR mercado ' + pc(mktTir) });
 
       // amortizaciones de capital (la renta no se marca)
       var events = [], sc = PX.S[key];
