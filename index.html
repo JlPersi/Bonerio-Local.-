@@ -2767,9 +2767,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function syncMir() { root.querySelectorAll('.psMir').forEach(function (e) { var m = document.getElementById(e.getAttribute('data-for')); if (m && document.activeElement !== e && e.value !== m.value) e.value = m.value; }); }
   var psTyping = null;
   [2, 3, 4, 5].forEach(function (n) { ['psPi', 'psTam', 'psDev', 'psRem'].forEach(function (id) { var e = document.getElementById(id + n); if (!e) return; e.onchange = function () { clearTimeout(psTyping); window.renderPesos(); }; if (id !== 'psRem') e.oninput = function () { clearTimeout(psTyping); if (isFinite(parseFloat(e.value))) psTyping = setTimeout(window.renderPesos, 350); }; }); }); // el gráfico se actualiza mientras se escribe
+  function scenVis() { // cada tarjeta muestra solo los supuestos que usa (los duales combinan TAMAR con CER, tasa fija o dólar)
+    var dOn = function (n) { var d = document.getElementById('psD' + n); return !!d && d.value === '2'; };
+    var V = { 2: { psPi: 1, psTam: dOn(2), psDev: 0 }, 3: { psPi: dOn(3), psTam: 1, psDev: dOn(3) }, 4: { psPi: 0, psTam: 0, psDev: 1 }, 5: { psPi: 1, psTam: 1, psDev: 1 } };
+    Object.keys(V).forEach(function (n) { Object.keys(V[n]).forEach(function (id) { var e = document.getElementById(id + n), l = e && e.closest('label'); if (l) l.style.display = V[n][id] ? '' : 'none'; }); });
+  }
   window.renderPesos = function () {
     if (typeof Chart === 'undefined') return;
-    syncMir();
+    syncMir(); scenVis();
     try {
       var s = day($('d0').value), sc = scen(), S = snapshot(s, sc), fc = curveFija(S);
       var PER = {}, base0 = null;
