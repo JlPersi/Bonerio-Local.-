@@ -1847,10 +1847,10 @@ setInterval(window.fetchLive, 90000);
       if (!f.length || !(P > 0)) return;
       var y = tirOf(fl, s, P); if (y == null) return;
       var md = mdOf(fl, s, y), conv = (bxPv(fl, s, y + 1e-4) + bxPv(fl, s, y - 1e-4) - 2 * bxPv(fl, s, y)) / (1e-8 * P);
-      var tot = 0, wal = 0; f.forEach(function (x) { tot += x[1]; wal += x[1] * (x[0] - s) / 365; });
+      var sr = PX.S[b.k] ? PX.S[b.k].r : [], tot = 0, wal = 0; sr.forEach(function (r) { if (r[0] > s) { tot += r[2]; wal += r[2] * (r[0] - s) / 365; } }); // WAL: ponderada por las amortizaciones que faltan
       var acc = bxAccr(b.k, s), res = resNow(b.k, s), clean = P - acc;
-      var intr = 0; if (PX.S[b.k]) PX.S[b.k].r.forEach(function (r) { if (r[0] > s && r[0] <= s + 365) intr += r[1]; });
-      out.push({ k: b.k, g: grp(b.k), fl: fl, P: P, clean: clean, par: res > 0 ? clean / res * 100 : null, tir: y, md: md, conv: conv, wal: wal / tot, mat: (f[f.length - 1][0] - s) / 365, cy: intr / Math.max(clean, 1e-9), dv01: md * P / 1e4, res: res });
+      var cpi = sr.findIndex(function (r) { return r[0] > s; }), cyA = 0; if (cpi >= 0) { var pv0 = cpi > 0 ? sr[cpi - 1][0] : PX.S[b.k].iss; cyA = sr[cpi][1] * 12 / Math.max(1, Math.round((sr[cpi][0] - pv0) / (365 / 12))); } // cupón vigente anualizado
+      out.push({ k: b.k, g: grp(b.k), fl: fl, P: P, clean: clean, par: res > 0 ? P / (res + acc) * 100 : null, tir: y, md: md, conv: conv, wal: tot > 0 ? wal / tot : null, mat: (f[f.length - 1][0] - s) / 365, cy: cyA / P, dv01: md * P / 1e4, res: res });
     });
     ['NY', 'LOC'].forEach(function (g) {
       var m = out.filter(function (o) { return o.g === g; }), reg = regress(m.filter(function (o) { return o.md >= 1.1; }).map(function (o) { return { x: o.md, y: o.tir * 100 }; }));
@@ -2142,8 +2142,13 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
     var a = fxArr(sc), i = t - l; return i < a.length ? a[i] : a[a.length - 1];
   }
   function tamAt(t, sc) { var o = IDX.TAMAR; if (t < o.s) return NaN; return t <= lastOf(o) ? o.v[t - o.s] / 100 : sc.tamF(mIdx(t)); }
-  function factor(iss, T, sp, sc) { // TAMAR + margen, ACT/365, capitalizado día a día
-    var a = 1; for (var t = iss; t < T; t++) { var r = tamAt(t, sc); if (!isFinite(r)) return NaN; a *= 1 + (r + sp) / 365; } return a;
+  function m360(a, b) { // meses 30/360 entre dos fechas
+    var d0 = new Date(a * 864e5), d1 = new Date(b * 864e5), x = Math.min(d0.getUTCDate(), 30), y = d1.getUTCDate(); if (x === 30) y = Math.min(y, 30);
+    return ((d1.getUTCFullYear() - d0.getUTCFullYear()) * 360 + (d1.getUTCMonth() - d0.getUTCMonth()) * 30 + y - x) / 30;
+  }
+  function factor(iss, T, sp, sc) { // como el prospecto (y BYMA): promedio simple de la TAMAR diaria + margen, TEM = (1 + TNA × 32/365)^(365/384) − 1, capitalizada por meses 30/360
+    if (T <= iss) return 1; var a = 0, n = 0; for (var t = iss; t < T; t++) { var r = tamAt(t, sc); if (!isFinite(r)) return NaN; a += r; n++; }
+    return Math.pow(1 + (a / n + sp) * 32 / 365, 365 / 384 * m360(iss, T));
   }
   var TTD_M = 0; // margen de la rama TAMAR de TTD26 (supuesto: TAMAR sin margen; ajustar si el prospecto dice otra cosa)
   var BSH = { TX26: 3, TX28: 3 }; Object.keys(BSH).forEach(function (k) { if (INST[k]) INST[k].bs = BSH[k]; }); // TX26 y TX28: la base del CER de emisión queda 3 días después del cálculo estándar (calza con la paridad de mercado; confirmar con el prospecto)
@@ -2692,7 +2697,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var ins = INST[k], s = bxSettle(t), mat = ins.r[ins.r.length - 1][0], d = mat - s, kd = ins.k; if (d <= 0) return null;
     TC = TC || constSc(0, T0(), 0);
     try {
-      if (kd === 'cap' || kd === 'cpn' || kd === 'dualtf') { var y = tirOf(flowsOf(ins, s, ZERO), s, P); return y == null ? null : y * 100; }
+      if (kd === 'cap' || kd === 'cpn' || kd === 'dualtf') { var y = tirOf(flowsOf(ins, s, kd === 'dualtf' ? TC : ZERO), s, P); return y == null ? null : y * 100; } // dual TAMAR/fija: la rama TAMAR con la TAMAR actual constante
       if (kd === 'cer0' || kd === 'cerc' || (kd === 'dual' && rowOf(ins, 'CER') && false)) {
         var b = cerBase(ins), c = cerAt(bdBack(s, 10), ZERO); if (!isFinite(b) || !isFinite(c)) return null;
         var pr = P / (c / b), rf = kd === 'cerc' ? ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; }) : null;
@@ -2715,7 +2720,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var ins = INST[k], s = bxSettle(t), mat = ins.r[ins.r.length - 1][0], kd = ins.k; if (mat <= s || !(P > 0)) return null;
     TC = TC || constSc(0, T0(), 0);
     try {
-      if (kd === 'cap' || kd === 'cpn' || kd === 'dualtf') return durOf(flowsOf(ins, s, ZERO), s, P);
+      if (kd === 'cap' || kd === 'cpn' || kd === 'dualtf') return durOf(flowsOf(ins, s, kd === 'dualtf' ? TC : ZERO), s, P);
       if (kd === 'cer0' || kd === 'cerc') { // en términos reales: flujos sin ajustar contra el precio deflactado por CER
         var b = cerBase(ins), c = cerAt(bdBack(s, 10), ZERO); if (!isFinite(b) || !isFinite(c)) return null;
         return durOf(kd === 'cerc' ? ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; }) : [[mat, 100]], s, P / (c / b));
