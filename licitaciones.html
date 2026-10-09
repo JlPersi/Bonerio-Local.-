@@ -319,7 +319,7 @@ function proxSVG(x,V,M,W){
   if(isNew&&fit){const d=Math.max(1,Math.round((parseVe(x.ve)-HOY)/864e5));let xv=d;
     if(V.ax!=="plazo"){const q=V.data.map(o=>[o.d,V.xOf(o)]).filter(z=>z[1]>0).sort((a,b)=>a[0]-b[0]);if(q.length>1){let i=1;while(i<q.length-1&&q[i][0]<d)i++;const[a0,b0]=q[i-1],[a1,b1]=q[i];xv=b0+(b1-b0)*(d-a0)/(a1-a0)}}
     me={x:xv,y:fit.f(Math.min(Math.max(xv,V.fx0),V.fx1)),k:x.t,nw:1};src="new"}
-  const H=Math.round(Math.max(290,Math.min(360,W*.72))),m={l:46,r:16,t:14,b:44},iw=W-m.l-m.r,ih=H-m.t-m.b;
+  const H=Math.round(Math.max(290,Math.min(360,W*.72))),m={l:60,r:16,t:14,b:44},iw=W-m.l-m.r,ih=H-m.t-m.b;
   let a0=V.ax0,a1=V.ax1,y0=V.ylo,y1=V.yhi;
   if(me){if(me.x<a0)a0=lg?me.x*.85:me.x-(a1-a0)*.04;if(me.x>a1)a1=lg?me.x*1.12:me.x+(a1-a0)*.04;const q=(y1-y0)*.08;if(me.y-q<y0)y0=me.y-q;if(me.y+q>y1)y1=me.y+q}
   const X=v=>m.l+(lg?Math.log(v/a0)/Math.log(a1/a0):(v-a0)/(a1-a0))*iw,Y=v=>m.t+(1-(v-y0)/(y1-y0))*ih;
@@ -329,7 +329,7 @@ function proxSVG(x,V,M,W){
   for(let v=Math.ceil(y0/ys)*ys;v<=y1+1e-9;v+=ys)s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--bd)"/><text x="${m.l-6}" y="${Y(v)+4}" text-anchor="end">${nf(Math.abs(v)<1e-9?0:v,dec(ys))}</text>`;
   const xt=lg?[10,20,30,60,90,180,365,540,730,1000,1500,2000,3000,5000,7000,10000,15000].filter(v=>v>=a0&&v<=a1):(()=>{const t=[];for(let v=Math.ceil(a0/xs)*xs;v<=a1+1e-9;v+=xs)t.push(v);return t})();
   xt.forEach(v=>s+=`<line x1="${X(v)}" x2="${X(v)}" y1="${m.t}" y2="${m.t+ih}" stroke="var(--bd)" stroke-dasharray="2 4"/><text x="${X(v)}" y="${H-26}" text-anchor="middle">${nf(v,yrs?dec(xs):0)}</text>`);
-  s+=`<text x="${m.l+iw/2}" y="${H-6}" text-anchor="middle">${V.xt}</text><clipPath id="cpx${x.t}"><rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}"/></clipPath>`;
+  s+=`<text x="${m.l+iw/2}" y="${H-6}" text-anchor="middle">${V.xt}</text><text transform="translate(13,${m.t+ih/2}) rotate(-90)" text-anchor="middle">${V.yl}</text><clipPath id="cpx${x.t}"><rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}"/></clipPath>`;
   if(fit){const N=90,xx=i=>lg?V.fx0*Math.pow(V.fx1/V.fx0,i/N):V.fx0+(V.fx1-V.fx0)*Math.pow(i/N,1.5),pt=(i,o)=>X(xx(i)).toFixed(1)+","+Y(fit.f(xx(i))+o).toFixed(1);
     let up="",lo="",cu="";for(let i=0;i<=N;i++){up+=(i?"L":"M")+pt(i,fit.sigma);cu+=(i?"L":"M")+pt(i,0)}for(let i=N;i>=0;i--)lo+=(i===N?"L":"L")+pt(i,-fit.sigma);
     s+=`<g clip-path="url(#cpx${x.t})"><path d="${up+lo}Z" fill="rgba(148,163,184,.10)"/><path d="${up}" fill="none" stroke="rgba(148,163,184,.55)" stroke-dasharray="4 4"/><path d="M${lo.slice(1)}" fill="none" stroke="rgba(148,163,184,.55)" stroke-dasharray="4 4"/><path d="${cu}" fill="none" stroke="${V.nc}" stroke-width="2.5"/></g>`;
