@@ -3483,7 +3483,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var isAct = function () { return root.classList.contains('active'); };
   var FAMS = { fija: ['Tasa fija', '#60a5fa'], cer: ['CER', '#34d399'], tamar: ['TAMAR', '#fbbf24'], dl: ['Dólar linked', '#a78bfa'], dual: ['Duales', '#f472b6'], bonar: ['Bonares (ley local)', '#fb923c'], glob: ['Globales (ley NY)', '#f87171'], bop: ['Bopreal', '#22d3ee'], oth: ['Otros', '#94a3b8'] };
   var FORD = ['fija', 'cer', 'tamar', 'dl', 'dual', 'bonar', 'glob', 'bop', 'oth'];
-  var PERIODS = [[1, 'Última rueda'], [5, '5 ruedas'], [20, '20 ruedas (≈ 1 mes)'], [60, '60 ruedas (≈ 3 meses)'], [120, '120 ruedas (≈ 6 meses)'], [250, '250 ruedas (≈ 1 año)'], [0, 'Todo el historial']];
+  var PERIODS = [[1, 'Última rueda'], [5, '5 ruedas'], [10, '10 ruedas (≈ 2 semanas)'], [20, '20 ruedas (≈ 1 mes)'], [60, '60 ruedas (≈ 3 meses)'], [120, '120 ruedas (≈ 6 meses)'], [250, '250 ruedas (≈ 1 año)'], [0, 'Todo el historial']];
   var ST = { w: 20, fam: 'all', cur: 'all', view: 'bono', met: 'e', top: 30, sel: '', live: false, mi: 3, ref: 20 }, SORT = { k: 'tot', d: -1 };
   var MINS = [0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1]; // % del monto del período: los bonos que pesan menos no se dibujan en Volumen contra precio (por defecto 0,05%)
   try { var mi0 = localStorage.getItem('vlMin'); if (mi0 != null && MINS[+mi0] != null) ST.mi = +mi0; } catch (e) { }
@@ -3510,6 +3510,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     if (err) { cb(null); return; }
     VQ.push(function () { if (!window.VOLX.adtv && D) { try { window.VOLX.adtv = calcAdtv(); } catch (e) { console.error(e); } } cb(window.VOLX.adtv); }); load();
   } };
+  function liveOpen() { return typeof mktOpen === 'function' ? mktOpen() : true; } // antes del cierre (17 hs) la rueda de hoy está incompleta
   function todayBA() { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }); } catch (e) { return new Date().toISOString().slice(0, 10); } }
   function build() {
     var live = ST.live && D.dates[D.dates.length - 1] < todayBA(), q = window.PXQ || {}, k, t, o;
@@ -3642,9 +3643,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<label title="Todo en pesos: el monto de las especies MEP y Cable se pasa a pesos con el dólar implícito del AL30 y otros bonos">Moneda<select id="vlC"><option value="all">Todo en pesos</option><option value="P">Solo especie en pesos</option><option value="D">Solo MEP (US$)</option><option value="C">Solo Cable (US$)</option></select></label>' +
       '<label>Medida<select id="vlM"><option value="e">Monto operado</option><option value="v">Nominal (VN)</option></select></label>' +
       '<label title="Por bono suma las especies de un mismo bono (por ejemplo AL30, AL30D y AL30C); por especie las muestra separadas">Agrupar<select id="vlV"><option value="bono">Por bono</option><option value="esp">Por especie</option></select></label>' +
-      '<label class="ck"><input type="checkbox" id="vlL"> Incluir la rueda de hoy (parcial)</label></div>' +
+      '<label class="ck"><input type="checkbox" id="vlL"> Incluir la rueda de hoy</label></div>' +
       '<div class="rs" id="vlS1"><div style="' + HD + '"><h4 id="vlT1" style="margin:0">Dónde estuvo el volumen</h4>' + dl('vlS1', 'Soberanos_Volumen_Familias', 'Descargar el resumen, el gráfico y la tabla en HD') + '</div><p class="note" id="vlCap1" style="margin:0"></p><div class="rchips" id="vlChips"></div><div class="rg" style="margin-top:18px"><div style="position:relative;height:340px"><canvas id="vlCh1"></canvas></div><div class="sc"><table class="rt nf" id="vlFam"></table></div></div></div>' +
-      '<div class="rs" id="vlS4"><div style="' + HD + ';flex-wrap:wrap"><h4 style="margin:0">Hacia dónde fue el flujo</h4><span style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><label style="flex-direction:row;align-items:center;gap:8px;font-size:12px;color:var(--mu)">Comparar contra<select id="vlR" style="width:250px"><option value="1">la rueda anterior al período</option><option value="20">las 20 ruedas anteriores</option><option value="60">las 60 ruedas anteriores</option></select></label>' + dl('vlS4', 'Soberanos_Volumen_Flujo', 'Descargar el flujo en HD') + '</span></div>' +
+      '<div class="rs" id="vlS4"><div style="' + HD + ';flex-wrap:wrap"><h4 style="margin:0">Hacia dónde fue el flujo</h4><span style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><label style="flex-direction:row;align-items:center;gap:8px;font-size:12px;color:var(--mu)">Comparar contra<select id="vlR" style="width:250px"><option value="1">la rueda anterior al período</option><option value="5">las 5 ruedas anteriores al período</option><option value="10">las 10 ruedas anteriores al período</option><option value="20">las 20 ruedas anteriores al período</option><option value="60">las 60 ruedas anteriores al período</option></select></label>' + dl('vlS4', 'Soberanos_Volumen_Flujo', 'Descargar el flujo en HD') + '</span></div>' +
       '<p class="note" id="vlRotS" style="margin:0 0 14px;color:var(--tx)"></p><div class="rg"><div class="sc"><table class="rt nf hm" id="vlRot"></table></div><div><div style="position:relative;height:440px"><canvas id="vlCh4"></canvas></div></div></div>' +
       '<div class="hl"><p><b>Cómo se lee.</b> Cada celda es la parte del monto del período que fue a esa familia y a ese plazo (hasta el vencimiento final), y debajo cuántos puntos porcentuales ganó o perdió contra el período de comparación: <span style="color:var(--ok)">verde</span> si ahora concentra más volumen que antes, <span style="color:var(--bad)">rojo</span> si menos. El gráfico de barras muestra los bonos que más participación ganaron y perdieron; tocá una barra para ver el detalle del bono.</p><ul>' +
       '<li>Una familia suma lo que ganan y lo que pierden todos sus bonos, incluidos los que vencieron. Por eso puede ganar participación aunque alguno de sus bonos esté entre los que más perdieron, y las barras (que muestran solo los 8 que más ganaron y los 8 que más perdieron, sin los vencidos) no siempre suman lo que dice la familia.</li>' +
@@ -3766,14 +3767,16 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       'Contra ' + refTxt + ', ' + (one ? 'dentro de ' + FAMS[fams[0]][0] + ' ' : '') + 'el volumen se corrió' + (up.length ? ' hacia ' + ys(up) : '') + (up.length && dn.length ? ' y' : '') + (dn.length ? ' salió de ' + ys(dn) : '') + '.';
     if (!one && cb && cb.v.d >= 0.5) { var pr = cb.k.split('|'); txt += ' El tramo que más ganó fue ' + FAMS[pr[0]][0] + (pr[1] === 'na' || pr[1] === 'ven' ? '' : ' de ' + lab(pr[1]).toLowerCase()) + ' (' + sg(cb.v.d, 1) + ' pp)' + (cb.v.p != null ? ', con el precio ' + (cb.v.p >= 0 ? 'en alza (' : 'en baja (') + sg(cb.v.p * 100, 2) + '%)' : '') + '.'; }
     txt = txt.replace(/ de el /g, ' del ');
-    var vv = K.ven ? sh(K.ven) : null; if (vv && vv.d <= -0.5) txt += ' Los bonos que ya vencieron se llevaban ' + nf(-vv.d, 1) + ' pp del volumen de ' + refTxt + '.';
+    var vv = K.ven ? sh(K.ven) : null; if (vv && vv.d <= -0.5) { txt += ' Los bonos que ya vencieron se llevaban ' + nf(-vv.d, 1) + ' pp del volumen de ' + refTxt + '.';
+      if (!one) { var fl = fams.map(function (f) { var t = sh(F[f]).d, v = C[f + '|ven'] ? sh(C[f + '|ven']).d : 0; return { f: f, t: t, x: t - v, v: v }; }).filter(function (x) { return x.v <= -0.5 && x.t < 0 && x.x >= 0.5; }); // familias que pierden en total solo porque vencieron bonos suyos
+        if (fl.length) txt += ' ' + fl.map(function (x) { return FAMS[x.f][0] + ' baja ' + sg(x.t, 1) + ' pp solo por sus vencidos (' + sg(x.v, 1) + ' pp): sin ellos gana ' + sg(x.x, 1) + ' pp'; }).join('; ') + '.'; } }
     // bonos que más participación ganaron y perdieron
     B2.forEach(function (x) { x.d = (x.now / Nn - x.ref / Nr) * 100; });
     var live = B2.filter(function (x) { return x.bk !== 'ven'; }); // los vencidos no van en las barras: su salida ya está en el resumen y en la columna Ya vencidos
     var g = live.filter(function (x) { return x.d > 0.05; }).sort(function (a, b) { return b.d - a.d; }).slice(0, 8), l = live.filter(function (x) { return x.d < -0.05; }).sort(function (a, b) { return a.d - b.d; }).slice(0, 8).reverse(), bars = g.concat(l);
     var bl = function (a) { var t = a.slice(0, 3).map(function (x) { return x.e.key + ' (' + sg(x.d, 1) + ' pp)'; }); return t.length > 1 ? t.slice(0, -1).join(', ') + ' y ' + t[t.length - 1] : t[0]; };
     if (g.length || l.length) txt += ' Por bono, sin contar los vencidos:' + (g.length ? ' los que más ganaron fueron ' + bl(g) : '') + (g.length && l.length ? ';' : '') + (l.length ? ' los que más perdieron, ' + bl(l.slice().reverse()) : '') + '.';
-    sm.textContent = txt + (ST.live && LIVEN ? ' Incluye la rueda de hoy, todavía incompleta.' : '');
+    sm.textContent = txt + (ST.live && LIVEN ? (liveOpen() ? ' Incluye la rueda de hoy, todavía incompleta.' : ' Incluye la rueda de hoy, ya cerrada.') : '');
     if (!bars.length) return;
     var tx = css('--tx'), bd = css('--bd');
     CHR = new Chart(document.getElementById('vlCh4').getContext('2d'), { type: 'bar', data: { labels: bars.map(function (x) { return x.e.key; }), datasets: [{ label: 'Cambio de participación (pp)', data: bars.map(function (x) { return x.d; }), backgroundColor: bars.map(function (x) { return FAMS[x.e.fam][1] + 'cc'; }), borderColor: bars.map(function (x) { return FAMS[x.e.fam][1]; }), borderWidth: 1, borderRadius: 3 }] },
@@ -3875,7 +3878,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var list = entities(), M = metrics(list), rows = M.rows;
       LAST = { rows: rows, M: M };
       var lastD = D.dates[D.dates.length - 1], f = function (s) { return s.split('-').reverse().join('/'); };
-      sub.innerHTML = 'Serie diaria de ' + Object.keys(D.t).length + ' tickers (' + f(D.dates[0]) + ' al ' + f(lastD) + ') y volumen en vivo de la API.<span class="xp"> Dónde se concentró la operatoria de la renta fija y cómo se movió el precio cuando hubo más o menos volumen.</span>' + (ST.live && LIVEN ? ' Incluye la rueda de hoy (' + LIVEN + ' tickers), todavía incompleta.' : '');
+      sub.innerHTML = 'Serie diaria de ' + Object.keys(D.t).length + ' tickers (' + f(D.dates[0]) + ' al ' + f(lastD) + ') y volumen en vivo de la API.<span class="xp"> Dónde se concentró la operatoria de la renta fija y cómo se movió el precio cuando hubo más o menos volumen.</span>' + (ST.live && LIVEN ? ' Incluye la rueda de hoy (' + LIVEN + ' tickers), ' + (liveOpen() ? 'todavía incompleta.' : 'ya cerrada.') : '');
       if (!rows.length) { document.getElementById('vlChips').innerHTML = ''; document.getElementById('vlTab').innerHTML = '<tbody><tr><td class="l">Sin operaciones en el período con esos filtros.</td></tr></tbody>'; if (CHS) { CHS.destroy(); CHS = null; } if (CHP) { CHP.destroy(); CHP = null; } if (CHR) { CHR.destroy(); CHR = null; } document.getElementById('vlRot').innerHTML = ''; document.getElementById('vlRotS').textContent = ''; detail(null, M); return; }
       var famTot = {}, famPrev = {}, totAll = 0, prevAll = 0, prevOk = false;
       FORD.forEach(function (ff) { famTot[ff] = 0; famPrev[ff] = 0; });
@@ -3883,7 +3886,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       rows.sort(function (a, b) { return b.tot - a.tot; });
       if (!ST.sel || !rows.some(function (r) { return r.key === ST.sel; })) ST.sel = (rows.filter(function (r) { return !r.stale; })[0] || rows[0]).key;
       var ot = function (id) { var el = document.getElementById(id); return el.options[el.selectedIndex].text; };
-      document.getElementById('vlCap1').textContent = 'Período: ' + ot('vlW') + ' · Familia: ' + ot('vlF') + ' · Moneda: ' + ot('vlC') + ' · Medida: ' + ot('vlM') + ' · Agrupado: ' + ot('vlV').toLowerCase() + (ST.live && LIVEN ? ' · incluye la rueda de hoy (parcial)' : '');
+      document.getElementById('vlCap1').textContent = 'Período: ' + ot('vlW') + ' · Familia: ' + ot('vlF') + ' · Moneda: ' + ot('vlC') + ' · Medida: ' + ot('vlM') + ' · Agrupado: ' + ot('vlV').toLowerCase() + (ST.live && LIVEN ? ' · incluye la rueda de hoy' + (liveOpen() ? ' (parcial)' : '') : '');
       chips(M, rows, famTot, totAll, prevOk ? prevAll : null); famTable(M, famTot, famPrev, totAll); stacked(list, M); flow(list, M); ranking(rows, totAll); scatter(rows);
       detail(rows.filter(function (r) { return r.key === ST.sel; })[0], M);
     } catch (e) { console.error('vol', e); var s2 = document.getElementById('vlSub'); if (s2) s2.textContent = 'Error: ' + e.message; }
