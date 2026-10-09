@@ -3064,7 +3064,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var h = c('Suben / bajan', up + ' / ' + dn, fl ? fl + ' sin cambio' : 'de ' + rows.length + ' bonos') +
       c('Variación media', av == null ? 'n/a' : sg(av, 2) + '%', 'promedio simple de precios', dcol(av, 0.005)) +
       c('Tasa (mediana)', mp == null ? 'n/a' : sg(mp, 0) + ' pb', 'cambio de rendimiento', dcol(mp == null ? null : -mp, 0.5)) +
-      (mb ? c('Mayor suba', mb.k, sg(mb.dpct, 2) + '%', 'var(--ok)') : '') + (mw && mw !== mb ? c('Mayor baja', mw.k, sg(mw.dpct, 2) + '%', 'var(--bad)') : '');
+      (mb ? c(mb.dpct >= 0 ? 'Mayor suba' : 'Menor baja', mb.k, sg(mb.dpct, 2) + '%', dcol(mb.dpct, 0.005)) : '') + (mw && mw !== mb ? c(mw.dpct > 0 ? 'Menor suba' : 'Mayor baja', mw.k, sg(mw.dpct, 2) + '%', dcol(mw.dpct, 0.005)) : '');
+    var cr = rows.filter(function (r) { return (r.grp === 'fija' || r.grp === 'usd') && r.y0 != null; }).map(function (r) { var dd = bxSettle(r.t1) - bxSettle(r.t0); return { c: (Math.pow(1 + r.y0 / 100, dd / 365) - 1) * 100, d: dd }; });
+    if (cr.length && cr.length === rows.length) { var dd0 = median(cr.map(function (x) { return x.d; })); h += c('Devengamiento', sg(median(cr.map(function (x) { return x.c; })), 2) + '%', 'lo que sube un bono con la tasa quieta (' + dd0 + ' día' + (dd0 === 1 ? '' : 's') + ' de liquidación)'); } // con T+1 y un feriado el salto puede ser de varios días
     if (ST.grp === 'all') {
       h += ORDER.map(function (g) { var rs = rows.filter(function (r) { return r.grp === g; }); if (!rs.length) return ''; var a = mean(rs.map(function (r) { return r.dpct; })); return c(GN[g], sg(a, 2) + '%', rs.filter(function (r) { return r.dpct > 0.005; }).length + ' suben · ' + rs.filter(function (r) { return r.dpct < -0.005; }).length + ' bajan', dcol(a, 0.005)); }).join('');
     }
@@ -3118,7 +3120,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var useLog = !yrs && xs.length > 3 && (xs[xs.length - 1] > 1500 || (xs[xs.length - 1] > 600 && xs[Math.ceil(xs.length * 0.85) - 1] < xs[xs.length - 1] / 3));
     var sets = [], hoy = [], ayer = [], hc = [], hs = [], shifts = [];
     SER.forEach(function (S) {
-      var ph = S.r.map(function (r) { return { x: r.x1, y: r.y1, k: r.k + (r.star ? ' *' : '') }; }), pa = S.r.map(function (r) { return { x: r.x0, y: r.y0, k: r.k + (r.star ? ' *' : '') }; });
+      var rf = isUsd ? S.r : S.r.filter(function (r) { return r.days >= 30; }); if (rf.length < 3) rf = S.r; S.nEx = S.r.length - rf.length; // en pesos la curva no usa los que vencen en menos de 30 días: con tan poco plazo, 0,05% de precio mueve la tasa cientos de pb
+      var ph = rf.map(function (r) { return { x: r.x1, y: r.y1, k: r.k + (r.star ? ' *' : '') }; }), pa = rf.map(function (r) { return { x: r.x0, y: r.y0, k: r.k + (r.star ? ' *' : '') }; });
       var fh = fitOf(grp, ph), fa = fitOf(grp, pa); S.fh = fh; S.fa = fa;
       if (fh && fa) {
         var x0 = Math.min.apply(null, ph.map(function (p) { return p.x; })), x1 = Math.max.apply(null, ph.map(function (p) { return p.x; })), N = 80, ch_ = [], ca = [];
@@ -3149,8 +3152,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         : { title: { display: true, text: xaxTitle(ax), color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, yrs ? 1 : 0); } }, grid: { color: bd }, min: 0, grace: '6%' },
         y: { title: { display: true, text: yl, color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd }, grace: '6%' } } } });
     var sh = function (c, ico) { return '<i style="width:' + (ico === 'ring' ? 10 : 12) + 'px;height:' + (ico === 'ring' ? 10 : 12) + 'px;border-radius:50%;background:' + (ico === 'ring' ? 'transparent' : c) + ';border:' + (ico === 'ring' ? '1.5px solid var(--mu)' : '0') + '"></i>'; };
-    leg.innerHTML = '<span>' + sh(GR) + 'La tasa bajó (el precio subió)</span><span>' + sh(RD) + 'La tasa subió</span><span>' + sh(NE) + 'Sin cambio</span><span>' + sh('', 'ring') + 'Ayer</span>' +
-      SER.map(function (S) { return '<span><i style="width:22px;height:0;border-top:3px solid ' + S.c + '"></i>Curva hoy ' + (isUsd ? S.n + (S.st === 'triangle' ? ' (▲)' : ' (●)') : '') + '</span>'; }).join('') + '<span><i style="width:22px;height:0;border-top:2px dashed var(--mu)"></i>Curva ayer</span>';
+    leg.innerHTML = '<span>' + sh(GR) + 'La tasa bajó</span><span>' + sh(RD) + 'La tasa subió</span><span>' + sh(NE) + 'Sin cambio</span><span>' + sh('', 'ring') + 'Ayer</span>' +
+      SER.map(function (S) { return '<span><i style="width:22px;height:0;border-top:3px solid ' + S.c + '"></i>Curva hoy ' + (isUsd ? S.n + (S.st === 'triangle' ? ' (▲)' : ' (●)') : '') + '</span>'; }).join('') + '<span><i style="width:22px;height:0;border-top:2px dashed var(--mu)"></i>Curva ayer</span>' + (SER.some(function (S) { return S.nEx; }) ? '<span>Las curvas no usan los bonos que vencen en menos de 30 días</span>' : '');
     shift.innerHTML = shifts.map(function (s) {
       var mu = mean(s.rows.map(function (r) { return (r.h - r.a) * 100; }));
       return '<div><div style="font-weight:600;margin-bottom:6px;color:var(--tx)">' + s.n + ' · desplazamiento de la curva <span style="color:' + dcol(mu == null ? null : -mu, 0.5) + '">(promedio ' + sg(mu, 0) + ' pb)</span></div><table class="vdt"><thead><tr><th class="l" style="cursor:default">' + (ax === 'plazo' ? 'Plazo' : ax === 'mac' ? 'Duración' : 'Duración mod.') + '</th><th style="cursor:default">Ayer</th><th style="cursor:default">Hoy</th><th style="cursor:default">Δ pb</th></tr></thead><tbody>' +
@@ -3178,7 +3181,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       document.getElementById('vdSortL').style.display = ST.view === 'tab' ? '' : 'none';
       var cnt = {}; DATA.forEach(function (r) { var k = r.t0 + '|' + r.t1; cnt[k] = (cnt[k] || 0) + 1; }); var best = Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a]; })[0];
       var t0 = best ? +best.split('|')[0] : 0, t1 = best ? +best.split('|')[1] : 0, n912 = DATA.filter(function (r) { return r.src === 'data912'; }).length, nOld = DATA.filter(function (r) { return r.src === 'previo' || (r.src === 'cierre' && r.t0 !== t0); }).length;
-      document.getElementById('vdInfo').textContent = DATA.length ? 'Hoy ' + dfull(t1) + ' contra el cierre del ' + dfull(t0) + ' · ' + DATA.length + ' bonos · liquidación ' + (window.settleMode === 'T1' ? 'T+1' : 'CI') + ' · hard dollar en ' + (especie === 'D' ? 'MEP' : 'Cable') + (n912 ? ' · ' + n912 + ' con la variación diaria de data912' : '') + (nOld ? ' · ' + nOld + ' contra una fecha anterior' : '') : 'Sin datos todavía: esperando precios en vivo o cierres guardados.';
+      document.getElementById('vdInfo').textContent = DATA.length ? 'Hoy ' + dfull(t1) + ' contra el cierre del ' + dfull(t0) + ' · ' + DATA.length + ' bonos · liquidación ' + (window.settleMode === 'T1' ? 'T+1' : 'CI') + (bxSettle(t1) - bxSettle(t0) > 1 ? ' (ayer liquida el ' + dstr(bxSettle(t0)) + ' y hoy el ' + dstr(bxSettle(t1)) + ': ' + (bxSettle(t1) - bxSettle(t0)) + ' días de devengamiento)' : '') + ' · hard dollar en ' + (especie === 'D' ? 'MEP' : 'Cable') + (n912 ? ' · ' + n912 + ' con la variación diaria de data912' : '') + (nOld ? ' · ' + nOld + ' contra una fecha anterior' : '') : 'Sin datos todavía: esperando precios en vivo o cierres guardados.';
       chips(rows);
       document.getElementById('vdCurveCard').style.display = ST.view === 'curve' ? '' : 'none';
       if (ST.view === 'curve') curveView(rows, ST.grp); else if (CH) { CH.destroy(); CH = null; }
