@@ -3557,7 +3557,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function dl(id, name, tt) { return '<button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'' + id + '\', \'' + name + '\')" title="' + tt + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button>'; }
   var HD = 'display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px';
   function unit() { return ST.met === 'v' ? 'VN' : (ST.cur === 'D' || ST.cur === 'C') ? 'US$' : '$'; }
-  function mon(v) { var a = Math.abs(v), u = unit(); if (v == null || !isFinite(v)) return 'n/a'; var s = a >= 1e11 ? nf(v / 1e12, 2) + ' billones' : a >= 1e6 ? nf(v / 1e6, 0) + ' M' : nf(v, 0); return u === 'VN' ? s + ' VN' : u + ' ' + s; }
+  function mon(v, big) { // tablas y gráficos siempre en millones; los recuadros de arriba (big), en billones desde 0,1 billón
+    var a = Math.abs(v), u = unit(); if (v == null || !isFinite(v)) return 'n/a'; var s = big && a >= 1e11 ? nf(v / 1e12, 2) + ' billones' : nf(v / 1e6, a >= 1e6 || !a ? 0 : 2) + ' M'; return u === 'VN' ? s + ' VN' : u + ' ' + s; }
 
   /* ---------- entidades (bono o especie) y métricas ---------- */
   function entities() {
@@ -3676,8 +3677,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var dlt = prevAll > 0 ? (totAll / prevAll - 1) * 100 : null;
     var c = function (t, v, s) { return '<div class="rchip"><small>' + t + '</small><b>' + v + '</b><span>' + s + '</span></div>'; };
     document.getElementById('vlChips').innerHTML =
-      c('Total del período', mon(totAll), (dlt == null ? 'sin período previo comparable' : sg(dlt, 0) + '% vs. ' + (w === 1 ? 'la rueda anterior' : 'las ' + w + ' ruedas anteriores'))) +
-      c('Promedio por rueda', mon(totAll / w), w + (w === 1 ? ' rueda' : ' ruedas') + ' · ' + (w === 1 ? fr(d1) : fr(d0) + ' al ' + fr(d1))) +
+      c('Total del período', mon(totAll, 1), (dlt == null ? 'sin período previo comparable' : sg(dlt, 0) + '% vs. ' + (w === 1 ? 'la rueda anterior' : 'las ' + w + ' ruedas anteriores'))) +
+      c('Promedio por rueda', mon(totAll / w, 1), w + (w === 1 ? ' rueda' : ' ruedas') + ' · ' + (w === 1 ? fr(d1) : fr(d0) + ' al ' + fr(d1))) +
       (fl ? c('Familia líder', '<i style="color:' + FAMS[fl][1] + ';font-style:normal">●</i> ' + FAMS[fl][0], nf(famTot[fl] / totAll * 100, 0) + '% del total') : '') +
       (lead[0] ? c('Más operado', lead[0].key, nf(lead[0].tot / totAll * 100, 1) + '% del total') : '') +
       c('Concentración', nf(top5 / totAll * 100, 0) + '%', 'de los 5 primeros bonos');
@@ -3852,7 +3853,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var s = signal(e), c = function (t, v, sub) { return '<div class="rchip"><small>' + t + '</small><b>' + v + '</b><span>' + sub + '</span></div>'; }, ah = avg(hi), al = avg(lo);
     d.innerHTML = '<div style="' + HD + '"><h4 style="margin:0">Detalle · <span style="color:var(--tx)">' + e.key + '</span> <span class="tg ' + s[1] + '" style="margin-left:8px">' + s[0] + '</span></h4>' + dl('vlDet', 'Soberanos_Volumen_' + e.key, 'Descargar el detalle de ' + e.key + ' en HD') + '</div>' +
       '<div style="position:relative;height:320px"><canvas id="vlCh2"></canvas></div>' +
-      '<div class="rchips">' + c('Monto del período', mon(e.tot), nf(e.days, 0) + ' de ' + M.w + ' ruedas con operaciones') +
+      '<div class="rchips">' + c('Monto del período', mon(e.tot, 1), nf(e.days, 0) + ' de ' + M.w + ' ruedas con operaciones') +
       c('Volumen relativo', e.rel == null ? '—' : nf(e.rel, 1) + '×', e.recent ? 'últimas 20 ruedas vs. el promedio del historial' : 'vs. las 60 ruedas previas') +
       c('Variación de precio', e.dPx == null ? '—' : sg(e.dPx * 100, 2) + '%' + mk(e, e.unkP), 'con cobros incluidos · día ' + (e.dDay == null ? '—' : sg(e.dDay * 100, 2) + '%' + mk(e, e.unkD))) +
       c('Movimiento con volumen alto', ah == null ? '—' : nf(ah * 100, 2) + '%', 'promedio diario cuando operó 1,5× o más de lo habitual (' + hi.length + ' ruedas) · el resto ' + (al == null ? '—' : nf(al * 100, 2) + '%')) +
