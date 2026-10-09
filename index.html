@@ -2259,7 +2259,7 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
       o.coef = cerAt(bdBack(s, 10), ZERO) / cerBase(ins);
       real(P / o.coef, kd === 'cerc' ? ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; }) : null);
     }
-    if (kd === 'dl') { o.fx0 = fx0; o.usdTea = Math.pow(100 * fx0 / P, 365 / o.d) - 1; o.usdTnas = (100 * fx0 / P - 1) * 365 / o.d; o.usdTna30 = tnaOf(o.usdTea); o.prem = P / (100 * fx0) - 1; }
+    if (kd === 'dl') { o.fx0 = fx0; o.usdTea = Math.pow(100 * fx0 / P, 365 / o.d) - 1; o.usdTnas = (100 * fx0 / P - 1) * 365 / o.d; o.usdTna30 = tnaOf(o.usdTea); o.vt = 100 * fxAt(bdBack(s, 3), ZERO); o.par = P / o.vt; } // como BYMA: TIR con el último A3500 (tipo de cambio constante); paridad contra el valor técnico, 100 × A3500 de 3 días hábiles antes de la liquidación
     if (kd === 'tamar') {
       var sp = ins.r[0][3], A = factor(ins.iss, s, sp, sc); o.sp = sp; o.A = A; o.clean = P / A;
       o.dm = sp * 100 + (Math.pow(100 / o.clean, 30 / o.d) - 1) * 365 / 30 * 100; o.tnaT = T0() * 100 + o.dm;
@@ -2532,10 +2532,10 @@ h = '<tr><th class="l">Ticker</th><th>Emisión</th><th>Vencimiento</th><th>Días
     document.getElementById('psTamar').innerHTML = h;
     }
         if (!only || only === 4) {
-h = '<tr><th class="l">Ticker</th><th>Vencimiento</th><th>Días</th><th>Precio<br>($ por USD 100)</th><th>vs spot<br>A3500</th><th>TNA USD<br>30/365</th><th>TEA USD<br>(TC cte.)</th>' + (scOn ? '<th>TEA pesos<br>(esc.)</th>' : '') + '<th>' + met + '<br>pesos</th><th>Devaluación BE<br>(mensual)</th>' + (remOn ? '<th>REM<br>(prom.)</th><th>BE − REM<br>(pb)</th>' : '') + fairH + VH + mh + '</tr>';
+h = '<tr><th class="l">Ticker</th><th>Vencimiento</th><th>Días</th><th>Precio<br>($ por USD 100)</th><th title="Precio sobre el valor técnico (100 × A3500 de 3 días hábiles antes de la liquidación), como en BYMA">Paridad</th><th>TNA USD<br>30/365</th><th>TEA USD<br>(TC cte.)</th>' + (scOn ? '<th>TEA pesos<br>(esc.)</th>' : '') + '<th>' + met + '<br>pesos</th><th>Devaluación BE<br>(mensual)</th>' + (remOn ? '<th>REM<br>(prom.)</th><th>BE − REM<br>(pb)</th>' : '') + fairH + VH + mh + '</tr>';
     by('dl').forEach(function (o) {
       var tgt = interp(fc, o.mac || o.d), be = isOut(o) || tgt == null ? null : beSolve(o, s, sc, 'dev', tgt, -0.05, 0.25); o.be = be; fair(o, tgt);
-      h += '<tr>' + tkcell(o) + '<td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td>' + fm(o.P, 0) + '</td><td>' + sg(o.prem * 100, 2) + '%</td><td style="' + AC + '">' + pcs(o.usdTna30) + '</td><td>' + pcs(o.usdTea) + '</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + '<td>' + pcs(MET(o)) + '</td>' + beTd(o, be, 2) + (o.rem = remFx(o), remOn ? remOut(o, be, 2) : '') + fairTd(o, 0) + vcells(o, 0) + mc(o) + '</tr>';
+      h += '<tr>' + tkcell(o) + '<td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td>' + fm(o.P, 0) + '</td><td title="Valor técnico $ ' + fm(o.vt, 2) + '">' + fm(o.par * 100, 2) + '%</td><td style="' + AC + '">' + pcs(o.usdTna30) + '</td><td>' + pcs(o.usdTea) + '</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + '<td>' + pcs(MET(o)) + '</td>' + beTd(o, be, 2) + (o.rem = remFx(o), remOn ? remOut(o, be, 2) : '') + fairTd(o, 0) + vcells(o, 0) + mc(o) + '</tr>';
     });
     h += outRow(by('dl'), 'Devaluación breakeven') + fairNote;
     document.getElementById('psDl').innerHTML = h;
