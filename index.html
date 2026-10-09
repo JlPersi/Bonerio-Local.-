@@ -3555,7 +3555,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function dl(id, name, tt) { return '<button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'' + id + '\', \'' + name + '\')" title="' + tt + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button>'; }
   var HD = 'display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px';
   function unit() { return ST.met === 'v' ? 'VN' : (ST.cur === 'D' || ST.cur === 'C') ? 'US$' : '$'; }
-  function mon(v) { var a = Math.abs(v), u = unit(); if (v == null || !isFinite(v)) return 'n/a'; var s = a >= 1e12 ? nf(v / 1e12, 2) + ' billones' : a >= 1e6 ? nf(v / 1e6, 0) + ' M' : nf(v, 0); return u === 'VN' ? s + ' VN' : u + ' ' + s; }
+  function mon(v) { var a = Math.abs(v), u = unit(); if (v == null || !isFinite(v)) return 'n/a'; var s = a >= 1e11 ? nf(v / 1e12, 2) + ' billones' : a >= 1e6 ? nf(v / 1e6, 0) + ' M' : nf(v, 0); return u === 'VN' ? s + ' VN' : u + ' ' + s; }
 
   /* ---------- entidades (bono o especie) y métricas ---------- */
   function entities() {
@@ -3751,7 +3751,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var cell = function (o) {
       var v = sh(o); if (!v || (v.s < 0.005 && Math.abs(v.d) < 0.005)) return '<td class="e">·</td>';
       var a = Math.abs(v.d) < 0.1 || !mx ? 0 : 0.06 + 0.26 * Math.min(1, Math.abs(v.d) / mx), bg = a ? 'rgba(' + (v.d > 0 ? OK : BAD) + ',' + a.toFixed(2) + ')' : 'transparent';
-      return '<td style="background:' + bg + '"><b>' + nf(v.s, v.s < 10 ? 1 : 0) + '%</b><i style="color:' + (Math.abs(v.d) < 0.05 ? 'var(--mu)' : v.d > 0 ? 'var(--ok)' : 'var(--bad)') + '">' + sg(v.d, 1) + ' pp</i>' + (v.p != null ? '<small>precio <span style="color:' + (v.p >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + sg(v.p * 100, 2) + '%</span></small>' : '') + '</td>';
+      return '<td style="background:' + bg + '"><b>' + nf(v.s, 1) + '%</b><i style="color:' + (Math.abs(v.d) < 0.05 ? 'var(--mu)' : v.d > 0 ? 'var(--ok)' : 'var(--bad)') + '">' + sg(v.d, 1) + ' pp</i>' + (v.p != null ? '<small>precio <span style="color:' + (v.p >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + sg(v.p * 100, 2) + '%</span></small>' : '') + '</td>';
     };
     var lab = function (c) { return c === 'na' ? 'Sin dato' : c === 'ven' ? 'Ya vencidos' : BK.filter(function (b) { return b[0] === c; })[0][1]; };
     var h = '<thead><tr><th class="l">Familia</th>' + cols.map(function (c) { return '<th>' + lab(c) + '</th>'; }).join('') + '<th>Total</th></tr></thead><tbody>';
