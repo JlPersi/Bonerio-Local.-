@@ -177,9 +177,16 @@ button.act:hover { border-color: var(--ac); color: var(--ac); }
 button.icon-btn { display: flex; align-items: center; justify-content: center; padding: 10px; border-radius: 8px; border: 1px solid var(--bd); background: var(--card); color: var(--tx); cursor: pointer; transition: all 0.2s; }
 button.icon-btn:hover { border-color: var(--ac); color: var(--ac); }
 
-ul.read { margin: 10px 0 0; padding-left: 20px; font-size: 16px; line-height: 1.6; }
-ul.read li { margin: 8px 0 }
-ul.read b { color: var(--ok); }
+.tins { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 16px 0 4px; text-align: left; }
+.tins .ti { border: 1px solid var(--bd); border-radius: 10px; padding: 10px 14px; background: var(--bg); min-width: 0; }
+.tins small { display: flex; align-items: center; gap: 8px; color: var(--mu); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+.tins b { display: block; font-size: 19px; color: var(--tx); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.tins b em { color: var(--ok); font-style: normal; }
+.tins span { display: block; color: var(--mu); font-size: 13px; margin-top: 2px; line-height: 1.45; }
+.tins .n, td.mk::after, th.mk::after { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: var(--ac); color: #1c1917; font-size: 10.5px; font-weight: 700; font-style: normal; letter-spacing: 0; }
+#t td.mk { box-shadow: inset 0 0 0 2px var(--ac); position: relative; }
+#t th.mk { position: relative; }
+#t td.mk::after, #t th.mk::after { content: attr(data-mk); position: absolute; top: 2px; right: 2px; }
 
 .tabs { display: flex; gap: 12px; overflow-x: auto; flex-grow: 1; padding-bottom: 4px; }
 .tab-btn { background: none; border: none; color: var(--mu); font-weight: 600; cursor: pointer; padding: 10px 18px; border-radius: 6px; transition: 0.2s; font-size: 16px; white-space: nowrap; font-family: inherit; }
@@ -389,17 +396,14 @@ window.curveFitUSD = function (pts, model, minN) {
 
   <div class="card wrap" id="tableContainer" style="padding: 16px; border-radius: 12px; border: 1px solid var(--bd);">
       <table id="t"></table>
-      <p class="note" id="tNote" style="margin: 14px 0 0; line-height: 1.55;"><b>TIR de salida (exit TIR)</b>: las columnas de 5,0% a 25,0% son la TIR a la que suponés que el bono cotiza en la fecha de corte, cuando lo vendés. Cada celda es el retorno total en USD hasta esa fecha (precio de venta más cupones cobrados), comprando hoy al precio de la tabla. <b>Ret. TIR constante</b> es el caso en que la TIR de salida es igual a la de hoy. <b>BE retorno 0</b> es la TIR de salida a la que ganás 0%; <b>BE vs reinv.</b>, la que iguala lo que rendiría reinvertir a la tasa de reinversión; y <b>Colchón</b>, los puntos básicos que puede subir la TIR desde hoy hasta el BE retorno 0.</p>
-  </div>
-
-  <div class="card">
-   <b style="font-size:16px; color: var(--mu);">Insights analíticos</b>
-   <ul class="read" id="read"></ul>
-      <details style="border-top:1px solid var(--bd);margin-top:14px;padding-top:14px">
+      <div class="tins" id="read"></div>
+      <p class="note" id="tNote" style="margin: 14px 2px 0; line-height: 1.55; text-align: left;"><b>TIR de salida (exit TIR)</b>: las columnas de 5,0% a 25,0% son la TIR a la que suponés que el bono cotiza en la fecha de corte, cuando lo vendés. Cada celda es el retorno total en USD hasta esa fecha (precio de venta más cupones cobrados), comprando hoy al precio de la tabla. <b>Ret. TIR constante</b> es el caso en que la TIR de salida es igual a la de hoy. <b>BE retorno 0</b> es la TIR de salida a la que ganás 0%; <b>BE vs reinv.</b>, la que iguala lo que rendiría reinvertir a la tasa de reinversión; y <b>Colchón</b>, los puntos básicos que puede subir la TIR desde hoy hasta el BE retorno 0. Los números en las celdas remiten a los recuadros de arriba.</p>
+      <details style="border-top:1px solid var(--bd);margin-top:14px;padding-top:14px;text-align:left">
           <summary>Precios de mercado base (editables, USD por 100 VN)</summary>
           <div class="ctl" id="pr" style="margin-top:14px;"></div>
       </details>
   </div>
+
 
   <div id="projSection">
   <hr style="border:0;border-top:1px solid var(--bd);margin:36px 0 20px">
@@ -529,7 +533,7 @@ window.curveFitUSD = function (pts, model, minN) {
         <canvas id="spreadHistChart"></canvas>
       </div>
       <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px; margin-top: 20px;" id="spreadStatsGrid"></div>
-      <p class="note" id="spreadNote" style="margin:12px 0 0"></p>
+      <div class="note" id="spreadNote" style="margin:14px 2px 0"></div>
   </div>
 </div>
 </main>
@@ -862,35 +866,28 @@ function draw() {
          
  const rows = [];
  for (let i = 0; i < B.length; i++) {
-  let b = B[i];
-  const r = calc(b, d0, d1, u);
-  const colch = (r.be0 != null && r.tir != null) ? (r.be0 - r.tir) * 10000 : null;
-  rows.push({ k: b.k, r: r, colch: colch, flash: b.flash });
-  
-  let flashCls = b.flash ? ' class="' + b.flash + '"' : '';
-  
-  h += '<tr><td class="t">' + b.k + '</td><td' + flashCls + '>' + b.p.toLocaleString('es-AR', { minimumFractionDigits: 2 }) + '</td><td style="color:var(--ac); font-weight:600;">' + pc(r.tir) + '</td><td style="' + col(r.cst) + '">' + pc(r.cst) + '</td>' +
-       r.g.map(function(v) { return '<td style="' + col(v) + '">' + pc(v) + '</td>'; }).join('') + 
-       '<td class="b" style="font-weight:600;">' + pc(r.be0) + '</td><td>' + pc(r.beu) + '</td><td>' + (colch == null ? 'n/a' : Math.round(colch).toLocaleString('es-AR')) + '</td></tr>';
+  const b = B[i], r = calc(b, d0, d1, u);
+  rows.push({ k: b.k, b: b, r: r, colch: (r.be0 != null && r.tir != null) ? (r.be0 - r.tir) * 10000 : null, mreinv: (r.beu != null && r.tir != null) ? (r.beu - r.tir) * 10000 : null, flash: b.flash });
  }
- $('t').innerHTML = h;
- 
- const withColch = rows.filter(function(x) { return x.colch != null; });
- const best = withColch.length ? withColch.reduce(function(a, b) { return b.colch > a.colch ? b : a; }, withColch[0]) : { k: '-', colch: 0 };
- const worst = withColch.length ? withColch.reduce(function(a, b) { return b.colch < a.colch ? b : a; }, withColch[0]) : { k: '-', colch: 0 };
- const bestBEU = rows.length ? rows.reduce(function(a, b) {
-     let vB = b.r.beu != null ? b.r.beu : -99;
-     let vA = a.r.beu != null ? a.r.beu : -99;
-     return vB > vA ? b : a;
- }, rows[0]) : { k: '-', r: { beu: null } };
+ // lectura de la tabla: cada dato sale de una columna y su celda queda marcada con el mismo número
+ const pick = function (f, hi) { const a = rows.filter(function (x) { return x[f] != null; }); return a.length ? a.reduce(function (m, x) { return (hi ? x[f] > m[f] : x[f] < m[f]) ? x : m; }, a[0]) : null; };
+ const best = pick('colch', true), worst = pick('colch', false), bestM = pick('mreinv', true);
  const avgCst = rows.length ? rows.reduce(function(s, x) { return s + (x.r.cst || 0); }, 0) / rows.length : 0;
- 
- $('read').innerHTML = [
-  '<b>' + best.k + '</b> posee el mayor colchón contra pérdida en USD (' + Math.round(best.colch).toLocaleString('es-AR') + ' pb hasta el breakeven de retorno 0).',
-  '<b>' + worst.k + '</b> posee el menor colchón (' + Math.round(worst.colch).toLocaleString('es-AR') + ' pb): es el más expuesto a un salto de tasa.',
-  '<b>' + bestBEU.k + '</b> es el que más puede subir su TIR de salida y seguir ganándole a la tasa de reinversión (breakeven ' + pc(bestBEU.r.beu) + ').',
-  'Con la TIR de hoy sin cambios, el retorno promedio de la curva a la fecha de corte es de ' + pc(avgCst, 1) + '.'
- ].map(function(t) { return '<li>' + t + '</li>'; }).join('');
+ const mkAt = function (k, col) { const n = [best, worst, bestM].map(function (x, i) { return x && x.k === k && (i < 2 ? col === 'c' : col === 'u') ? i + 1 : 0; }).filter(Boolean); return n.length ? ' class="mk" data-mk="' + n.join(' · ') + '"' : ''; };
+ const pb = function (v) { return Math.round(v).toLocaleString('es-AR'); }, fc = $('d1').value ? $('d1').value.split('-').reverse().join('/') : 'la fecha de corte';
+ h = h.replace('<th>Ret. TIR<br>constante</th>', '<th class="mk" data-mk="4">Ret. TIR<br>constante</th>');
+ rows.forEach(function (x) {
+  const b = x.b, r = x.r, flashCls = b.flash ? ' class="' + b.flash + '"' : '';
+  h += '<tr><td class="t">' + b.k + '</td><td' + flashCls + '>' + b.p.toLocaleString('es-AR', { minimumFractionDigits: 2 }) + '</td><td style="color:var(--ac); font-weight:600;">' + pc(r.tir) + '</td><td style="' + col(r.cst) + '">' + pc(r.cst) + '</td>' +
+       r.g.map(function(v) { return '<td style="' + col(v) + '">' + pc(v) + '</td>'; }).join('') +
+       '<td class="b" style="font-weight:600;">' + pc(r.be0) + '</td><td' + mkAt(b.k, 'u') + '>' + pc(r.beu) + '</td><td' + mkAt(b.k, 'c') + '>' + (x.colch == null ? 'n/a' : pb(x.colch)) + '</td></tr>';
+ });
+ $('t').innerHTML = h;
+ const card = function (n, t, v, txt) { return '<div class="ti"><small><i class="n">' + n + '</i>' + t + '</small><b>' + v + '</b><span>' + txt + '</span></div>'; };
+ $('read').innerHTML = (best ? card(1, 'Mayor colchón', '<em>' + best.k + '</em> · ' + pb(best.colch) + ' pb', 'Su TIR puede subir ' + pb(best.colch) + ' pb hasta el ' + fc + ' antes de que el retorno en USD pase a ser negativo.') : '') +
+  (worst ? card(2, 'Menor colchón', '<em>' + worst.k + '</em> · ' + pb(worst.colch) + ' pb', 'Con una suba de su TIR mayor a esa ya perdés: es el más expuesto a un salto de tasa.') : '') +
+  (bestM ? card(3, 'Más margen contra reinvertir', '<em>' + bestM.k + '</em> · ' + pc(bestM.r.beu), 'Le gana a reinvertir al ' + pc(u) + ' mientras su TIR de salida no pase de ' + pc(bestM.r.beu) + ': puede subir ' + pb(bestM.mreinv) + ' pb desde hoy.') : '') +
+  card(4, 'Si ninguna TIR cambia', pc(avgCst, 1), 'Retorno promedio de los ' + rows.length + ' bonos hasta el ' + fc + ': el promedio de la columna Ret. TIR constante.');
  
  updateBreakdownChart(rows);
  if(window.updateCFChart) window.updateCFChart();
@@ -1415,8 +1412,11 @@ window.updateSpreadChart = function() {
     ['Mín / máx', Math.round(Math.min.apply(null, vals)) + ' / ' + Math.round(Math.max.apply(null, vals)), '', 'pb']
   ].map(function(arr) { return '<div class="spread-box"><div class="spread-title">' + (arr[2] ? '<i class="dot" style="background:' + arr[2] + '"></i>' : '') + '<span>' + arr[0] + '</span></div><div class="spread-val">' + arr[1] + '</div><div class="note">' + arr[3] + '</div></div>'; }).join('');
   window.renderSpreadCards();
-  $('spreadNote').textContent = 'Spread = TIR de la ley local − TIR de la ley NY, con los precios de cierre en ' + spn + ' (especie ' + sp + ') y liquidación el mismo día; durante la rueda el último punto es el precio en vivo. ' + vals.length + ' ruedas en el rango.' +
-    (dropped.length ? ' Se descartaron ' + dropped.length + ' cierre' + (dropped.length > 1 ? 's' : '') + ' suelto' + (dropped.length > 1 ? 's' : '') + ' (' + dropped.map(function(x) { return dd(x[0]) + ': ' + Math.round(x[1] * 100) + ' pb'; }).join(', ') + '): días en que el spread se aparta más de 50 pb de los dos vecinos y al día siguiente vuelve, casi siempre por el cierre de uno solo de los bonos fuera de mercado.' : '');
+  const pctlTxt = pctl.toFixed(0) + '% de las ruedas del rango', zTxt = zNow == null ? '' : ' ' + (today ? 'Hoy' : 'El último cierre') + ' está a ' + Math.abs(zNow).toFixed(1).replace('.', ',') + ' desvíos ' + (zNow >= 0 ? 'por encima' : 'por debajo') + ' de la media y por encima del ' + pctlTxt + '.';
+  $('spreadNote').innerHTML = '<p style="margin:0 0 6px"><b style="color:var(--tx)">Cómo se calcula.</b> Spread = TIR de ' + p.loc + ' (ley local) − TIR de ' + p.ny + ' (ley NY), en puntos básicos. Si es positivo, el bono de ley local rinde más: es lo que el mercado cobra por no tener la jurisdicción de Nueva York.</p><ul style="margin:0;padding-left:20px">' +
+    '<li><b style="color:var(--tx)">Precios</b>: cierre de cada rueda en ' + spn + ' (especie ' + sp + '), con liquidación el mismo día para los dos bonos, así se comparan en las mismas condiciones. Durante la rueda, el último punto usa el precio en vivo.</li>' +
+    '<li><b style="color:var(--tx)">Estadísticas</b>: media, desvío y bandas salen de las ' + vals.length + ' ruedas del rango elegido. El Z-score dice a cuántos desvíos de la media está el último valor (más de ±2 es poco habitual) y el percentil, qué parte del rango quedó por debajo.' + zTxt + '</li>' +
+    (dropped.length ? '<li><b style="color:var(--tx)">Limpieza</b>: se ' + (dropped.length > 1 ? 'descartaron ' + dropped.length + ' cierres sueltos' : 'descartó 1 cierre suelto') + ', días en que el spread salta más de 50 pb respecto del día anterior y del siguiente, y al otro día vuelve. Casi siempre es una operación aislada de uno de los dos bonos fuera de precio. <details style="display:inline"><summary style="display:inline;font-size:inherit;color:var(--ac)">Ver ' + (dropped.length > 1 ? 'cuáles' : 'cuál') + '</summary> ' + dropped.map(function(x) { return dd(x[0]) + ' (' + Math.round(x[1] * 100) + ' pb)'; }).join(' · ') + '</details></li>' : '') + '</ul>';
  } catch(error) {
   console.error(error); canvas.style.display = 'none'; errBox.style.display = 'block'; errBox.innerHTML = '<b>Sys Error:</b> ' + error.message;
  }
@@ -3470,10 +3470,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var FAMS = { fija: ['Tasa fija', '#60a5fa'], cer: ['CER', '#34d399'], tamar: ['TAMAR', '#fbbf24'], dl: ['Dólar linked', '#a78bfa'], dual: ['Duales', '#f472b6'], bonar: ['Bonares (ley local)', '#fb923c'], glob: ['Globales (ley NY)', '#f87171'], bop: ['Bopreal', '#22d3ee'], oth: ['Otros', '#94a3b8'] };
   var FORD = ['fija', 'cer', 'tamar', 'dl', 'dual', 'bonar', 'glob', 'bop', 'oth'];
   var PERIODS = [[1, 'Última rueda'], [5, '5 ruedas'], [20, '20 ruedas (≈ 1 mes)'], [60, '60 ruedas (≈ 3 meses)'], [120, '120 ruedas (≈ 6 meses)'], [250, '250 ruedas (≈ 1 año)'], [0, 'Todo el historial']];
-  var ST = { w: 20, fam: 'all', cur: 'all', view: 'bono', met: 'e', top: 30, sel: '', live: false, mi: 3 }, SORT = { k: 'tot', d: -1 };
+  var ST = { w: 20, fam: 'all', cur: 'all', view: 'bono', met: 'e', top: 30, sel: '', live: false, mi: 3, ref: 20 }, SORT = { k: 'tot', d: -1 };
   var MINS = [0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1]; // % del monto del período: los bonos que pesan menos no se dibujan en Volumen contra precio (por defecto 0,05%)
   try { var mi0 = localStorage.getItem('vlMin'); if (mi0 != null && MINS[+mi0] != null) ST.mi = +mi0; } catch (e) { }
-  var D = null, T = {}, DATES = [], n = 0, MEP = null, CCL = null, loading = false, err = null, CHS = null, CHD = null, CHP = null, LIVEN = 0, DN = null, LAST = null;
+  var D = null, T = {}, DATES = [], n = 0, MEP = null, CCL = null, loading = false, err = null, CHS = null, CHD = null, CHP = null, CHR = null, LIVEN = 0, DN = null, LAST = null;
 
   /* ---------- carga y armado ---------- */
   function load() {
@@ -3533,6 +3533,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     else if (/^S\d|^T\d|^TT/.test(t)) fam = 'fija';
     else if (/^X\d|^TZX/.test(t)) fam = 'cer';
     else if (/^TZV|^D\d/.test(t)) fam = 'dl';
+    else if (/^TXM|^TMV/.test(t)) fam = 'dual';
+    else if (/^M\d{2}[A-Z]\d|^TM[A-Z]\d{2}/.test(t)) fam = 'tamar';
     return { base: base, fam: fam };
   }
   function dl(id, name, tt) { return '<button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'' + id + '\', \'' + name + '\')" title="' + tt + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button>'; }
@@ -3615,6 +3617,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '#vol .tg{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700}#vol .tg.ok{background:rgba(52,211,153,.18);color:#34d399}#vol .tg.mg{background:rgba(245,158,11,.18);color:#f59e0b}#vol .tg.no{background:rgba(251,113,133,.18);color:#fb7185}#vol .tg.na{background:rgba(148,163,184,.14);color:var(--mu)}' +
       '#vol .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}#vol .sp{font-size:11px;color:var(--mu);font-weight:600;margin-left:6px}' +
       '#vol .rg{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px}@media(max-width:1000px){#vol .rg{grid-template-columns:minmax(0,1fr)}}#vol .sc{overflow-x:auto}#vol #vlFam th,#vol #vlFam td{padding:7px 7px}#vol h4{margin:0 0 8px;font-size:16px;color:var(--mu)}' +
+      '#vol .hm td,#vol .hm th{text-align:center;vertical-align:middle;padding:6px 8px;line-height:1.25}#vol .hm td.l,#vol .hm th.l{text-align:left}#vol .hm td b{display:block;font-size:14px;color:var(--tx)}#vol .hm td i{display:block;font-style:normal;font-size:12px;font-weight:700}#vol .hm td small{display:block;font-size:11px;color:var(--mu)}#vol .hm tr.tt td{border-top:1px solid var(--bd);font-weight:700}#vol .hm td.e{color:var(--mu)}' +
       '#vol .hl{color:var(--mu);font-size:14px;line-height:1.6;margin:10px 0 0}#vol .hl p{margin:0 0 6px}#vol .hl ul{margin:4px 0 0;padding-left:20px}#vol .hl li{margin:3px 0}#vol .hl b{color:var(--tx)}@media(max-width:700px){#vol .hl{font-size:13px}}' +
       '</style>' +
       '<div class="card" id="vlCap" data-norf="1"><div class="status" style="justify-content:space-between;gap:12px;flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0;flex:1 1 0"><p style="margin:0;color:var(--tx);font-size:16px;font-weight:600">Volumen operado</p>' +
@@ -3627,13 +3630,19 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<label title="Por bono suma las especies de un mismo bono (por ejemplo AL30, AL30D y AL30C); por especie las muestra separadas">Agrupar<select id="vlV"><option value="bono">Por bono</option><option value="esp">Por especie</option></select></label>' +
       '<label class="ck"><input type="checkbox" id="vlL"> Incluir la rueda de hoy (parcial)</label></div>' +
       '<div class="rs" id="vlS1"><div style="' + HD + '"><h4 id="vlT1" style="margin:0">Dónde estuvo el volumen</h4>' + dl('vlS1', 'Soberanos_Volumen_Familias', 'Descargar el resumen, el gráfico y la tabla en HD') + '</div><p class="note" id="vlCap1" style="margin:0"></p><div class="rchips" id="vlChips"></div><div class="rg" style="margin-top:18px"><div style="position:relative;height:340px"><canvas id="vlCh1"></canvas></div><div class="sc"><table class="rt nf" id="vlFam"></table></div></div></div>' +
+      '<div class="rs" id="vlS4"><div style="' + HD + ';flex-wrap:wrap"><h4 style="margin:0">Hacia dónde fue el flujo</h4><span style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><label style="flex-direction:row;align-items:center;gap:8px;font-size:12px;color:var(--mu)">Comparar contra<select id="vlR" style="width:250px"><option value="1">la rueda anterior al período</option><option value="20">las 20 ruedas anteriores</option><option value="60">las 60 ruedas anteriores</option></select></label>' + dl('vlS4', 'Soberanos_Volumen_Flujo', 'Descargar el flujo en HD') + '</span></div>' +
+      '<p class="note" id="vlRotS" style="margin:0 0 14px;color:var(--tx)"></p><div class="rg"><div class="sc"><table class="rt nf hm" id="vlRot"></table></div><div><div style="position:relative;height:440px"><canvas id="vlCh4"></canvas></div></div></div>' +
+      '<div class="hl"><p><b>Cómo se lee.</b> Cada celda es la parte del monto del período que fue a esa familia y a ese plazo (hasta el vencimiento final), y debajo cuántos puntos porcentuales ganó o perdió contra el período de comparación: <span style="color:var(--ok)">verde</span> si ahora concentra más volumen que antes, <span style="color:var(--bad)">rojo</span> si menos. El gráfico de barras muestra los bonos que más participación ganaron y perdieron; tocá una barra para ver el detalle del bono.</p><ul>' +
+      '<li>Se comparan <b>participaciones</b> y no montos, así el resultado no depende de que la rueda haya sido más o menos activa ni de que la de hoy esté incompleta.</li>' +
+      '<li>El volumen no tiene dirección: cada compra es una venta. Lo que muestra qué lado empujó es el <b>precio</b> del tramo (variación promedio ponderada por monto, con cupones y amortizaciones sumados): más volumen con suba de precio sugiere que dominaron los compradores; con baja, los vendedores.</li>' +
+      '<li><b>Ya vencidos</b>: bonos que operaron en el período de comparación y vencieron después; su participación pasa a otros bonos (en general, a los que el Tesoro colocó para renovarlos). Los Bopreal se ubican por su año de vencimiento y los bonos sin vencimiento cargado van en <b>Sin dato</b>.</li></ul></div></div>' +
       '<div class="rs" id="vlS2"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><h4 style="margin:0" id="vlRT">Ranking</h4><span style="display:flex;gap:12px;align-items:center"><label style="flex-direction:row;align-items:center;gap:8px;font-size:12px;color:var(--mu)">Mostrar<select id="vlTop" style="width:110px"><option value="15">15</option><option value="30">30</option><option value="60">60</option><option value="9999">Todos</option></select></label>' + dl('vlS2', 'Soberanos_Volumen_Ranking', 'Descargar el ranking en HD').replace(/onclick="[^"]*"/, 'onclick="window.vlDlRank()"') + '</span></div><div class="sc" id="vlSc2" style="max-height:520px;overflow:auto"><table class="rt" id="vlTab"></table></div><div class="hl"><p><b>Cómo se lee la columna Lectura.</b> Primero se mira si el precio se movió de verdad: la variación del período se compara con lo que ese bono suele moverse en un lapso igual, sin contar su tendencia habitual (por ejemplo, el devengamiento de una Lecap) y con los cupones y amortizaciones sumados. La vara es un desvío estándar de sus últimas 60 ruedas.</p><ul><li><b>Precio sin cambio significativo</b>: se movió menos de un desvío, es decir, dentro de lo normal, aunque haya subido o bajado unos centésimos.</li><li><b>Mucho volumen, precio quieto</b>: lo mismo, pero operó 3 veces o más de lo habitual.</li><li><b>Subió</b> o <b>Bajó</b>: se movió más de un desvío. Al lado se aclara el volumen: <b>con volumen</b> (1,5 veces lo habitual o más), <b>con volumen normal</b> (entre 0,7 y 1,5 veces) o <b>sin volumen</b> (menos de 0,7 veces).</li></ul><p style="margin-top:6px">Pasá el mouse por una etiqueta para ver los números de esa fila: la variación, lo habitual para ese bono y cuántos desvíos se apartó.</p></div></div>' +
       '<div class="rs" id="vlS3"><div style="' + HD + ';flex-wrap:wrap"><h4 style="margin:0">Volumen contra precio</h4><span style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><label data-html2canvas-ignore="true" style="flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:12px;color:var(--mu)" title="Los bonos que operaron muy poco tienen variaciones y volúmenes relativos extremos que no dicen nada: por defecto no se dibujan">Bonos chicos<input type="range" id="vlMin" min="0" max="' + (MINS.length - 1) + '" step="1" style="width:130px"><span id="vlMinV" style="min-width:178px;color:var(--tx)"></span></label>' + dl('vlS3', 'Soberanos_Volumen_vs_Precio', 'Descargar este gráfico en HD') + '</span></div><p class="note" style="margin:0 0 8px">Cada punto es un bono. A la derecha, los que subieron en el período; a la izquierda, los que bajaron. Arriba de la línea punteada (1×) operaron más que de costumbre; abajo, menos. El tamaño del punto es el monto operado. Tocá un punto o una fila del ranking para ver el detalle.</p><div style="position:relative;height:clamp(520px,72vh,780px)"><canvas id="vlCh3"></canvas></div><p class="note" id="vlSN" style="margin:8px 0 0"></p></div>' +
       '<div class="rs" id="vlDet"></div>' +
       '<div class="rs"><div class="hl" style="margin:0"><p><b>Qué mide cada cosa</b></p><ul><li><b>Monto</b>: lo operado en pesos en cada rueda. Si un bono tiene varias especies (AL30 en pesos, AL30D en MEP y AL30C en Cable), se suman pasando los dólares a pesos con el dólar implícito de los bonos (la mediana de AL30, GD30 y otros pares). Con <b>Moneda</b> podés ver solo una especie y con <b>Medida</b>, el valor nominal en vez del monto.</li><li><b>Volumen relativo</b>: el promedio diario del período dividido por el de las 60 ruedas anteriores. 1× es lo normal, 2× el doble y 0,5× la mitad. Si el bono operó en menos de 10 de esas 60 ruedas no tiene un volumen habitual, así que no se calcula (y no aparece en el gráfico).</li><li><b>Variación de precio</b>: el precio de cierre es sucio (incluye los intereses corridos) y cae el día que se corta un cupón, así que se le suma lo que el bono pagó en el período. En Lecaps y bonos que devengan, el devengamiento forma parte de la variación.</li><li><b>Símbolos</b>: ‡ el bono pagó un cupón variable (TAMAR o dual) de monto desconocido, así que su variación no es comparable y no se clasifica. † bono sin cronograma de pagos cargado (por ejemplo, Bopreal): su variación no descuenta cobros.</li><li><b>Rueda de hoy</b>: si la incluís, cuenta con lo operado hasta el momento (se actualiza cada minuto), así que el monto y el volumen relativo de hoy quedan bajos hasta el cierre.</li><li><b>Ojo</b>: que el volumen y el precio se muevan juntos muestra coincidencia, no causa. Un volumen alto puede ser el motivo de un movimiento o su consecuencia.</li></ul></div></div></div>';
     var on = function (id, ev, fn) { document.getElementById(id)[ev] = fn; };
     on('vlW', 'onchange', function () { ST.w = +this.value; render(); }); on('vlF', 'onchange', function () { ST.fam = this.value; render(); }); on('vlC', 'onchange', function () { ST.cur = this.value; render(); });
-    on('vlM', 'onchange', function () { ST.met = this.value; render(); }); on('vlV', 'onchange', function () { ST.view = this.value; ST.sel = ''; render(); }); on('vlL', 'onchange', function () { ST.live = this.checked; render(); }); on('vlTop', 'onchange', function () { ST.top = +this.value; render(); });
+    on('vlM', 'onchange', function () { ST.met = this.value; render(); }); on('vlV', 'onchange', function () { ST.view = this.value; ST.sel = ''; render(); }); on('vlL', 'onchange', function () { ST.live = this.checked; render(); }); on('vlTop', 'onchange', function () { ST.top = +this.value; render(); }); on('vlR', 'onchange', function () { ST.ref = +this.value; render(); });
     on('vlMin', 'oninput', function () { ST.mi = +this.value; try { localStorage.setItem('vlMin', String(ST.mi)); } catch (e) { } if (LAST) scatter(LAST.rows); });
     on('vlTab', 'onclick', function (e) {
       var th = e.target.closest ? e.target.closest('th[data-s]') : null;
@@ -3691,6 +3700,72 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var per = e.recent ? 'las últimas 20 ruedas' : e.nw === 1 ? 'la rueda' : 'el período';
     return 'Variación en ' + per + ': ' + sg(e.dPxS * 100, 2) + '%. Lo habitual para este bono en ' + e.nw + (e.nw === 1 ? ' rueda' : ' ruedas') + ': ' + sg(e.trend * 100, 2) + '% ± ' + nf(e.sdw * 100, 2) + '%. Se apartó ' + nf(Math.abs(e.z), 1) + (Math.abs(e.z) >= 1 ? ' desvíos (significativo)' : ' desvíos (dentro de lo normal)') + '. Volumen: ' + nf(e.rel, 1) + '× lo habitual.';
   }
+  /* ---------- hacia dónde fue el flujo: participación por familia y plazo contra un período previo ---------- */
+  var BK = [['c3', 'Hasta 3 meses', 91], ['c12', '3 a 12 meses', 365], ['m3', '1 a 3 años', 1095], ['l', 'Más de 3 años', 1e9]];
+  function matOf(e) { // vencimiento final (día) de un bono
+    var inst = (X.INST || {})[e.base]; if (inst && inst.r && inst.r.length) return inst.r[inst.r.length - 1][0];
+    if ((e.fam === 'bonar' || e.fam === 'glob') && typeof B !== 'undefined' && typeof bxFullFlows === 'function') { var b = B.filter(function (x) { return x.k === e.base; })[0]; if (b) { var fl = bxFullFlows(b); if (fl.length) return fl[fl.length - 1][0]; } }
+    if (typeof bxDayNum !== 'function') return null;
+    var k = e.base, MO = 'EFMAYJLGSOND', p2 = function (v) { return (v < 10 ? '0' : '') + v; }, m;
+    if ((m = /^BP[A-Z]?(\d)$/.exec(k))) return bxDayNum('202' + m[1] + '-07-01'); // Bopreal: por su año de vencimiento (aproximado a mitad de año)
+    // bonos que ya no están en la base (por ejemplo, los que vencieron en el período): el vencimiento sale del ticker
+    if ((m = /^[A-Z]{1,2}(\d{2})([EFMAYJLGSOND])(\d)$/.exec(k))) return bxDayNum('202' + m[3] + '-' + p2(MO.indexOf(m[2]) + 1) + '-' + m[1]); // S30S6, T15E7, X30N6, D30S6, M31G6
+    if ((m = /^(?:TZX|TZV|TXM|TMV|TM|TT)([EFMAYJLGSOND])(\d{1,2})$/.exec(k))) return bxDayNum((m[2].length === 1 ? '202' : '20') + m[2] + '-' + p2(MO.indexOf(m[1]) + 1) + '-28'); // TZXD6, TMF27, TTS26, TXMJ8
+    if ((m = /^TZ[XV](\d{2})$/.exec(k))) return bxDayNum('20' + m[1] + '-06-30');
+    return null;
+  }
+  function bucketOf(e) { var t = matOf(e), d0 = DN ? DN[n - 1] : null; if (t == null || d0 == null || !isFinite(t)) return 'na'; var d = t - d0; if (d < 0) return 'ven'; for (var i = 0; i < BK.length; i++) if (d <= BK[i][2]) return BK[i][0]; return 'na'; }
+  function flow(list, M) {
+    if (CHR) { CHR.destroy(); CHR = null; }
+    var tab = document.getElementById('vlRot'), sm = document.getElementById('vlRotS'), a0 = M.a0, r0 = Math.max(0, a0 - ST.ref), nr = a0 - r0;
+    if (nr < 1) { tab.innerHTML = ''; sm.textContent = 'Con "Todo el historial" no hay un período anterior contra el cual comparar: elegí un período más corto.'; return; }
+    var B2 = [], Nn = 0, Nr = 0, C = {}, F = {}, K = {}, cols = BK.map(function (b) { return b[0]; });
+    list.forEach(function (e) {
+      var now = sum(e.M, a0, n), ref = sum(e.M, r0, a0); if (!(now > 0) && !(ref > 0)) return;
+      var bk = bucketOf(e), px = e.tot > 0 && e.dPx != null && !e.unkP ? e.dPx : null; Nn += now; Nr += ref;
+      B2.push({ e: e, now: now, ref: ref, bk: bk, px: px });
+      [[C, e.fam + '|' + bk], [F, e.fam], [K, bk]].forEach(function (q) { var o = q[0][q[1]] || (q[0][q[1]] = { now: 0, ref: 0, pw: 0, pv: 0 }); o.now += now; o.ref += ref; if (px != null && now > 0) { o.pw += now; o.pv += now * px; } });
+    });
+    if (!(Nn > 0) || !(Nr > 0)) { tab.innerHTML = ''; sm.textContent = 'No hay volumen suficiente en los dos períodos para comparar.'; return; }
+    if (K.ven) cols.push('ven'); if (K.na) cols.push('na');
+    var sh = function (o) { return o ? { s: o.now / Nn * 100, d: (o.now / Nn - o.ref / Nr) * 100, p: o.pw > 0 ? o.pv / o.pw : null } : null; };
+    var fams = FORD.filter(function (f) { return F[f]; }), mx = 0;
+    Object.keys(C).forEach(function (k) { mx = Math.max(mx, Math.abs(sh(C[k]).d)); });
+    var rgb = function (h) { h = (h || '').replace('#', ''); if (h.length === 3) h = h.replace(/./g, '$&$&'); var v = parseInt(h, 16); return isFinite(v) ? [(v >> 16) & 255, (v >> 8) & 255, v & 255].join(',') : '148,163,184'; }, OK = rgb(css('--ok')), BAD = rgb(css('--bad')); // los mismos verde y rojo del tema
+    var cell = function (o) {
+      var v = sh(o); if (!v || (v.s < 0.005 && Math.abs(v.d) < 0.005)) return '<td class="e">·</td>';
+      var a = Math.abs(v.d) < 0.1 || !mx ? 0 : 0.06 + 0.26 * Math.min(1, Math.abs(v.d) / mx), bg = a ? 'rgba(' + (v.d > 0 ? OK : BAD) + ',' + a.toFixed(2) + ')' : 'transparent';
+      return '<td style="background:' + bg + '"><b>' + nf(v.s, v.s < 10 ? 1 : 0) + '%</b><i style="color:' + (Math.abs(v.d) < 0.05 ? 'var(--mu)' : v.d > 0 ? 'var(--ok)' : 'var(--bad)') + '">' + sg(v.d, 1) + ' pp</i>' + (v.p != null ? '<small>precio <span style="color:' + (v.p >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + sg(v.p * 100, 2) + '%</span></small>' : '') + '</td>';
+    };
+    var lab = function (c) { return c === 'na' ? 'Sin dato' : c === 'ven' ? 'Ya vencidos' : BK.filter(function (b) { return b[0] === c; })[0][1]; };
+    var h = '<thead><tr><th class="l">Familia</th>' + cols.map(function (c) { return '<th>' + lab(c) + '</th>'; }).join('') + '<th>Total</th></tr></thead><tbody>';
+    fams.forEach(function (f) { h += '<tr><td class="l k"><span class="dot" style="background:' + FAMS[f][1] + '"></span>' + FAMS[f][0] + '</td>' + cols.map(function (c) { return cell(C[f + '|' + c]); }).join('') + cell(F[f]) + '</tr>'; });
+    h += '<tr class="tt"><td class="l">Total</td>' + cols.map(function (c) { return cell(K[c]); }).join('') + '<td><b>100%</b></td></tr>';
+    tab.innerHTML = h + '</tbody>';
+    // resumen en palabras
+    var one = fams.length === 1, fd = one ? cols.filter(function (c) { return K[c]; }).map(function (c) { return { c: c, v: sh(K[c]) }; }) : fams.map(function (f) { return { f: f, v: sh(F[f]) }; }), up = fd.filter(function (x) { return x.v.d >= 0.5; }).sort(function (a, b) { return b.v.d - a.v.d; }).slice(0, 2), dn = fd.filter(function (x) { return x.v.d <= -0.5; }).sort(function (a, b) { return a.v.d - b.v.d; }).slice(0, 2);
+    var nm = function (x) { return (one ? (x.c === 'ven' ? 'los bonos ya vencidos' : x.c === 'na' ? 'los bonos sin vencimiento cargado' : 'el tramo ' + (x.c === 'c3' ? 'de hasta 3 meses' : x.c === 'l' ? 'de más de 3 años' : 'de ' + lab(x.c).toLowerCase())) : FAMS[x.f][0]) + ' (' + sg(x.v.d, 1) + ' pp)'; }, ys = function (a) { return a.map(nm).join(' y '); };
+    var cb = null; Object.keys(C).forEach(function (k) { var v = sh(C[k]); if (!cb || v.d > cb.v.d) cb = { k: k, v: v }; });
+    var refTxt = ST.ref === 1 ? 'la rueda anterior' : 'las ' + ST.ref + ' ruedas anteriores';
+    var txt = !up.length && !dn.length ? 'Contra ' + refTxt + ', la composición del volumen casi no cambió (ningún ' + (one ? 'tramo' : 'grupo') + ' se movió medio punto o más).' :
+      'Contra ' + refTxt + ', ' + (one ? 'dentro de ' + FAMS[fams[0]][0] + ' ' : '') + 'el volumen se corrió' + (up.length ? ' hacia ' + ys(up) : '') + (up.length && dn.length ? ' y' : '') + (dn.length ? ' salió de ' + ys(dn) : '') + '.';
+    if (!one && cb && cb.v.d >= 0.5) { var pr = cb.k.split('|'); txt += ' El tramo que más ganó fue ' + FAMS[pr[0]][0] + (pr[1] === 'na' || pr[1] === 'ven' ? '' : ' de ' + lab(pr[1]).toLowerCase()) + ' (' + sg(cb.v.d, 1) + ' pp)' + (cb.v.p != null ? ', con el precio ' + (cb.v.p >= 0 ? 'en alza (' : 'en baja (') + sg(cb.v.p * 100, 2) + '%)' : '') + '.'; }
+    txt = txt.replace(/ de el /g, ' del ');
+    var vv = K.ven ? sh(K.ven) : null; if (vv && vv.d <= -0.5) txt += ' Los bonos que ya vencieron se llevaban ' + nf(-vv.d, 1) + ' pp del volumen de ' + refTxt + '.';
+    sm.textContent = txt + (ST.live && LIVEN ? ' Incluye la rueda de hoy, todavía incompleta.' : '');
+    // bonos que más participación ganaron y perdieron
+    B2.forEach(function (x) { x.d = (x.now / Nn - x.ref / Nr) * 100; });
+    var g = B2.filter(function (x) { return x.d > 0.05; }).sort(function (a, b) { return b.d - a.d; }).slice(0, 8), l = B2.filter(function (x) { return x.d < -0.05; }).sort(function (a, b) { return a.d - b.d; }).slice(0, 8).reverse(), bars = g.concat(l);
+    if (!bars.length) return;
+    var tx = css('--tx'), bd = css('--bd');
+    CHR = new Chart(document.getElementById('vlCh4').getContext('2d'), { type: 'bar', data: { labels: bars.map(function (x) { return x.e.key; }), datasets: [{ label: 'Cambio de participación (pp)', data: bars.map(function (x) { return x.d; }), backgroundColor: bars.map(function (x) { return FAMS[x.e.fam][1] + 'cc'; }), borderColor: bars.map(function (x) { return FAMS[x.e.fam][1]; }), borderWidth: 1, borderRadius: 3 }] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
+        onClick: function (ev, els) { if (els[0]) { ST.sel = bars[els[0].index].e.key; render(); document.getElementById('vlDet').scrollIntoView({ behavior: 'smooth', block: 'start' }); } },
+        plugins: { legend: { display: false }, title: { display: true, text: 'Bonos que más participación ganaron y perdieron', color: tx, font: { size: 13, weight: '600' } },
+          tooltip: { callbacks: { title: function (c) { var x = bars[c[0].dataIndex]; return x.e.key + ' · ' + FAMS[x.e.fam][0] + (x.bk === 'ven' ? ' · ya venció' : ''); }, label: function (c) { var x = bars[c.dataIndex]; return [sg(x.d, 2) + ' pp de participación', 'Ahora: ' + nf(x.now / Nn * 100, 2) + '% del monto (' + mon(x.now / M.w) + ' por rueda)', 'Antes: ' + nf(x.ref / Nr * 100, 2) + '% (' + mon(x.ref / nr) + ' por rueda)'].concat(x.px != null ? ['Precio en el período: ' + sg(x.px * 100, 2) + '%'] : []); } } } },
+        scales: { x: { title: { display: true, text: 'Puntos porcentuales de participación ganados o perdidos', color: tx }, ticks: { color: tx, callback: function (v) { return sg(v, 1); } }, grid: { color: bd } }, y: { ticks: { color: tx, autoSkip: false }, grid: { display: false } } } } });
+  }
+
   function mk(e, unk) { return unk ? '‡' : e.adj === 'none' ? '†' : ''; }
   function ranking(rows, totAll) {
     var key = SORT.k, val = function (r) { return key === 'k' ? r.key : key === 'fam' ? FAMS[r.fam][0] : key === 'share' ? r.tot : r[key]; };
@@ -3778,12 +3853,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
       if (!D) { sub.textContent = 'Cargando la serie de volumen…'; load(); return; }
       build();
-      document.getElementById('vlW').value = ST.w; document.getElementById('vlF').value = ST.fam; document.getElementById('vlC').value = ST.cur; document.getElementById('vlM').value = ST.met; document.getElementById('vlV').value = ST.view; document.getElementById('vlTop').value = ST.top; document.getElementById('vlMin').value = ST.mi; document.getElementById('vlL').checked = ST.live;
+      document.getElementById('vlW').value = ST.w; document.getElementById('vlF').value = ST.fam; document.getElementById('vlC').value = ST.cur; document.getElementById('vlM').value = ST.met; document.getElementById('vlV').value = ST.view; document.getElementById('vlTop').value = ST.top; document.getElementById('vlMin').value = ST.mi; document.getElementById('vlR').value = ST.ref; document.getElementById('vlL').checked = ST.live;
       var list = entities(), M = metrics(list), rows = M.rows;
       LAST = { rows: rows, M: M };
       var lastD = D.dates[D.dates.length - 1], f = function (s) { return s.split('-').reverse().join('/'); };
       sub.textContent = 'Serie diaria de ' + Object.keys(D.t).length + ' tickers (' + f(D.dates[0]) + ' al ' + f(lastD) + ') y volumen en vivo de la API. Dónde se concentró la operatoria de la renta fija y cómo se movió el precio cuando hubo más o menos volumen.' + (ST.live && LIVEN ? ' Incluye la rueda de hoy (' + LIVEN + ' tickers), todavía incompleta.' : '');
-      if (!rows.length) { document.getElementById('vlChips').innerHTML = ''; document.getElementById('vlTab').innerHTML = '<tbody><tr><td class="l">Sin operaciones en el período con esos filtros.</td></tr></tbody>'; if (CHS) { CHS.destroy(); CHS = null; } if (CHP) { CHP.destroy(); CHP = null; } detail(null, M); return; }
+      if (!rows.length) { document.getElementById('vlChips').innerHTML = ''; document.getElementById('vlTab').innerHTML = '<tbody><tr><td class="l">Sin operaciones en el período con esos filtros.</td></tr></tbody>'; if (CHS) { CHS.destroy(); CHS = null; } if (CHP) { CHP.destroy(); CHP = null; } if (CHR) { CHR.destroy(); CHR = null; } document.getElementById('vlRot').innerHTML = ''; document.getElementById('vlRotS').textContent = ''; detail(null, M); return; }
       var famTot = {}, famPrev = {}, totAll = 0, prevAll = 0, prevOk = false;
       FORD.forEach(function (ff) { famTot[ff] = 0; famPrev[ff] = 0; });
       list.forEach(function (e) { var t = sum(e.M, M.a0, n); famTot[e.fam] += t; totAll += t; if (M.a0 >= M.w) { var p = sum(e.M, M.a0 - M.w, M.a0); famPrev[e.fam] += p; prevAll += p; prevOk = true; } });
@@ -3791,7 +3866,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (!ST.sel || !rows.some(function (r) { return r.key === ST.sel; })) ST.sel = (rows.filter(function (r) { return !r.stale; })[0] || rows[0]).key;
       var ot = function (id) { var el = document.getElementById(id); return el.options[el.selectedIndex].text; };
       document.getElementById('vlCap1').textContent = 'Período: ' + ot('vlW') + ' · Familia: ' + ot('vlF') + ' · Moneda: ' + ot('vlC') + ' · Medida: ' + ot('vlM') + ' · Agrupado: ' + ot('vlV').toLowerCase() + (ST.live && LIVEN ? ' · incluye la rueda de hoy (parcial)' : '');
-      chips(M, rows, famTot, totAll, prevOk ? prevAll : null); famTable(M, famTot, famPrev, totAll); stacked(list, M); ranking(rows, totAll); scatter(rows);
+      chips(M, rows, famTot, totAll, prevOk ? prevAll : null); famTable(M, famTot, famPrev, totAll); stacked(list, M); flow(list, M); ranking(rows, totAll); scatter(rows);
       detail(rows.filter(function (r) { return r.key === ST.sel; })[0], M);
     } catch (e) { console.error('vol', e); var s2 = document.getElementById('vlSub'); if (s2) s2.textContent = 'Error: ' + e.message; }
   }
@@ -3799,7 +3874,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     if (window.downloadSnapshotHD) window.downloadSnapshotHD('vlS2', 'Soberanos_Volumen_Ranking');
   };
   window.dlOnClone = function (doc, id) { // las imágenes de cada sección llevan arriba los filtros que se usaron
-    if (!/^vlS[123]$/.test(id)) return;
+    if (!/^vlS[1-4]$/.test(id)) return;
     var sc2 = doc.getElementById('vlSc2'); if (sc2 && id === 'vlS2') { sc2.style.maxHeight = 'none'; sc2.style.overflow = 'visible'; }
     var src = document.querySelector('#vol .rc.rs'), host = doc.getElementById(id); if (!src || !host) return;
     var c = src.cloneNode(true), a = src.querySelectorAll('select'), b = c.querySelectorAll('select'), k;
@@ -3826,7 +3901,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
    ===================================================================== */
 ;(function () {
   var TAB_NAMES = { tabla: 'Tabla_Retornos', desglose: 'Flujos_TotalReturn', curva: 'Curva_Spreads', pesos: 'Pesos', vard: 'Variacion_diaria', rot: 'Rotacion', vol: 'Volumen' };
-  var TABLE_NAMES = { vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
+  var TABLE_NAMES = { vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', vlRot: 'Volumen_flujo', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
 
   function parse(raw) {
     var s = raw.replace(/−/g, '-').replace(/ /g, ' ').replace(/^US\$\s*/, '').replace(/^([+-])\s+/, '$1').trim();
