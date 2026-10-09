@@ -501,7 +501,7 @@ window.curveFitUSD = function (pts, model, minN) {
   </div>
 
   <div class="card" style="margin-top: 24px;">
-      <p style="margin: 0 0 18px 0; color: var(--tx); font-size: 16px; font-weight: 600;">Spread de Legislación en puntos básicos (Ley Local vs Ley NY)</p>
+      <p style="margin: 0 0 18px 0; color: var(--tx); font-size: 16px; font-weight: 600;" id="spreadsTitle">Spread de Legislación en puntos básicos (Ley Local vs Ley NY)</p>
       <div id="spreadsGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;"></div>
   </div>
 
@@ -510,6 +510,7 @@ window.curveFitUSD = function (pts, model, minN) {
   <div class="card sx" id="spreadHistContainer">
     <div class="sxh"><div style="min-width:0"><p class="qh">Panel de Spread Histórico (Z-Score)</p></div><div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD('spreadHistContainer', 'Soberanos_Spread_Historico')" title="Descargar Panel Histórico en HD"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>
     <div class="ctl sxc"><label>Par<select id="spreadPairSelect" onchange="if(window.updateSpreadChart) window.updateSpreadChart()"></select></label>
+    <label>Moneda<select id="spreadSp" onchange="window.SPREAD_SP=this.value;try{localStorage.setItem('spreadSp',this.value)}catch(e){};if(window.updateSpreadChart) window.updateSpreadChart();if(window.renderSpreadCards) window.renderSpreadCards()"><option value="C">Cable (especie C)</option><option value="D">MEP (especie D)</option></select></label>
     <label>Desde<input type="date" id="spreadFrom" onchange="if(window.updateSpreadChart) window.updateSpreadChart()"></label>
     <label>Hasta<input type="date" id="spreadTo" onchange="if(window.updateSpreadChart) window.updateSpreadChart()"></label></div>
       <div class="chart-error" id="spreadChartError"></div>
@@ -525,6 +526,7 @@ window.curveFitUSD = function (pts, model, minN) {
         <canvas id="spreadHistChart"></canvas>
       </div>
       <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px; margin-top: 20px;" id="spreadStatsGrid"></div>
+      <p class="note" id="spreadNote" style="margin:12px 0 0"></p>
   </div>
 </div>
 </main>
@@ -685,23 +687,32 @@ const SPREADS = {
   AL29_GD29: { loc: 'AL29', ny: 'GD29' }, AL30_GD30: { loc: 'AL30', ny: 'GD30' }, AL35_GD35: { loc: 'AL35', ny: 'GD35' },
   AE38_GD38: { loc: 'AE38', ny: 'GD38' }, AL41_GD41: { loc: 'AL41', ny: 'GD41' }
 };
-function bxTir(k, t, price) {
-  var b = B.find(function (x) { return x.k === k; }); if (!b) return null;
-  var s = bxSettle(t), fl = bxFullFlows(b).filter(function (f) { return f[0] > s; });
-  if (!fl.length) return null;
-  return solve(function (y) { return bxPv(fl, s, y) - price; }, -.5, 5);
-}
 function spreadHistFor(key, sp) {
   var P = SPREADS[key], base = PX.SP.pairs[key][sp || especie] || [], out = [];
   PX.SP.dates.forEach(function (d, i) { if (base[i] != null) out.push([bxDayStr(d), base[i]]); });
   var L = LOG[sp || especie] || {};
+  var tir = function (k, t, price) { var b = B.find(function (x) { return x.k === k; }); if (!b) return null; var fl = bxFullFlows(b).filter(function (f) { return f[0] > t; }); return fl.length ? solve(function (y) { return bxPv(fl, t, y) - price; }, -.5, 5) : null; }; // liquidación el mismo día del cierre, igual que la serie del Excel
   Object.keys(L).sort().forEach(function (ds) {
     var t = bxDayNum(ds), e = L[ds]; if (t <= PX.last || e[P.loc] == null || e[P.ny] == null) return;
-    var a = bxTir(P.loc, t, e[P.loc]), n = bxTir(P.ny, t, e[P.ny]);
+    var a = tir(P.loc, t, e[P.loc]), n = tir(P.ny, t, e[P.ny]);
     if (a != null && n != null) out.push([ds, (a - n) * 100]);
   });
   return out;
 }
+// cierres sueltos: un día en que el spread se aparta más de 50 pb de los dos vecinos (para el mismo lado) y al día siguiente vuelve.
+// Casi siempre es el cierre de uno solo de los dos bonos fuera de mercado (ej. GD30 MEP del 06/08/2026: 55,96 entre 58,34 y 57,96)
+function spreadClean(h) {
+  var pts = [], drop = [];
+  for (var i = 0; i < h.length; i++) {
+    if (i > 0 && i < h.length - 1) {
+      var a = h[i - 1][1], c = h[i][1], d = h[i + 1][1], u = c - a, w = c - d;
+      if (Math.abs(u) > 0.5 && Math.abs(w) > 0.5 && u * w > 0 && Math.abs(d - a) < 0.5 * Math.min(Math.abs(u), Math.abs(w))) { drop.push(h[i]); continue; }
+    }
+    pts.push(h[i]);
+  }
+  return { pts: pts, drop: drop };
+}
+window.SPREAD_SP = (function () { try { return localStorage.getItem('spreadSp') || 'C'; } catch (e) { return 'C'; } })(); // moneda del spread de legislación: cable (C) por defecto
 let HIST_MIN = bxDayStr(PX.SP.dates[0]), HIST_MAX = bxDayStr(PX.last);
 function refreshSpreadRange() { var d = logDays(); HIST_MAX = d.length ? d[d.length - 1] : bxDayStr(PX.last); }
 function addMonthsClamped(dateStr, months) {
@@ -1273,26 +1284,19 @@ window.updateCurveChart = function() {
         });
     }
 
-    const pairs = [['AL29', 'GD29'], ['AL30', 'GD30'], ['AL35', 'GD35'], ['AE38', 'GD38'], ['AL41', 'GD41']];
-    let spreadHTML = '';
-    for (let i = 0; i < pairs.length; i++) {
-        let locTicker = pairs[i][0], nyTicker = pairs[i][1];
-        let ptLoc = dataLoc.find(function(d) { return d.bono === locTicker; });
-        let ptNY = dataNY.find(function(d) { return d.bono === nyTicker; });
-        if (ptLoc && ptNY) {
-            const hv = spreadHistFor(locTicker + '_' + nyTicker).map(function(x) { return x[1]; });
-            let zt = '';
-            if (hv.length > 20) {
-                const mu = hv.reduce(function(a, c) { return a + c; }, 0) / hv.length;
-                const sd = Math.sqrt(hv.reduce(function(a, c) { return a + (c - mu) * (c - mu); }, 0) / hv.length);
-                const z = sd > 0 ? (ptLoc.y - ptNY.y - mu) / sd : 0;
-                zt = '<div class="note" style="margin-top:6px">z ' + (z >= 0 ? '+' : '') + z.toFixed(1).replace('.', ',') + ' · media ' + (mu * 100).toFixed(0) + ' pb</div>';
-            }
-            spreadHTML += '<div class="spread-box"><div class="spread-title">' + locTicker + ' vs ' + nyTicker + '</div><div class="spread-val">' + ((ptLoc.y - ptNY.y) * 100).toFixed(0) + ' pb</div>' + zt + '</div>';
-        }
-    }
-    $('spreadsGrid').innerHTML = spreadHTML;
+    window.renderSpreadCards();
 }
+
+window.renderSpreadCards = function () { // último spread de cada par (cierre o precio en vivo de hoy) y su z contra toda la historia, en la moneda elegida
+    const sp = window.SPREAD_SP || 'C';
+    $('spreadsTitle').textContent = 'Spread de Legislación en puntos básicos (Ley Local vs Ley NY) · ' + (sp === 'C' ? 'cable' : 'MEP');
+    $('spreadsGrid').innerHTML = Object.keys(SPREADS).map(function (key) {
+        const P = SPREADS[key], hv = spreadClean(spreadHistFor(key, sp)).pts; if (!hv.length) return '';
+        const v = hv.map(function (x) { return x[1]; }), last = v[v.length - 1], ds = hv[hv.length - 1][0];
+        const mu = v.reduce(function (a, c) { return a + c; }, 0) / v.length, sd = Math.sqrt(v.reduce(function (a, c) { return a + (c - mu) * (c - mu); }, 0) / v.length), z = sd > 0 ? (last - mu) / sd : 0;
+        return '<div class="spread-box"><div class="spread-title">' + P.loc + ' vs ' + P.ny + '</div><div class="spread-val">' + (last * 100).toFixed(0) + ' pb</div><div class="note" style="margin-top:6px">z ' + (z >= 0 ? '+' : '') + z.toFixed(1).replace('.', ',') + ' · media ' + (mu * 100).toFixed(0) + ' pb · ' + ds.slice(8, 10) + '/' + ds.slice(5, 7) + '</div></div>';
+    }).join('');
+};
 
 window.applyPreset = function(val) {
  if (!val) return;
@@ -1310,13 +1314,6 @@ $('spreadPreset').onchange = function(e) { window.applyPreset(e.target.value); }
 $('spreadFrom').addEventListener('change', function() { $('spreadPreset').value = ''; }); 
 $('spreadTo').addEventListener('change', function() { $('spreadPreset').value = ''; });
 
-function liveSpreadFor(pairKey) {
- const p = SPREADS[pairKey], bLoc = B.find(function(x) { return x.k === p.loc; }), bNy = B.find(function(x) { return x.k === p.ny; });
- if (!bLoc || !bNy) return null;
- const d0 = day($('d0').value), d1 = day($('d1').value), u = parseFloat($('ust').value) / 100;
- const rLoc = calc(bLoc, d0, d1, u), rNy = calc(bNy, d0, d1, u);
- return (rLoc.tir != null && rNy.tir != null) ? (rLoc.tir - rNy.tir) * 100 : null;
-}
 
 window.updateSpreadChart = function() {
  const errBox = $('spreadChartError'), canvas = $('spreadHistChart');
@@ -1327,6 +1324,8 @@ window.updateSpreadChart = function() {
   if (!key) throw new Error('Ningún par seleccionado.');
   const p = SPREADS[key];
   if (!p) throw new Error('Par no encontrado.');
+  const sp = window.SPREAD_SP || 'C', spn = sp === 'C' ? 'cable' : 'MEP';
+  if ($('spreadSp').value !== sp) $('spreadSp').value = sp;
 
   if (!$('spreadPreset').value && !$('spreadFrom').value) $('spreadPreset').value = '6M';
   const pre = $('spreadPreset').value;
@@ -1336,63 +1335,84 @@ window.updateSpreadChart = function() {
     $('spreadTo').value = HIST_MAX;
   }
   const from = $('spreadFrom').value || HIST_MIN, to = $('spreadTo').value || HIST_MAX;
-  const lo = from <= to ? from : to, hi = from <= to ? to : from;   
-  const windowHist = spreadHistFor(key).filter(function(x) { return x[0] >= lo && x[0] <= hi; });
+  const lo = from <= to ? from : to, hi = from <= to ? to : from;
+  const inR = function(x) { return x[0] >= lo && x[0] <= hi; };
+  const cl = spreadClean(spreadHistFor(key, sp)), windowHist = cl.pts.filter(inR), dropped = cl.drop.filter(inR);
   if (windowHist.length === 0) throw new Error('No hay datos en ese rango de fechas.');
 
+  const dd = function(s) { return s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(2, 4); };
   const labels = windowHist.map(function(x) { return x[0]; });
   const vals = windowHist.map(function(x) { return x[1] * 100; }); // en pb
   const mean = vals.reduce(function(s, v) { return s + v; }, 0) / vals.length;
   const std = Math.sqrt(vals.reduce(function(s, v) { return s + Math.pow(v - mean, 2); }, 0) / vals.length);
-  const actual = liveSpreadFor(key) == null ? null : liveSpreadFor(key) * 100;
+  const last = vals[vals.length - 1], lastD = labels[labels.length - 1]; // el último punto es el cierre más reciente o, durante la rueda, el precio en vivo de hoy
+  const zNow = std > 0 ? (last - mean) / std : null;
+  const pctl = 100 * vals.filter(function(v) { return v <= last; }).length / vals.length;
 
-  const line = function(n) { return labels.map(function() { return n; }); };
-  
   const style = getComputedStyle(document.body);
-  const colorTx = style.getPropertyValue('--tx').trim();
-  const colorBd = style.getPropertyValue('--bd').trim();
+  const colorTx = style.getPropertyValue('--tx').trim(), colorMu = style.getPropertyValue('--mu').trim() || '#94a0ae';
+  const colorBd = style.getPropertyValue('--bd').trim(), colorCard = style.getPropertyValue('--card').trim() || '#1c1917';
   const colorSpreadLine = style.getPropertyValue('--c-spread').trim();
   const colorMeanLine = style.getPropertyValue('--c-mean').trim();
-  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const RED = '#f87171', band = function(k) { return labels.map(function() { return mean + k * std; }); };
+  const fmtZ = function(z) { return z == null ? 'n/a' : (z >= 0 ? '+' : '−') + Math.abs(z).toFixed(2).replace('.', ',') + 'σ'; };
 
-  const datasets = [
-   { label: 'Spread histórico', data: vals, borderColor: colorSpreadLine, backgroundColor: isLight ? 'rgba(37,99,235,0.1)' : 'rgba(56,189,248,0.1)', fill: true, pointRadius: 0, borderWidth: 2, tension: 0.15, order: 1 },
-   { label: 'Z+2', data: line(mean + 2 * std), borderColor: '#ff6b6b', borderDash: [2, 3], borderWidth: 1, pointRadius: 0, fill: false, order: 2 },
-   { label: 'Z+1', data: line(mean + std), borderColor: '#94a0ae', borderDash: [1, 3], borderWidth: 1, pointRadius: 0, fill: false, order: 2 },
-   { label: 'Z+0 (media)', data: line(mean), borderColor: colorMeanLine, borderWidth: 2, pointRadius: 0, fill: false, order: 2 },
-   { label: 'Z-1', data: line(mean - std), borderColor: '#94a0ae', borderDash: [1, 3], borderWidth: 1, pointRadius: 0, fill: false, order: 2 },
-   { label: 'Z-2', data: line(mean - 2 * std), borderColor: '#ff6b6b', borderDash: [2, 3], borderWidth: 1, pointRadius: 0, fill: false, order: 2 }
+  const datasets = [ // bandas sombreadas: ±2σ (más clara) y ±1σ encima
+   { label: '+2σ', data: band(2), borderColor: 'rgba(248,113,113,.55)', borderDash: [4, 4], borderWidth: 1, pointRadius: 0, fill: false, order: 5 },
+   { label: '−2σ', data: band(-2), borderColor: 'rgba(248,113,113,.55)', borderDash: [4, 4], borderWidth: 1, pointRadius: 0, fill: '-1', backgroundColor: 'rgba(148,163,184,.07)', order: 5 },
+   { label: '+1σ', data: band(1), borderColor: 'rgba(0,0,0,0)', borderWidth: 0, pointRadius: 0, fill: false, order: 4 },
+   { label: '−1σ', data: band(-1), borderColor: 'rgba(0,0,0,0)', borderWidth: 0, pointRadius: 0, fill: '-1', backgroundColor: 'rgba(148,163,184,.13)', order: 4 },
+   { label: 'Media', data: band(0), borderColor: colorMeanLine, borderWidth: 2, pointRadius: 0, fill: false, order: 3 },
+   { label: 'Spread', data: vals, borderColor: colorSpreadLine, borderWidth: 2.2, tension: 0.2, fill: false, order: 1,
+     pointRadius: vals.map(function(v, i) { return i === vals.length - 1 ? 6 : 0; }), pointHoverRadius: 5, pointBackgroundColor: colorSpreadLine, pointBorderColor: colorCard, pointBorderWidth: 2 }
   ];
-  if (actual != null) datasets.push({ label: 'Actual (en vivo)', data: line(actual), borderColor: '#3ecb7a', borderWidth: 3, borderDash: [8, 4], pointRadius: 0, fill: false, order: 0 });
+  const EDGE = { id: 'spEdge', afterDatasetsDraw: function(ch) { // valores de las bandas al borde derecho y rótulo del último punto
+    const a = ch.chartArea, y = ch.scales.y, c = ch.ctx; c.save(); c.font = '600 12px system-ui, -apple-system, sans-serif'; c.textBaseline = 'middle'; c.textAlign = 'left';
+    [[2, '+2σ', RED], [1, '+1σ', colorMu], [0, 'media', colorMeanLine], [-1, '−1σ', colorMu], [-2, '−2σ', RED]].forEach(function(r) { const v = mean + r[0] * std, py = y.getPixelForValue(v); if (py < a.top - 4 || py > a.bottom + 4) return; c.fillStyle = r[2]; c.fillText(r[1] + ' ' + Math.round(v), a.right + 8, py); });
+    const el = ch.getDatasetMeta(5).data[vals.length - 1];
+    if (el) { const t = Math.round(last) + ' pb · ' + fmtZ(zNow), w = c.measureText(t).width + 14, bx = Math.max(a.left, el.x - w - 10), by = el.y < a.top + 30 ? el.y + 14 : el.y - 30;
+      c.fillStyle = colorCard; c.strokeStyle = colorSpreadLine; c.lineWidth = 1; c.beginPath(); if (c.roundRect) c.roundRect(bx, by, w, 22, 6); else c.rect(bx, by, w, 22); c.fill(); c.stroke();
+      c.fillStyle = colorTx; c.fillText(t, bx + 7, by + 11); }
+    c.restore(); } };
 
-  if (window.spreadHistChartObj instanceof Chart) {
-      window.spreadHistChartObj.data.labels = labels;
-      window.spreadHistChartObj.data.datasets = datasets;
-      window.spreadHistChartObj.options.plugins.title.text = 'Spread Legislación · ' + p.loc + ' vs ' + p.ny + ' · ' + lo + ' a ' + hi;
-      window.spreadHistChartObj.update('none');
-  } else {
-      Chart.defaults.color = colorTx;
-      Chart.defaults.font.family = "system-ui, -apple-system, sans-serif";
-      Chart.defaults.font.size = 15;
-
-      window.spreadHistChartObj = new Chart(canvas.getContext('2d'), {
-       type: 'line', data: { labels: labels, datasets: datasets },
-       options: {
-        responsive: true, maintainAspectRatio: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2.5), interaction: { mode: 'index', intersect: false },
-        plugins: { title: { display: !window.matchMedia('(max-width:700px)').matches, text: 'Spread Legislación · ' + p.loc + ' vs ' + p.ny + ' · ' + lo + ' a ' + hi, font: { size: 16, weight: 'bold' }, color: colorTx, padding: { bottom: 14 } }, legend: { labels: { usePointStyle: true, boxWidth: 14, boxHeight: 6, padding: 16 } } },
-        scales: { 
-            x: { grid: { color: colorBd, drawBorder: false }, ticks: { maxTicksLimit: 12, font: { size: 14 } } }, 
-            y: { grid: { color: colorBd, drawBorder: false }, title: { display: true, text: 'Spread (pb)', font: { weight: 'bold' } }, ticks: { font: { size: 14 }, callback: function(v) { return Math.round(v) + ' pb'; } } } 
-        }
-       }
-      });
-  }
+  if (window.spreadHistChartObj instanceof Chart) window.spreadHistChartObj.destroy();
+  Chart.defaults.color = colorTx;
+  window.spreadHistChartObj = new Chart(canvas.getContext('2d'), {
+   type: 'line', data: { labels: labels, datasets: datasets }, plugins: [EDGE],
+   options: {
+    responsive: true, maintainAspectRatio: false, animation: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2.5), interaction: { mode: 'index', intersect: false },
+    layout: { padding: { right: 78, top: 4 } },
+    plugins: {
+     title: { display: !window.matchMedia('(max-width:700px)').matches, text: p.loc + ' vs ' + p.ny + ' · ' + spn + ' · ' + dd(lo) + ' a ' + dd(hi), font: { size: 16, weight: 'bold' }, color: colorTx, padding: { bottom: 10 } },
+     legend: { onClick: function() {}, labels: { usePointStyle: true, boxWidth: 14, boxHeight: 8, padding: 18, color: colorTx, generateLabels: function() { return [
+       { text: 'Spread (' + spn + ')', fillStyle: colorSpreadLine, strokeStyle: colorSpreadLine, lineWidth: 3, pointStyle: 'line', fontColor: colorTx },
+       { text: 'Media', fillStyle: colorMeanLine, strokeStyle: colorMeanLine, lineWidth: 3, pointStyle: 'line', fontColor: colorTx },
+       { text: 'Banda ±1σ', fillStyle: 'rgba(148,163,184,.4)', strokeStyle: 'rgba(148,163,184,.4)', lineWidth: 0, pointStyle: 'rect', fontColor: colorTx },
+       { text: 'Banda ±2σ', fillStyle: 'rgba(148,163,184,.16)', strokeStyle: 'rgba(248,113,113,.7)', lineWidth: 1, pointStyle: 'rect', fontColor: colorTx }]; } } },
+     tooltip: { filter: function(it) { return it.datasetIndex === 5; }, callbacks: { title: function(it) { return it.length ? dd(it[0].label) : ''; }, label: function(it) { const v = it.raw; return 'Spread ' + Math.round(v) + ' pb · z ' + fmtZ(std > 0 ? (v - mean) / std : null); } } }
+    },
+    scales: {
+     x: { grid: { display: false }, ticks: { maxTicksLimit: 10, maxRotation: 0, font: { size: 13 }, callback: function(v) { return dd(this.getLabelForValue(v)); } } },
+     y: { grid: { color: colorBd, drawBorder: false }, grace: '6%', title: { display: true, text: 'TIR ley local − TIR ley NY (pb)', font: { weight: 'bold' } }, ticks: { font: { size: 13 }, callback: function(v) { return Math.round(v) + ' pb'; } } }
+    }
+   }
+  });
 
   const fmt = function(v) { return v == null || !isFinite(v) ? 'n/a' : Math.round(v) + ' pb'; };
-  const zNow = actual != null && std > 0 ? (actual - mean) / std : null;
-  const pctl = actual != null ? 100 * vals.filter(function(v) { return v <= actual; }).length / vals.length : null;
-  const nLog = logDays().length;
-  $('spreadStatsGrid').innerHTML = [['Actual', fmt(actual), '#3ecb7a'], ['Z-score actual', zNow == null ? 'n/a' : (zNow >= 0 ? '+' : '') + zNow.toFixed(2).replace('.', ',') + 'σ', zNow != null && Math.abs(zNow) >= 2 ? '#ff6b6b' : '#94a0ae'], ['Percentil', pctl == null ? 'n/a' : pctl.toFixed(0) + '°', '#94a0ae'], ['Z+0 (media)', fmt(mean), colorMeanLine], ['Z+1', fmt(mean + std), '#94a0ae'], ['Z-1', fmt(mean - std), '#94a0ae'], ['Z+2', fmt(mean + 2 * std), '#ff6b6b'], ['Z-2', fmt(mean - 2 * std), '#ff6b6b']].map(function(arr) { return '<div class="spread-box"><div class="spread-title">' + arr[0] + '</div><div class="spread-val" style="color:' + arr[2] + '">' + arr[1] + '</div></div>'; }).join('');
+  const today = lastD === bxDayStr(bxToday());
+  const sg_ = '<span style="text-transform:none">σ</span>'; // los títulos van en mayúsculas: sin esto la σ se vuelve Σ
+  $('spreadStatsGrid').innerHTML = [
+    [(today ? 'Hoy' : 'Último') + ' (' + dd(lastD) + ')', fmt(last), colorSpreadLine],
+    ['Z-score', fmtZ(zNow), zNow != null && Math.abs(zNow) >= 2 ? RED : colorTx],
+    ['Percentil', pctl.toFixed(0) + '°', colorTx],
+    ['Media', fmt(mean), colorMeanLine],
+    ['Desvío (' + sg_ + ')', fmt(std), colorTx],
+    ['Banda ±1' + sg_, Math.round(mean - std) + ' a ' + Math.round(mean + std), colorMu],
+    ['Banda ±2' + sg_, Math.round(mean - 2 * std) + ' a ' + Math.round(mean + 2 * std), RED],
+    ['Mín / máx', Math.round(Math.min.apply(null, vals)) + ' / ' + Math.round(Math.max.apply(null, vals)), colorMu]
+  ].map(function(arr) { return '<div class="spread-box"><div class="spread-title">' + arr[0] + '</div><div class="spread-val" style="color:' + arr[2] + '">' + arr[1] + '</div></div>'; }).join('');
+  $('spreadNote').textContent = 'Spread = TIR de la ley local − TIR de la ley NY, con los precios de cierre en ' + spn + ' (especie ' + sp + ') y liquidación el mismo día; durante la rueda el último punto es el precio en vivo. ' + vals.length + ' ruedas en el rango.' +
+    (dropped.length ? ' Se descartaron ' + dropped.length + ' cierre' + (dropped.length > 1 ? 's' : '') + ' suelto' + (dropped.length > 1 ? 's' : '') + ' (' + dropped.map(function(x) { return dd(x[0]) + ': ' + Math.round(x[1] * 100) + ' pb'; }).join(', ') + '): días en que el spread se aparta más de 50 pb de los dos vecinos y al día siguiente vuelve, casi siempre por el cierre de uno solo de los bonos fuera de mercado.' : '');
  } catch(error) {
   console.error(error); canvas.style.display = 'none'; errBox.style.display = 'block'; errBox.innerHTML = '<b>Sys Error:</b> ' + error.message;
  }
@@ -2017,7 +2037,7 @@ setInterval(window.fetchLive, 90000);
     var h = '<tr><th class="l">Par</th><th>Precio<br>Local</th><th>Precio<br>NY</th><th>Ratio<br>de precios</th><th>Spread<br>actual (pb)</th><th>Media<br>(pb)</th><th>z</th><th>Percentil</th><th>Captura<br>a la media</th><th>Carry<br>local − NY</th><th>Idea</th></tr>';
     Object.keys(SPREADS).forEach(function (key) {
       var p = SPREADS[key], a = S.filter(function (o) { return o.k === p.loc; })[0], n = S.filter(function (o) { return o.k === p.ny; })[0]; if (!a || !n) return;
-      var hist = spreadHistFor(key, c.sp).map(function (x) { return x[1] * 100; }), cur = (a.tir - n.tir) * 1e4;
+      var hist = spreadClean(spreadHistFor(key, c.sp)).pts.map(function (x) { return x[1] * 100; }), cur = (a.tir - n.tir) * 1e4;
       var m = mean(hist), s = std(hist), z = s ? (cur - m) / s : null, pr = hist.length ? pctl(hist, cur) : null, cap = (cur - m) / 1e4 * a.md * 100;
       var idea = z == null ? '' : z > 1 ? '<span class="tag up">comprar Local / vender NY</span>' : z < -1 ? '<span class="tag dn">comprar NY / vender Local</span>' : '<span class="tag">neutral</span>';
       h += '<tr><td class="k">' + p.loc + ' / ' + p.ny + '</td><td>' + fm(a.clean, 2) + '</td><td>' + fm(n.clean, 2) + '</td><td>' + fm(a.clean / n.clean, 3) + '</td><td style="color:var(--ac);font-weight:700">' + fm(cur, 0) + '</td><td>' + fm(m, 0) + '</td><td style="' + colorOf(z, 3) + '">' + sg(z, 1) + '</td><td>' + (pr == null ? 'n/a' : fm(pr, 0) + '°') + '</td><td>' + sg(cap, 2) + '%</td><td>' + sg((a.cy - n.cy) * 1e4, 0) + ' pb</td><td>' + idea + '</td></tr>';
