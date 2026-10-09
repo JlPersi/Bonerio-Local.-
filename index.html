@@ -1510,11 +1510,10 @@ window.addBrandMark = function(cv, sc) {
 // la captura se hace sin el zoom del 90% y con el mismo ancho de diseño que la pantalla. Para que la página no se mueva, el zoom pasa
 // del <html> a cada hijo del <body> (se ve igual) y la copia de html2canvas, que va en un iframe nuevo del body, queda sin zoom.
 // hide: nodos que no van en la imagen (se ocultan solo en la copia)
-window.downloadSnapshotHD = function(targetId, fileName, scale, hide) {
-    if (!targetId) return;
-    const target = document.getElementById(targetId);
-    if (!target) return;
-    if (typeof html2canvas === 'undefined') { $('statusTxt').textContent = 'No se pudo cargar html2canvas (¿sin conexión?)'; return; }
+window.snapshotCanvas = function(targetId, scale, hide) { // promesa con el canvas de la sección (con la marca); la usan descargar, copiar y compartir
+    const target = targetId && document.getElementById(targetId);
+    if (!target) return Promise.reject(new Error('no existe la sección ' + targetId));
+    if (typeof html2canvas === 'undefined') return Promise.reject(new Error('no se pudo cargar html2canvas (¿sin conexión?)'));
 
     const bgCol = getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#1c1917';
     const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
@@ -1537,7 +1536,7 @@ window.downloadSnapshotHD = function(targetId, fileName, scale, hide) {
     const sc = Math.max(1.5, Math.min(scale || HQ, 16000 / Math.max(w0, h0), Math.sqrt(1.3e8 / (w0 * h0))));
     const restoreHQ = function() { charts.forEach(function(c) { try { if (c._hqPrev === undefined) delete c.options.devicePixelRatio; else c.options.devicePixelRatio = c._hqPrev; delete c._hqPrev; c.resize(); } catch (e) {} }); };
     const done = function() { unzoom(); unhide(); restoreHQ(); };
-    new Promise(function(r) { setTimeout(r, 60); }).then(function() {
+    return new Promise(function(r) { setTimeout(r, 60); }).then(function() {
         return html2canvas(target, { scale: sc, backgroundColor: bgCol, useCORS: true, logging: false,
             windowWidth: Math.round(window.innerWidth / z), windowHeight: Math.round(window.innerHeight / z),
             onclone: function(doc) {
@@ -1549,14 +1548,21 @@ window.downloadSnapshotHD = function(targetId, fileName, scale, hide) {
     }).then(function(canvas) {
         done();
         try { window.addBrandMark(canvas, sc); } catch (e) { console.error(e); }
-        const link = document.createElement('a');
-        link.download = fileName + '_' + new Date().toISOString().slice(0, 10) + '.png';
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-    }).catch(function(err) {
-        console.error(err); done(); $('statusTxt').textContent = 'Error al generar la imagen: ' + err.message;
+        return canvas;
+    }, function(err) { done(); throw err; });
+};
+window.snapshotFileName = function(fileName) { return fileName + '_' + new Date().toISOString().slice(0, 10) + '.png'; };
+window.saveCanvasPng = function(canvas, fileName) {
+    const link = document.createElement('a');
+    link.download = window.snapshotFileName(fileName);
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+};
+window.downloadSnapshotHD = function(targetId, fileName, scale, hide) {
+    return window.snapshotCanvas(targetId, scale, hide).then(function(cv) { window.saveCanvasPng(cv, fileName); }).catch(function(err) {
+        console.error(err); $('statusTxt').textContent = 'Error al generar la imagen: ' + err.message;
     });
-}
+};
 
 ;
 /* =====================================================================
@@ -4071,16 +4077,26 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 <!--@@RF_END@@-->
 <!--@@DLMENU_START@@-->
 <script>
-/* Descarga HD con menú: solo gráfico, solo tabla o ambos en una imagen (en los recuadros que tienen las dos cosas). */
+/* Imagen HD con menú: qué incluir (solo gráfico, solo tabla o ambos, en los recuadros que tienen las dos cosas)
+   y qué hacer con ella: descargar el PNG, copiarla (se pega con Ctrl+V en WhatsApp y llega como foto, no como archivo)
+   o compartirla con el menú del sistema (en el celular, directo a WhatsApp). */
 (function () {
   if (window.Chart) Chart.defaults.devicePixelRatio = Math.max(window.devicePixelRatio || 1, 2);
-  var orig = window.downloadSnapshotHD, last = null, menu = null;
+  var orig = window.downloadSnapshotHD, last = null, menu = null, note = null;
   var st = document.createElement('style');
-  st.textContent = '.dlmenu{position:fixed;z-index:9999;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:6px;box-shadow:0 8px 28px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:2px;min-width:170px}.dlmenu button{background:transparent;border:0;color:var(--tx);text-align:left;padding:9px 12px;border-radius:7px;font:600 13px system-ui,-apple-system,sans-serif;cursor:pointer}.dlmenu button:hover{background:var(--bd)}.dlmenu .hd{font:600 11px system-ui,sans-serif;color:var(--mu);padding:4px 12px 6px;text-transform:uppercase;letter-spacing:.04em}';
+  st.textContent = '.dlmenu{position:fixed;z-index:9999;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:6px;box-shadow:0 8px 28px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:2px;min-width:200px}.dlmenu button{background:transparent;border:0;color:var(--tx);text-align:left;padding:9px 12px;border-radius:7px;font:600 13px system-ui,-apple-system,sans-serif;cursor:pointer}.dlmenu button:hover{background:var(--bd)}.dlmenu button small{display:block;font-weight:500;font-size:11.5px;color:var(--mu);margin-top:1px}.dlmenu .hd{font:600 11px system-ui,sans-serif;color:var(--mu);padding:4px 12px 6px;text-transform:uppercase;letter-spacing:.04em}.dlmenu .sep{height:1px;background:var(--bd);margin:4px 6px}.dlmenu .seg{display:flex;gap:4px;padding:0 6px 4px}.dlmenu .seg button{flex:1;text-align:center;padding:7px 8px;border:1px solid var(--bd);font-size:12px}.dlmenu .seg button.on{background:var(--ac);border-color:var(--ac);color:#1c1917}' +
+    '.dlnote{position:fixed;z-index:10000;left:50%;bottom:22px;transform:translateX(-50%);background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:12px;padding:12px 16px;box-shadow:0 8px 28px rgba(0,0,0,.45);font:500 14px system-ui,-apple-system,sans-serif;display:flex;gap:12px;align-items:center;max-width:calc(100vw - 32px)}.dlnote button{background:var(--ac);color:#1c1917;border:0;border-radius:8px;padding:8px 14px;font:700 13px system-ui,sans-serif;cursor:pointer}.dlnote button.alt{background:transparent;color:var(--tx);border:1px solid var(--bd)}';
   document.head.appendChild(st);
   document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('button.icon-btn'); if (b) last = b; if (menu && !(e.target.closest && e.target.closest('.dlmenu'))) closeMenu(); }, true);
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeMenu(); closeNote(); } });
   function closeMenu() { if (menu) { menu.remove(); menu = null; } }
+  function closeNote() { if (note) { note.remove(); note = null; } }
+  function toast(msg, btns, ms) { // aviso abajo, con botones opcionales [[texto, función, alt]]
+    closeNote(); note = document.createElement('div'); note.className = 'dlnote'; note.setAttribute('data-html2canvas-ignore', 'true');
+    var t = document.createElement('span'); t.textContent = msg; note.appendChild(t);
+    (btns || []).forEach(function (b) { var x = document.createElement('button'); x.textContent = b[0]; if (b[2]) x.className = 'alt'; x.onclick = function () { closeNote(); b[1](); }; note.appendChild(x); });
+    document.body.appendChild(note); var me = note; if (ms !== 0) setTimeout(function () { if (note === me) closeNote(); }, ms || 4500);
+  }
   function climb(el, card, other) { var n = el; while (n.parentElement && n.parentElement !== card && !n.parentElement.querySelector(other)) n = n.parentElement; return n === card ? null : n; }
   function hideSet(card, mode) {
     var out = [];
@@ -4088,21 +4104,55 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     if (mode === 'table') card.querySelectorAll('canvas').forEach(function (c) { var n = climb(c, card, 'table'); if (n && out.indexOf(n) < 0) out.push(n); });
     return out;
   }
-  function run(id, name, scale, mode) {
+  var canCopy = !!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem);
+  var canShare = (function () { try { return !!(navigator.share && navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.png', { type: 'image/png' })] })); } catch (e) { return false; } })();
+  var blobOf = function (cv) { return new Promise(function (ok, ko) { cv.toBlob(function (b) { b ? ok(b) : ko(new Error('no se pudo armar la imagen')); }, 'image/png'); }); };
+  var fail = function (err) { console.error(err); toast('No se pudo generar la imagen: ' + err.message); };
+  // act: png (descargar), copy (portapapeles) o share (menú de compartir del sistema)
+  function run(id, name, scale, mode, act) {
     var card = document.getElementById(id), hid = [];
     if (mode !== 'both') hid = hideSet(card, mode);
-    var suffix = mode === 'chart' ? '_grafico' : mode === 'table' ? '_tabla' : (hid.length || card.querySelector('canvas') && card.querySelector('table') ? '_completo' : '');
-    orig(id, name + suffix, scale, hid);
+    var fname = name + (mode === 'chart' ? '_grafico' : mode === 'table' ? '_tabla' : (card.querySelector('canvas') && card.querySelector('table') ? '_completo' : ''));
+    if (act === 'png') { orig(id, fname, scale, hid); return; }
+    var pr = window.snapshotCanvas(id, scale, hid);
+    if (act === 'copy') { // el portapapeles se pide ya, dentro del clic, con la imagen como promesa (Safari lo exige)
+      toast('Generando la imagen…', null, 0);
+      var copied = function () { toast('Imagen copiada. Pegala con Ctrl+V (o mantené apretado y Pegar) en WhatsApp: llega como foto.'); };
+      navigator.clipboard.write([new ClipboardItem({ 'image/png': pr.then(blobOf) })]).then(copied).catch(function () {
+        pr.then(blobOf).then(function (b) { return navigator.clipboard.write([new ClipboardItem({ 'image/png': b })]); }).then(copied).catch(function (err) {
+          console.error(err); pr.then(function (cv) { toast('El navegador no dejó copiar la imagen.', [['Descargar', function () { window.saveCanvasPng(cv, fname); }]], 0); }, fail);
+        });
+      });
+      return;
+    }
+    toast('Generando la imagen…', null, 0); // compartir: el menú del sistema necesita un toque reciente; si la imagen tardó, se pide uno más
+    pr.then(blobOf).then(function (b) {
+      var file = new File([b], window.snapshotFileName(fname), { type: 'image/png' });
+      var go = function () { navigator.share({ files: [file] }).then(closeNote).catch(function (e) { if (e && e.name === 'AbortError') return; console.error(e); pr.then(function (cv) { window.saveCanvasPng(cv, fname); }); }); };
+      if (navigator.userActivation && navigator.userActivation.isActive) { closeNote(); go(); }
+      else toast('Imagen lista.', [['Compartir', go], ['Descargar', function () { pr.then(function (cv) { window.saveCanvasPng(cv, fname); }); }, 1]], 0);
+    }).catch(fail);
   }
+  var MODE = (function () { try { return localStorage.getItem('dlMode') || 'both'; } catch (e) { return 'both'; } })();
   window.downloadSnapshotHD = function (id, name, scale) {
-    var card = id && document.getElementById(id);
-    if (!card || !card.querySelector('canvas') || !card.querySelector('table') || !last || !last.isConnected) return orig(id, name, scale);
+    var card = id && document.getElementById(id); if (!card) return;
+    if (!last || !last.isConnected) return orig(id, name, scale); // llamada sin botón de por medio: descarga directa
+    var both = !!(card.querySelector('canvas') && card.querySelector('table')), mode = both ? MODE : 'both';
     closeMenu(); var r = last.getBoundingClientRect(), z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
     menu = document.createElement('div'); menu.className = 'dlmenu'; menu.setAttribute('data-html2canvas-ignore', 'true');
-    menu.innerHTML = '<div class="hd">Descargar imagen HD</div><button data-m="chart">Solo gráfico</button><button data-m="table">Solo tabla</button><button data-m="both">Gráfico + tabla</button>';
+    menu.innerHTML = '<div class="hd">Imagen HD</div>' +
+      (both ? '<div class="seg">' + [['chart', 'Gráfico'], ['table', 'Tabla'], ['both', 'Ambos']].map(function (m) { return '<button data-m="' + m[0] + '"' + (m[0] === mode ? ' class="on"' : '') + '>' + m[1] + '</button>'; }).join('') + '</div><div class="sep"></div>' : '') +
+      '<button data-a="png">Descargar PNG<small>guarda el archivo</small></button>' +
+      (canCopy ? '<button data-a="copy">Copiar imagen<small>para pegar en WhatsApp como foto</small></button>' : '') +
+      (canShare ? '<button data-a="share">Compartir…<small>WhatsApp, Telegram, mail…</small></button>' : '');
     document.body.appendChild(menu);
-    var mw = menu.offsetWidth || 180, left = Math.max(8, Math.min(r.right / z - mw, window.innerWidth / z - mw - 8)); menu.style.left = left + 'px'; menu.style.top = (r.bottom / z + 6) + 'px';
-    menu.onclick = function (e) { var b = e.target.closest('button[data-m]'); if (!b) return; var m = b.getAttribute('data-m'); closeMenu(); setTimeout(function () { run(id, name, scale, m); }, 30); };
+    var mw = menu.offsetWidth || 200, mh = menu.offsetHeight || 200, left = Math.max(8, Math.min(r.right / z - mw, window.innerWidth / z - mw - 8)), top = r.bottom / z + 6;
+    if (top + mh > window.innerHeight / z - 8) top = Math.max(8, r.top / z - mh - 6);
+    menu.style.left = left + 'px'; menu.style.top = top + 'px';
+    menu.onclick = function (e) {
+      var m = e.target.closest('button[data-m]'); if (m) { mode = m.getAttribute('data-m'); MODE = mode; try { localStorage.setItem('dlMode', mode); } catch (x) { } menu.querySelectorAll('button[data-m]').forEach(function (b) { b.classList.toggle('on', b === m); }); return; }
+      var a = e.target.closest('button[data-a]'); if (!a) return; closeMenu(); run(id, name, scale, mode, a.getAttribute('data-a'));
+    };
   };
 })();
 </script>
