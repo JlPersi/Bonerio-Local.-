@@ -64,13 +64,14 @@ Chart.register({ id: 'zoomFix', beforeEvent: function (ch, args) {
 
   /* Colores duros para gráficos (No cambian con el tema) */
 
-  --c-spread: #fbbf24; 
-
-  --c-mean: #ea580c;   
-
-  --c-cap: #d97706;    
-
-  --c-cup: #84cc16;    
+  /* paleta categórica: azul, ámbar, verde azulado (validada sobre #292524: CVD y visión normal) */
+  --c-s1: #4b8fe2;
+  --c-s2: #c47d0c;
+  --c-s3: #1fa58a;
+  --c-spread: #4b8fe2;
+  --c-mean: #c47d0c;
+  --c-cap: #c47d0c;
+  --c-cup: #4b8fe2;
 
   
 
@@ -106,13 +107,13 @@ Chart.register({ id: 'zoomFix', beforeEvent: function (ch, args) {
 
   /* Colores duros para gráficos */
 
-  --c-spread: #427c9c; 
-
-  --c-mean: #b5803a;   
-
-  --c-cap: #a37a57;    
-
-  --c-cup: #628f52;    
+  --c-s1: #2a6cc0;
+  --c-s2: #b8741a;
+  --c-s3: #16866c;
+  --c-spread: #2a6cc0;
+  --c-mean: #b8741a;
+  --c-cap: #b8741a;
+  --c-cup: #2a6cc0;
 
 }
 
@@ -194,9 +195,11 @@ canvas { background: var(--card); border-radius: 8px; width: 100% !important; he
 .legend-box { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--tx); font-weight: 500; }
 .legend-color { width: 16px; height: 16px; border-radius: 50%; }
 
-.spread-box { background: var(--bg); border: 1px solid var(--bd); border-radius: 8px; padding: 18px; text-align: center; transition: background-color 0.3s, border-color 0.3s; }
-.spread-title { color: var(--mu); font-size: 14px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
-.spread-val { color: var(--ok); font-size: 26px; font-weight: bold; margin-top: 6px; font-family: 'JetBrains Mono', monospace; }
+.spread-box { background: var(--bg); border: 1px solid var(--bd); border-radius: 10px; padding: 12px 16px; text-align: left; min-width: 0; transition: background-color 0.3s, border-color 0.3s; }
+.spread-title { color: var(--mu); font-size: 12px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.4px; display: flex; align-items: center; gap: 6px; }
+.spread-title .dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.spread-val { color: var(--tx); font-size: 22px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; letter-spacing: -0.2px; }
+.spread-box .note { margin: 4px 0 0 !important; font-size: 12px; color: var(--mu); }
 
 #globalError { display: none; background: #3a1515; color: #ef4444; padding: 16px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; text-align: left; border: 1px solid #ef4444; font-size: 15px; }
 
@@ -965,8 +968,8 @@ function updateBreakdownChart(rows) {
             data: {
                 labels: labels,
                 datasets: [
-                    { label: 'Efecto capital (pull to par)', data: capitalPnlPct, backgroundColor: colorCapital },
-                    { label: 'Efecto flujo (cupones, amortización y reinversión)', data: couponPnlPct, backgroundColor: colorCoupon }
+                    { label: 'Efecto capital (pull to par)', data: capitalPnlPct, backgroundColor: colorCapital, borderRadius: 3, borderSkipped: false, maxBarThickness: 44 },
+                    { label: 'Efecto flujo (cupones, amortización y reinversión)', data: couponPnlPct, backgroundColor: colorCoupon, borderRadius: 3, borderSkipped: false, maxBarThickness: 44 }
                 ]
             },
             options: {
@@ -974,10 +977,10 @@ function updateBreakdownChart(rows) {
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
                     tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + ctx.raw.toFixed(2) + '%'; } } },
-                    legend: { labels: { usePointStyle: true, padding: 20 } }
+                    legend: { labels: { usePointStyle: true, pointStyle: 'rectRounded', padding: 20 } }
                 },
                 scales: {
-                    x: { stacked: true, grid: { color: colorBd, drawBorder: false }, ticks: { font: { size: 14 } } },
+                    x: { stacked: true, grid: { display: false }, ticks: { font: { size: 14 } } },
                     y: { 
                         stacked: true, 
                         grid: { color: colorBd, drawBorder: false },
@@ -1016,12 +1019,12 @@ window.updateCFChart = function() {
     const inv = VN * P / 100;
     const rTot = sum(rows, 'renta', 1e9), aTot = sum(rows, 'amort', 1e9), cTot = rTot + aTot;
     const rCut = sum(rows, 'renta', d1), aCut = sum(rows, 'amort', d1), cCut = rCut + aCut;
-    const card = function(t, v, s, c) { return '<div class="spread-box"><div class="spread-title">' + t + '</div><div class="spread-val" style="font-size:22px;' + (c ? 'color:' + c : '') + '">' + v + '</div><div class="note" style="margin:6px 0 0">' + s + '</div></div>'; };
+    const card = function(t, v, s, c) { return '<div class="spread-box"><div class="spread-title">' + (c ? '<i class="dot" style="background:' + c + '"></i>' : '') + '<span>' + t + '</span></div><div class="spread-val">' + v + '</div><div class="note">' + s + '</div></div>'; }; // el cuadradito de color es el de la serie del gráfico
     $('cfStats').innerHTML =
         card('Inversión', usd(inv), 'VN ' + VN.toLocaleString('es-AR') + ' a USD ' + P.toFixed(2) + ' c/100', '') +
-        card('Renta cobrada', usd(rCut), 'Al corte (' + fd(d1) + ') · hasta vto.: ' + usd(rTot), 'var(--ok)') +
+        card('Renta cobrada', usd(rCut), 'Al corte (' + fd(d1) + ') · hasta vto.: ' + usd(rTot), 'var(--c-cup)') +
         card('Amortización cobrada', usd(aCut), 'Al corte · hasta vto.: ' + usd(aTot), 'var(--c-cap)') +
-        card('Total cobrado al corte', usd(cCut), (inv > 0 ? (cCut / inv * 100).toFixed(1).replace('.', ',') + '% de la inversión · ' : '') + 'hasta vto.: ' + usd(cTot), 'var(--ac)');
+        card('Total cobrado al corte', usd(cCut), (inv > 0 ? (cCut / inv * 100).toFixed(1).replace('.', ',') + '% de la inversión · ' : '') + 'hasta vto.: ' + usd(cTot), '');
 
     // tabla de flujos
     let th = '<tr><th>Fecha</th><th>Renta</th><th>Amortización</th><th>Total</th><th>Acumulado</th><th>VN residual</th></tr>';
@@ -1040,24 +1043,22 @@ window.updateCFChart = function() {
 
     const style = getComputedStyle(document.body);
     const colorTx = style.getPropertyValue('--tx').trim(), colorMu = style.getPropertyValue('--mu').trim(), colorBd = style.getPropertyValue('--bd').trim();
-    const cRenta = style.getPropertyValue('--c-cup').trim(), cAmort = style.getPropertyValue('--c-cap').trim(), cLine = style.getPropertyValue('--c-spread').trim();
+    const cRenta = style.getPropertyValue('--c-cup').trim(), cAmort = style.getPropertyValue('--c-cap').trim(), cCard = style.getPropertyValue('--card').trim();
     const dimCol = function(c) { return /^#[0-9a-f]{6}$/i.test(c) ? c + '66' : c; };
     const labels = rows.map(function(r) { return new Date(r.t * 864e5).toLocaleDateString('es-AR', { month: 'short', year: '2-digit', timeZone: 'UTC' }); });
     const mkCol = function(c) { return function(ctx) { return rows[ctx.dataIndex] && rows[ctx.dataIndex].t > d1 ? dimCol(c) : c; }; };
 
     const datasets = [
-        { type: 'bar', label: 'Renta (USD)', data: rows.map(function(r) { return r.renta; }), backgroundColor: mkCol(cRenta), yAxisID: 'y', stack: 's', order: 2 },
-        { type: 'bar', label: 'Amortización (USD)', data: rows.map(function(r) { return r.amort; }), backgroundColor: mkCol(cAmort), yAxisID: 'y', stack: 's', order: 2 },
-        { type: 'line', label: 'Total acumulado (USD)', data: rows.map(function(r) { return r.acum; }), borderColor: cLine, backgroundColor: cLine, borderWidth: 3, pointRadius: 3, tension: 0, yAxisID: 'y1', order: 1 }
+        { type: 'bar', label: 'Renta', data: rows.map(function(r) { return r.renta; }), backgroundColor: mkCol(cRenta), borderColor: cCard, borderWidth: { top: 2 }, borderRadius: 4, borderSkipped: 'bottom', maxBarThickness: 46, stack: 's' },
+        { type: 'bar', label: 'Amortización', data: rows.map(function(r) { return r.amort; }), backgroundColor: mkCol(cAmort), borderColor: cCard, borderWidth: { top: 2 }, borderRadius: 4, borderSkipped: 'bottom', maxBarThickness: 46, stack: 's' }
     ];
     const scales = {
         x: { stacked: true, grid: { display: false }, ticks: { font: { size: 13 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 16 } },
-        y: { stacked: true, position: 'left', max: yMax, beginAtZero: true, grid: { color: colorBd, drawBorder: false }, title: { display: true, text: 'Cobro en la fecha (USD)', font: { weight: 'bold' } }, ticks: { font: { size: 13 }, callback: function(v) { return '$' + v.toLocaleString('es-AR'); } } },
-        y1: { position: 'right', beginAtZero: true, grid: { display: false }, title: { display: true, text: 'Acumulado (USD)', font: { weight: 'bold' } }, ticks: { font: { size: 13 }, callback: function(v) { return '$' + v.toLocaleString('es-AR'); } } }
+        y: { stacked: true, position: 'left', max: yMax, beginAtZero: true, grid: { color: colorBd, drawBorder: false }, border: { display: false }, title: { display: true, text: 'Cobro en la fecha (USD)', color: colorMu }, ticks: { font: { size: 13 }, color: colorMu, callback: function(v) { return 'US$ ' + v.toLocaleString('es-AR'); } } }
     };
     const plug = { id: 'cfClipLabels', afterDatasetsDraw: function(ch) {
         if (!ch.$clip || !ch.isDatasetVisible(0)) return; const ctx = ch.ctx, a = ch.chartArea;
-        ctx.save(); ctx.font = 'bold 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = style.getPropertyValue('--bad').trim();
+        ctx.save(); ctx.font = '600 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = colorTx;
         const meta = ch.getDatasetMeta(0);
         ch.$clip.forEach(function(c) { const el = meta.data[c.i]; if (el) ctx.fillText('▲ ' + usd(c.v), el.x, a.top - 6); });
         ctx.restore();
@@ -1076,8 +1077,8 @@ window.updateCFChart = function() {
                 responsive: true, maintainAspectRatio: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2.5),
                 interaction: { mode: 'index', intersect: false }, layout: { padding: { top: 18 } },
                 plugins: {
-                    tooltip: { callbacks: { title: function(its) { const r = rows[its[0].dataIndex]; return r ? fd(r.t) : ''; }, label: function(c) { return c.dataset.label + ': ' + usd(c.parsed.y); } } },
-                    legend: { labels: { usePointStyle: true, padding: 20 } }
+                    tooltip: { filter: function(c) { return c.parsed.y > 0; }, callbacks: { title: function(its) { const r = rows[its[0].dataIndex]; return r ? fd(r.t) : ''; }, label: function(c) { return c.dataset.label + ': ' + usd(c.parsed.y); }, footer: function(its) { const r = its.length ? rows[its[0].dataIndex] : null; return r ? 'Total ' + usd(r.total) + ' · acumulado ' + usd(r.acum) : ''; } } },
+                    legend: { labels: { usePointStyle: true, pointStyle: 'rectRounded', padding: 20, color: colorTx } }
                 },
                 scales: scales
             },
@@ -1224,8 +1225,8 @@ window.updateCurveChart = function() {
     }
 
     const style = getComputedStyle(document.body);
-    const colorAc = style.getPropertyValue('--ac').trim();
-    const colorOk = style.getPropertyValue('--ok').trim();
+    const colorAc = style.getPropertyValue('--c-s1').trim(); // ley NY
+    const colorOk = style.getPropertyValue('--c-s2').trim(); // ley local
     const colorBd = style.getPropertyValue('--bd').trim();
 
     if (window.curveChartObj instanceof Chart) {
@@ -1289,12 +1290,13 @@ window.updateCurveChart = function() {
 
 window.renderSpreadCards = function () { // último spread de cada par (cierre o precio en vivo de hoy) y su z contra toda la historia, en la moneda elegida
     const sp = window.SPREAD_SP || 'C';
-    $('spreadsTitle').textContent = 'Spread de Legislación en puntos básicos (Ley Local vs Ley NY) · ' + (sp === 'C' ? 'cable' : 'MEP');
+    const lo = $('spreadFrom').value || addMonthsClamped(HIST_MAX, 6), hi = $('spreadTo').value || HIST_MAX, dd = function (s) { return s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(2, 4); };
+    $('spreadsTitle').textContent = 'Spread de Legislación (Ley Local − Ley NY) · ' + (sp === 'C' ? 'cable' : 'MEP') + ' · media y z del ' + dd(lo) + ' al ' + dd(hi);
     $('spreadsGrid').innerHTML = Object.keys(SPREADS).map(function (key) {
-        const P = SPREADS[key], hv = spreadClean(spreadHistFor(key, sp)).pts; if (!hv.length) return '';
+        const P = SPREADS[key], hv = spreadClean(spreadHistFor(key, sp)).pts.filter(function (x) { return x[0] >= lo && x[0] <= hi; }); if (!hv.length) return '';
         const v = hv.map(function (x) { return x[1]; }), last = v[v.length - 1], ds = hv[hv.length - 1][0];
         const mu = v.reduce(function (a, c) { return a + c; }, 0) / v.length, sd = Math.sqrt(v.reduce(function (a, c) { return a + (c - mu) * (c - mu); }, 0) / v.length), z = sd > 0 ? (last - mu) / sd : 0;
-        return '<div class="spread-box"><div class="spread-title">' + P.loc + ' vs ' + P.ny + '</div><div class="spread-val">' + (last * 100).toFixed(0) + ' pb</div><div class="note" style="margin-top:6px">z ' + (z >= 0 ? '+' : '') + z.toFixed(1).replace('.', ',') + ' · media ' + (mu * 100).toFixed(0) + ' pb · ' + ds.slice(8, 10) + '/' + ds.slice(5, 7) + '</div></div>';
+        return '<div class="spread-box"><div class="spread-title">' + P.loc + ' vs ' + P.ny + '</div><div class="spread-val">' + (last * 100).toFixed(0) + ' pb</div><div class="note">z ' + (z >= 0 ? '+' : '−') + Math.abs(z).toFixed(1).replace('.', ',') + ' · media ' + (mu * 100).toFixed(0) + ' pb · ' + ds.slice(8, 10) + '/' + ds.slice(5, 7) + '</div></div>';
     }).join('');
 };
 
@@ -1354,12 +1356,12 @@ window.updateSpreadChart = function() {
   const colorBd = style.getPropertyValue('--bd').trim(), colorCard = style.getPropertyValue('--card').trim() || '#1c1917';
   const colorSpreadLine = style.getPropertyValue('--c-spread').trim();
   const colorMeanLine = style.getPropertyValue('--c-mean').trim();
-  const RED = '#f87171', band = function(k) { return labels.map(function() { return mean + k * std; }); };
+  const RED = style.getPropertyValue('--bad').trim(), band = function(k) { return labels.map(function() { return mean + k * std; }); };
   const fmtZ = function(z) { return z == null ? 'n/a' : (z >= 0 ? '+' : '−') + Math.abs(z).toFixed(2).replace('.', ',') + 'σ'; };
 
   const datasets = [ // bandas sombreadas: ±2σ (más clara) y ±1σ encima
-   { label: '+2σ', data: band(2), borderColor: 'rgba(248,113,113,.55)', borderDash: [4, 4], borderWidth: 1, pointRadius: 0, fill: false, order: 5 },
-   { label: '−2σ', data: band(-2), borderColor: 'rgba(248,113,113,.55)', borderDash: [4, 4], borderWidth: 1, pointRadius: 0, fill: '-1', backgroundColor: 'rgba(148,163,184,.07)', order: 5 },
+   { label: '+2σ', data: band(2), borderColor: colorMu, borderDash: [3, 4], borderWidth: 1, pointRadius: 0, fill: false, order: 5 },
+   { label: '−2σ', data: band(-2), borderColor: colorMu, borderDash: [3, 4], borderWidth: 1, pointRadius: 0, fill: '-1', backgroundColor: 'rgba(148,163,184,.06)', order: 5 },
    { label: '+1σ', data: band(1), borderColor: 'rgba(0,0,0,0)', borderWidth: 0, pointRadius: 0, fill: false, order: 4 },
    { label: '−1σ', data: band(-1), borderColor: 'rgba(0,0,0,0)', borderWidth: 0, pointRadius: 0, fill: '-1', backgroundColor: 'rgba(148,163,184,.13)', order: 4 },
    { label: 'Media', data: band(0), borderColor: colorMeanLine, borderWidth: 2, pointRadius: 0, fill: false, order: 3 },
@@ -1368,7 +1370,7 @@ window.updateSpreadChart = function() {
   ];
   const EDGE = { id: 'spEdge', afterDatasetsDraw: function(ch) { // valores de las bandas al borde derecho y rótulo del último punto
     const a = ch.chartArea, y = ch.scales.y, c = ch.ctx; c.save(); c.font = '600 12px system-ui, -apple-system, sans-serif'; c.textBaseline = 'middle'; c.textAlign = 'left';
-    [[2, '+2σ', RED], [1, '+1σ', colorMu], [0, 'media', colorMeanLine], [-1, '−1σ', colorMu], [-2, '−2σ', RED]].forEach(function(r) { const v = mean + r[0] * std, py = y.getPixelForValue(v); if (py < a.top - 4 || py > a.bottom + 4) return; c.fillStyle = r[2]; c.fillText(r[1] + ' ' + Math.round(v), a.right + 8, py); });
+    [[2, '+2σ', colorMu], [1, '+1σ', colorMu], [0, 'media', colorMeanLine], [-1, '−1σ', colorMu], [-2, '−2σ', colorMu]].forEach(function(r) { const v = mean + r[0] * std, py = y.getPixelForValue(v); if (py < a.top - 4 || py > a.bottom + 4) return; c.fillStyle = r[2]; c.fillText(r[1] + ' ' + Math.round(v), a.right + 8, py); });
     const el = ch.getDatasetMeta(5).data[vals.length - 1];
     if (el) { const t = Math.round(last) + ' pb · ' + fmtZ(zNow), w = c.measureText(t).width + 14, bx = Math.max(a.left, el.x - w - 10), by = el.y < a.top + 30 ? el.y + 14 : el.y - 30;
       c.fillStyle = colorCard; c.strokeStyle = colorSpreadLine; c.lineWidth = 1; c.beginPath(); if (c.roundRect) c.roundRect(bx, by, w, 22, 6); else c.rect(bx, by, w, 22); c.fill(); c.stroke();
@@ -1388,7 +1390,7 @@ window.updateSpreadChart = function() {
        { text: 'Spread (' + spn + ')', fillStyle: colorSpreadLine, strokeStyle: colorSpreadLine, lineWidth: 3, pointStyle: 'line', fontColor: colorTx },
        { text: 'Media', fillStyle: colorMeanLine, strokeStyle: colorMeanLine, lineWidth: 3, pointStyle: 'line', fontColor: colorTx },
        { text: 'Banda ±1σ', fillStyle: 'rgba(148,163,184,.4)', strokeStyle: 'rgba(148,163,184,.4)', lineWidth: 0, pointStyle: 'rect', fontColor: colorTx },
-       { text: 'Banda ±2σ', fillStyle: 'rgba(148,163,184,.16)', strokeStyle: 'rgba(248,113,113,.7)', lineWidth: 1, pointStyle: 'rect', fontColor: colorTx }]; } } },
+       { text: 'Banda ±2σ', fillStyle: 'rgba(148,163,184,.14)', strokeStyle: colorMu, lineWidth: 1, pointStyle: 'rect', fontColor: colorTx }]; } } },
      tooltip: { filter: function(it) { return it.datasetIndex === 5; }, callbacks: { title: function(it) { return it.length ? dd(it[0].label) : ''; }, label: function(it) { const v = it.raw; return 'Spread ' + Math.round(v) + ' pb · z ' + fmtZ(std > 0 ? (v - mean) / std : null); } } }
     },
     scales: {
@@ -1401,16 +1403,18 @@ window.updateSpreadChart = function() {
   const fmt = function(v) { return v == null || !isFinite(v) ? 'n/a' : Math.round(v) + ' pb'; };
   const today = lastD === bxDayStr(bxToday());
   const sg_ = '<span style="text-transform:none">σ</span>'; // los títulos van en mayúsculas: sin esto la σ se vuelve Σ
-  $('spreadStatsGrid').innerHTML = [
-    [(today ? 'Hoy' : 'Último') + ' (' + dd(lastD) + ')', fmt(last), colorSpreadLine],
-    ['Z-score', fmtZ(zNow), zNow != null && Math.abs(zNow) >= 2 ? RED : colorTx],
-    ['Percentil', pctl.toFixed(0) + '°', colorTx],
-    ['Media', fmt(mean), colorMeanLine],
-    ['Desvío (' + sg_ + ')', fmt(std), colorTx],
-    ['Banda ±1' + sg_, Math.round(mean - std) + ' a ' + Math.round(mean + std), colorMu],
-    ['Banda ±2' + sg_, Math.round(mean - 2 * std) + ' a ' + Math.round(mean + 2 * std), RED],
-    ['Mín / máx', Math.round(Math.min.apply(null, vals)) + ' / ' + Math.round(Math.max.apply(null, vals)), colorMu]
-  ].map(function(arr) { return '<div class="spread-box"><div class="spread-title">' + arr[0] + '</div><div class="spread-val" style="color:' + arr[2] + '">' + arr[1] + '</div></div>'; }).join('');
+  const ext = zNow != null && Math.abs(zNow) >= 2;
+  $('spreadStatsGrid').innerHTML = [ // [título, valor, color del cuadradito (el de la serie del gráfico), aclaración]
+    [(today ? 'Hoy' : 'Último') + ' (' + dd(lastD) + ')', fmt(last), colorSpreadLine, today ? 'precio en vivo' : 'último cierre'],
+    ['Z-score', fmtZ(zNow), '', ext ? '<span style="color:' + RED + '">fuera de ±2' + sg_ + '</span>' : 'dentro de ±2' + sg_],
+    ['Percentil', pctl.toFixed(0) + '°', '', 'del rango elegido'],
+    ['Media', fmt(mean), colorMeanLine, vals.length + ' ruedas'],
+    ['Desvío (' + sg_ + ')', fmt(std), '', 'de los cierres diarios'],
+    ['Banda ±1' + sg_, Math.round(mean - std) + ' a ' + Math.round(mean + std), 'rgba(148,163,184,.45)', 'pb'],
+    ['Banda ±2' + sg_, Math.round(mean - 2 * std) + ' a ' + Math.round(mean + 2 * std), 'rgba(148,163,184,.2)', 'pb'],
+    ['Mín / máx', Math.round(Math.min.apply(null, vals)) + ' / ' + Math.round(Math.max.apply(null, vals)), '', 'pb']
+  ].map(function(arr) { return '<div class="spread-box"><div class="spread-title">' + (arr[2] ? '<i class="dot" style="background:' + arr[2] + '"></i>' : '') + '<span>' + arr[0] + '</span></div><div class="spread-val">' + arr[1] + '</div><div class="note">' + arr[3] + '</div></div>'; }).join('');
+  window.renderSpreadCards();
   $('spreadNote').textContent = 'Spread = TIR de la ley local − TIR de la ley NY, con los precios de cierre en ' + spn + ' (especie ' + sp + ') y liquidación el mismo día; durante la rueda el último punto es el precio en vivo. ' + vals.length + ' ruedas en el rango.' +
     (dropped.length ? ' Se descartaron ' + dropped.length + ' cierre' + (dropped.length > 1 ? 's' : '') + ' suelto' + (dropped.length > 1 ? 's' : '') + ' (' + dropped.map(function(x) { return dd(x[0]) + ': ' + Math.round(x[1] * 100) + ' pb'; }).join(', ') + '): días en que el spread se aparta más de 50 pb de los dos vecinos y al día siguiente vuelve, casi siempre por el cierre de uno solo de los bonos fuera de mercado.' : '');
  } catch(error) {
@@ -1802,9 +1806,9 @@ setInterval(window.fetchLive, 90000);
     '#quant .qt td.l,#quant .qt th.l{text-align:left}#quant .qt td.k{font-weight:700;color:var(--ok);text-align:left}' +
     '#quant .qh{margin:0 0 4px;font-size:18px;font-weight:700;color:var(--tx)}#quant .qs{margin:0 0 14px;color:var(--mu);font-size:14px;line-height:1.55}' +
     '#quant .qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:16px}' +
-    '#quant .qbox{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:14px 16px}' +
-    '#quant .qbox .a{color:var(--mu);font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}' +
-    '#quant .qbox .v{font-size:22px;font-weight:700;margin-top:4px;font-family:"JetBrains Mono",monospace}#quant .qbox .n{color:var(--mu);font-size:13px;margin-top:4px;line-height:1.45}' +
+    '#quant .qbox{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:12px 16px}' +
+    '#quant .qbox .a{color:var(--mu);font-size:12px;font-weight:600;letter-spacing:.4px;text-transform:uppercase}' +
+    '#quant .qbox .v{font-size:22px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums;letter-spacing:-.2px}#quant .qbox .n{color:var(--mu);font-size:13px;margin-top:4px;line-height:1.45}' +
     '#quant .tag{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700;border:1px solid var(--bd)}' +
     '#quant .tag.up{color:#3ecb7a;border-color:#3ecb7a}#quant .tag.dn{color:#ff6b6b;border-color:#ff6b6b}' +
     '#quant .qrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}@media(max-width:1100px){#quant .qrow{grid-template-columns:minmax(0,1fr)}}#quant .qrow>.card{min-width:0}' +
@@ -1841,7 +1845,6 @@ setInterval(window.fetchLive, 90000);
     qCard('Volatilidad', 'Retornos diarios en precio clean (se descartan las ruedas con pago de capital). Vol. de TIR en pb por día.', '<div class="wrap"><table class="qt" id="qVol"></table></div>')));
   hosts.push(mount('curva',
     '<hr style="border:0;border-top:1px solid var(--bd);margin:36px 0 20px">' +
-    qCard('Canje Ley Local ↔ Ley NY', 'Spread de TIR local menos NY por par, contra su historia. «Captura» = ganancia en precio del bono local si el spread vuelve a su media (spread − media) × duración. Positivo: conviene el local; negativo: conviene NY.', '<div class="wrap"><table class="qt" id="qSwap"></table></div>') +
     qCard('Desvío histórico contra la curva', 'Evolución del desvío (pb) del bono contra la curva de su legislación, cada día. Positivo = más barato (TIR por encima).', '<div class="ctl" style="margin-bottom:10px"><label>Bono<select id="qResSel" onchange="window.renderQuant()"></select></label></div><div class="qgrid s" id="qResStats" style="margin-bottom:10px"></div><div class="qc"><canvas id="qResChart"></canvas></div>')));
 
   var ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>';
@@ -1954,10 +1957,10 @@ setInterval(window.fetchLive, 90000);
     Q.carryCh = new Chart(cv.getContext('2d'), {
       type: 'bar',
       data: { labels: rows.map(function (x) { return x.o.k; }), datasets: [
-        { label: 'TIR constante', data: rows.map(function (x) { return x.r.tr0 * 100; }), backgroundColor: css('--ac') },
-        { label: 'Con roll-down', data: rows.map(function (x) { return x.r.tr1 == null ? null : x.r.tr1 * 100; }), backgroundColor: css('--ok') }] },
+        { label: 'TIR constante', data: rows.map(function (x) { return x.r.tr0 * 100; }), backgroundColor: css('--c-s2'), borderRadius: 3, borderSkipped: 'bottom', maxBarThickness: 22 },
+        { label: 'Con roll-down', data: rows.map(function (x) { return x.r.tr1 == null ? null : x.r.tr1 * 100; }), backgroundColor: css('--c-s1'), borderRadius: 3, borderSkipped: 'bottom', maxBarThickness: 22 }] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: tx } }, tooltip: { callbacks: { label: function (i) { return i.dataset.label + ': ' + fm(i.raw, 2) + '%'; } } } },
-        scales: { x: { ticks: { color: tx }, grid: { color: bd } }, y: { ticks: { color: tx, callback: function (v) { return v + '%'; } }, grid: { color: bd }, title: { display: true, text: 'Retorno a ' + hz + ' días (%)', color: tx } } } }
+        scales: { x: { ticks: { color: tx }, grid: { display: false } }, y: { ticks: { color: tx, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd }, border: { display: false }, title: { display: true, text: 'Retorno a ' + hz + ' días (%)', color: css('--mu') } } } }
     });
   }
 
@@ -2033,31 +2036,24 @@ setInterval(window.fetchLive, 90000);
   }
 
   /* ---------- 6. Canje ---------- */
-  function renderSwap(S, c) {
-    var h = '<tr><th class="l">Par</th><th>Precio<br>Local</th><th>Precio<br>NY</th><th>Ratio<br>de precios</th><th>Spread<br>actual (pb)</th><th>Media<br>(pb)</th><th>z</th><th>Percentil</th><th>Captura<br>a la media</th><th>Carry<br>local − NY</th><th>Idea</th></tr>';
-    Object.keys(SPREADS).forEach(function (key) {
-      var p = SPREADS[key], a = S.filter(function (o) { return o.k === p.loc; })[0], n = S.filter(function (o) { return o.k === p.ny; })[0]; if (!a || !n) return;
-      var hist = spreadClean(spreadHistFor(key, c.sp)).pts.map(function (x) { return x[1] * 100; }), cur = (a.tir - n.tir) * 1e4;
-      var m = mean(hist), s = std(hist), z = s ? (cur - m) / s : null, pr = hist.length ? pctl(hist, cur) : null, cap = (cur - m) / 1e4 * a.md * 100;
-      var idea = z == null ? '' : z > 1 ? '<span class="tag up">comprar Local / vender NY</span>' : z < -1 ? '<span class="tag dn">comprar NY / vender Local</span>' : '<span class="tag">neutral</span>';
-      h += '<tr><td class="k">' + p.loc + ' / ' + p.ny + '</td><td>' + fm(a.clean, 2) + '</td><td>' + fm(n.clean, 2) + '</td><td>' + fm(a.clean / n.clean, 3) + '</td><td style="color:var(--ac);font-weight:700">' + fm(cur, 0) + '</td><td>' + fm(m, 0) + '</td><td style="' + colorOf(z, 3) + '">' + sg(z, 1) + '</td><td>' + (pr == null ? 'n/a' : fm(pr, 0) + '°') + '</td><td>' + sg(cap, 2) + '%</td><td>' + sg((a.cy - n.cy) * 1e4, 0) + ' pb</td><td>' + idea + '</td></tr>';
-    });
-    document.getElementById('qSwap').innerHTML = h;
-  }
-
-  function lineChart(canvasId, ref, ser, label, unit) {
+  function lineChart(canvasId, ref, ser, label, unit) { // mismo estilo que el panel de spread: serie azul, media ámbar y banda ±1σ sombreada
     var cv = document.getElementById(canvasId); if (Q[ref]) Q[ref].destroy();
-    var vals = ser.map(function (p) { return p[1]; }), m = mean(vals), s = std(vals) || 0, bd = css('--bd'), tx = css('--tx');
-    var flat = function (v) { return ser.map(function () { return v; }); };
+    var vals = ser.map(function (p) { return p[1]; }), m = mean(vals), s = std(vals) || 0, bd = css('--bd'), tx = css('--tx'), mu = css('--mu'), c1 = css('--c-s1'), c2 = css('--c-s2');
+    var flat = function (v) { return ser.map(function () { return v; }); }, dd = function (t) { var x = bxDayStr(t); return x.slice(8, 10) + '/' + x.slice(5, 7) + '/' + x.slice(2, 4); };
     Q[ref] = new Chart(cv.getContext('2d'), {
       type: 'line',
-      data: { labels: ser.map(function (p) { return bxDayStr(p[0]); }), datasets: [
-        { label: label, data: vals, borderColor: css('--ac'), borderWidth: 2, pointRadius: 0, tension: 0.15 },
-        { label: 'Media', data: flat(m), borderColor: css('--ok'), borderDash: [6, 6], borderWidth: 1.5, pointRadius: 0 },
-        { label: '+1σ', data: flat(m + s), borderColor: css('--mu'), borderDash: [2, 4], borderWidth: 1, pointRadius: 0 },
-        { label: '−1σ', data: flat(m - s), borderColor: css('--mu'), borderDash: [2, 4], borderWidth: 1, pointRadius: 0 }] },
-      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: tx, filter: function (i) { return i.text !== '−1σ'; } } }, tooltip: { callbacks: { label: function (i) { return i.dataset.label + ': ' + fm(i.raw, 0) + ' ' + unit; } } } },
-        scales: { x: { ticks: { color: tx, maxTicksLimit: 8 }, grid: { color: bd } }, y: { ticks: { color: tx }, grid: { color: bd }, title: { display: true, text: unit, color: tx } } } }
+      data: { labels: ser.map(function (p) { return dd(p[0]); }), datasets: [
+        { label: '+1σ', data: flat(m + s), borderColor: mu, borderDash: [3, 4], borderWidth: 1, pointRadius: 0, fill: false },
+        { label: '−1σ', data: flat(m - s), borderColor: mu, borderDash: [3, 4], borderWidth: 1, pointRadius: 0, fill: '-1', backgroundColor: 'rgba(148,163,184,.12)' },
+        { label: 'Media', data: flat(m), borderColor: c2, borderWidth: 2, pointRadius: 0 },
+        { label: label, data: vals, borderColor: c1, borderWidth: 2, pointRadius: 0, tension: 0.15 }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { onClick: function () {}, labels: { color: tx, usePointStyle: true, generateLabels: function () { return [
+            { text: label, fillStyle: c1, strokeStyle: c1, lineWidth: 3, pointStyle: 'line', fontColor: tx },
+            { text: 'Media ' + fm(m, 0) + ' ' + unit, fillStyle: c2, strokeStyle: c2, lineWidth: 3, pointStyle: 'line', fontColor: tx },
+            { text: 'Banda ±1σ', fillStyle: 'rgba(148,163,184,.35)', strokeStyle: mu, lineWidth: 1, pointStyle: 'rect', fontColor: tx }]; } } },
+          tooltip: { filter: function (i) { return i.datasetIndex === 3; }, callbacks: { label: function (i) { return i.dataset.label + ': ' + fm(i.raw, 0) + ' ' + unit + (s ? ' · z ' + sg((i.raw - m) / s, 2) : ''); } } } },
+        scales: { x: { ticks: { color: tx, maxTicksLimit: 8, maxRotation: 0 }, grid: { display: false } }, y: { ticks: { color: tx }, grid: { color: bd }, border: { display: false }, title: { display: true, text: unit, color: mu } } } }
     });
     return { m: m, s: s, cur: vals[vals.length - 1], pct: pctl(vals, vals[vals.length - 1]) };
   }
@@ -2086,7 +2082,7 @@ setInterval(window.fetchLive, 90000);
         var hz = parseInt(gid('qHz').value, 10), win = parseInt(gid('qWin').value, 10), H = history(c);
         renderCarry(S, c, hz); var vs = renderVol(S, H, win); renderPort(S, c, vs);
       }
-      if (all === 'all' || at === 'curva') { var H2 = history(c); renderSwap(S, c); renderRes(H2, S); }
+      if (all === 'all' || at === 'curva') { var H2 = history(c); renderRes(H2, S); }
     } catch (e) { console.error('quant', e); }
   };
   window.addEventListener('load', function () {
@@ -2657,7 +2653,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       qc.appendChild(msg); var kn0 = document.getElementById(id.replace('psC', 'psKn')); if (kn0) kn0.textContent = ''; return;
     }
     var xs_ = P.map(function (p) { return p.x; }).sort(function (a, b) { return a - b; }), useLog = !yrs && xs_.length > 3 && (xs_[xs_.length - 1] > 1500 || (xs_[xs_.length - 1] > 600 && xs_[Math.ceil(xs_.length * 0.85) - 1] < xs_[xs_.length - 1] / 3)), fx0 = 0, fx1 = 0, fit = spec.zero ? null : fitX(P.filter(function (p) { return !p.dual || dualMode === 2; }), model), sets = [], cheapSign = spec.inv ? -1 : 1;
-    if (spec.zero && P.length) { var zx0 = Math.max(yrs ? 0 : 1, Math.min.apply(null, P.map(function (p) { return p.x; })) - (yrs ? 0.03 : 10)), zx1 = Math.max.apply(null, P.map(function (p) { return p.x; })) + (yrs ? 0.03 : 10); sets.push({ type: 'line', label: 'Curva Lecap (mercado)', data: [{ x: zx0, y: 0 }, { x: zx1, y: 0 }], borderColor: '#60a5fa', borderWidth: 2.5, pointRadius: 0, fill: false, order: 4 }); }
+    if (spec.zero && P.length) { var zx0 = Math.max(yrs ? 0 : 1, Math.min.apply(null, P.map(function (p) { return p.x; })) - (yrs ? 0.03 : 10)), zx1 = Math.max.apply(null, P.map(function (p) { return p.x; })) + (yrs ? 0.03 : 10); sets.push({ type: 'line', label: 'Curva Lecap (mercado)', data: [{ x: zx0, y: 0 }, { x: zx1, y: 0 }], borderColor: css('--c-s1'), borderWidth: 2.5, pointRadius: 0, fill: false, order: 4 }); }
     if (fit) {
       var PF = P.filter(function (p) { return !p.dual || dualMode === 2; }), x0 = Math.min.apply(null, PF.map(function (p) { return p.x; })), x1 = Math.max.apply(null, PF.map(function (p) { return p.x; })), N = 90, cu = [], up = [], lo = [];
       fx0 = x0; fx1 = x1; // la curva cubre solo el rango de los instrumentos (sin extrapolar a los costados)
@@ -2665,12 +2661,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       cu0 = x0; cu1 = x1;
       sets.push({ type: 'line', label: '+1σ', data: up, borderColor: 'rgba(148,163,184,.55)', borderDash: [4, 4], borderWidth: 1, pointRadius: 0, fill: false, order: 5 });
       sets.push({ type: 'line', label: '−1σ', data: lo, borderColor: 'rgba(148,163,184,.55)', borderDash: [4, 4], borderWidth: 1, pointRadius: 0, fill: '-1', backgroundColor: 'rgba(148,163,184,.10)', order: 5 });
-      sets.push({ type: 'line', label: 'Curva fair', data: cu, borderColor: '#60a5fa', borderWidth: 2.5, pointRadius: 0, fill: false, order: 4 });
+      sets.push({ type: 'line', label: 'Curva fair', data: cu, borderColor: css('--c-s1'), borderWidth: 2.5, pointRadius: 0, fill: false, order: 4 });
       P.forEach(function (p) { if (p.x < fx0 - xtol || p.x > fx1 + xtol) { p.out = true; return; } p.fy = fit.f(p.x); p.res = p.y - p.fy; }); // fuera del rango de la curva no se extrapola
     }
     var ax0, ax1, allx = P.map(function (p) { return p.x; }); if (spec.zero) allx = allx.concat(sets.length && sets[0].data ? sets[0].data.map(function (p) { return p.x; }) : []);
     if (allx.length) { var mn = Math.min.apply(null, allx), mx = Math.max.apply(null, allx), rg = Math.max(mx - mn, 1); if (fit) { mn = Math.min(mn, cu0); mx = Math.max(mx, cu1); } ax0 = useLog ? Math.max(5, mn * 0.85) : Math.max(0, mn - 0.03 * rg); ax1 = useLog ? mx * 1.12 : mx + 0.04 * rg; }
-    var col = function (p) { if (p.byDiff) return (p.y - p.y0) * -cheapSign > 0 ? GR : RD; if (spec.zero) return p.y >= 0 ? GR : RD; if (!fit) return pcol; if (p.out) return '#94a3b8'; var r = p.res * cheapSign; return Math.abs(r) < 0.25 * fit.sigma ? '#60a5fa' : r > 0 ? GR : RD; };
+    var col = function (p) { if (p.byDiff) return (p.y - p.y0) * -cheapSign > 0 ? GR : RD; if (spec.zero) return p.y >= 0 ? GR : RD; if (!fit) return pcol; if (p.out) return '#94a3b8'; var r = p.res * cheapSign; return Math.abs(r) < 0.25 * fit.sigma ? css('--c-s1') : r > 0 ? GR : RD; };
     CMAP[ref] = {}; P.forEach(function (p) { CMAP[ref][p.k] = col(p); });
     var kn = document.getElementById(id.replace('psC', 'psKn')); if (kn) kn.textContent = fit ? 'Curva: ' + fit.name + ' · dispersión ±1σ = ' + (spec.sfx == null || spec.sfx === '%' ? fm(fit.sigma * 100, 0) + ' pb' : fm(fit.sigma, 2)) + ' (banda sombreada)' : '';
     var beOut = /breakeven/.test(spec.label) ? S.filter(function (o) { return o.beOut && !o.miss && o.d <= cap; }).sort(function (a, b) { return a.d - b.d; }) : []; // sin breakeven: vencen después de la Lecap más larga
@@ -3116,8 +3112,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var leg = document.getElementById('vdLeg'), shift = document.getElementById('vdShift');
     if (CH) { CH.destroy(); CH = null; }
     if (good.length < 2) { leg.innerHTML = 'No hay suficientes bonos con datos de ayer y de hoy para dibujar la curva.'; shift.innerHTML = ''; return; }
-    var SER = isUsd ? [{ n: 'Ley NY', c: '#60a5fa', st: 'circle', r: good.filter(function (r) { return r.law === 'NY'; }) }, { n: 'Ley local', c: '#c084fc', st: 'triangle', r: good.filter(function (r) { return r.law === 'Local'; }) }]
-      : [{ n: GN[grp], c: '#60a5fa', st: 'circle', r: good }];
+    var SER = isUsd ? [{ n: 'Ley NY', c: css('--c-s1'), st: 'circle', r: good.filter(function (r) { return r.law === 'NY'; }) }, { n: 'Ley local', c: css('--c-s2'), st: 'triangle', r: good.filter(function (r) { return r.law === 'Local'; }) }]
+      : [{ n: GN[grp], c: css('--c-s1'), st: 'circle', r: good }];
     var xs = good.map(function (r) { return r.x1; }).sort(function (a, b) { return a - b; });
     var useLog = !yrs && xs.length > 3 && (xs[xs.length - 1] > 1500 || (xs[xs.length - 1] > 600 && xs[Math.ceil(xs.length * 0.85) - 1] < xs[xs.length - 1] / 3));
     var sets = [], hoy = [], ayer = [], hc = [], hs = [], shifts = [];
@@ -3386,7 +3382,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       f = q ? { f: function (x) { return q.f(x * u); }, x0: Math.min.apply(null, gp.map(function (p) { return p.x; })), x1: Math.max.apply(null, gp.map(function (p) { return p.x; })) } : null;
     }
     var sets = [];
-    if (f) { var x0 = f.x0, x1 = f.x1, N = 70, cu = []; for (var i = 0; i <= N; i++) { var xx = x0 * Math.pow(x1 / x0, i / N); cu.push({ x: xx, y: f.f(xx) }); } sets.push({ type: 'line', label: 'Curva', data: cu, borderColor: '#60a5fa', borderWidth: 2.5, pointRadius: 0, fill: false, order: 4 }); }
+    if (f) { var x0 = f.x0, x1 = f.x1, N = 70, cu = []; for (var i = 0; i <= N; i++) { var xx = x0 * Math.pow(x1 / x0, i / N); cu.push({ x: xx, y: f.f(xx) }); } sets.push({ type: 'line', label: 'Curva', data: cu, borderColor: css('--c-s1'), borderWidth: 2.5, pointRadius: 0, fill: false, order: 4 }); }
     var col = function (o) { return o.k === A.k ? '#fb7185' : o.k === Bb.k ? '#34d399' : '#94a3b8'; };
     sets.push({ type: 'scatter', label: 'Bonos', role: 'p', data: pts, backgroundColor: list.map(col), borderColor: list.map(col), pointRadius: list.map(function (o) { return o.k === A.k || o.k === Bb.k ? 9 : 5; }), hoverRadius: 10, order: 1 });
     var LINK = { id: 'rtLink', afterDatasetsDraw: function (ch) { var m = null; ch.data.datasets.forEach(function (d, i) { if (d.role === 'p') m = ch.getDatasetMeta(i).data; }); if (!m) return; var ia = list.findIndex(function (o) { return o.k === A.k; }), ib = list.findIndex(function (o) { return o.k === Bb.k; }); if (ia < 0 || ib < 0) return;
@@ -3811,7 +3807,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
    ===================================================================== */
 ;(function () {
   var TAB_NAMES = { tabla: 'Tabla_Retornos', desglose: 'Flujos_TotalReturn', curva: 'Curva_Spreads', pesos: 'Pesos', vard: 'Variacion_diaria', rot: 'Rotacion', vol: 'Volumen' };
-  var TABLE_NAMES = { vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones', qSwap: 'Canje_Local_NY' };
+  var TABLE_NAMES = { vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
 
   function parse(raw) {
     var s = raw.replace(/−/g, '-').replace(/ /g, ' ').replace(/^US\$\s*/, '').replace(/^([+-])\s+/, '$1').trim();
