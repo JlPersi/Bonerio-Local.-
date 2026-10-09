@@ -355,6 +355,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('vard')">Variación diaria</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('rot')">Rotación</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('vol')">Volumen</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('lic')">Licitaciones</button>
     </div>
     
     <div style="display: flex; align-items: center; gap: 12px; flex-shrink: 0; padding-right: 4px;">
@@ -487,6 +488,7 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="vard" class="tab-content"></div>
 <div id="rot" class="tab-content"></div>
 <div id="vol" class="tab-content"></div>
+<div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
 
 <div id="curva" class="tab-content">
   <div class="card">
@@ -4079,6 +4081,31 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 })();
 </script>
 <!--@@RF_END@@-->
+<script>
+/* PESTAÑA LICITACIONES: licitaciones.html dentro de un iframe (estilos y scripts propios); se carga al abrir la pestaña,
+   toma el alto de su contenido y el tema del sitio */
+(function () {
+  var f = document.getElementById('licFrame'); if (!f) return;
+  window.addEventListener('message', function (e) { if (e.source === f.contentWindow && e.data && e.data.licH > 0) f.style.height = Math.ceil(e.data.licH) + 'px'; });
+  var theme = function () { try { f.contentWindow.postMessage({ licTheme: document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark' }, '*'); } catch (e) { } };
+  f.addEventListener('load', theme);
+  var _sw = window.switchTab;
+  window.switchTab = function (id) {
+    _sw(id); if (id !== 'lic') return;
+    var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none';
+    if (!f.getAttribute('src')) f.setAttribute('src', 'licitaciones.html');
+  };
+  var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); theme(); };
+  var note = null; // avisos de la imagen HD de la pestaña (descargar, copiar, compartir), con los estilos de .dlnote
+  window.licToast = function (msg, btns, ms) {
+    if (note) { note.remove(); note = null; } if (msg == null) return;
+    note = document.createElement('div'); note.className = 'dlnote'; note.setAttribute('data-html2canvas-ignore', 'true');
+    var t = document.createElement('span'); t.textContent = msg; note.appendChild(t);
+    (btns || []).forEach(function (b) { var x = document.createElement('button'); x.textContent = b[0]; if (b[2]) x.className = 'alt'; x.onclick = function () { if (note) { note.remove(); note = null; } b[1](); }; note.appendChild(x); });
+    document.body.appendChild(note); var me = note; if (ms !== 0) setTimeout(function () { if (note === me) { note.remove(); note = null; } }, ms || 4500);
+  };
+})();
+</script>
 <!--@@DLMENU_START@@-->
 <script>
 /* Imagen HD con menú: qué incluir (solo gráfico, solo tabla o ambos, en los recuadros que tienen las dos cosas)
