@@ -489,7 +489,7 @@ window.curveFitUSD = function (pts, model, minN) {
               <p class="note" style="margin-top: 4px;">Scatter Plot de TIR vs. Duración Modificada calculada en vivo.</p>
           </div>
           <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu);margin-left:auto;margin-right:12px;" data-html2canvas-ignore="true">Modelo de curva<select id="usdCurveModel" onchange="window.USD_MODEL=this.value;try{window.updateCurveChart();window.updateSpreadChart&&window.updateSpreadChart();window.renderQuant&&window.renderQuant('all');}catch(e){console.error(e)}"><option value="log">Logarítmica</option><option value="sqrt">Raíz cuadrada</option><option value="lin">Lineal</option><option value="quad">Cuadrática</option><option value="ns">Nelson-Siegel</option></select></label>
-          <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu);margin-right:12px;" data-html2canvas-ignore="true">Eje X<select id="usdCurveAx" onchange="window.USD_AX=this.value;try{window.updateCurveChart();}catch(e){console.error(e)}"><option value="md" selected>Duración modificada (años)</option><option value="mac">Duración (días)</option><option value="plazo">Plazo (días)</option></select></label>
+          <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu);margin-right:12px;" data-html2canvas-ignore="true">Eje X<select id="usdCurveAx" onchange="window.USD_AX=this.value;try{window.updateCurveChart();}catch(e){console.error(e)}"><option value="md" selected>Duración modificada (años)</option><option value="mac">Duración (días)</option><option value="plazo">Plazo (días)</option><option value="mdd">Duración modificada (días)</option></select></label>
           <button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD('yieldCurveContainer', 'Soberanos_Curva_Soberana')" title="Descargar Curva en HD">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           </button>
@@ -624,10 +624,11 @@ function bxDur(fl, s, y) { // duración con los flujos y su TIR efectiva anual (
   if (!(pv > 0)) return null; var mac = tw / pv; return { mac: mac, md: mac / 365 / (1 + y) };
 }
 // eje X de las curvas: plazo al vencimiento, duración de Macaulay (días) o duración modificada (años)
-var XAXO = [['plazo', 'Plazo (días)'], ['mac', 'Duración (días)'], ['md', 'Duración modificada (años)']];
+var XAXO = [['plazo', 'Plazo (días)'], ['mac', 'Duración (días)'], ['md', 'Duración modificada (años)'], ['mdd', 'Duración modificada (días)']]; // mdd: duración modificada × 365, como BYMA
+function xaxVal(ax, plazo, mac, md) { return ax === 'md' ? md : ax === 'mdd' ? (md == null ? null : md * 365) : ax === 'mac' ? mac : plazo; }
 function xaxOpts(def) { return XAXO.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === def ? ' selected' : '') + '>' + o[1] + '</option>'; }).join(''); }
-function xaxTitle(ax, log) { return ax === 'md' ? 'Duración modificada (años)' : (ax === 'mac' ? 'Duración' : 'Plazo') + ' (días' + (log ? ', escala logarítmica' : '') + ')'; }
-function xaxTip(ax, v) { var f = function (x, d) { return x == null || !isFinite(x) ? 'n/a' : x.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); }; return ax === 'md' ? 'duración mod. ' + f(v, 2) : f(v, 0) + (ax === 'mac' ? ' días de duración' : ' días'); }
+function xaxTitle(ax, log) { return ax === 'md' ? 'Duración modificada (años)' : (ax === 'mac' ? 'Duración' : ax === 'mdd' ? 'Duración modificada' : 'Plazo') + ' (días' + (log ? ', escala logarítmica' : '') + ')'; }
+function xaxTip(ax, v) { var f = function (x, d) { return x == null || !isFinite(x) ? 'n/a' : x.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); }; return ax === 'md' ? 'duración mod. ' + f(v, 2) : f(v, 0) + (ax === 'mac' ? ' días de duración' : ax === 'mdd' ? ' días de duración mod.' : ' días'); }
 
 /* ----- registro diario (cierres que se guardan solos) ----- */
 let LOG = { D: {}, C: {} };   // cierres: data/closes.json (compartido, lo escribe el job diario) + precio en vivo de hoy (memoria)
@@ -1193,7 +1194,7 @@ window.updateCurveChart = function() {
         let b = B[i];
         const r = calc(b, d0, d1, u);
         if (r.tir != null && r.modD != null) {
-            const pt = { x: ax === 'md' ? r.modD : ax === 'mac' ? r.modD * (1 + r.tir) * 365 : b.f[b.f.length - 1][0] - d0, y: r.tir * 100, bono: b.k, md: r.modD };
+            const pt = { x: xaxVal(ax, b.f[b.f.length - 1][0] - d0, r.modD * (1 + r.tir) * 365, r.modD), y: r.tir * 100, bono: b.k, md: r.modD };
             if (b.k.startsWith('GD')) dataNY.push(pt); else dataLoc.push(pt); 
         }
     }
@@ -2622,7 +2623,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var GR = '#34d399', RD = '#fb7185';
   function fairChart(id, ref, S, spec, cap, dualMode, gmap, model, ax) {
     var args = [].slice.call(arguments), scOff = !!SCOFF[ref], hasSc = !!gmap; if (scOff) gmap = null; // la leyenda prende y apaga la capa de tu escenario
-    ax = ax || 'plazo'; var yrs = ax === 'md', xOf = function (o) { return ax === 'md' ? o.mdur : ax === 'mac' ? o.mac : o.d; }, xtol = yrs ? 0.003 : 1;
+    ax = ax || 'plazo'; var yrs = ax === 'md', xOf = function (o) { return xaxVal(ax, o.d, o.mac, o.mdur); }, xtol = yrs ? 0.003 : 1;
     var fitX = function (pts, m) { var u = yrs ? 365 : 1, q = fairFit(pts.map(function (p) { return { x: p.x * u, y: p.y, k: p.k }; }), m); return !q || u === 1 ? q : { f: function (x) { return q.f(x * u); }, sigma: q.sigma, res: q.res, name: q.name }; }; // las formas de la curva están pensadas en días
     // spec: {label, val(o)->fracción o null, inv: true si un valor menor es más barato, sfx}
     var tx = css('--tx'), bd = css('--bd'), pcol = css('--ac');
@@ -3019,7 +3020,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'vdCap\', \'Soberanos_Variacion_Diaria\')" title="Descargar en HD"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>' +
       '<div class="vdc sxc"><label>Grupo<select id="vdG"></select></label>' +
       '<label>Vista<div class="seg"><button id="vdVt" class="on">Comparativa</button><button id="vdVc">Curva hoy vs ayer</button></div></label>' +
-      '<label id="vdKL">Curva<select id="vdK"></select></label><label id="vdAxL">Eje X<select id="vdAx"><option value="plazo">Plazo (días)</option><option value="mac">Duración (días)</option><option value="md">Duración modificada (años)</option></select></label><label>Plazo máximo<select id="vdX"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000">1.000 días</option><option value="1500">1.500 días</option><option value="0" selected>Todos</option></select></label><label id="vdDL">Duales<select id="vdD"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' +
+      '<label id="vdKL">Curva<select id="vdK"></select></label><label id="vdAxL">Eje X<select id="vdAx">' + xaxOpts('plazo') + '</select></label><label>Plazo máximo<select id="vdX"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000">1.000 días</option><option value="1500">1.500 días</option><option value="0" selected>Todos</option></select></label><label id="vdDL">Duales<select id="vdD"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' +
       '<label id="vdSortL">Ordenar por<select id="vdS"><option value="dpct">Variación de precio</option><option value="dpb">Variación de tasa (pb)</option><option value="k">Ticker</option><option value="x1">Plazo</option></select></label></div>' +
       '<div class="vdchips" id="vdChips" style="margin-bottom:16px"></div>' +
       '<div id="vdCurveCard" style="display:none"><div class="vdleg" id="vdLeg"></div><div class="chart-wrap" style="height:560px;margin-top:0"><canvas id="vdChart"></canvas></div><div class="vdshift" id="vdShift"></div></div>' +
@@ -3090,7 +3091,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
   function curveView(rows, grp) {
     var tx = css('--tx'), bd = css('--bd'), card = css('--card'), isUsd = grp === 'usd', ax = isUsd ? ST.axU : ST.ax, yrs = ax === 'md';
-    if (ax !== 'plazo') rows = rows.map(function (r) { return Object.assign({}, r, ax === 'md' ? { x0: r.md0, x1: r.md1 } : { x0: r.mac0, x1: r.mac1 }); });
+    if (ax !== 'plazo') rows = rows.map(function (r) { return Object.assign({}, r, { x0: xaxVal(ax, r.x0, r.mac0, r.md0), x1: xaxVal(ax, r.x1, r.mac1, r.md1) }); });
     var good = rows.filter(function (r) { return r.x0 != null && r.x1 != null && r.y0 != null && r.y1 != null && isFinite(r.x1) && r.x1 > 0 && (isUsd || r.days >= 3); });
     var leg = document.getElementById('vdLeg'), shift = document.getElementById('vdShift');
     if (CH) { CH.destroy(); CH = null; }
@@ -3136,7 +3137,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       SER.map(function (S) { return '<span><i style="width:22px;height:0;border-top:3px solid ' + S.c + '"></i>Curva hoy ' + (isUsd ? S.n + (S.st === 'triangle' ? ' (▲)' : ' (●)') : '') + '</span>'; }).join('') + '<span><i style="width:22px;height:0;border-top:2px dashed var(--mu)"></i>Curva ayer</span>';
     shift.innerHTML = shifts.map(function (s) {
       var mu = mean(s.rows.map(function (r) { return (r.h - r.a) * 100; }));
-      return '<div><div style="font-weight:600;margin-bottom:6px;color:var(--tx)">' + s.n + ' · desplazamiento de la curva <span style="color:' + dcol(mu == null ? null : -mu, 0.5) + '">(promedio ' + sg(mu, 0) + ' pb)</span></div><table class="vdt"><thead><tr><th class="l" style="cursor:default">' + (ax === 'plazo' ? 'Plazo' : yrs ? 'Duración mod.' : 'Duración') + '</th><th style="cursor:default">Ayer</th><th style="cursor:default">Hoy</th><th style="cursor:default">Δ pb</th></tr></thead><tbody>' +
+      return '<div><div style="font-weight:600;margin-bottom:6px;color:var(--tx)">' + s.n + ' · desplazamiento de la curva <span style="color:' + dcol(mu == null ? null : -mu, 0.5) + '">(promedio ' + sg(mu, 0) + ' pb)</span></div><table class="vdt"><thead><tr><th class="l" style="cursor:default">' + (ax === 'plazo' ? 'Plazo' : ax === 'mac' ? 'Duración' : 'Duración mod.') + '</th><th style="cursor:default">Ayer</th><th style="cursor:default">Hoy</th><th style="cursor:default">Δ pb</th></tr></thead><tbody>' +
         s.rows.map(function (r) { var d = (r.h - r.a) * 100; return '<tr><td class="l">' + (yrs ? fm(r.x, 1) + ' años' : fm(r.x, 0) + ' días') + '</td><td>' + fm(r.a, 2) + '%</td><td>' + fm(r.h, 2) + '%</td><td style="font-weight:700;color:' + dcol(-d, 0.5) + '">' + sg(d, 0) + '</td></tr>'; }).join('') + '</tbody></table></div>';
     }).join('');
   }
@@ -3357,7 +3358,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
 
   function chart(A, Bb) {
     if (CH) { CH.destroy(); CH = null; }
-    var ax = ST.ax, yrs = ax === 'md', xOf = function (o) { return ax === 'md' ? o.mdur : ax === 'mac' ? o.mac : o.d; }, axEl = document.getElementById('rtAx'); if (axEl) axEl.onchange = function () { ST.ax = this.value; chart(A, Bb); };
+    var ax = ST.ax, yrs = ax === 'md', xOf = function (o) { return xaxVal(ax, o.d, o.mac, o.mdur); }, axEl = document.getElementById('rtAx'); if (axEl) axEl.onchange = function () { ST.ax = this.value; chart(A, Bb); };
     var list = U.filter(function (o) { return o.nat != null && (A.fam !== 'usd' || o.grp === A.grp || o.k === Bb.k) && o.d >= 3 && xOf(o) > 0; }), tx = css('--tx'), bd = css('--bd');
     var f = FIT[A.grp], pts = list.map(function (o) { return { x: xOf(o), y: o.nat, k: o.k }; });
     if (f && ax !== 'plazo') { // la curva del gráfico se reajusta en el eje elegido (el desvío del ranking sigue medido contra el plazo)
