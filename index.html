@@ -2706,6 +2706,25 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     } catch (e) {}
     return null;
   }
+  function durOf(fl, s, P) { // duración exacta con los flujos y su TIR efectiva anual (act/365): Macaulay en días y modificada en años
+    var y = tirOf(fl, s, P), pv = 0, tw = 0; if (y == null || !(y > -1)) return null;
+    fl.forEach(function (f) { if (f[0] > s) { var v = f[1] / Math.pow(1 + y, (f[0] - s) / 365); pv += v; tw += v * (f[0] - s); } });
+    if (!(pv > 0)) return null; var mac = tw / pv; return { mac: mac, md: mac / 365 / (1 + y) };
+  }
+  function durAt(k, t, P) { // duración de un día pasado, con los mismos flujos y supuestos que yieldAt
+    var ins = INST[k], s = bxSettle(t), mat = ins.r[ins.r.length - 1][0], kd = ins.k; if (mat <= s || !(P > 0)) return null;
+    TC = TC || constSc(0, T0(), 0);
+    try {
+      if (kd === 'cap' || kd === 'cpn' || kd === 'dualtf') return durOf(flowsOf(ins, s, ZERO), s, P);
+      if (kd === 'cer0' || kd === 'cerc') { // en términos reales: flujos sin ajustar contra el precio deflactado por CER
+        var b = cerBase(ins), c = cerAt(bdBack(s, 10), ZERO); if (!isFinite(b) || !isFinite(c)) return null;
+        return durOf(kd === 'cerc' ? ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; }) : [[mat, 100]], s, P / (c / b));
+      }
+      if (kd === 'dl') { var f = fxAt(Math.min(t, lastOf(IDX.FX)), ZERO); return isFinite(f) ? durOf([[mat, 100 * f]], s, P) : null; }
+      if (kd === 'tamar' || kd === 'dual') return durOf(flowsOf(ins, s, TC), s, P); // pago proyectado con la TAMAR actual constante: sensibilidad al margen = Macaulay / (1 + TAMAR + margen)
+    } catch (e) {}
+    return null;
+  }
   var yieldLab = function (k) { var kd = INST[k].k; return kd === 'cap' || kd === 'cpn' || kd === 'dualtf' ? 'TEA' : kd === 'cer0' || kd === 'cerc' ? 'TNA real' : kd === 'dl' ? 'TNA USD' : 'Margen s/ TAMAR'; };
   function paidFlows(k) { // pagos nominales por 100 VN originales (cupones y amortizaciones antes del vencimiento final)
     var ins = INST[k], rows = ins.r, out = [];
@@ -2840,7 +2859,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     Object.keys(dd).map(Number).sort(function (a, b) { return a - b; }).forEach(function (t) { rows.push([{ v: bxDayStr(t) }].concat(ks.map(function (k) { return m[t][k] == null ? { v: '' } : { v: m[t][k], z: '0.00' }; }))); });
     return rows;
   };
-  window.PSX = { snap: function (n) { var s0 = day($('d0').value), sc0 = n === 1 ? scen() : scenFor(n); return { s: s0, sc: sc0, S: snapshot(s0, sc0) }; }, INST: INST, ptsOf: ptsOf, yieldAt: yieldAt, yieldLab: yieldLab, famOf: famOf, FAM: FAM, paidFlows: paidFlows, LABELS: LABELS, fairFit: fairFit, css: css, fm: fm, sg: sg, rgba: rgba, bdBack: bdBack, mdOf: mdOf, flowsOf: flowsOf, ZERO: function () { return ZERO; }, hasPts: function (k) { return !!HIST[k]; } };
+  window.PSX = { snap: function (n) { var s0 = day($('d0').value), sc0 = n === 1 ? scen() : scenFor(n); return { s: s0, sc: sc0, S: snapshot(s0, sc0) }; }, INST: INST, ptsOf: ptsOf, yieldAt: yieldAt, durAt: durAt, yieldLab: yieldLab, famOf: famOf, FAM: FAM, paidFlows: paidFlows, LABELS: LABELS, fairFit: fairFit, css: css, fm: fm, sg: sg, rgba: rgba, bdBack: bdBack, mdOf: mdOf, flowsOf: flowsOf, ZERO: function () { return ZERO; }, hasPts: function (k) { return !!HIST[k]; } };
   window.addEventListener('load', function () {
     window.psLive = live; live(); setInterval(live, 90000); window.loadClosesARS();
     setInterval(function () { if (root.classList.contains('active')) window.renderPesos(); }, 60000);
@@ -2868,7 +2887,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var GN = { usd: 'Hard Dollar', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dl: 'Dólar linked', dual: 'Duales' };
   var ORDER = ['usd', 'fija', 'cer', 'tamar', 'dl', 'dual'];
   var GR = '#34d399', RD = '#fb7185', NE = '#94a3b8';
-  var ST = { grp: 'usd', view: 'tab', sort: 'dpct', dir: -1, mU: window.USD_MODEL || 'log', mP: 'auto', cap: 0, dual: '0' }, PCT = {}, DATA = null, CH = null, timer = null;
+  var ST = { grp: 'usd', view: 'tab', sort: 'dpct', dir: -1, mU: window.USD_MODEL || 'log', mP: 'auto', cap: 0, dual: '0', ax: 'plazo' }, PCT = {}, DATA = null, CH = null, timer = null;
   var dstr = function (t) { return bxDayStr(t).split('-').reverse().slice(0, 2).join('/'); };
   var dfull = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
   var isAct = function () { return root.classList.contains('active'); };
@@ -2944,12 +2963,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var ins = X.INST[k], mat = ins.r[ins.r.length - 1][0], ser;
       try { ser = X.ptsOf(k); } catch (e) { return; }
       var pk = pick(ser, k); if (!pk) return; if (mat <= bxSettle(pk.t1)) return;
-      var y1 = null, y0 = null; try { y1 = X.yieldAt(k, pk.t1, pk.P1); y0 = X.yieldAt(k, pk.t0, pk.P0); } catch (e) {}
+      var y1 = null, y0 = null, u1 = null, u0 = null; try { y1 = X.yieldAt(k, pk.t1, pk.P1); y0 = X.yieldAt(k, pk.t0, pk.P0); u1 = X.durAt(k, pk.t1, pk.P1); u0 = X.durAt(k, pk.t0, pk.P0); } catch (e) {}
       var fam = X.famOf(ins), pay = 0, known = true, dcer = fam === 'dual' && ins.r.some(function (rw) { return rw[6] === 'CER'; });
       if (ins.k === 'cpn' || ins.k === 'cerc') pay = payBetween(X.paidFlows(k), pk.t0, pk.t1);
       else if (ins.k === 'tamar' || ins.k === 'dual') { ins.r.forEach(function (rw) { if (rw[0] < mat) { var e = bxExDay(rw[0]); if (e > pk.t0 && e <= pk.t1) known = false; } }); }
       out.push(finish({ k: k, grp: fam, dualCer: dcer, mat: mat, P0: pk.P0, P1: pk.P1, t0: pk.t0, t1: pk.t1, src: pk.src, pay: pay, payKnown: known,
-        yl: X.yieldLab(k), y0: y0, y1: y1, x0: mat - bxSettle(pk.t0), x1: mat - bxSettle(pk.t1) }));
+        yl: X.yieldLab(k), y0: y0, y1: y1, x0: mat - bxSettle(pk.t0), x1: mat - bxSettle(pk.t1), mac0: u0 && u0.mac, mac1: u1 && u1.mac, md0: u0 && u0.md, md1: u1 && u1.md }));
     });
     return out;
   }
@@ -2979,7 +2998,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'vdCap\', \'Soberanos_Variacion_Diaria\')" title="Descargar en HD"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>' +
       '<div class="vdc sxc"><label>Grupo<select id="vdG"></select></label>' +
       '<label>Vista<div class="seg"><button id="vdVt" class="on">Comparativa</button><button id="vdVc">Curva hoy vs ayer</button></div></label>' +
-      '<label id="vdKL">Curva<select id="vdK"></select></label><label>Plazo máximo<select id="vdX"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000">1.000 días</option><option value="1500">1.500 días</option><option value="0" selected>Todos</option></select></label><label id="vdDL">Duales<select id="vdD"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' +
+      '<label id="vdKL">Curva<select id="vdK"></select></label><label id="vdAxL">Eje X<select id="vdAx"><option value="plazo">Plazo (días)</option><option value="mac">Duración (días)</option><option value="md">Duración modificada (años)</option></select></label><label>Plazo máximo<select id="vdX"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000">1.000 días</option><option value="1500">1.500 días</option><option value="0" selected>Todos</option></select></label><label id="vdDL">Duales<select id="vdD"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' +
       '<label id="vdSortL">Ordenar por<select id="vdS"><option value="dpct">Variación de precio</option><option value="dpb">Variación de tasa (pb)</option><option value="k">Ticker</option><option value="x1">Plazo</option></select></label></div>' +
       '<div class="vdchips" id="vdChips" style="margin-bottom:16px"></div>' +
       '<div id="vdCurveCard" style="display:none"><div class="vdleg" id="vdLeg"></div><div class="chart-wrap" style="height:560px;margin-top:0"><canvas id="vdChart"></canvas></div><div class="vdshift" id="vdShift"></div></div>' +
@@ -2989,6 +3008,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     g.value = ST.grp;
     g.onchange = function () { ST.grp = g.value; render(); };
     document.getElementById('vdK').onchange = function () { if (ST.grp === 'usd') ST.mU = this.value; else ST.mP = this.value; render(); };
+    document.getElementById('vdAx').value = ST.ax;
+    document.getElementById('vdAx').onchange = function () { ST.ax = this.value; render(); };
     document.getElementById('vdX').onchange = function () { ST.cap = +this.value; render(); };
     document.getElementById('vdD').onchange = function () { ST.dual = this.value; render(); };
     document.getElementById('vdS').onchange = function () { ST.sort = this.value; ST.dir = ST.sort === 'k' ? 1 : -1; render(); };
@@ -3043,18 +3064,20 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function fitOf(grp, pts, key) {
     if (pts.length < 3) return null;
     if (grp === 'usd') { var r = window.curveFitUSD(pts.map(function (p) { return { x: p.x, y: p.y }; }), ST.mU, 2); return r ? { f: r.f, name: r.name } : null; }
-    var q = X.fairFit(pts.map(function (p) { return { x: p.x, y: p.y, k: p.k }; }), ST.mP); return q ? { f: q.f, name: q.name } : null;
+    var u = ST.ax === 'md' ? 365 : 1; // las formas de la curva están pensadas en días: la duración modificada se ajusta pasada a días
+    var q = X.fairFit(pts.map(function (p) { return { x: p.x * u, y: p.y, k: p.k }; }), ST.mP); return q ? { f: function (x) { return q.f(x * u); }, name: q.name } : null;
   }
   function curveView(rows, grp) {
-    var tx = css('--tx'), bd = css('--bd'), card = css('--card'), isUsd = grp === 'usd';
-    var good = rows.filter(function (r) { return r.x0 != null && r.x1 != null && r.y0 != null && r.y1 != null && isFinite(r.x1) && r.x1 > 0 && (isUsd || r.x1 >= 3); });
+    var tx = css('--tx'), bd = css('--bd'), card = css('--card'), isUsd = grp === 'usd', ax = isUsd ? 'md' : ST.ax, yrs = ax === 'md';
+    if (!isUsd && ax !== 'plazo') rows = rows.map(function (r) { return Object.assign({}, r, ax === 'md' ? { x0: r.md0, x1: r.md1 } : { x0: r.mac0, x1: r.mac1 }); });
+    var good = rows.filter(function (r) { return r.x0 != null && r.x1 != null && r.y0 != null && r.y1 != null && isFinite(r.x1) && r.x1 > 0 && (isUsd || r.days >= 3); });
     var leg = document.getElementById('vdLeg'), shift = document.getElementById('vdShift');
     if (CH) { CH.destroy(); CH = null; }
     if (good.length < 2) { leg.innerHTML = 'No hay suficientes bonos con datos de ayer y de hoy para dibujar la curva.'; shift.innerHTML = ''; return; }
     var SER = isUsd ? [{ n: 'Ley NY', c: '#60a5fa', st: 'circle', r: good.filter(function (r) { return r.law === 'NY'; }) }, { n: 'Ley local', c: '#c084fc', st: 'triangle', r: good.filter(function (r) { return r.law === 'Local'; }) }]
       : [{ n: GN[grp], c: '#60a5fa', st: 'circle', r: good }];
     var xs = good.map(function (r) { return r.x1; }).sort(function (a, b) { return a - b; });
-    var useLog = !isUsd && xs.length > 3 && (xs[xs.length - 1] > 1500 || (xs[xs.length - 1] > 600 && xs[Math.ceil(xs.length * 0.85) - 1] < xs[xs.length - 1] / 3));
+    var useLog = !yrs && xs.length > 3 && (xs[xs.length - 1] > 1500 || (xs[xs.length - 1] > 600 && xs[Math.ceil(xs.length * 0.85) - 1] < xs[xs.length - 1] / 3));
     var sets = [], hoy = [], ayer = [], hc = [], hs = [], shifts = [];
     SER.forEach(function (S) {
       var ph = S.r.map(function (r) { return { x: r.x1, y: r.y1, k: r.k + (r.star ? ' *' : '') }; }), pa = S.r.map(function (r) { return { x: r.x0, y: r.y0, k: r.k + (r.star ? ' *' : '') }; });
@@ -3084,16 +3107,16 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     CH = new Chart(document.getElementById('vdChart').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [X.LABELS, LINK], options: {
       responsive: true, maintainAspectRatio: false, animation: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2), layout: { padding: { right: 28, top: 6 } }, interaction: { mode: 'nearest', intersect: true },
       plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.dataset.tip; }, callbacks: { label: function (c) { var r = c.raw; return [r.k + ': ' + fm(r.y, 2) + '% hoy · ' + fm(r.y0, 2) + '% ayer', sg(r.dv * 100, 0) + ' pb · precio ' + sg(r.p, 2) + '%']; } } } },
-      scales: { x: useLog ? { type: 'logarithmic', title: { display: true, text: 'Plazo (días, escala logarítmica)', color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 0); } }, afterBuildTicks: logTicks, grid: { color: bd } }
-        : { title: { display: true, text: isUsd ? 'Duración modificada (años)' : 'Plazo (días)', color: tx }, ticks: { color: tx }, grid: { color: bd }, min: 0, grace: '6%' },
+      scales: { x: useLog ? { type: 'logarithmic', title: { display: true, text: (ax === 'mac' ? 'Duración' : 'Plazo') + ' (días, escala logarítmica)', color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 0); } }, afterBuildTicks: logTicks, grid: { color: bd } }
+        : { title: { display: true, text: yrs ? 'Duración modificada (años)' : ax === 'mac' ? 'Duración (días)' : 'Plazo (días)', color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, yrs ? 1 : 0); } }, grid: { color: bd }, min: 0, grace: '6%' },
         y: { title: { display: true, text: yl, color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd }, grace: '6%' } } } });
     var sh = function (c, ico) { return '<i style="width:' + (ico === 'ring' ? 10 : 12) + 'px;height:' + (ico === 'ring' ? 10 : 12) + 'px;border-radius:50%;background:' + (ico === 'ring' ? 'transparent' : c) + ';border:' + (ico === 'ring' ? '1.5px solid var(--mu)' : '0') + '"></i>'; };
     leg.innerHTML = '<span>' + sh(GR) + 'La tasa bajó (el precio subió)</span><span>' + sh(RD) + 'La tasa subió</span><span>' + sh(NE) + 'Sin cambio</span><span>' + sh('', 'ring') + 'Ayer</span>' +
       SER.map(function (S) { return '<span><i style="width:22px;height:0;border-top:3px solid ' + S.c + '"></i>Curva hoy ' + (isUsd ? S.n + (S.st === 'triangle' ? ' (▲)' : ' (●)') : '') + '</span>'; }).join('') + '<span><i style="width:22px;height:0;border-top:2px dashed var(--mu)"></i>Curva ayer</span>';
     shift.innerHTML = shifts.map(function (s) {
       var mu = mean(s.rows.map(function (r) { return (r.h - r.a) * 100; }));
-      return '<div><div style="font-weight:600;margin-bottom:6px;color:var(--tx)">' + s.n + ' · desplazamiento de la curva <span style="color:' + dcol(mu == null ? null : -mu, 0.5) + '">(promedio ' + sg(mu, 0) + ' pb)</span></div><table class="vdt"><thead><tr><th class="l" style="cursor:default">' + (isUsd ? 'Duración' : 'Plazo') + '</th><th style="cursor:default">Ayer</th><th style="cursor:default">Hoy</th><th style="cursor:default">Δ pb</th></tr></thead><tbody>' +
-        s.rows.map(function (r) { var d = (r.h - r.a) * 100; return '<tr><td class="l">' + (isUsd ? fm(r.x, 1) + ' años' : fm(r.x, 0) + ' días') + '</td><td>' + fm(r.a, 2) + '%</td><td>' + fm(r.h, 2) + '%</td><td style="font-weight:700;color:' + dcol(-d, 0.5) + '">' + sg(d, 0) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+      return '<div><div style="font-weight:600;margin-bottom:6px;color:var(--tx)">' + s.n + ' · desplazamiento de la curva <span style="color:' + dcol(mu == null ? null : -mu, 0.5) + '">(promedio ' + sg(mu, 0) + ' pb)</span></div><table class="vdt"><thead><tr><th class="l" style="cursor:default">' + (ax === 'plazo' ? 'Plazo' : yrs ? 'Duración mod.' : 'Duración') + '</th><th style="cursor:default">Ayer</th><th style="cursor:default">Hoy</th><th style="cursor:default">Δ pb</th></tr></thead><tbody>' +
+        s.rows.map(function (r) { var d = (r.h - r.a) * 100; return '<tr><td class="l">' + (yrs ? fm(r.x, 1) + ' años' : fm(r.x, 0) + ' días') + '</td><td>' + fm(r.a, 2) + '%</td><td>' + fm(r.h, 2) + '%</td><td style="font-weight:700;color:' + dcol(-d, 0.5) + '">' + sg(d, 0) + '</td></tr>'; }).join('') + '</tbody></table></div>';
     }).join('');
   }
 
@@ -3109,7 +3132,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var kk = document.getElementById('vdK'), usdG = ST.grp === 'usd', want = usdG ? 'u' : 'p';
       if (kk.getAttribute('data-for') !== want) { kk.setAttribute('data-for', want); kk.innerHTML = (usdG ? window.USD_CURVES : [['auto', 'Automática (mejor ajuste)'], ['log', 'Logarítmica'], ['sqrt', 'Raíz cuadrada'], ['lin', 'Lineal'], ['quad', 'Cuadrática'], ['ns', 'Nelson-Siegel']]).map(function (c) { return '<option value="' + c[0] + '">' + c[1] + '</option>'; }).join(''); }
       kk.value = usdG ? ST.mU : ST.mP;
-      document.getElementById('vdKL').style.display = ST.view === 'curve' ? '' : 'none'; document.getElementById('vdDL').style.display = isD ? '' : 'none';
+      document.getElementById('vdKL').style.display = ST.view === 'curve' ? '' : 'none'; document.getElementById('vdAxL').style.display = ST.view === 'curve' && !usdG ? '' : 'none'; document.getElementById('vdDL').style.display = isD ? '' : 'none';
       var rows = ST.grp === 'all' ? DATA : DATA.filter(function (r) { return r.grp === ST.grp || (isD && ST.dual === '2' && r.grp === 'dual' && (ST.grp === 'tamar' || r.dualCer)); });
       rows.forEach(function (r) { r.star = r.grp === 'dual' && ST.grp !== 'dual' && ST.grp !== 'all'; });
       if (ST.cap > 0) rows = rows.filter(function (r) { return r.days <= ST.cap; });
