@@ -7,6 +7,14 @@
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
 <style>
+/* barras de desplazamiento discretas, igual que en la página principal */
+*{scrollbar-width:thin;scrollbar-color:rgba(148,163,184,.38) transparent}
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{background:rgba(148,163,184,.38);border-radius:99px;border:2px solid transparent;background-clip:padding-box}
+*::-webkit-scrollbar-thumb:hover{background:rgba(148,163,184,.7);background-clip:padding-box;border:2px solid transparent}
+*::-webkit-scrollbar-corner{background:transparent}
+*::-webkit-scrollbar-button{display:none;width:0;height:0}
 :root{--bg:#1c1917;--card:#292524;--tx:#f5f5f4;--mu:#a8a29e;--bd:#44403c;--ac:#f59e0b;--acx:#1c1917;--ok:#84cc16;--bad:#ef4444;
  --k-l:#38bdf8;--k-c:#a3e635;--k-q:#fb923c;--k-f:#6366f1;--k-lt:#0c4a6e;--k-ct:#1a2e05;--k-qt:#431407;--k-ft:#fff;--soft:#322d2b}
 [data-theme="light"]{--bg:#f4eee0;--card:#f8f4eb;--tx:#42392c;--mu:#918575;--bd:#d9cfbe;--ac:#a37a57;--acx:#fff;--ok:#628f52;--bad:#bd4848;
@@ -513,7 +521,7 @@ function renderPerf(){
   const lat=TYP.reduce((a,t)=>a+val(later,ms.length,t[0]),0);
   const nuevo=ms.reduce((a,x,k)=>a+TYP.reduce((q,t)=>q+(PV==="n"?sc(x.new,k,t[0]):0),0),0);
   $("#perf").innerHTML=`<div class="sxh"><div><h2 class="qh">Perfil de vencimientos del Tesoro en pesos</h2>
-  <p class="qs">Cuánto hay que pagar cada mes (billones de pesos), por tipo de instrumento. Se arma con el stock que surge de las colocaciones oficiales y los flujos de cada título. Con la licitación del 28/09 cargada, se ve en trama punteada lo que agregó el Tesoro.</p></div></div>
+  <p class="qs">Pagos mensuales (capital más intereses, en billones) por tipo de instrumento. En trama punteada, lo que sumó la licitación del 28/09.</p></div></div>
   <div class="ctl"><div class="seg"><button data-pv="p" class="${PV==="p"?"on":""}">Antes del 28/09</button><button data-pv="n" class="${PV==="n"?"on":""}">Con licitación del 28/09</button></div>
    <label>Inflación mensual (CER y duales) <select id="cerI">${[0,1,1.5,2,2.5].map(v=>`<option value="${v}" ${v===CERI?"selected":""}>${v===0?"CER de hoy (sin inflación futura)":v+"% mensual"}</option>`).join("")}</select></label></div>
   <div class="kk">
@@ -523,8 +531,7 @@ function renderPerf(){
    <div class="kpi"><div class="t">2029 en adelante</div><div class="v">$${nf(lat,1)} bill.</div></div>
    ${PV==="n"?`<div class="kpi"><div class="t">Agregado por la licitación 28/09</div><div class="v">$${nf(nuevo,1)} bill.</div></div>`:""}
   </div>${legend()}<div class="scr">${s}</div>
-  <p class="note"><b>Cómo leerlo:</b> cada barra es un mes y su altura, lo que el Tesoro tiene que pagar ese mes (capital más intereses), por tipo de instrumento.</p>
-  <p class="note"><b>Estimación propia</b> con las colocaciones y canjes de la ONCP (2020 a agosto 2026) más los comunicados de septiembre, valuados con los flujos de cada bono del sitio. Incluye lo que tienen organismos públicos, por eso supera al vencimiento que informa Finanzas para privados. <b>Chequeo:</b> el stock de T15E7, TZXY7 y TML27 coincide con el "VNO en circulación" del comunicado del 28/09, y lo que vencía el 30/09 da $8,65 billones contra $8,6 informados.</p>`;
+  <p class="note"><b>Estimación propia</b> con colocaciones y canjes de la ONCP. Incluye tenencias de organismos públicos, por eso supera lo que informa Finanzas para privados.</p>`;
   document.querySelectorAll("[data-pv]").forEach(b=>b.onclick=()=>{PV=b.dataset.pv;renderPerf()});
   $("#cerI").onchange=e=>{CERI=+e.target.value;renderPerf()};
 }
