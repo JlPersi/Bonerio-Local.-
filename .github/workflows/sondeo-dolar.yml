@@ -1,0 +1,44 @@
+name: Sondeo dolar (temporal)
+# Solo lectura: imprime la forma de /live/mep y /live/ccl de data912 y el A3500 del BCRA desde 2023 para armar la pestaña Dólar.
+# Se borra después de usarlo.
+on:
+  push:
+    branches: [claude/gracious-gates-xki27a]
+    paths: [".github/workflows/sondeo-dolar.yml"]
+permissions:
+  contents: read
+jobs:
+  sondeo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: data912 MEP y CCL, A3500 del BCRA
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          def get(u):
+              req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"})
+              return json.load(urllib.request.urlopen(req, timeout=40))
+          KEYS = ("AL30", "AL30D", "AL30C", "GD30", "GD30D", "GD30C")
+          for u in ["https://data912.com/live/mep", "https://data912.com/live/ccl", "https://data912.com/live/arg_bonds"]:
+              try:
+                  d = get(u)
+                  rows = d if isinstance(d, list) else None
+                  print("==", u, type(d).__name__, len(d) if hasattr(d, "__len__") else "")
+                  if rows is None:
+                      print(json.dumps(d)[:4000]); continue
+                  print("campos:", sorted({k for r in rows if isinstance(r, dict) for k in r}))
+                  if "arg_bonds" not in u:
+                      for r in rows[:3]: print("PRIMERA", json.dumps(r))
+                  for r in rows:
+                      if isinstance(r, dict) and any(str(v) in KEYS for v in r.values()): print("FILA", json.dumps(r))
+              except Exception as e:
+                  print("ERROR", u, e)
+          try:
+              b = get("https://api.bcra.gob.ar/estadisticas/v4.0/monetarias/5?desde=2023-06-01&hasta=2026-12-31&limit=3000")
+              det = b["results"][0]["detalle"]
+              fx = {r["fecha"]: r["valor"] for r in det if r.get("fecha") and isinstance(r.get("valor"), (int, float))}
+              print("A3500", len(fx), min(fx), max(fx))
+              print("A3500JSON " + json.dumps(dict(sorted(fx.items())), separators=(",", ":")))
+          except Exception as e:
+              print("ERROR BCRA", e)
+          PY
