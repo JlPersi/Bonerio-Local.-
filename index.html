@@ -377,7 +377,7 @@ window.curveFitUSD = function (pts, model, minN) {
     <label>Fecha de corte<input type="date" id="d1" value="2027-10-25"></label>
     <label>Reinvertir cupones<div class="seg"><button id="bsi">SI</button><button id="bno">NO</button></div></label>
     <label>Tasa de reinversión (%)<input type="number" step="0.01" id="ust" value="4.46"></label>
-    <label>Liquidación<div class="seg"><button id="bci" class="on" title="Contado inmediato: liquida hoy (si hoy no es hábil, el próximo día hábil)">CI (hoy)</button><button id="bt1" title="T+1: liquida el día hábil siguiente a la liquidación CI">T+1 (mañana)</button></div></label>
+    <label>Liquidación<div class="seg"><button id="bci" title="Contado inmediato: liquida hoy (si hoy no es hábil, el próximo día hábil). Los precios de data912 son de 24 hs: en CI, las tasas del día anterior a un fin de semana o feriado salen distorsionadas (la de las Lecaps cortas cae cerca de 90 pb y vuelve a subir la rueda siguiente)">CI (hoy)</button><button id="bt1" class="on" title="T+1 (24 hs): liquida el día hábil siguiente. Es el plazo de los precios de data912, por eso es la opción por defecto">T+1 (mañana)</button></div></label>
     <label>Fecha de entrada<input type="date" id="d0" disabled></label>
 </div>
 
@@ -595,7 +595,7 @@ const PX = {"S":{"AE38":{"iss":18509,"r":[[18968,0.11,0.0,100.0],[19002,1.0,0.0,
 
 const BX_HOLS = {}; PX.HOL.forEach(function (d) { BX_HOLS[d] = 1; });
 function bxIsBiz(t) { var w = (t + 3) % 7; return w < 5 && !BX_HOLS[t]; }
-window.settleMode = 'CI'; try { if (localStorage.getItem('settle2') === 'T1') window.settleMode = 'T1'; } catch (e) {} // por defecto CI (contado inmediato); T+1 solo si se elige a mano
+window.settleMode = 'T1'; try { if (localStorage.getItem('settle3') === 'CI') window.settleMode = 'CI'; } catch (e) {} // por defecto T+1: los precios de data912 son de 24 hs (en CI, las tasas de las Lecaps cortas caen ~90 pb el día antes de cada fin de semana y suben al siguiente). La clave nueva (settle3) hace que también pase a T+1 quien había quedado en CI cuando era lo de fábrica
 function bxSettleT1(t) { var s = t + 1; while (!bxIsBiz(s)) s++; return s; }
 function bxSettle(t) { if (window.settleMode === 'T1') return bxSettleT1(t); var s = t; while (!bxIsBiz(s)) s++; return s; } // CI: el mismo día (o el próximo hábil); T+1: el día hábil siguiente
 function bxExDay(p) { var t = p; while (bxSettleT1(t - 1) >= p) t--; return t; }
@@ -846,7 +846,7 @@ window.settleDate = function (mode) { // CI: hoy (o el próximo día hábil); T+
   var t = bxToday(); while (!bxIsBiz(t)) t++; return mode === 'CI' ? t : bxSettleT1(t);
 };
 window.applySettle = function (mode, redraw) {
-  window.settleMode = mode; if (redraw) { try { localStorage.setItem('settle2', mode); } catch (e) {} }
+  window.settleMode = mode; if (redraw) { try { localStorage.setItem('settle3', mode); } catch (e) {} }
   $('bci').className = mode === 'CI' ? 'on' : ''; $('bt1').className = mode === 'CI' ? '' : 'on';
   var d = new Date(window.settleDate(mode) * 864e5).toISOString().slice(0, 10);
   if ($('d0').value === d && !redraw) return; $('d0').value = d;
@@ -3739,7 +3739,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function bucketOf(e) { var t = matOf(e), d0 = DN ? DN[n - 1] : null; if (t == null || d0 == null || !isFinite(t)) return 'na'; var d = t - d0; if (d < 0) return 'ven'; for (var i = 0; i < BK.length; i++) if (d <= BK[i][2]) return BK[i][0]; return 'na'; }
   var HARD = { bonar: 1, glob: 1, bop: 1 }, ZC = { cap: 1, cer0: 1, dl: 1 }, YC = {}; // ZC: un solo pago al vencimiento, la duración sale del plazo
   function rate(k, i, P) { // tasa del día (la de Curva Pesos) y duración modificada; el pasado no cambia, así que se guarda
-    var key = k + '|' + DATES[i] + '|' + P; if (YC[key]) return YC[key];
+    var key = k + '|' + DATES[i] + '|' + P + '|' + window.settleMode; if (YC[key]) return YC[key]; // la tasa depende de la liquidación (CI o T+1)
     var ins = (X.INST || {})[k]; if (!ins || !X.yieldAt || !DN) return null;
     try {
       var y = X.yieldAt(k, DN[i], P), md = null; if (y == null || !isFinite(y)) return null;
