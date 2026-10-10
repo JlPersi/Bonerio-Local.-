@@ -355,6 +355,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('vard')">Variación diaria</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('rot')">Rotación</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('vol')">Volumen</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('dol')">Dólar</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('lic')">Licitaciones</button>
     </div>
     
@@ -488,6 +489,7 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="vard" class="tab-content"></div>
 <div id="rot" class="tab-content"></div>
 <div id="vol" class="tab-content"></div>
+<div id="dol" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
 
 <div id="curva" class="tab-content">
@@ -3498,8 +3500,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       .then(function (o) { D = o; loading = false; render(); flushQ(); }).catch(function (e) { loading = false; err = e.message; render(); flushQ(); });
   }
   /* volumen diario promedio (20 ruedas, en pesos) por bono, para que otras pestañas midan la liquidez */
-  var VQ = [];
-  function flushQ() { var f = VQ.splice(0); f.forEach(function (fn) { try { fn(window.VOLX.adtv); } catch (e) { console.error(e); } }); }
+  var VQ = [], RQ = [];
+  function flushQ() { var f = VQ.splice(0); f.forEach(function (fn) { try { fn(window.VOLX.adtv); } catch (e) { console.error(e); } }); var g = RQ.splice(0); g.forEach(function (fn) { try { fn(D); } catch (e) { console.error(e); } }); }
   function calcAdtv() {
     var lv = ST.live; ST.live = false; var m = {}, W = 20;
     try { build(); Object.keys(T).forEach(function (t) { var o = T[t], b = meta(t, o.s).base, fx = o.s === 'D' ? MEP : o.s === 'C' ? CCL : null, tot = 0; for (var i = Math.max(0, n - W); i < n; i++) tot += fx ? o.E[i] * fx[i] : o.E[i]; m[b] = (m[b] || 0) + tot / W; }); }
@@ -3511,6 +3513,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     if (D) { try { window.VOLX.adtv = calcAdtv(); } catch (e) { console.error(e); } cb(window.VOLX.adtv); return; }
     if (err) { cb(null); return; }
     VQ.push(function () { if (!window.VOLX.adtv && D) { try { window.VOLX.adtv = calcAdtv(); } catch (e) { console.error(e); } } cb(window.VOLX.adtv); }); load();
+  }, raw: function (cb) { // la serie tal cual (la usa la pestaña Dólar), o null si no se pudo leer
+    if (D) { cb(D); return; } if (err) { cb(null); return; } RQ.push(cb); load();
   } };
   function liveOpen() { return typeof mktOpen === 'function' ? mktOpen() : true; } // antes del cierre (17 hs) la rueda de hoy está incompleta
   function todayBA() { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }); } catch (e) { return new Date().toISOString().slice(0, 10); } }
@@ -3974,13 +3978,247 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
 })();
 
 /*@@VOL_END@@*/
+/*@@DOL_START@@*/
+/* =====================================================================
+   PESTAÑA DÓLAR: MEP y CCL de AL30, oficial (A3500), brecha, canje y flujo de pesos a dólares
+   Datos: data/volumen.json (precio y monto de AL30, AL30D y AL30C en cada rueda, lo guarda el Action),
+   data/dolar.json (A3500 desde 2023 y la foto del cierre de data912 /live/mep y /live/ccl) y data/indices.json.
+   En vivo: AL30, AL30D y AL30C de data912 (los mismos precios que pide el sitio) y el CCL de acciones de /live/ccl.
+   ===================================================================== */
+;(function () {
+  var root = document.getElementById('dol'); if (!root) return;
+  var X = window.PSX || {};
+  var nf = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d == null ? 0 : d, maximumFractionDigits: d == null ? 0 : d }); };
+  var sg = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : (v > 0 ? '+' : '') + nf(v, d); };
+  var css = X.css || function (n) { return getComputedStyle(document.body).getPropertyValue(n).trim(); };
+  var isAct = function () { return root.classList.contains('active'); };
+  var fr = function (s) { return s.split('-').reverse().join('/'); };
+  var PERIODS = [[1, 'Última rueda'], [5, '5 ruedas'], [20, '20 ruedas (≈ 1 mes)'], [60, '60 ruedas (≈ 3 meses)'], [120, '120 ruedas (≈ 6 meses)'], [250, '250 ruedas (≈ 1 año)'], [0, 'Todo el historial']];
+  var ST = { w: 20, live: false, top: 20 }, VD = null, DJ = null, IX = null, err = null, loading = false, S = null, ADR = null, adrT = 0, CH = {};
+  var C_MEP = '#f59e0b', C_CCL = '#38bdf8', C_CAN = '#c084fc', C_ARS = '#a8a29e';
+
+  /* ---------- carga ---------- */
+  function load() {
+    if (VD || loading) return; loading = true;
+    var j = function (u) { return fetch(u + '?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(u + ' (' + r.status + ')'); return r.json(); }); };
+    var vol = new Promise(function (ok) { if (window.VOLX && window.VOLX.raw) window.VOLX.raw(ok); else j('data/volumen.json').then(ok, function () { ok(null); }); }); // el mismo archivo que Volumen: se baja una sola vez
+    Promise.all([vol, j('data/dolar.json').catch(function () { return null; }), j('data/indices.json').catch(function () { return null; })]).then(function (r) {
+      loading = false; if (!r[0]) err = 'no se pudo leer data/volumen.json'; else { VD = r[0]; DJ = r[1] || { A3500: {}, d: {} }; IX = r[2] || {}; }
+      render();
+    });
+  }
+  function adr() { // CCL de acciones (ADR) en vivo: promedio ponderado por volumen, igual que el que se guarda cada día
+    if (Date.now() - adrT < 85000) return; adrT = Date.now();
+    fetch('https://data912.com/live/ccl', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (rows) {
+      var ok = (rows || []).filter(function (r) { return r && r.CCL_close > 0 && r.ars_volume > 0; }); if (ok.length < 5) return;
+      var v = ok.reduce(function (s, r) { return s + r.ars_volume; }, 0);
+      ADR = { vw: ok.reduce(function (s, r) { return s + r.CCL_close * r.ars_volume; }, 0) / v, n: ok.length };
+      if (isAct()) render();
+    }).catch(function () { });
+  }
+  function todayBA() { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }); } catch (e) { return new Date().toISOString().slice(0, 10); } }
+  function liveOpen() { return typeof mktOpen === 'function' ? mktOpen() : true; }
+
+  /* ---------- series ---------- */
+  function build() {
+    var D = VD, dates = D.dates.slice(), q = window.PXQ || {}, td = todayBA(), i, k;
+    var biz = typeof bxIsBiz === 'function' && typeof bxDayNum === 'function' ? bxIsBiz(bxDayNum(td)) : [0, 6].indexOf(new Date(td + 'T12:00:00').getDay()) < 0;
+    var live = ST.live && biz && dates[dates.length - 1] < td && ['AL30', 'AL30D', 'AL30C'].every(function (t) { return q[t] && q[t].c > 0; });
+    if (live) dates.push(td);
+    var n = dates.length;
+    var get = function (t) { // cierre y monto (pesos en AL30, dólares en AL30D y AL30C) de cada rueda
+      var o = D.t[t], C = new Float64Array(n).fill(NaN), E = new Float64Array(n), acc = 0;
+      if (o) for (k = 0; k < o.i.length; k++) { acc += o.i[k]; if (acc < n) { if (o.c[k] > 0) C[acc] = o.c[k]; E[acc] = o.e[k] || 0; } }
+      if (live && q[t]) { C[n - 1] = q[t].c; E[n - 1] = (q[t].v || 0) * q[t].c / 100; }
+      return { C: C, E: E };
+    };
+    var P = get('AL30'), MD = get('AL30D'), CC = get('AL30C'), MEP = new Float64Array(n).fill(NaN), CCL = new Float64Array(n).fill(NaN);
+    for (i = 0; i < n; i++) { if (P.C[i] > 0 && MD.C[i] > 0) MEP[i] = P.C[i] / MD.C[i]; if (P.C[i] > 0 && CC.C[i] > 0) CCL[i] = P.C[i] / CC.C[i]; }
+    // oficial: A3500 de data/dolar.json (desde 2023), lo nuevo de data/indices.json y, si faltara, el embebido de Curva Pesos
+    var A = {}, put = function (o) { Object.keys(o || {}).forEach(function (d) { if (A[d] == null && o[d] > 0) A[d] = o[d]; }); };
+    put(DJ.A3500); put(IX.FX);
+    try { var fx = PSD.IDX.FX; for (k = 0; k < fx.v.length; k++) { var ds = bxDayStr(fx.s + k); if (A[ds] == null && fx.v[k] > 0) A[ds] = fx.v[k]; } } catch (e) { }
+    var ak = Object.keys(A).sort(), OF = new Float64Array(n).fill(NaN), OFd = new Array(n), j = 0, last = NaN, lastD = null;
+    for (i = 0; i < n; i++) { while (j < ak.length && ak[j] <= dates[i]) { last = A[ak[j]]; lastD = ak[j]; j++; } OF[i] = last; OFd[i] = lastD; }
+    // movimiento de cada rueda contra lo que suele moverse (desvío de las 60 ruedas anteriores)
+    var zOf = function (Y) {
+      var z = new Float64Array(n).fill(NaN);
+      for (var i = 1; i < n; i++) {
+        if (!(Y[i] > 0 && Y[i - 1] > 0)) continue; var s = 0, c = 0;
+        for (var k = Math.max(1, i - 60); k < i; k++) if (Y[k] > 0 && Y[k - 1] > 0) { var r = Math.log(Y[k] / Y[k - 1]); s += r * r; c++; }
+        if (c >= 15 && s > 0) z[i] = Math.log(Y[i] / Y[i - 1]) / Math.sqrt(s / c);
+      }
+      return z;
+    };
+    var zM = zOf(MEP), zC = zOf(CCL), fM = new Float64Array(n), fC = new Float64Array(n), cl = function (z) { return isFinite(z) ? Math.max(-1, Math.min(1, z)) : 0; };
+    for (i = 0; i < n; i++) { fM[i] = cl(zM[i]) * MD.E[i]; fC[i] = cl(zC[i]) * CC.E[i]; } // dólares de cada pata con el signo que sugiere el precio: + compra de dólares, − venta
+    var snap = (DJ && DJ.d) || {};
+    S = { n: n, dates: dates, P: P, MD: MD, CC: CC, MEP: MEP, CCL: CCL, OF: OF, OFd: OFd, zM: zM, zC: zC, fM: fM, fC: fC, live: live, snap: snap };
+  }
+
+  /* ---------- interfaz ---------- */
+  function dl(id, name, tt) { return '<button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'' + id + '\', \'' + name + '\')" title="' + tt + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button>'; }
+  var HD = 'display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap';
+  function html() {
+    root.innerHTML = '<style>' +
+      '#dol .rs{border-top:1px solid var(--bd);margin-top:18px;padding-top:18px}#dol .rc{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}#dol .rc select{width:200px}#dol .rc label.ck{flex-direction:row;align-items:center;gap:8px;padding-bottom:9px}#dol .rc label.ck input{width:auto}' +
+      '#dol .rchips{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}#dol .rchip{flex:1 1 calc(25% - 9px);min-width:150px;box-sizing:border-box;border:1px solid var(--bd);border-radius:10px;padding:10px 14px;background:var(--bg)}' +
+      '#dol .rchip small{display:block;color:var(--mu);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}#dol .rchip b{font-size:19px;font-variant-numeric:tabular-nums}#dol .rchip span{display:block;color:var(--mu);font-size:12px;margin-top:2px}' +
+      '#dol .rg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}@media(max-width:1000px){#dol .rg{grid-template-columns:minmax(0,1fr)}}#dol h4{margin:0;font-size:16px;color:var(--mu)}#dol .sc{overflow:auto}' +
+      '#dol .rt{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}#dol .rt th,#dol .rt td{padding:6px 9px;white-space:nowrap;text-align:right}#dol .rt th{font-size:12px;position:sticky;top:0;background:var(--card);color:var(--mu);border-bottom:1px solid var(--bd);z-index:1}#dol .rt td.l,#dol .rt th.l{text-align:left}#dol .rt tr.lv td{background:rgba(245,158,11,.10)}' +
+      '#dol .tg{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700}#dol .tg.up{background:rgba(245,158,11,.18);color:#f59e0b}#dol .tg.dn{background:rgba(56,189,248,.16);color:#38bdf8}#dol .tg.na{background:rgba(148,163,184,.14);color:var(--mu)}' +
+      '#dol .hl{color:var(--mu);font-size:14px;line-height:1.6;margin:10px 0 0}#dol .hl p{margin:0 0 6px}#dol .hl ul{margin:4px 0 0;padding-left:20px}#dol .hl li{margin:3px 0}#dol .hl b{color:var(--tx)}@media(max-width:700px){#dol .hl{font-size:13px}}' +
+      '</style>' +
+      '<div class="card" id="dxCap"><div class="status" style="justify-content:space-between;gap:12px;flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0;flex:1 1 0"><p style="margin:0;color:var(--tx);font-size:16px;font-weight:600">Dólar: de pesos a dólares</p>' +
+      '<p class="note" style="margin-top:4px" id="dxSub"></p></div>' + dl('dxCap', 'Dolar', 'Descargar la pestaña en HD') + '</div>' +
+      '<div class="rc rs"><label>Período<select id="dxW">' + PERIODS.map(function (p) { return '<option value="' + p[0] + '">' + p[1] + '</option>'; }).join('') + '</select></label>' +
+      '<label class="ck"><input type="checkbox" id="dxL"> Incluir la rueda de hoy</label></div>' +
+      '<div class="rs" id="dxS1"><div style="' + HD + '"><h4 id="dxT1">Cotización y brecha</h4>' + dl('dxS1', 'Soberanos_Dolar_Cotizacion', 'Descargar la cotización y la brecha en HD') + '</div>' +
+      '<p class="note" id="dxRead" data-html2canvas-ignore="true" style="margin:0 0 4px;color:var(--tx)"></p><div class="rchips" id="dxChips"></div>' +
+      '<div class="rg" style="margin-top:18px"><div style="position:relative;height:340px"><canvas id="dxCh1"></canvas></div><div style="position:relative;height:340px"><canvas id="dxCh2"></canvas></div></div></div>' +
+      '<div class="rs" id="dxS2"><div style="' + HD + '"><h4 id="dxT2">Flujo de dólares vía AL30</h4>' + dl('dxS2', 'Soberanos_Dolar_Flujo', 'Descargar el flujo en HD') + '</div>' +
+      '<div class="rg"><div style="position:relative;height:340px"><canvas id="dxCh3"></canvas></div><div style="position:relative;height:340px"><canvas id="dxCh4"></canvas></div></div></div>' +
+      '<div class="rs" id="dxS3"><div style="' + HD + '"><h4 id="dxT3">Rueda por rueda</h4><span style="display:flex;gap:12px;align-items:center"><label style="flex-direction:row;align-items:center;gap:8px;font-size:12px;color:var(--mu)">Mostrar<select id="dxTop" style="width:110px"><option value="20">20</option><option value="60">60</option><option value="250">250</option><option value="99999">Todas</option></select></label>' + dl('dxS3', 'Soberanos_Dolar_Ruedas', 'Descargar la tabla en HD') + '</span></div>' +
+      '<div class="sc" id="dxSc" style="max-height:560px"><table class="rt" id="dxTab"></table></div></div>' +
+      '<div class="rs"><div class="hl" style="margin:0"><p><b>Cómo se lee</b></p><ul>' +
+      '<li><b>MEP y CCL</b>: el dólar que surge de AL30, el bono con el que se opera: su precio en pesos dividido por el precio en dólares MEP (AL30D) o cable (AL30C), al cierre de cada rueda. <b>Oficial</b>: el mayorista de referencia del BCRA (Comunicación A 3500). <b>CCL de acciones</b>: el que surge de las acciones con ADR, promedio ponderado por volumen (data912; se guarda desde el 09/10/2026).</li>' +
+      '<li><b>Brecha</b>: cuánto más caro está el MEP o el CCL que el oficial. <b>Canje</b>: cuánto más caro está el cable que el MEP.</li>' +
+      '<li><b>Flujo</b>: el volumen no tiene dirección (cada compra es una venta), pero el precio del dólar sí. Si el MEP sube más de lo que suele moverse, los que compraban dólares tuvieron que convalidar un precio más alto: predominó la demanda de dólares y salieron pesos hacia el dólar; si baja, predominó la oferta. Cada rueda, los dólares operados en AL30D (MEP) y en AL30C (cable) se cuentan como compra o como venta según cuánto se movió el MEP o el CCL contra su desvío de las 60 ruedas anteriores: un desvío o más, todo el monto; medio desvío, la mitad; si quedó quieto, nada. Es una estimación: no hay datos de quién inició cada operación, y las patas en dólares también incluyen el canje entre MEP y cable.</li>' +
+      '<li><b>Volumen</b>: lo operado en cada especie de AL30; la pata en pesos se pasa a dólares al MEP del día. Hasta abril de 2025, con el cepo, el MEP y el CCL tenían restricciones (plazos de tenencia, límites) y el cable casi no operaba en AL30.</li></ul></div></div></div>';
+    var on = function (id, ev, fn) { document.getElementById(id)[ev] = fn; };
+    on('dxW', 'onchange', function () { ST.w = +this.value; render(); }); on('dxL', 'onchange', function () { ST.live = this.checked; render(); }); on('dxTop', 'onchange', function () { ST.top = +this.value; render(); });
+  }
+
+  /* ---------- cuentas del período ---------- */
+  var M = function (v) { return 'US$ ' + nf(v / 1e6, Math.abs(v) >= 1e7 || !v ? 0 : 1) + ' M'; }, MS = function (v) { return (v >= 0 ? '+' : '-') + M(Math.abs(v)); };
+  var P$ = function (v) { return '$ ' + nf(v, v >= 100 ? 0 : 2); }, PC = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : nf(v * 100, d == null ? 1 : d) + '%'; };
+  function sumR(a, i0, i1) { var s = 0; for (var i = i0; i < i1; i++) s += a[i] || 0; return s; }
+  function lastV(a, i) { while (i >= 0 && !(a[i] > 0)) i--; return i; }
+  function read(z, rel) { // lectura de una rueda (o de un período, con z del período)
+    if (z == null || !isFinite(z)) return ['—', 'na'];
+    if (Math.abs(z) < 0.5) return ['Dólar quieto' + (rel != null && rel >= 1.5 ? ', con mucho volumen' : ''), 'na'];
+    return [(z > 0 ? 'Demanda de dólares' : 'Oferta de dólares') + (rel == null ? '' : rel >= 1.3 ? ', con volumen alto' : rel <= 0.7 ? ', con poco volumen' : ''), z > 0 ? 'up' : 'dn'];
+  }
+
+  function render() {
+    if (!isAct()) return;
+    try {
+      if (typeof Chart === 'undefined') return;
+      if (!document.getElementById('dxTab')) html();
+      var sub = document.getElementById('dxSub');
+      if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
+      if (!VD) { sub.textContent = 'Cargando la serie de AL30…'; load(); return; }
+      adr(); build();
+      document.getElementById('dxW').value = ST.w; document.getElementById('dxL').checked = ST.live; document.getElementById('dxTop').value = ST.top;
+      var n = S.n, w = ST.w === 0 ? n - 1 : Math.min(ST.w, n - 1), a0 = n - w, b = lastV(S.MEP, a0 - 1), e = lastV(S.MEP, n - 1), D = S.dates;
+      sub.innerHTML = 'Serie diaria de AL30 en pesos, MEP (AL30D) y cable (AL30C) desde el ' + fr(D[0]) + ' y oficial del BCRA (A3500).' + (S.live ? ' Incluye la rueda de hoy, ' + (liveOpen() ? 'todavía incompleta.' : 'ya cerrada.') : '') + '<span class="xp"> Cuánto se pagó el dólar en el mercado de bonos, cuánta brecha hubo con el oficial y hacia dónde fue la plata: de pesos a dólares o al revés.</span>';
+      var ch = function (Y, i0, i1) { return Y[i0] > 0 && Y[i1] > 0 ? Y[i1] / Y[i0] - 1 : null; };
+      var bM = function (i) { return S.MEP[i] / S.OF[i] - 1; }, bC = function (i) { return S.CCL[i] / S.OF[i] - 1; }, cj = function (i) { return S.CCL[i] / S.MEP[i] - 1; };
+      // período: dólares de cada pata, flujo neto y movimiento del MEP contra su desvío
+      var mD = sumR(S.MD.E, a0, n), mC = sumR(S.CC.E, a0, n), fM = sumR(S.fM, a0, n), fC = sumR(S.fC, a0, n), r0 = Math.max(0, a0 - w), nr = a0 - r0;
+      var mD0 = nr > 0 && ST.w !== 0 ? sumR(S.MD.E, r0, a0) / nr : null, mC0 = mD0 != null ? sumR(S.CC.E, r0, a0) / nr : null, act = mD0 + mC0 > 0 ? ((mD + mC) / w) / (mD0 + mC0) - 1 : null;
+      var net = fM + fC, sh = mD + mC > 0 ? net / (mD + mC) : 0; // qué parte de los dólares operados fue compra (+) o venta (−) neta
+      var adrV = ADR ? ADR.vw : null, adrD = null; if (!adrV) { var sk = Object.keys(S.snap).sort(); for (var q = sk.length - 1; q >= 0; q--) if (S.snap[sk[q]].ccl && S.snap[sk[q]].ccl.vw > 0) { adrV = S.snap[sk[q]].ccl.vw; adrD = sk[q]; break; } }
+      var pp = function (v) { return v == null || !isFinite(v) ? '' : sg(v * 100, 1) + ' pp'; };
+      var chip = function (t, v, s) { return '<div class="rchip"><small>' + t + '</small><b>' + v + '</b><span>' + s + '</span></div>'; }, vs = w === 1 ? 'vs. la rueda anterior' : 'en ' + w + ' ruedas';
+      document.getElementById('dxChips').innerHTML =
+        chip('MEP (AL30)', P$(S.MEP[e]), sg((ch(S.MEP, b, e) || 0) * 100, 2) + '% ' + vs) +
+        chip('CCL (AL30)', P$(S.CCL[e]), sg((ch(S.CCL, b, e) || 0) * 100, 2) + '% ' + vs) +
+        chip('Oficial (A3500)', P$(S.OF[e]), sg((ch(S.OF, b, e) || 0) * 100, 2) + '% ' + vs + (S.OFd[e] && S.OFd[e] < D[e] ? ' · dato del ' + fr(S.OFd[e]) : '')) +
+        (adrV ? chip('CCL de acciones', P$(adrV), (ADR ? 'en vivo, ' + ADR.n + ' papeles' : 'cierre del ' + fr(adrD)) + ' · ' + sg((adrV / S.CCL[e] - 1) * 100, 1) + '% vs. AL30') : '') +
+        chip('Brecha MEP', PC(bM(e)), pp(bM(e) - bM(b)) + ' ' + vs) +
+        chip('Brecha CCL', PC(bC(e)), pp(bC(e) - bC(b)) + ' ' + vs) +
+        chip('Canje CCL/MEP', PC(cj(e)), pp(cj(e) - cj(b)) + ' ' + vs) +
+        chip('Flujo neto estimado', MS(fM + fC), (fM + fC >= 0 ? 'compra' : 'venta') + ' de dólares ' + (w === 1 ? 'en la rueda' : 'en ' + w + ' ruedas'));
+      // lectura en palabras
+      var pd = w === 1 ? 'En la rueda del ' + fr(D[e]) : 'En las últimas ' + w + ' ruedas (' + fr(D[a0]) + ' al ' + fr(D[e]) + ')';
+      var mv = function (Y) { var c = ch(Y, b, e); return P$(Y[b]) + ' a ' + P$(Y[e]) + ' (' + sg((c || 0) * 100, 2) + '%)'; };
+      var txt = pd + ' el MEP pasó de ' + mv(S.MEP) + ' y el CCL de ' + mv(S.CCL) + '; el oficial, de ' + mv(S.OF) + '. La brecha del MEP quedó en ' + PC(bM(e)) + ' (' + pp(bM(e) - bM(b)) + '), la del CCL en ' + PC(bC(e)) + ' y el canje en ' + PC(cj(e)) + '.';
+      txt += ' Por AL30 se operaron ' + M(mD / w) + ' por rueda en MEP y ' + M(mC / w) + ' en cable' + (act == null ? '' : ', ' + (Math.abs(act) < 0.05 ? 'casi lo mismo que' : 'un ' + nf(Math.abs(act) * 100, 0) + '% ' + (act > 0 ? 'más' : 'menos') + ' que') + ' en ' + (w === 1 ? 'la rueda anterior' : 'las ' + w + ' ruedas anteriores')) + '.';
+      var leg = Math.abs(fC) > 2 * Math.abs(fM) ? ', sobre todo por cable' : Math.abs(fM) > 2 * Math.abs(fC) ? ', sobre todo por MEP' : '';
+      txt += ' Por cómo se movió el precio, el flujo neto estimado fue de ' + MS(net) + ' (MEP ' + MS(fM) + ', cable ' + MS(fC) + '), el ' + nf(Math.abs(sh) * 100, 0) + '% de los dólares operados: ' + (Math.abs(sh) < 0.08 ? 'compras y ventas de dólares bastante parejas.' : sh > 0 ? 'predominó la demanda de dólares (salieron pesos hacia el dólar)' + leg + '.' : 'predominó la oferta de dólares (entraron pesos)' + leg + '.');
+      if (w > 1) { // ruedas con más demanda y más oferta
+        var rs = []; for (var i = a0; i < n; i++) rs.push({ i: i, f: S.fM[i] + S.fC[i] });
+        var up = rs.filter(function (x) { return x.f > 0; }).sort(function (a, c) { return c.f - a.f; }).slice(0, 2), dn = rs.filter(function (x) { return x.f < 0; }).sort(function (a, c) { return a.f - c.f; }).slice(0, 2);
+        var lb = function (a) { return a.map(function (x) { return (w > 250 ? fr(D[x.i]) : fr(D[x.i]).slice(0, 5)) + ' (' + MS(x.f) + ', MEP ' + sg((S.MEP[x.i] / S.MEP[x.i - 1] - 1) * 100, 2) + '%)'; }).join(' y '); };
+        if (up.length || dn.length) txt += ' Ruedas con más demanda: ' + (up.length ? lb(up) : 'ninguna') + '; con más oferta: ' + (dn.length ? lb(dn) : 'ninguna') + '.';
+      }
+      document.getElementById('dxRead').textContent = txt;
+      charts(a0, w); table(a0);
+    } catch (x) { console.error('dol', x); var s2 = document.getElementById('dxSub'); if (s2) s2.textContent = 'Error: ' + x.message; }
+  }
+
+  function charts(a0, w) {
+    Object.keys(CH).forEach(function (k) { if (CH[k]) CH[k].destroy(); }); CH = {};
+    var n = S.n, span = ST.w === 0 ? n : Math.min(n, Math.max(w, 60)), c0 = n - span, D = S.dates, tx = css('--tx'), bd = css('--bd'), mu = css('--mu'), i;
+    var tk = function (d) { return span > 250 ? d.slice(5, 7) + '/' + d.slice(2, 4) : fr(d).slice(0, 5); }, full = [], lab = [];
+    for (i = c0; i < n; i++) { lab.push(tk(D[i])); full.push(fr(D[i])); }
+    var ttl = function (c) { return full[c[0].dataIndex]; };
+    var ser = function (f) { var a = []; for (var i = c0; i < n; i++) { var v = f(i); a.push(isFinite(v) ? v : null); } return a; };
+    var hi = function (ctx) { return ctx.dataIndex >= a0 - c0 ? 1 : 0.45; }; // el período elegido, más fuerte
+    var XS = { ticks: { color: tx, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } };
+    var lin = function (label, data, col, extra) { var o = { type: 'line', label: label, data: data, borderColor: col, backgroundColor: col, borderWidth: 2, pointRadius: 0, tension: 0.1, spanGaps: true }; for (var k in extra) o[k] = extra[k]; return o; };
+    var per = ST.w === 0 ? '' : ' · sombreado: el período elegido';
+    document.getElementById('dxT1').textContent = 'Cotización y brecha · ' + (ST.w === 0 ? 'todo el historial' : 'últimas ' + span + ' ruedas');
+    var shade = { id: 'dxShade', beforeDraw: function (c) { if (ST.w === 0 || a0 <= c0) return; var xs = c.scales.x, ar = c.chartArea, x0 = xs.getPixelForValue(a0 - c0) - (a0 - c0 > 0 ? (xs.getPixelForValue(1) - xs.getPixelForValue(0)) / 2 : 0); c.ctx.save(); c.ctx.fillStyle = 'rgba(148,163,184,.10)'; c.ctx.fillRect(x0, ar.top, ar.right - x0, ar.bottom - ar.top); c.ctx.restore(); } };
+    CH.a = new Chart(document.getElementById('dxCh1').getContext('2d'), { type: 'line', plugins: [shade], data: { labels: lab, datasets: [lin('MEP (AL30)', ser(function (i) { return S.MEP[i]; }), C_MEP), lin('CCL (AL30)', ser(function (i) { return S.CCL[i]; }), C_CCL), lin('Oficial (A3500)', ser(function (i) { return S.OF[i]; }), mu, { borderDash: [5, 4], borderWidth: 1.6 })] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, title: { display: true, text: 'Cotización ($ por dólar)' + per, color: tx, font: { size: 13, weight: '600' } }, tooltip: { callbacks: { title: ttl, label: function (c) { return c.dataset.label + ': $ ' + nf(c.parsed.y, 2); } } } },
+        scales: { x: XS, y: { ticks: { color: tx, callback: function (v) { return nf(v, 0); } }, grid: { color: bd } } } } });
+    CH.b = new Chart(document.getElementById('dxCh2').getContext('2d'), { type: 'line', plugins: [shade], data: { labels: lab, datasets: [lin('Brecha MEP', ser(function (i) { return (S.MEP[i] / S.OF[i] - 1) * 100; }), C_MEP), lin('Brecha CCL', ser(function (i) { return (S.CCL[i] / S.OF[i] - 1) * 100; }), C_CCL), lin('Canje CCL/MEP', ser(function (i) { return (S.CCL[i] / S.MEP[i] - 1) * 100; }), C_CAN, { borderWidth: 1.6, yAxisID: 'y2' })] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, title: { display: true, text: 'Brecha con el oficial y canje (%)', color: tx, font: { size: 13, weight: '600' } }, tooltip: { callbacks: { title: ttl, label: function (c) { return c.dataset.label + ': ' + nf(c.parsed.y, 1) + '%'; } } } },
+        scales: { x: XS, y: { title: { display: true, text: 'Brecha (%)', color: tx }, ticks: { color: tx, callback: function (v) { return nf(v, 0) + '%'; } }, grid: { color: bd } }, y2: { position: 'right', title: { display: true, text: 'Canje (%)', color: C_CAN }, ticks: { color: C_CAN, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { drawOnChartArea: false } } } } });
+    // flujo y volumen: por rueda o por bloques si el tramo es largo
+    var bs = Math.max(1, Math.ceil(span / 130)), bl = [], bf = [], fm = [], fc = [], cum = [], vp = [], vd = [], vc = [], acc = 0, pin = [];
+    for (i = c0; i < n; i += bs) {
+      var e1 = Math.min(n, i + bs), a = 0, c = 0, p = 0, d = 0, cc = 0;
+      for (var k = i; k < e1; k++) { a += S.fM[k]; c += S.fC[k]; p += S.MEP[k] > 0 ? S.P.E[k] / S.MEP[k] : 0; d += S.MD.E[k]; cc += S.CC.E[k]; if (k >= a0) acc += S.fM[k] + S.fC[k]; }
+      bl.push(tk(D[e1 - 1])); bf.push(bs > 1 ? fr(D[i]) + ' al ' + fr(D[e1 - 1]) : fr(D[i])); fm.push(a / 1e6); fc.push(c / 1e6); cum.push(e1 - 1 >= a0 ? acc / 1e6 : null); vp.push(p / 1e6); vd.push(d / 1e6); vc.push(cc / 1e6); pin.push(e1 - 1 >= a0);
+    }
+    var blk = bs > 1 ? ' · bloques de ' + bs + ' ruedas' : ' · por rueda';
+    document.getElementById('dxT2').textContent = 'Flujo de dólares vía AL30' + blk;
+    var al = function (cols, base) { return cols.map(function (x, k) { return pin[k] || ST.w === 0 ? base : base + '66'; }); };
+    CH.c = new Chart(document.getElementById('dxCh3').getContext('2d'), { type: 'bar', data: { labels: bl, datasets: [
+      { type: 'line', label: 'Neto acumulado del período', data: cum, yAxisID: 'y2', borderColor: tx, backgroundColor: tx, borderWidth: 2, pointRadius: 0, tension: 0.1, spanGaps: false, order: 0 },
+      { label: 'MEP (AL30D)', data: fm, backgroundColor: al(fm, C_MEP), stack: 's', order: 1 }, { label: 'Cable (AL30C)', data: fc, backgroundColor: al(fc, C_CCL), stack: 's', order: 1 }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, title: { display: true, text: 'Compra (+) o venta (-) neta estimada de dólares (US$ M)', color: tx, font: { size: 13, weight: '600' } }, tooltip: { callbacks: { title: function (c) { return bf[c[0].dataIndex]; }, label: function (c) { return c.dataset.label + ': ' + sg(c.parsed.y, 1) + ' M'; } } } },
+        scales: { x: { stacked: true, ticks: { color: tx, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } }, y: { stacked: true, ticks: { color: tx, callback: function (v) { return sg(v, 0); } }, grid: { color: bd } }, y2: { position: 'right', title: { display: true, text: 'Acumulado (US$ M)', color: tx }, ticks: { color: tx, callback: function (v) { return sg(v, 0); } }, grid: { drawOnChartArea: false } } } } });
+    CH.d = new Chart(document.getElementById('dxCh4').getContext('2d'), { type: 'bar', data: { labels: bl, datasets: [
+      { label: 'AL30 en pesos (al MEP)', data: vp, backgroundColor: al(vp, C_ARS), stack: 'v' }, { label: 'AL30D (MEP)', data: vd, backgroundColor: al(vd, C_MEP), stack: 'v' }, { label: 'AL30C (cable)', data: vc, backgroundColor: al(vc, C_CCL), stack: 'v' }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, title: { display: true, text: 'Volumen de AL30 por especie (US$ M)', color: tx, font: { size: 13, weight: '600' } }, tooltip: { callbacks: { title: function (c) { return bf[c[0].dataIndex]; }, label: function (c) { return c.dataset.label + ': ' + nf(c.parsed.y, 1) + ' M'; } } } },
+        scales: { x: { stacked: true, ticks: { color: tx, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } }, y: { stacked: true, ticks: { color: tx, callback: function (v) { return nf(v, 0); } }, grid: { color: bd } } } } });
+  }
+
+  function table(a0) {
+    var n = S.n, D = S.dates, rows = [], i, top = Math.min(ST.top, n - 1);
+    var c = function (v, d) { return '<td style="color:' + (v == null || !isFinite(v) || Math.abs(v) < 1e-9 ? 'var(--mu)' : v > 0 ? 'var(--ok)' : 'var(--bad)') + '">' + (v == null || !isFinite(v) ? '—' : sg(v * 100, d == null ? 2 : d) + '%') + '</td>'; };
+    var avg = function (a, i) { var s = 0, k = 0; for (var j = Math.max(0, i - 20); j < i; j++) { s += a[j]; k++; } return k ? s / k : null; };
+    var h = '<thead><tr><th class="l">Fecha</th><th>MEP</th><th>Var.</th><th>CCL</th><th>Var.</th><th>Oficial</th><th>Brecha MEP</th><th>Brecha CCL</th><th>Canje</th><th>AL30 ($ M)</th><th>AL30D (US$ M)</th><th>AL30C (US$ M)</th><th>Neto (US$ M)</th><th class="l">Lectura</th></tr></thead><tbody>';
+    for (i = n - 1; i >= Math.max(1, n - top); i--) {
+      var v0 = avg(S.MD.E, i) + avg(S.CC.E, i), rel = v0 > 0 && !(S.live && i === n - 1 && liveOpen()) ? (S.MD.E[i] + S.CC.E[i]) / v0 : null, // con la rueda abierta, el volumen todavía no se compara
+      f = S.fM[i] + S.fC[i], vv = S.MD.E[i] + S.CC.E[i];
+      var zz = !isFinite(S.zM[i]) ? null : !isFinite(S.zC[i]) || !(vv > 0) ? S.zM[i] : (S.zM[i] * S.MD.E[i] + S.zC[i] * S.CC.E[i]) / vv, r = read(zz, rel); // MEP y CCL según lo que operó cada pata
+      h += '<tr' + (S.live && i === n - 1 ? ' class="lv"' : '') + '><td class="l">' + fr(D[i]) + (S.live && i === n - 1 ? ' (hoy)' : '') + '</td><td>' + nf(S.MEP[i], 2) + '</td>' + c(S.MEP[i] / S.MEP[i - 1] - 1) + '<td>' + nf(S.CCL[i], 2) + '</td>' + c(S.CCL[i] / S.CCL[i - 1] - 1) +
+        '<td>' + nf(S.OF[i], 2) + '</td><td>' + nf((S.MEP[i] / S.OF[i] - 1) * 100, 1) + '%</td><td>' + nf((S.CCL[i] / S.OF[i] - 1) * 100, 1) + '%</td><td>' + nf((S.CCL[i] / S.MEP[i] - 1) * 100, 1) + '%</td>' +
+        '<td data-x="' + Math.round(S.P.E[i] / 1e6) + '">' + nf(S.P.E[i] / 1e6, 0) + '</td><td>' + nf(S.MD.E[i] / 1e6, 1) + '</td><td>' + nf(S.CC.E[i] / 1e6, 1) + '</td><td style="color:' + (Math.abs(f) < 1e5 ? 'var(--mu)' : f > 0 ? 'var(--ok)' : 'var(--bad)') + '">' + sg(f / 1e6, 1) + '</td><td class="l"><span class="tg ' + r[1] + '" title="MEP ' + sg((S.MEP[i] / S.MEP[i - 1] - 1) * 100, 2) + '%: ' + (isFinite(S.zM[i]) ? sg(S.zM[i], 1) + ' desvíos' : 'sin historia') + ' · CCL ' + sg((S.CCL[i] / S.CCL[i - 1] - 1) * 100, 2) + '%' + (isFinite(S.zC[i]) ? ': ' + sg(S.zC[i], 1) + ' desvíos' : '') + (rel != null ? ' · volumen ' + nf(rel, 1) + '× el de las 20 ruedas anteriores' : '') + '">' + r[0] + '</span></td></tr>';
+    }
+    document.getElementById('dxTab').innerHTML = h + '</tbody>';
+    document.getElementById('dxT3').textContent = 'Rueda por rueda · ' + (top >= n - 1 ? 'todas' : 'últimas ' + top);
+  }
+
+  window.renderDolar = render;
+  var _sw = window.switchTab;
+  window.switchTab = function (id) { _sw(id); var gc = document.getElementById('globalControls'); if (id === 'dol') { if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
+  var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(render, 0); };
+  setInterval(function () { if (!isAct()) return; adrT = 0; if (ST.live) render(); else adr(); }, 90000);
+})();
+/*@@DOL_END@@*/
 /* =====================================================================
    EXPORTAR A EXCEL (SheetJS): tablas y datos de los gráficos
    - por sección (botón XLSX junto al de imagen), por pestaña o todo el libro
    ===================================================================== */
 ;(function () {
-  var TAB_NAMES = { tabla: 'Tabla_Retornos', desglose: 'Flujos_TotalReturn', curva: 'Curva_Spreads', pesos: 'Pesos', vard: 'Variacion_diaria', rot: 'Rotacion', vol: 'Volumen' };
-  var TABLE_NAMES = { vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', vlRot: 'Volumen_flujo', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
+  var TAB_NAMES = { tabla: 'Tabla_Retornos', desglose: 'Flujos_TotalReturn', curva: 'Curva_Spreads', pesos: 'Pesos', vard: 'Variacion_diaria', rot: 'Rotacion', vol: 'Volumen', dol: 'Dolar' };
+  var TABLE_NAMES = { dxTab: 'Dolar_ruedas', vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', vlRot: 'Volumen_flujo', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
 
   function parse(raw) {
     var s = raw.replace(/−/g, '-').replace(/ /g, ' ').replace(/^US\$\s*/, '').replace(/^([+-])\s+/, '$1').trim();
@@ -4093,7 +4331,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     try { if (window.renderQuant) window.renderQuant('all'); } catch (e) {}
     try { if (window.renderPesos) window.renderPesos(); } catch (e) {}
     var wb = XLSX.utils.book_new();
-    ['tabla', 'desglose', 'curva', 'pesos', 'vard', 'rot', 'vol'].forEach(function (id) { var el = document.getElementById(id); if (el) addElement(wb, el, id === 'pesos' ? 'Pesos' : ''); });
+    ['tabla', 'desglose', 'curva', 'pesos', 'vard', 'rot', 'vol', 'dol'].forEach(function (id) { var el = document.getElementById(id); if (el) addElement(wb, el, id === 'pesos' ? 'Pesos' : ''); });
     dataSheets(wb); pesosData(wb); save(wb, 'Completo');
   };
 
