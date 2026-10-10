@@ -19,13 +19,16 @@ jobs:
       - name: Indices BCRA (CER, TAMAR, A3500)
         if: always()
         run: python3 scripts/save_indices.py
+      - name: Dólar (A3500 desde 2023 y MEP y CCL de data912)
+        if: always()
+        run: python3 scripts/save_dolar.py
       - name: Commit
         if: always()
         run: |
           if [ -n "$(git status --porcelain data)" ]; then
             git config user.name "cierre-bot"
             git config user.email "bot@users.noreply.github.com"
-            git add data/closes.json data/closes_ars.json data/indices.json data/volumen.json
+            git add data/closes.json data/closes_ars.json data/indices.json data/volumen.json data/dolar.json
             git commit -m "cierre $(date -u +%F)"
             git push
           fi
