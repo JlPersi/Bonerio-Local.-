@@ -35,6 +35,65 @@ Chart.register({ id: 'zoomFix', beforeEvent: function (ch, args) {
   try { var e = args.event, n = e.native; if (!n || e.type === 'mouseout') return; var cv = ch.canvas, r = cv.getBoundingClientRect(), z = cv.offsetWidth ? r.width / cv.offsetWidth : 1;
     if (Math.abs(z - 1) < 0.002) return; var src = (n.touches && n.touches[0]) || (n.changedTouches && n.changedTouches[0]) || n; if (src.clientX == null) return;
     e.x = (src.clientX - r.left) / z; e.y = (src.clientY - r.top) / z; args.inChartArea = ch.isPointInArea(e); } catch (er) {} } });
+/*@@AMP_START@@*/
+/* Ampliar: cada gráfico lleva un botón que lo abre grande en el centro, con el fondo difuminado. Es el mismo gráfico (con su tooltip y sus
+   controles): se mueve a la ventana y al cerrar (X, Esc o clic afuera) vuelve a su lugar. El botón no sale en las capturas. */
+(function () {
+  var ICO = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>';
+  var st = document.createElement('style');
+  st.textContent = '.ampb{position:absolute;top:6px;right:6px;z-index:6;width:30px;height:30px;padding:0;margin:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--mu);opacity:.8;cursor:pointer;box-shadow:none;transition:opacity .15s,color .15s,border-color .15s}' +
+    '.ampb:hover,.ampb:focus-visible{opacity:1;color:var(--ac);border-color:var(--ac)}' +
+    '#ampOv{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(12,10,9,.5);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);animation:ampIn .15s ease-out}' +
+    '@keyframes ampIn{from{opacity:0}to{opacity:1}}' +
+    '#ampPn{position:relative;box-sizing:border-box;width:min(1500px,94%);height:min(880px,86%);display:flex;flex-direction:column;gap:6px;padding:10px 14px 14px;background:var(--card);border:1px solid var(--bd);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.5)}' +
+    '#ampHd{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:34px}#ampHd b{font-size:15px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '#ampX{flex:0 0 auto;width:34px;height:34px;padding:0;margin:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--bd);border-radius:9px;background:var(--bg);color:var(--tx);cursor:pointer;font-size:20px;line-height:1}#ampX:hover{color:var(--ac);border-color:var(--ac)}' +
+    '#ampBx{position:relative;flex:1 1 auto;min-height:0}' +
+    '#ampBx>.amp-in{position:absolute!important;inset:0!important;width:auto!important;height:auto!important;max-width:none!important;margin:0!important}#ampBx .ampb{display:none}' +
+    '@media(max-width:700px){#ampPn{width:96%;height:84%;padding:8px 8px 10px}}';
+  document.head.appendChild(st);
+  var cur = null;
+  var heading = function (box) { // el título de la sección del gráfico, si está cerca
+    for (var el = box.parentNode, k = 0; el && el !== document.body && k < 4; el = el.parentNode, k++) {
+      var h = el.querySelector('h4, .qh, h3'); if (h && !box.contains(h)) return h.textContent.trim();
+    }
+    return '';
+  };
+  var resize = function (box) { var cv = box.querySelector('canvas'), c = cv && Chart.getChart(cv); if (c) c.resize(); };
+  var key = function (e) { if (e.key === 'Escape') close(); };
+  function close() {
+    if (!cur) return; var c = cur; cur = null;
+    c.box.classList.remove('amp-in');
+    if (c.ph.parentNode) c.ph.parentNode.replaceChild(c.box, c.ph); else if (c.box.parentNode) c.box.parentNode.removeChild(c.box); // si la pestaña se rearmó mientras estaba abierto, el viejo se descarta
+    c.ov.remove(); document.documentElement.style.overflow = c.ovf; document.removeEventListener('keydown', key);
+    resize(c.box); var b = c.box.querySelector('.ampb'); if (b && c.box.isConnected) b.focus({ preventScroll: true });
+  }
+  function open(box) {
+    close();
+    var cs = getComputedStyle(box), ph = document.createElement('div');
+    ph.style.height = box.offsetHeight + 'px'; ph.style.marginTop = cs.marginTop; ph.style.marginBottom = cs.marginBottom;
+    var ov = document.createElement('div'); ov.id = 'ampOv'; ov.setAttribute('data-html2canvas-ignore', 'true');
+    ov.innerHTML = '<div id="ampPn" role="dialog" aria-modal="true"><div id="ampHd"><b></b><button type="button" id="ampX" title="Cerrar (Esc)" aria-label="Cerrar">×</button></div><div id="ampBx"></div></div>';
+    var t = heading(box); ov.querySelector('#ampHd b').textContent = t; if (t) ov.querySelector('#ampPn').setAttribute('aria-label', t);
+    box.parentNode.insertBefore(ph, box); box.classList.add('amp-in'); ov.querySelector('#ampBx').appendChild(box);
+    var down = false; ov.addEventListener('pointerdown', function (e) { down = e.target === ov; });
+    ov.addEventListener('click', function (e) { if (e.target === ov && down) close(); });
+    ov.querySelector('#ampX').onclick = close;
+    cur = { box: box, ph: ph, ov: ov, ovf: document.documentElement.style.overflow };
+    document.body.appendChild(ov); document.documentElement.style.overflow = 'hidden'; document.addEventListener('keydown', key);
+    requestAnimationFrame(function () { resize(box); }); ov.querySelector('#ampX').focus({ preventScroll: true });
+  }
+  var add = function (cv) {
+    var box = cv && cv.parentNode; if (!box || box.nodeType !== 1 || box === document.body) return;
+    for (var i = 0; i < box.children.length; i++) if (box.children[i].className === 'ampb') return;
+    if (getComputedStyle(box).position === 'static') box.style.position = 'relative';
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'ampb'; b.title = 'Ampliar el gráfico'; b.setAttribute('aria-label', 'Ampliar el gráfico');
+    b.setAttribute('data-html2canvas-ignore', 'true'); b.innerHTML = ICO; b.onclick = function (e) { e.stopPropagation(); open(box); };
+    box.appendChild(b);
+  };
+  Chart.register({ id: 'ampBtn', afterInit: function (c) { try { add(c.canvas); } catch (e) {} } });
+})();
+/*@@AMP_END@@*/
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
 <style>
@@ -4104,6 +4163,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<div class="rs" id="dxS2"><div style="' + HD + '"><h4 id="dxT2">Flujo de dólares vía AL30</h4>' + dl('dxS2', 'Soberanos_Dolar_Flujo', 'Descargar el flujo en HD') + '</div>' +
       '<div class="rg"><div style="position:relative;height:340px"><canvas id="dxCh3"></canvas></div><div style="position:relative;height:340px"><canvas id="dxCh4"></canvas></div></div></div>' +
       '<div class="rs" id="dxS4"><div style="' + HD + '"><h4 id="dxT4">Dólar real y volatilidad</h4>' + dl('dxS4', 'Soberanos_Dolar_Real_Volatilidad', 'Descargar el dólar real y la volatilidad en HD') + '</div>' +
+      '<p class="note" id="dxRead4" style="margin:0 0 14px;color:var(--tx)"></p>' +
       '<div class="rg"><div style="position:relative;height:320px"><canvas id="dxCh5"></canvas></div><div style="position:relative;height:320px"><canvas id="dxCh6"></canvas></div></div></div>' +
       '<div class="rs" id="dxS5"><div style="' + HD + '"><h4>Variaciones y estadísticas</h4>' + dl('dxS5', 'Soberanos_Dolar_Variaciones', 'Descargar las variaciones en HD') + '</div>' +
       '<div class="sc"><table class="rt" id="dxVar"></table></div><div class="rchips" id="dxStat"></div></div>' +
@@ -4115,7 +4175,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<li><b>Flujo</b>: el volumen no tiene dirección (cada compra es una venta), pero el precio del dólar sí. Si el MEP sube más de lo que suele moverse, los que compraban dólares tuvieron que convalidar un precio más alto: predominó la demanda de dólares y salieron pesos hacia el dólar; si baja, predominó la oferta. Cada rueda, los dólares operados en AL30D (MEP) y en AL30C (cable) se cuentan como compra o como venta según cuánto se movió el MEP o el CCL contra su desvío de las 60 ruedas anteriores: un desvío o más, todo el monto; medio desvío, la mitad; si quedó quieto, nada. Es una estimación: no hay datos de quién inició cada operación, y las patas en dólares también incluyen el canje entre MEP y cable.</li>' +
       '<li><b>Volumen</b>: lo operado en cada especie de AL30; la pata en pesos se pasa a dólares al MEP del día. Hasta abril de 2025, con el cepo, el MEP y el CCL tenían restricciones (plazos de tenencia, límites) y el cable casi no operaba en AL30.</li>' +
       '<li><b>Hitos</b> (líneas punteadas en la cotización), en la primera rueda después de cada uno: ' + EVS.map(function (e) { return fr(e[0]) + ' ' + e[2]; }).join('; ') + '.</li>' +
-      '<li><b>Dólar real</b>: el MEP de cada día llevado a pesos del último día con el CER, para ver si el dólar está caro o barato en términos reales (el CER sigue a la inflación con unas semanas de atraso). <b>Volatilidad</b>: cuánto se movió el MEP o el CCL por día en las últimas 20 ruedas, anualizado.</li>' +
+      '<li><b>Dólar real (¿caro o barato?)</b>: el MEP de cada día llevado a pesos del último día con el CER, para ver si el dólar está caro o barato en términos reales (el CER sigue a la inflación con unas semanas de atraso). <b>Volatilidad</b>: cuánto se movió el MEP o el CCL por día en las últimas 20 ruedas, anualizado.</li>' +
       '<li><b>Variaciones y estadísticas</b>: cuánto cambió cada cotización en cada plazo (en la brecha y el canje, en puntos porcentuales) y dónde está hoy cada indicador contra su historia desde la salida del cepo (14/04/2025): el percentil dice qué parte de las ruedas tuvo un valor menor o igual.</li></ul></div></div></div>';
     var on = function (id, ev, fn) { document.getElementById(id)[ev] = fn; };
     on('dxW', 'onchange', function () { ST.w = +this.value; render(); }); on('dxL', 'onchange', function () { ST.live = this.checked; render(); }); on('dxTop', 'onchange', function () { ST.top = +this.value; render(); }); on('dxLg', 'onchange', function () { ST.log = this.checked; render(); });
@@ -4180,6 +4240,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     } catch (x) { console.error('dol', x); var s2 = document.getElementById('dxSub'); if (s2) s2.textContent = 'Error: ' + x.message; }
   }
 
+  function realRead(c0, n) { // cómo leer el dólar real y dónde está hoy contra el tramo del gráfico
+    var e = n - 1, v = S.MR[e], k = 0, m = 0, mx = null, mn = Infinity, i, el = document.getElementById('dxRead4'); if (!el) return;
+    for (i = c0; i < n; i++) { var x = S.MR[i]; if (!isFinite(x)) continue; m++; if (x > v) k++; if (x < mn) mn = x; if (mx == null || x > S.MR[mx]) mx = i; }
+    var t = 'Cómo leerlo: la línea naranja es el MEP de cada día pasado a pesos de hoy con la inflación (CER). Cuanto más abajo, más barato está el dólar en términos reales; la gris es el MEP sin ajustar.';
+    if (isFinite(v) && m > 1) t += ' El ' + fr(S.dates[e]) + ', $ ' + nf(v, 0) + (v <= mn * 1.001 ? ': en su nivel más bajo desde el ' + fr(S.dates[c0]) : ': más barato que en el ' + Math.floor(k / m * 100) + '% de las ruedas desde el ' + fr(S.dates[c0])) + (mx != null && mx !== e ? '; el más caro, $ ' + nf(S.MR[mx], 0) + ' el ' + fr(S.dates[mx]) : '') + '.';
+    el.textContent = t;
+  }
+
   function charts(a0, w) {
     Object.keys(CH).forEach(function (k) { if (CH[k]) CH[k].destroy(); }); CH = {};
     var n = S.n, span = ST.w === 0 ? n : Math.min(n, Math.max(w, 60)), c0 = n - span, D = S.dates, tx = css('--tx'), bd = css('--bd'), mu = css('--mu'), i;
@@ -4207,8 +4275,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         scales: { x: XS, y: { title: { display: true, text: 'Brecha (%)', color: tx }, ticks: { color: tx, callback: function (v) { return nf(v, 0) + '%'; } }, grid: { color: bd } }, y2: { position: 'right', title: { display: true, text: 'Canje (%)', color: C_CAN }, ticks: { color: C_CAN, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { drawOnChartArea: false } } } } });
     // dólar real (CER) y volatilidad de 20 ruedas
     document.getElementById('dxT4').textContent = 'Dólar real y volatilidad · ' + (ST.w === 0 ? 'todo el historial' : 'últimas ' + span + ' ruedas');
-    CH.e = new Chart(document.getElementById('dxCh5').getContext('2d'), { type: 'line', plugins: [shade, hitos], data: { labels: lab, datasets: [lin('MEP a pesos del ' + fr(S.cerD) + ' (CER)', ser(function (i) { return S.MR[i]; }), C_MEP), lin('MEP de cada día', ser(function (i) { return S.MEP[i]; }), mu, { borderDash: [5, 4], borderWidth: 1.4 })] },
-      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, title: { display: true, text: 'Dólar real: el MEP llevado a pesos de hoy', color: tx, font: { size: 13, weight: '600' } }, tooltip: { callbacks: { title: ttl, label: function (c) { return c.dataset.label + ': $ ' + nf(c.parsed.y, 0); } } } },
+    var TR = '¿El dólar está caro o barato? MEP ajustado por inflación'; if (document.getElementById('dxCh5').parentNode.clientWidth < 520) TR = ['¿El dólar está caro o barato?', 'MEP ajustado por inflación']; // en el celular, en dos renglones
+    realRead(c0, n);
+    CH.e = new Chart(document.getElementById('dxCh5').getContext('2d'), { type: 'line', plugins: [shade, hitos], data: { labels: lab, datasets: [lin('MEP ajustado por inflación (a pesos del ' + fr(S.cerD) + ')', ser(function (i) { return S.MR[i]; }), C_MEP), lin('MEP sin ajustar', ser(function (i) { return S.MEP[i]; }), mu, { borderDash: [5, 4], borderWidth: 1.4 })] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, title: { display: true, text: TR, color: tx, font: { size: 13, weight: '600' } }, tooltip: { callbacks: { title: ttl, label: function (c) { return c.dataset.label + ': $ ' + nf(c.parsed.y, 0); } } } },
         scales: { x: XS, y: { type: ST.log ? 'logarithmic' : 'linear', ticks: { color: tx, callback: function (v) { return nf(v, 0); } }, grid: { color: bd } } } } });
     CH.f = new Chart(document.getElementById('dxCh6').getContext('2d'), { type: 'line', plugins: [shade], data: { labels: lab, datasets: [lin('MEP', ser(function (i) { return S.VM[i]; }), C_MEP), lin('CCL', ser(function (i) { return S.VC[i]; }), C_CCL, { borderWidth: 1.6 })] },
       options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, title: { display: true, text: 'Volatilidad de 20 ruedas, anualizada (%)', color: tx, font: { size: 13, weight: '600' } }, tooltip: { callbacks: { title: ttl, label: function (c) { return c.dataset.label + ': ' + nf(c.parsed.y, 1) + '%'; } } } },
