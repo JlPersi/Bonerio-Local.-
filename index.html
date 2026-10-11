@@ -1174,6 +1174,12 @@ function mktOpen() {
   var mins = (+g.hour % 24) * 60 + (+g.minute), t = Math.floor(Date.UTC(+g.year, +g.month - 1, +g.day) / 864e5);
   return bxIsBiz(t) && mins >= 630 && mins < 1020;
 }
+function mktStarted() { // hoy hay rueda y ya empezó: antes de las 10:30, o en fines de semana y feriados, data912 sigue mostrando la rueda anterior
+  var f = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()), g = {};
+  f.forEach(function (p) { g[p.type] = p.value; });
+  var mins = (+g.hour % 24) * 60 + (+g.minute), t = Math.floor(Date.UTC(+g.year, +g.month - 1, +g.day) / 864e5);
+  return bxIsBiz(t) && mins >= 630;
+}
 window.paintStatus = function () {
   if (!window.__liveOk) return;
   var sp = especie === 'D' ? 'MEP' : 'Cable';
@@ -2944,7 +2950,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     Promise.all(urls.map(function (u) { return fetch(u, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : []; }).catch(function () { return []; }); })).then(function (res) {
       res.forEach(function (arr) { (arr || []).forEach(function (r) {
         if (!r || !INST[r.symbol] || !(r.c > 0)) return; PRICE[r.symbol] = r.c; n++;
-        if (today > PSD.last && bxIsBiz(today)) { (LOGARS[ds_] = LOGARS[ds_] || {})[r.symbol] = r.c; }
+        if (today > PSD.last && mktStarted()) { (LOGARS[ds_] = LOGARS[ds_] || {})[r.symbol] = r.c; }
       }); });
       if (n && root.classList.contains('active')) window.renderPesos();
     });
@@ -3732,7 +3738,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function liveOpen() { return typeof mktOpen === 'function' ? mktOpen() : true; } // antes del cierre (17 hs) la rueda de hoy está incompleta
   function todayBA() { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }); } catch (e) { return new Date().toISOString().slice(0, 10); } }
   function build() {
-    var live = ST.live && D.dates[D.dates.length - 1] < todayBA(), q = window.PXQ || {}, k, t, o;
+    var live = ST.live && D.dates[D.dates.length - 1] < todayBA() && mktStarted(), q = window.PXQ || {}, k, t, o; // sin rueda hoy (o antes de que empiece), data912 repite la anterior
     DATES = D.dates.slice(); if (live) DATES.push(todayBA()); n = DATES.length; T = {}; LIVEN = 0;
     for (t in D.t) {
       o = D.t[t]; var V = new Float64Array(n), E = new Float64Array(n), C = new Float64Array(n).fill(NaN), acc = 0;
@@ -4166,7 +4172,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var list = entities(), M = metrics(list), rows = M.rows;
       LAST = { rows: rows, M: M };
       var lastD = D.dates[D.dates.length - 1], f = function (s) { return s.split('-').reverse().join('/'); };
-      sub.innerHTML = 'Serie diaria de ' + Object.keys(D.t).length + ' tickers (' + f(D.dates[0]) + ' al ' + f(lastD) + ') y volumen en vivo de la API.<span class="xp"> Dónde se concentró la operatoria de la renta fija y cómo se movió el precio cuando hubo más o menos volumen.</span>' + (ST.live && LIVEN ? ' Incluye la rueda de hoy (' + LIVEN + ' tickers), ' + (liveOpen() ? 'todavía incompleta.' : 'ya cerrada.') : '');
+      sub.innerHTML = 'Serie diaria de ' + Object.keys(D.t).length + ' tickers (' + f(D.dates[0]) + ' al ' + f(lastD) + ') y volumen en vivo de la API.<span class="xp"> Dónde se concentró la operatoria de la renta fija y cómo se movió el precio cuando hubo más o menos volumen.</span>' + (ST.live && LIVEN ? ' Incluye la rueda de hoy (' + LIVEN + ' tickers), ' + (liveOpen() ? 'todavía incompleta.' : 'ya cerrada.') : ST.live && !mktStarted() ? ' Hoy no hay rueda o todavía no empezó: se muestra hasta el ' + f(lastD) + '.' : '');
       if (!rows.length) { document.getElementById('vlChips').innerHTML = ''; document.getElementById('vlTab').innerHTML = '<tbody><tr><td class="l">Sin operaciones en el período con esos filtros.</td></tr></tbody>'; if (CHS) { CHS.destroy(); CHS = null; } if (CHP) { CHP.destroy(); CHP = null; } if (CHR) { CHR.destroy(); CHR = null; } document.getElementById('vlRot').innerHTML = ''; document.getElementById('vlRotS').textContent = ''; document.getElementById('vlFx').style.display = 'none'; detail(null, M); return; }
       var famTot = {}, famPrev = {}, totAll = 0, prevAll = 0, prevOk = false;
       FORD.forEach(function (ff) { famTot[ff] = 0; famPrev[ff] = 0; });
@@ -4251,7 +4257,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function build() {
     var D = VD, dates = D.dates.slice(), q = window.PXQ || {}, td = todayBA(), i, k;
     var biz = typeof bxIsBiz === 'function' && typeof bxDayNum === 'function' ? bxIsBiz(bxDayNum(td)) : [0, 6].indexOf(new Date(td + 'T12:00:00').getDay()) < 0;
-    var live = ST.live && biz && dates[dates.length - 1] < td && ['AL30', 'AL30D', 'AL30C'].every(function (t) { return q[t] && q[t].c > 0; });
+    var live = ST.live && biz && mktStarted() && dates[dates.length - 1] < td && ['AL30', 'AL30D', 'AL30C'].every(function (t) { return q[t] && q[t].c > 0; });
     if (live) dates.push(td);
     var n = dates.length;
     var get = function (t) { // cierre y monto (pesos en AL30, dólares en AL30D y AL30C) de cada rueda
@@ -4357,7 +4363,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       adr(); build();
       document.getElementById('dxW').value = ST.w; document.getElementById('dxL').checked = ST.live; document.getElementById('dxTop').value = ST.top; document.getElementById('dxLg').checked = ST.log;
       var n = S.n, w = ST.w === 0 ? n - 1 : Math.min(ST.w, n - 1), a0 = n - w, b = lastV(S.MEP, a0 - 1), e = lastV(S.MEP, n - 1), D = S.dates;
-      sub.innerHTML = 'Serie diaria de AL30 en pesos, MEP (AL30D) y cable (AL30C) desde el ' + fr(D[0]) + ' y oficial del BCRA (A3500).' + (S.live ? ' Incluye la rueda de hoy, ' + (liveOpen() ? 'todavía incompleta.' : 'ya cerrada.') : '') + '<span class="xp"> Cuánto se pagó el dólar en el mercado de bonos, cuánta brecha hubo con el oficial y hacia dónde fue la plata: de pesos a dólares o al revés.</span>';
+      sub.innerHTML = 'Serie diaria de AL30 en pesos, MEP (AL30D) y cable (AL30C) desde el ' + fr(D[0]) + ' y oficial del BCRA (A3500).' + (S.live ? ' Incluye la rueda de hoy, ' + (liveOpen() ? 'todavía incompleta.' : 'ya cerrada.') : ST.live && !mktStarted() ? ' Hoy no hay rueda o todavía no empezó: se muestra hasta el ' + fr(D[D.length - 1]) + '.' : '') + '<span class="xp"> Cuánto se pagó el dólar en el mercado de bonos, cuánta brecha hubo con el oficial y hacia dónde fue la plata: de pesos a dólares o al revés.</span>';
       var ch = function (Y, i0, i1) { return Y[i0] > 0 && Y[i1] > 0 ? Y[i1] / Y[i0] - 1 : null; };
       var bM = function (i) { return S.MEP[i] / S.OF[i] - 1; }, bC = function (i) { return S.CCL[i] / S.OF[i] - 1; }, cj = function (i) { return S.CCL[i] / S.MEP[i] - 1; };
       // período: dólares de cada pata, flujo neto y movimiento del MEP contra su desvío
