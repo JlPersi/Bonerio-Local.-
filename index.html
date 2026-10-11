@@ -415,7 +415,6 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('rot')">Rotación</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('vol')">Volumen</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('dol')">Dólar</button>
-      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('qc')">¿Qué convino?</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('lic')">Licitaciones</button>
     </div>
     
@@ -550,7 +549,6 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="rot" class="tab-content"></div>
 <div id="vol" class="tab-content"></div>
 <div id="dol" class="tab-content"></div>
-<div id="qc" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
 
 <div id="curva" class="tab-content">
@@ -4418,221 +4416,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   setInterval(function () { if (!isAct()) return; adrT = 0; if (ST.live) render(); else adr(); }, 90000);
 })();
 /*@@DOL_END@@*/
-/*@@QC_START@@*/
-/* =====================================================================
-   PESTAÑA ¿QUÉ CONVINO?: lo que rindió cada alternativa entre dos fechas, medido en dólares MEP, en pesos o en pesos de hoy (CER).
-   Datos: data/volumen.json (AL30 y AL30D: el dólar MEP de cada rueda), data/dolar.json (A3500), data/tasas.json (plazo fijo a 30 días,
-   BADLAR y TAMAR del BCRA), el CER (embebido + data/indices.json) y los precios y flujos de AL30 y GD30 en dólares (los de Tabla de Retornos).
-   Todo al cierre de cada rueda guardada.
-   ===================================================================== */
-;(function () {
-  var root = document.getElementById('qc'); if (!root) return;
-  var VD = null, DJ = null, TJ = null, IX = null, err = '', loading = false, CH = {}, S = null;
-  var ST = { pre: 'cepo', from: '2025-04-14', to: '', unit: 'mep', m: 'TAMAR' };
-  try { var sv = JSON.parse(localStorage.getItem('qcST') || 'null'); if (sv && typeof sv === 'object') ['pre', 'from', 'to', 'unit', 'm'].forEach(function (k) { if (typeof sv[k] === 'string') ST[k] = sv[k]; }); } catch (e) { }
-  var save = function () { try { localStorage.setItem('qcST', JSON.stringify(ST)); } catch (e) { } };
-  var EVS = [['2023-08-14', 'PASO'], ['2023-10-23', 'Generales'], ['2023-11-21', 'Balotaje'], ['2023-12-13', 'Devaluación'], ['2025-04-14', 'Fin del cepo'], ['2025-09-22', 'EE.UU.'], ['2025-10-27', 'Legislativas']];
-  var ALT = [ // orden fijo de colores (paleta categórica validada sobre las dos superficies del sitio)
-    { id: 'MEP', n: 'Dólar MEP', s: 'comprar dólares MEP y guardarlos' },
-    { id: 'PF', n: 'Plazo fijo', s: 'tasa minorista a 30 días del BCRA, renovando cada mes' },
-    { id: 'TAMAR', n: 'TAMAR', s: 'plazo fijo mayorista de bancos privados, renovando cada mes (antes de octubre de 2024, BADLAR)' },
-    { id: 'CER', n: 'Pesos con CER', s: 'pesos ajustados por inflación: lo que rinde un bono CER con tasa real cero' },
-    { id: 'OF', n: 'Dólar oficial', s: 'el mayorista A3500: lo que paga un dollar linked sin tasa' },
-    { id: 'AL30', n: 'AL30', s: 'bono en dólares ley local, comprado en dólares MEP, con los cupones y amortizaciones reinvertidos' },
-    { id: 'GD30', n: 'GD30', s: 'bono en dólares ley Nueva York, comprado en dólares MEP, con los cupones y amortizaciones reinvertidos' },
-    { id: 'ARS', n: 'Pesos quietos', s: 'pesos sin invertir' }];
-  var UNITS = [['mep', 'Dólares MEP'], ['ars', 'Pesos'], ['real', 'Pesos de hoy (ajustados por CER)']];
-  var PRE = [['cepo', 'Fin del cepo (14/04/2025)'], ['ytd', 'Principio de año'], ['y1', 'Hace 1 año'], ['m6', 'Hace 6 meses'], ['m3', 'Hace 3 meses'], ['m1', 'Hace 1 mes'], ['leg', 'Legislativas (27/10/2025)'], ['dev', 'Devaluación (13/12/2023)'], ['all', 'Primer dato (02/08/2023)'], ['otra', 'Otra fecha']];
-  var css = function (n) { return getComputedStyle(root).getPropertyValue(n).trim() || getComputedStyle(document.body).getPropertyValue(n).trim(); };
-  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : v.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
-  var sg = function (v, d) { return v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : '') + nf(v, d); };
-  var fr = function (s) { return s.split('-').reverse().join('/'); };
-  var isAct = function () { return root.classList.contains('active'); };
-  var dnum = function (s) { return Math.round(Date.parse(s + 'T00:00:00Z') / 864e5); };
-  var dstr = function (n) { return new Date(n * 864e5).toISOString().slice(0, 10); };
-  var dl = function (id, name, tt) { return '<button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'' + id + '\', \'' + name + '\')" title="' + tt + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button>'; };
-  var HD = 'display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px';
-
-  /* ---------- carga ---------- */
-  function load() {
-    if (VD || loading) return; loading = true;
-    var j = function (u) { return fetch(u + '?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(u + ' (' + r.status + ')'); return r.json(); }); };
-    var vol = new Promise(function (ok) { if (window.VOLX && window.VOLX.raw) window.VOLX.raw(ok); else j('data/volumen.json').then(ok, function () { ok(null); }); });
-    Promise.all([vol, j('data/dolar.json').catch(function () { return null; }), j('data/tasas.json').catch(function () { return null; }), j('data/indices.json').catch(function () { return null; })]).then(function (r) {
-      loading = false; if (!r[0]) err = 'no se pudo leer data/volumen.json'; else if (!r[2]) err = 'no se pudo leer data/tasas.json'; else { VD = r[0]; DJ = r[1] || { A3500: {} }; TJ = r[2]; IX = r[3] || {}; }
-      render();
-    });
-  }
-
-  /* ---------- series: el valor en pesos de cada alternativa en cada rueda ---------- */
-  function step(map) { // último dato publicado a cada fecha (las tasas y el A3500 no se publican todos los días)
-    var ks = Object.keys(map || {}).sort(), i = -1;
-    return function (d) { while (i + 1 < ks.length && ks[i + 1] <= d) i++; return i >= 0 ? map[ks[i]] : null; };
-  }
-  function cer(d) { var v = IX.CER && IX.CER[d]; if (v > 0) return v; try { var c = PSD.IDX.CER, k = bxDayNum(d) - c.s; return k >= 0 && k < c.v.length ? c.v[k] : NaN; } catch (e) { return NaN; } }
-  function bondTR(k, dates) { // índice de retorno total en dólares (precio sucio en dólares MEP + cobros reinvertidos), 1 en la primera rueda
-    var b = (typeof B !== 'undefined' ? B : []).filter(function (x) { return x.k === k; })[0]; if (!b || typeof bxHist !== 'function') return null;
-    var h = bxHist(k + 'D'), fl = bxFullFlows(b), P = {}; h.forEach(function (x) { P[dstr(x[0])] = x[1] + bxAccr(k, bxSettle(x[0])); });
-    var px = step(P), out = new Float64Array(dates.length).fill(NaN), idx = null, p0 = null, t0 = null;
-    dates.forEach(function (d, i) {
-      var p = px(d), t = bxDayNum(d); if (!(p > 0)) return;
-      if (idx == null) { idx = 1; } else { var pay = 0; fl.forEach(function (f) { var e = bxExDay(f[0]); if (e > t0 && e <= t) pay += f[1]; }); idx *= (p + pay) / p0; }
-      out[i] = idx; p0 = p; t0 = t;
-    });
-    return out;
-  }
-  function build() {
-    var D = VD, all = D.dates, gA = function (t) { var o = D.t[t], C = {}, acc = 0; if (o) for (var k = 0; k < o.i.length; k++) { acc += o.i[k]; if (o.c[k] > 0) C[all[acc]] = o.c[k]; } return C; };
-    var A = gA('AL30'), AD = gA('AL30D'), dates = all.filter(function (d) { return A[d] > 0 && AD[d] > 0; }), n = dates.length;
-    var of = step(DJ.A3500), pf = step(TJ.PF), bd = step(TJ.BADLAR), tm = step(TJ.TAMAR);
-    var V = {}; ALT.forEach(function (a) { V[a.id] = new Float64Array(n).fill(NaN); });
-    var gPF = 1, gTM = 1, i;
-    for (i = 0; i < n; i++) {
-      var d = dates[i], mep = A[d] / AD[d];
-      if (i > 0) { // se cobra la tasa vigente al día anterior por los días corridos, como un plazo fijo a 30 días que se renueva
-        var d0 = dates[i - 1], dd = dnum(d) - dnum(d0), r1 = pf(d0), r2 = tm(d0) || bd(d0);
-        if (r1 > 0) gPF *= Math.pow(1 + r1 / 100 * 30 / 365, dd / 30); if (r2 > 0) gTM *= Math.pow(1 + r2 / 100 * 30 / 365, dd / 30);
-      }
-      V.MEP[i] = mep; V.PF[i] = gPF; V.TAMAR[i] = gTM; V.CER[i] = cer(d); V.OF[i] = of(d) || NaN; V.ARS[i] = 1;
-    }
-    ['AL30', 'GD30'].forEach(function (k) { var tr = bondTR(k, dates); for (var j = 0; j < n; j++) V[k][j] = tr && tr[j] > 0 ? tr[j] * V.MEP[j] : NaN; }); // el bono en dólares, pasado a pesos al MEP
-    var IXD = {}; dates.forEach(function (d, k) { IXD[d] = k; });
-    S = { n: n, dates: dates, V: V, IXD: IXD };
-  }
-  var conv = function (id, i) { var v = S.V[id][i], m = S.V.MEP[i], c = S.V.CER[i]; return ST.unit === 'mep' ? v / m : ST.unit === 'real' ? v / c : v; };
-  function idxOf(d, after) { // la rueda guardada más cercana a la fecha (la primera desde ella, o la última hasta ella)
-    var D = S.dates, lo = 0, hi = D.length - 1; if (after) { for (var i = 0; i < D.length; i++) if (D[i] >= d) return i; return hi; } for (var j = hi; j >= 0; j--) if (D[j] <= d) return j; return lo;
-  }
-  function preDate(p) {
-    var last = S.dates[S.n - 1], L = new Date(last + 'T12:00:00Z'), mo = function (k) { var x = new Date(L); x.setUTCMonth(x.getUTCMonth() - k); return x.toISOString().slice(0, 10); };
-    return { cepo: '2025-04-14', ytd: last.slice(0, 4) + '-01-01', y1: mo(12), m6: mo(6), m3: mo(3), m1: mo(1), leg: '2025-10-27', dev: '2023-12-13', all: S.dates[0] }[p] || ST.from;
-  }
-
-  /* ---------- interfaz ---------- */
-  function html() {
-    root.innerHTML = '<style>' +
-      '#qc{--qc1:#3987e5;--qc2:#d95926;--qc3:#199e70;--qc4:#c98500;--qc5:#d55181;--qc6:#008300;--qc7:#9085e9}[data-theme="light"] #qc{--qc1:#2a78d6;--qc2:#eb6834;--qc3:#1baf7a;--qc4:#eda100;--qc5:#e87ba4;--qc6:#008300;--qc7:#6250d6}' +
-      '#qc .rs{border-top:1px solid var(--bd);margin-top:18px;padding-top:18px}#qc .rc{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}#qc .rc select{width:230px}#qc .rc input[type=date]{width:170px}' +
-      '#qc h4{margin:0;font-size:16px;color:var(--mu)}#qc .sc{overflow:auto}' +
-      '#qc .rt{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}#qc .rt th,#qc .rt td{padding:8px 10px;white-space:nowrap;text-align:right}#qc .rt th{font-size:12px;color:var(--mu);border-bottom:1px solid var(--bd)}#qc .rt td.l,#qc .rt th.l{text-align:left}#qc .rt td.k{font-weight:700;color:var(--tx)}#qc .rt td.k small{display:block;font-weight:400;color:var(--mu);font-size:12px;white-space:normal;max-width:420px}' +
-      '#qc .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:middle}#qc .bar{position:relative;width:180px;height:16px}#qc .bar:before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--bd)}#qc .bar i{position:absolute;top:2px;bottom:2px;border-radius:2px}' +
-      '#qc .rg{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}#qc .hl{color:var(--mu);font-size:14px;line-height:1.6;margin:10px 0 0}#qc .hl ul{margin:4px 0 0;padding-left:20px}#qc .hl li{margin:3px 0}#qc .hl b{color:var(--tx)}@media(max-width:700px){#qc .hl{font-size:13px}#qc .rc select{width:100%}#qc .rt td.k small{display:none}#qc .rt td:nth-child(3),#qc .rt th:nth-child(3){display:none}}' +
-      '</style>' +
-      '<div class="card" id="qcCap"><div class="status" style="justify-content:space-between;gap:12px;flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0;flex:1 1 0"><p style="margin:0;color:var(--tx);font-size:16px;font-weight:600">¿Qué convino? Lo que rindió cada alternativa</p>' +
-      '<p class="note" style="margin-top:4px" id="qcSub"></p></div>' + dl('qcCap', 'Que_convino', 'Descargar la pestaña en HD') + '</div>' +
-      '<div class="rc rs"><label>Desde<select id="qcP">' + PRE.map(function (p) { return '<option value="' + p[0] + '">' + p[1] + '</option>'; }).join('') + '</select></label><label>Fecha<input type="date" id="qcF"></label><label>Hasta<input type="date" id="qcT"></label>' +
-      '<label>Medido en<select id="qcU">' + UNITS.map(function (u) { return '<option value="' + u[0] + '">' + u[1] + '</option>'; }).join('') + '</select></label></div>' +
-      '<div class="rs" id="qcS1"><div style="' + HD + '"><h4 id="qcT1">Ranking</h4>' + dl('qcS1', 'Que_convino_ranking', 'Descargar el ranking en HD') + '</div><p class="note" id="qcRead" style="margin:0 0 12px;color:var(--tx)"></p><div class="sc"><table class="rt" id="qcTab"></table></div></div>' +
-      '<div class="rs" id="qcS2"><div style="' + HD + '"><h4 id="qcT2">Cómo fue el camino</h4>' + dl('qcS2', 'Que_convino_evolucion', 'Descargar la evolución en HD') + '</div><div style="position:relative;height:440px"><canvas id="qcCh1"></canvas></div></div>' +
-      '<div class="rs" id="qcS3"><div style="' + HD + ';flex-wrap:wrap"><h4 id="qcT3">Mes a mes</h4><span style="display:flex;gap:12px;align-items:center"><label style="flex-direction:row;align-items:center;gap:8px;font-size:12px;color:var(--mu)">Alternativa<select id="qcM" style="width:190px">' + ALT.filter(function (a) { return a.id !== 'ARS'; }).map(function (a) { return '<option value="' + a.id + '">' + a.n + '</option>'; }).join('') + '</select></label>' + dl('qcS3', 'Que_convino_mes_a_mes', 'Descargar el mes a mes en HD') + '</span></div><p class="note" id="qcMRead" style="margin:0 0 10px;color:var(--tx)"></p><div style="position:relative;height:320px"><canvas id="qcCh2"></canvas></div></div>' +
-      '<div class="rs"><div class="hl" style="margin:0"><p><b>Cómo se calcula</b></p><ul>' +
-      '<li>Cada alternativa arranca con el mismo monto el día elegido y se mide al cierre de cada rueda, en la moneda elegida. <b>Dólares MEP</b>: todo se pasa a dólares al MEP de AL30 de cada día. <b>Pesos de hoy</b>: los pesos se ajustan por CER (que sigue a la inflación con unas semanas de atraso).</li>' +
-      '<li><b>Plazo fijo</b> y <b>TAMAR</b>: se cobra cada día la tasa vigente (TNA del BCRA) como un plazo fijo a 30 días que se renueva. La TAMAR existe desde octubre de 2024; antes se usa la BADLAR de bancos privados.</li>' +
-      '<li><b>Pesos con CER</b>: el CER de cada día, sin tasa real. <b>Dólar oficial</b>: el A3500. <b>AL30</b> y <b>GD30</b>: precio en dólares MEP (especie D) más cupones y amortizaciones, reinvertidos en el mismo bono.</li>' +
-      '<li>Sin comisiones ni impuestos. <b>Peor caída</b>: lo máximo que llegó a perder desde un pico dentro del período. Los rendimientos pasados no anticipan los futuros.</li></ul></div></div></div>';
-    var on = function (id, ev, f) { var el = document.getElementById(id); if (el) el[ev] = f; };
-    on('qcP', 'onchange', function () { ST.pre = this.value; if (ST.pre !== 'otra') ST.from = preDate(ST.pre); save(); render(); });
-    on('qcF', 'onchange', function () { if (this.value) { ST.from = this.value; ST.pre = 'otra'; save(); render(); } });
-    on('qcT', 'onchange', function () { ST.to = this.value; save(); render(); });
-    on('qcU', 'onchange', function () { ST.unit = this.value; save(); render(); });
-    on('qcM', 'onchange', function () { ST.m = this.value; save(); render(); });
-  }
-
-  /* ---------- render ---------- */
-  function render() {
-    if (!isAct()) return;
-    try {
-      if (typeof Chart === 'undefined') return;
-      if (!document.getElementById('qcTab')) html();
-      var sub = document.getElementById('qcSub');
-      if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
-      if (!VD) { sub.textContent = 'Cargando…'; load(); return; }
-      if (!S) build();
-      if (ST.pre !== 'otra') ST.from = preDate(ST.pre);
-      var last = S.dates[S.n - 1], first = S.dates[0], to = ST.to && ST.to >= first && ST.to <= last ? ST.to : last, from = ST.from < first ? first : ST.from > to ? first : ST.from;
-      var a = idxOf(from, true), b = idxOf(to, false); if (b <= a) { a = 0; b = S.n - 1; }
-      var F = document.getElementById('qcF'), T = document.getElementById('qcT'); F.min = T.min = first; F.max = T.max = last; F.value = S.dates[a]; T.value = S.dates[b];
-      document.getElementById('qcP').value = ST.pre; document.getElementById('qcU').value = ST.unit; document.getElementById('qcM').value = ST.m;
-      sub.innerHTML = 'Datos desde el ' + fr(first) + ' hasta el último cierre guardado (' + fr(last) + ').<span class="xp"> Dólar, plazo fijo, TAMAR, CER y bonos en dólares, en la misma moneda: qué hubiera pasado con el mismo monto en cada uno.</span>';
-      var U = { mep: 'en dólares MEP', ars: 'en pesos', real: 'en pesos de hoy' }[ST.unit];
-      document.getElementById('qcT1').textContent = 'Ranking · del ' + fr(S.dates[a]) + ' al ' + fr(S.dates[b]) + ', ' + U;
-      table(a, b, U); chart(a, b, U); months(a, b, U);
-    } catch (x) { console.error('qc', x); var s2 = document.getElementById('qcSub'); if (s2) s2.textContent = 'Error: ' + x.message; }
-  }
-  function col(i) { return i < 7 ? css('--qc' + (i + 1)) : css('--mu'); }
-  function stats(id, a, b) {
-    var v0 = conv(id, a), v1 = conv(id, b); if (!(v0 > 0 && v1 > 0)) return null;
-    var pk = -Infinity, dd = 0; for (var i = a; i <= b; i++) { var v = conv(id, i); if (!(v > 0)) continue; if (v > pk) pk = v; dd = Math.min(dd, v / pk - 1); }
-    var days = dnum(S.dates[b]) - dnum(S.dates[a]), r = v1 / v0 - 1;
-    return { r: r, ann: days >= 60 ? Math.pow(1 + r, 365 / days) - 1 : null, dd: dd };
-  }
-  function table(a, b, U) {
-    var rows = ALT.map(function (al, i) { return { al: al, i: i, s: stats(al.id, a, b) }; }).filter(function (x) { return x.s; }).sort(function (p, q) { return q.s.r - p.s.r; });
-    var mx = Math.max.apply(null, rows.map(function (x) { return Math.abs(x.s.r); }).concat([0.01])), ok = css('--ok'), bad = css('--bad');
-    var h = '<thead><tr><th class="l">Alternativa</th><th>Rendimiento</th><th></th><th>Anual</th><th>Peor caída</th></tr></thead><tbody>';
-    rows.forEach(function (x) {
-      var w = Math.abs(x.s.r) / mx * 50, c = x.s.r >= 0 ? ok : bad;
-      h += '<tr><td class="l k"><span class="dot" style="background:' + col(x.i) + (x.al.id === 'ARS' ? ';border:1px dashed var(--mu);background:transparent' : '') + '"></span>' + x.al.n + '<small>' + x.al.s + '</small></td>' +
-        '<td style="font-weight:700;color:' + c + '">' + sg(x.s.r * 100, 1) + '%</td><td><div class="bar"><i style="background:' + c + ';' + (x.s.r >= 0 ? 'left:50%;width:' + w + '%' : 'right:50%;width:' + w + '%') + '"></i></div></td>' +
-        '<td>' + (x.s.ann == null ? '—' : sg(x.s.ann * 100, 1) + '%') + '</td><td>' + (x.s.dd < -0.0005 ? nf(x.s.dd * 100, 1) + '%' : '0%') + '</td></tr>';
-    });
-    document.getElementById('qcTab').innerHTML = h + '</tbody>';
-    var best = rows[0], worst = rows[rows.length - 1], mepArs = S.V.MEP[b] / S.V.MEP[a] - 1, cerG = S.V.CER[b] / S.V.CER[a] - 1;
-    document.getElementById('qcRead').innerHTML = 'Del ' + fr(S.dates[a]) + ' al ' + fr(S.dates[b]) + ', ' + U + ', lo que más rindió fue <b>' + best.al.n + '</b> (' + sg(best.s.r * 100, 1) + '%) y lo que menos, ' + worst.al.n.toLowerCase() + ' (' + sg(worst.s.r * 100, 1) + '%). ' +
-      'En el período el dólar MEP ' + (mepArs >= 0 ? 'subió ' : 'bajó ') + nf(Math.abs(mepArs) * 100, 1) + '% en pesos y la inflación (CER) fue ' + nf(cerG * 100, 1) + '%.';
-  }
-  function chart(a, b, U) {
-    if (CH.a) { CH.a.destroy(); CH.a = null; }
-    var tx = css('--tx'), bd = css('--bd'), mu = css('--mu'), span = b - a, lab = [], full = [], i;
-    var tk = function (d) { return span > 250 ? d.slice(5, 7) + '/' + d.slice(2, 4) : fr(d).slice(0, 5); };
-    for (i = a; i <= b; i++) { lab.push(tk(S.dates[i])); full.push(fr(S.dates[i])); }
-    var sets = ALT.map(function (al, k) {
-      var v0 = conv(al.id, a), d = []; for (var j = a; j <= b; j++) { var v = conv(al.id, j); d.push(v0 > 0 && v > 0 ? v / v0 * 100 : null); }
-      return { label: al.n, data: d, borderColor: col(k), backgroundColor: col(k), borderWidth: al.id === 'ARS' ? 1.4 : 2, borderDash: al.id === 'ARS' ? [5, 4] : [], pointRadius: 0, tension: 0.1, spanGaps: true, _k: k };
-    }).filter(function (s) { return s.data.some(function (v) { return v != null; }); });
-    var hitos = { id: 'qcEv', afterDatasetsDraw: function (c) {
-      var xs = c.scales.x, ar = c.chartArea, x = c.ctx, k = 0; x.save(); x.font = '600 10.5px Inter, system-ui, sans-serif';
-      EVS.forEach(function (ev) { var j = S.IXD[ev[0]]; if (j == null || j < a || j > b) return; var px = xs.getPixelForValue(j - a); x.strokeStyle = mu; x.globalAlpha = 0.5; x.setLineDash([3, 3]); x.beginPath(); x.moveTo(px, ar.top); x.lineTo(px, ar.bottom); x.stroke(); x.setLineDash([]); x.globalAlpha = 0.9; x.fillStyle = tx; var tw = x.measureText(ev[1]).width; x.fillText(ev[1], Math.min(px + 3, ar.right - tw - 2), ar.top + 11 + (k % 2) * 12); k++; });
-      x.restore(); } };
-    var ends = { id: 'qcEnd', afterDatasetsDraw: function (c) { // el rendimiento al final de cada línea, sin superponerse
-      var x = c.ctx, ar = c.chartArea, its = []; c.data.datasets.forEach(function (ds, k) { var m = c.getDatasetMeta(k); if (m.hidden) return; for (var j = ds.data.length - 1; j >= 0; j--) if (ds.data[j] != null) { its.push({ y: m.data[j].y, t: sg(ds.data[j] - 100, 0) + '%', c: ds.borderColor }); break; } });
-      its.sort(function (p, q) { return p.y - q.y; }); for (var j = 1; j < its.length; j++) if (its[j].y - its[j - 1].y < 13) its[j].y = its[j - 1].y + 13;
-      x.save(); x.font = '700 11px Inter, system-ui, sans-serif'; x.textBaseline = 'middle'; its.forEach(function (it) { x.fillStyle = it.c; x.fillText(it.t, ar.right + 6, Math.min(it.y, ar.bottom)); }); x.restore(); } };
-    CH.a = new Chart(document.getElementById('qcCh1').getContext('2d'), { type: 'line', plugins: [hitos, ends], data: { labels: lab, datasets: sets },
-      options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { right: 46 } }, interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, title: { display: true, text: 'Cada alternativa, base 100 el ' + fr(S.dates[a]) + ' (' + U + ')', color: tx, font: { size: 13, weight: '600' } },
-          tooltip: { itemSort: function (p, q) { return q.parsed.y - p.parsed.y; }, callbacks: { title: function (c) { return full[c[0].dataIndex]; }, label: function (c) { return c.dataset.label + ': ' + sg(c.parsed.y - 100, 1) + '%'; } } } },
-        scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } }, y: { ticks: { color: tx, callback: function (v) { return nf(v, 0); } }, grid: { color: bd } } } } });
-  }
-  function months(a, b, U) {
-    if (CH.b) { CH.b.destroy(); CH.b = null; }
-    var id = ST.m, al = ALT.filter(function (x) { return x.id === id; })[0] || ALT[2], k = ALT.indexOf(al), ends = [], i;
-    for (i = a; i <= b; i++) if (i === b || S.dates[i + 1].slice(0, 7) !== S.dates[i].slice(0, 7)) ends.push(i); // última rueda de cada mes
-    var lom = function (e) { return e < S.n - 1 && S.dates[e + 1].slice(0, 7) !== S.dates[e].slice(0, 7); }; // última rueda de su mes (la última guardada no se sabe: el mes sigue)
-    var out = [], prev = a; ends.forEach(function (e) { if (e <= prev) return; var v0 = conv(al.id, prev), v1 = conv(al.id, e); if (v0 > 0 && v1 > 0) out.push({ d: S.dates[e], r: v1 / v0 - 1, part: (prev === a && !lom(a)) || !lom(e) }); prev = e; });
-    var el = document.getElementById('qcMRead'); if (!out.length) { el.textContent = 'El período es demasiado corto para ver mes a mes.'; return; }
-    var pos = out.filter(function (o) { return o.r > 0; }).length, srt = out.slice().sort(function (p, q) { return p.r - q.r; }), M = function (o) { var m = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][+o.d.slice(5, 7) - 1]; return m + '-' + o.d.slice(2, 4); };
-    el.innerHTML = '<b>' + al.n + '</b> ' + U + ': ganó en ' + pos + ' de ' + out.length + ' meses. Peor: ' + M(srt[0]) + ' (' + sg(srt[0].r * 100, 1) + '%); mejor: ' + M(srt[srt.length - 1]) + ' (' + sg(srt[srt.length - 1].r * 100, 1) + '%).' + (ST.unit === 'mep' && id === 'MEP' ? ' (En dólares MEP, el dólar MEP no cambia: elegí otra moneda o alternativa.)' : '');
-    var ok = css('--ok'), bad = css('--bad'), tx = css('--tx'), bd = css('--bd');
-    CH.b = new Chart(document.getElementById('qcCh2').getContext('2d'), { type: 'bar', data: { labels: out.map(M), datasets: [{ label: al.n + ' (' + U + ')', data: out.map(function (o) { return o.r * 100; }), backgroundColor: out.map(function (o) { return o.r >= 0 ? ok : bad; }), borderRadius: 3 }] },
-      options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, title: { display: true, text: al.n + ' mes a mes (' + U + '): rendimiento de cada mes', color: tx, font: { size: 13, weight: '600' } },
-        tooltip: { callbacks: { label: function (c) { var o = out[c.dataIndex]; return sg(o.r * 100, 2) + '%' + (o.part ? ' (mes incompleto)' : ''); } } } },
-        scales: { x: { ticks: { color: tx, maxRotation: 60, autoSkip: true }, grid: { display: false } }, y: { ticks: { color: tx, callback: function (v) { return nf(v, 0) + '%'; } }, grid: { color: bd } } } } });
-  }
-
-  var _sw = window.switchTab;
-  window.switchTab = function (id) { _sw(id); var gc = document.getElementById('globalControls'); if (id === 'qc') { if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
-  var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(render, 0); };
-  window.renderQueConvino = render;
-})();
-/*@@QC_END@@*/
 /* =====================================================================
    EXPORTAR A EXCEL (SheetJS): tablas y datos de los gráficos
    - por sección (botón XLSX junto al de imagen), por pestaña o todo el libro
    ===================================================================== */
 ;(function () {
-  var TAB_NAMES = { tabla: 'Tabla_Retornos', desglose: 'Flujos_TotalReturn', curva: 'Curva_Spreads', pesos: 'Pesos', vard: 'Variacion_diaria', rot: 'Rotacion', vol: 'Volumen', dol: 'Dolar', qc: 'Que_convino' };
-  var TABLE_NAMES = { qcTab: 'Que_convino', dxTab: 'Dolar_ruedas', dxVar: 'Dolar_variaciones', vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', vlRot: 'Volumen_flujo', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
+  var TAB_NAMES = { tabla: 'Tabla_Retornos', desglose: 'Flujos_TotalReturn', curva: 'Curva_Spreads', pesos: 'Pesos', vard: 'Variacion_diaria', rot: 'Rotacion', vol: 'Volumen', dol: 'Dolar' };
+  var TABLE_NAMES = { dxTab: 'Dolar_ruedas', dxVar: 'Dolar_variaciones', vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', vlRot: 'Volumen_flujo', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
 
   function parse(raw) {
     var s = raw.replace(/−/g, '-').replace(/ /g, ' ').replace(/^US\$\s*/, '').replace(/^([+-])\s+/, '$1').trim();
