@@ -1,0 +1,55 @@
+name: Sondeo tasas e historicos (temporal)
+# Solo lectura: lista las series de tasas del BCRA y los endpoints historicos de data912 para armar "Que convino". Se borra despues de usarlo.
+on:
+  push:
+    branches: [claude/gracious-gates-xki27a]
+    paths: [".github/workflows/sondeo-tasas.yml"]
+permissions:
+  contents: read
+jobs:
+  sondeo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: BCRA y data912
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          def get(u, raw=False):
+              req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"})
+              r = urllib.request.urlopen(req, timeout=40).read()
+              return r if raw else json.loads(r)
+          # catalogo de variables monetarias del BCRA
+          try:
+              cat = get("https://api.bcra.gob.ar/estadisticas/v4.0/monetarias?limit=3000")
+              res = cat.get("results", cat)
+              for v in res:
+                  d = json.dumps(v, ensure_ascii=False)
+                  if any(w in d.lower() for w in ("tasa", "badlar", "tamar", "plazo", "pases", "caucion", "inflaci", "uva")):
+                      print("VAR", d[:400])
+          except Exception as e:
+              print("ERROR catalogo", e)
+          for i in (7, 12, 34, 35, 43, 44, 6, 27):
+              try:
+                  b = get("https://api.bcra.gob.ar/estadisticas/v4.0/monetarias/%d?desde=2003-01-01&hasta=2026-12-31&limit=3000" % i)
+                  det = b["results"][0]["detalle"]; ds = sorted(r["fecha"] for r in det)
+                  print("SERIE", i, len(det), ds[0] if ds else None, ds[-1] if ds else None, det[:2])
+              except Exception as e:
+                  print("ERROR serie", i, e)
+          # data912: endpoints
+          for u in ["https://data912.com/openapi.json", "https://data912.com/docs"]:
+              try:
+                  r = get(u, raw=True)[:200000].decode("utf-8", "ignore")
+                  if u.endswith(".json"):
+                      j = json.loads(r); print("PATHS", sorted(j.get("paths", {}).keys()))
+                  else:
+                      print("DOCS", r[:500])
+              except Exception as e:
+                  print("ERROR", u, e)
+          for u in ["https://data912.com/historical/bonds/AL30", "https://data912.com/historical/bonds/S30O6", "https://data912.com/historical/bonds/S31O5",
+                    "https://data912.com/historical/notes/S31O5", "https://data912.com/historical/bonds/TZX26", "https://data912.com/historical/stocks/GGAL"]:
+              try:
+                  d = get(u); rows = d if isinstance(d, list) else d.get("data", d)
+                  print("HIST", u, type(d).__name__, len(rows) if hasattr(rows, "__len__") else "", json.dumps(rows[:2] if isinstance(rows, list) else rows)[:400], json.dumps(rows[-1:] if isinstance(rows, list) else "")[:300])
+              except Exception as e:
+                  print("ERROR", u, e)
+          PY
