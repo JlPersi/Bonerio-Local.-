@@ -2931,6 +2931,52 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var V = { 2: { psPi: 1, psTam: dOn(2), psDev: 0 }, 3: { psPi: dOn(3), psTam: 1, psDev: dOn(3) }, 4: { psPi: 0, psTam: 0, psDev: 1 }, 5: { psPi: 1, psTam: 1, psDev: 1 } };
     Object.keys(V).forEach(function (n) { Object.keys(V[n]).forEach(function (id) { var e = document.getElementById(id + n), l = e && e.closest('label'); if (l) l.style.display = V[n][id] ? '' : 'none'; }); });
   }
+  /* ---------- tasa implícita entre vencimientos: la tasa forward de cada tramo entre bonos consecutivos de la familia ---------- */
+  var FWD = {
+    1: { kinds: { cap: 1 }, val: function (o) { return o.tea; }, lin: false, tit: 'Tasa implícita entre vencimientos', yl: 'TEA implícita (%)', sub: 'Lo que rinde quedarse del vencimiento de una Lecap o Boncap al de la siguiente (TEA). Sale de comparar lo que rinde cada una en todo su plazo; los bonos con cupón no entran.' },
+    2: { kinds: { cer0: 1 }, val: function (o) { return o.realTea; }, lin: false, tit: 'Tasa real implícita entre vencimientos', yl: 'TEA real implícita (%)', sub: 'La tasa real (TEA, sobre CER) de cada tramo entre vencimientos de Boncer y Lecer cupón cero. Los bonos con cupón no entran.' },
+    3: { kinds: { tamar: 1 }, val: function (o) { return o.dm == null ? null : o.dm / 100; }, lin: true, tit: 'Margen implícito sobre TAMAR entre vencimientos', yl: 'Margen sobre TAMAR (TNA, %)', sub: 'El margen sobre TAMAR (TNA) que paga cada tramo entre vencimientos de los bonos TAMAR.' },
+    4: { kinds: { dl: 1 }, val: function (o) { return o.usdTea; }, lin: false, tit: 'Tasa en dólares implícita entre vencimientos', yl: 'TEA en dólares implícita (%)', sub: 'La tasa en dólares (TEA, sobre el A3500) de cada tramo entre vencimientos de los dollar linked.' } };
+  var FWD_EV = [['2027-10-24', 'Elecciones'], ['2027-12-10', 'Asunción']], FWD_MIN = 20; // bonos y tramos de menos de 20 días: un error chico de precio mueve mucho la tasa
+  function renderFwd(PER, s) {
+    [1, 2, 3, 4].forEach(function (n) {
+      var F = FWD[n], cv0 = document.getElementById('psC' + n), card = cv0 && cv0.closest('.card'); if (!card) return;
+      var box = document.getElementById('psFw' + n);
+      if (!box) {
+        box = document.createElement('details'); box.id = 'psFw' + n; box.className = 'psfwd'; try { box.open = localStorage.getItem('psFw' + n) !== '0'; } catch (e) { box.open = true; }
+        box.innerHTML = '<summary>' + F.tit + '</summary><p class="note" id="psFwR' + n + '" style="margin:6px 0 10px;color:var(--tx)"></p><div style="position:relative;height:260px"><canvas id="psFwC' + n + '"></canvas></div><div class="wrap" style="margin-top:12px"><table id="psFwT' + n + '"></table></div><p class="qs" style="margin-top:8px">' + F.sub + ' Los tramos de menos de ' + FWD_MIN + ' días van en gris: con tan poco plazo, un error chico de precio mueve mucho la tasa. Un pico seguido de un pozo suele ser un bono fuera de la curva (barato), no un tramo que pague más.</p>';
+        box.addEventListener('toggle', function () { try { localStorage.setItem('psFw' + n, box.open ? '1' : '0'); } catch (e) { } });
+        card.appendChild(box);
+        if (!document.getElementById('psFwCss')) { var st = document.createElement('style'); st.id = 'psFwCss'; st.textContent = '#pesos .psfwd{margin-top:18px;border-top:1px solid var(--bd);padding-top:14px}#pesos .psfwd>summary{cursor:pointer;font-weight:600;color:var(--tx);font-size:15px;list-style:none;display:flex;align-items:center;gap:10px}#pesos .psfwd>summary::-webkit-details-marker{display:none}#pesos .psfwd>summary:before{content:"▸";color:var(--ac);transition:transform .15s}#pesos .psfwd[open]>summary:before{transform:rotate(90deg)}#pesos .psfwd table{width:100%}#pesos .psfwd th,#pesos .psfwd td{padding:7px 10px;white-space:nowrap}@media(max-width:700px){#pesos .psfwd th,#pesos .psfwd td{padding:6px 6px;font-size:12.5px}}#pesos .psfwd td.fwc{color:var(--mu)}#pesos .psfwd tr.fwx td{background:rgba(245,158,11,.10)}#pesos .psfwd tr.fwx td.fwv{color:var(--ac);font-weight:700}#pesos .psfwd .vdsup{color:var(--mu);font-size:11px;margin-left:4px;font-weight:400}'; document.head.appendChild(st); }
+      }
+      var xs = document.getElementById('psX' + n), cap = xs ? parseFloat(xs.value) : NaN;
+      var rows = (PER[n] && PER[n].S || []).filter(function (o) { var v = F.val(o); return o.ins && F.kinds[o.ins.k] && o.d >= FWD_MIN && v != null && isFinite(v) && (!(cap > 0) || o.d <= cap); }).sort(function (a, b) { return a.mat - b.mat; });
+      var pts = []; rows.forEach(function (o) { var v = F.val(o), last = pts[pts.length - 1]; if (last && last.mat === o.mat) { last.v = (last.v * last.n + v) / (last.n + 1); last.n++; last.k += ' / ' + o.k; } else pts.push({ mat: o.mat, d: o.d, v: v, n: 1, k: o.k }); }); // mismo vencimiento: un solo punto
+      var R = document.getElementById('psFwR' + n), T = document.getElementById('psFwT' + n);
+      if (pts.length < 2) { R.textContent = 'No hay suficientes bonos para calcular tramos.'; T.innerHTML = ''; if (Q['fw' + n]) { Q['fw' + n].destroy(); Q['fw' + n] = null; } return; }
+      var cont = function (v) { return F.lin ? v : Math.log(1 + v); }, back = function (f) { return F.lin ? f : Math.exp(f) - 1; }, tr = [];
+      pts.forEach(function (p, i) { // tramo desde el vencimiento anterior (o la liquidación) hasta este
+        var a = i ? pts[i - 1] : null, d0 = a ? a.d : 0, f = a ? (cont(p.v) * p.d - cont(a.v) * a.d) / (p.d - d0) : cont(p.v);
+        tr.push({ a: a, b: p, d0: d0, d1: p.d, days: p.d - d0, f: back(f), short: p.d - d0 < FWD_MIN });
+      });
+      var ok = tr.filter(function (t) { return !t.short && t.a; }), mx = ok.length ? ok.reduce(function (m, t) { return t.f > m.f ? t : m; }) : null, ix = mx ? tr.indexOf(mx) : -1, P = F.lin ? 2 : 1;
+      var pct = function (v) { return fm(v * 100, P) + '%'; }, dd = function (t) { return dstr(s + t).replace(/\/\d{2}(\d{2})$/, '/$1'); }; // dd/mm/aa
+      if (mx) { var bef = tr[ix - 1], aft = tr[ix + 1]; R.innerHTML = 'El tramo que más paga es <b>' + (mx.a ? mx.a.k : 'hoy') + ' → ' + mx.b.k + '</b> (' + dd(mx.d0) + ' al ' + dd(mx.d1) + ', ' + mx.days + ' días): <b>' + pct(mx.f) + '</b>' + (bef ? '; el anterior, ' + pct(bef.f) : '') + (aft ? '; el siguiente, ' + pct(aft.f) : '') + '.'; } else R.textContent = '';
+      var h = '<thead><tr><th class="l">Tramo</th><th>' + (F.lin ? 'Margen implícito' : 'Tasa implícita') + '</th><th class="l">Entre</th><th>Días</th><th>Tasa del bono</th></tr></thead><tbody>';
+      tr.forEach(function (t, i) { h += '<tr' + (i === ix ? ' class="fwx"' : '') + '><td class="l">' + dd(t.d0) + ' → ' + dd(t.d1) + '</td><td class="fwv' + (t.short ? ' fwc' : '') + '">' + pct(t.f) + (t.short ? ' <span class="vdsup">corto</span>' : '') + '</td><td class="l">' + (t.a ? t.a.k + ' → ' : 'liquidación → ') + t.b.k + '</td><td>' + t.days + '</td><td>' + pct(t.b.v) + '</td></tr>'; });
+      T.innerHTML = h + '</tbody>';
+      var tx = css('--tx'), bd = css('--bd'), mu = css('--mu'), C1 = css('--c-s1'), AC = css('--ac'), line = [], hi = [];
+      tr.forEach(function (t, i) { var y = t.f * 100, A = { x: t.d0, y: y, i: i }, B = { x: t.d1, y: y, i: i }; line.push(A, B); if (i === ix) hi.push(A, B); });
+      var ev = { id: 'psFwEv', afterDatasetsDraw: function (c) { var X = c.scales.x, ar = c.chartArea, x = c.ctx; x.save(); x.font = '600 10.5px system-ui,-apple-system,sans-serif'; x.fillStyle = tx; x.strokeStyle = mu; FWD_EV.forEach(function (e, k) { var px = X.getPixelForValue(bxDayNum(e[0]) - s); if (px < ar.left || px > ar.right) return; x.globalAlpha = 0.6; x.setLineDash([3, 3]); x.beginPath(); x.moveTo(px, ar.top); x.lineTo(px, ar.bottom); x.stroke(); x.setLineDash([]); x.globalAlpha = 1; x.textAlign = k ? 'left' : 'right'; x.fillText(e[1], px + (k ? 4 : -4), ar.top + 11); }); x.restore(); } };
+      mkChart('psFwC' + n, 'fw' + n, { type: 'line', plugins: [ev], data: { datasets: [
+          { label: F.yl, data: line, borderColor: C1, backgroundColor: rgba(C1, 0.12), fill: 'origin', borderWidth: 2, pointRadius: 0, tension: 0 },
+          { label: 'Tramo que más paga', data: hi, borderColor: AC, backgroundColor: rgba(AC, 0.25), fill: 'origin', borderWidth: 3, pointRadius: 0, tension: 0 }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'nearest', axis: 'x', intersect: false },
+          plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.datasetIndex === 0; }, callbacks: { title: function (c) { var t = tr[c[0].raw.i]; return (t.a ? t.a.k : 'Liquidación') + ' → ' + t.b.k; }, label: function (c) { var t = tr[c.raw.i]; return dd(t.d0) + ' al ' + dd(t.d1) + ' (' + t.days + ' días): ' + pct(t.f) + (t.short ? ' · tramo corto' : ''); } } } },
+          scales: { x: { type: 'linear', min: 0, max: tr[tr.length - 1].d1, ticks: { color: tx, maxTicksLimit: 8, callback: function (v) { return dstr(s + Math.round(v)).slice(3); } }, grid: { color: bd } },
+            y: { title: { display: true, text: F.yl, color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, F.lin ? 1 : 0) + '%'; } }, grid: { color: bd } } } } });
+    });
+  }
   window.renderPesos = function () {
     if (typeof Chart === 'undefined') return;
     syncMir(); scenVis();
@@ -2942,7 +2988,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         if (ch && !base0) base0 = snapshot(s, constSc(DEF.pi, DEF.tam, DEF.dev));
         PER[n] = { S: SN, S0: ch ? base0 : null, SC: scN }; renderTables(SN, s, scN, fc, n);
       });
-      renderCharts(PER);
+      renderCharts(PER); renderFwd(PER, s);
       if (!window._psT2) { window._psT2 = 1; [1, 2, 3, 4, 5].forEach(function (n) { renderTables(PER[n].S, s, PER[n].SC, fc, n); }); } // primera vez: los controles del gráfico recién existen, la tabla los toma
       renderHist(); renderSummary(PER);
       var lc = lastOf(IDX.CER), lt = lastOf(IDX.TAMAR), lf = lastOf(IDX.FX);
@@ -4422,7 +4468,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
    ===================================================================== */
 ;(function () {
   var TAB_NAMES = { tabla: 'Tabla_Retornos', desglose: 'Flujos_TotalReturn', curva: 'Curva_Spreads', pesos: 'Pesos', vard: 'Variacion_diaria', rot: 'Rotacion', vol: 'Volumen', dol: 'Dolar' };
-  var TABLE_NAMES = { dxTab: 'Dolar_ruedas', dxVar: 'Dolar_variaciones', vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', vlRot: 'Volumen_flujo', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
+  var TABLE_NAMES = { dxTab: 'Dolar_ruedas', dxVar: 'Dolar_variaciones', vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', vlRot: 'Volumen_flujo', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', psFwT1: 'Fija_tasas_implicitas', psFwT2: 'CER_tasas_implicitas', psFwT3: 'TAMAR_margen_implicito', psFwT4: 'DL_tasas_implicitas', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
 
   function parse(raw) {
     var s = raw.replace(/−/g, '-').replace(/ /g, ' ').replace(/^US\$\s*/, '').replace(/^([+-])\s+/, '$1').trim();
