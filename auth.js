@@ -26,7 +26,7 @@
     '#blIntro .tp{height:34px;overflow:hidden;border-bottom:1px solid #44403c;background:#0c0a09;white-space:nowrap;font:500 12px/34px "JetBrains Mono",ui-monospace,monospace;color:#d6d3d1}' +
     '#blIntro .tp>div{display:inline-block;padding-left:16px;animation:blTp 160s linear infinite}#blIntro .tp:hover>div{animation-play-state:paused}' +
     '#blIntro .tp span{margin-right:26px}#blIntro .tp b{color:#f5f5f4;font-weight:700;margin-right:6px}#blIntro .up{color:#34d399}#blIntro .dn{color:#fb7185}#blIntro .eq{color:#a8a29e}' +
-    '@keyframes blTp{to{transform:translateX(-50%)}}@media(prefers-reduced-motion:reduce){#blIntro .tp>div{animation:none}}' +
+    '@keyframes blTp{from{transform:translateX(-50%)}to{transform:translateX(0)}}@media(prefers-reduced-motion:reduce){#blIntro .tp>div{animation:none}}' +
     '#blIntro .w{max-width:1200px;margin:0 auto;padding:0 28px}' +
     '#blIntro .tb{display:flex;align-items:center;gap:14px;height:64px}#blIntro .tb .sp{flex:1}' +
     '#blIntro .lg{display:flex;align-items:center;gap:10px;font:700 15px "JetBrains Mono",ui-monospace,monospace;letter-spacing:.02em}#blIntro .lg img{width:30px;height:30px;border-radius:7px}' +
@@ -90,7 +90,7 @@
     '<div class="t"><small>Dólar MEP · AL30</small><b data-k="mep">—</b><span data-k="ccl">&nbsp;</span></div>' +
     '<div class="t"><small>Oficial · A3500</small><b data-k="ofi">—</b><span data-k="ofid">&nbsp;</span><svg data-k="ofis" viewBox="0 0 100 40" preserveAspectRatio="none"></svg></div>' +
     '<div class="t"><small>TAMAR · TNA</small><b data-k="tam">—</b><span data-k="tamd">&nbsp;</span><svg data-k="tams" viewBox="0 0 100 40" preserveAspectRatio="none"></svg></div>' +
-    '<div class="t"><small>AL30 · US$</small><b data-k="al">—</b><span data-k="ald">&nbsp;</span><svg data-k="als" viewBox="0 0 100 40" preserveAspectRatio="none"></svg></div>' +
+    '<div class="t"><small>Riesgo país · pb</small><b data-k="rp">—</b><span data-k="rpd">&nbsp;</span><svg data-k="rps" viewBox="0 0 100 40" preserveAspectRatio="none"></svg></div>' +
     '</div><p class="src" data-k="src">&nbsp;</p></div>' +
 
     '<div class="ac" data-ac><h2 data-t>Entrá a la terminal</h2><p class="sub" data-s>Con tu cuenta de Google o con un link que te llega al mail. Es gratis.</p>' +
@@ -103,7 +103,7 @@
     TABS.map(function (t, i) { return '<button data-tab="' + i + '"' + (i ? '' : ' class="on"') + '><i>' + (i < 9 ? '0' : '') + (i + 1) + '</i><b>' + t[0] + '</b><span>' + t[1] + '</span></button>'; }).join('') +
     '</div><figure class="pv" style="margin:0"><img data-pv src="/intro/' + TABS[0][2] + '.webp?v=1" alt="' + TABS[0][0] + '" decoding="async"><figcaption><span data-pvn>01 · ' + TABS[0][0] + '</span><span>captura de la terminal</span></figcaption></figure></div></div>' +
 
-    '<footer><span>BONERÍO LOCAL · boneriolocal.com.ar</span><span>Cierres propios de cada rueda · índices del BCRA · no es recomendación de inversión</span></footer></div>';
+    '<footer><span>© ' + new Date().getFullYear() + ' Bonerío Local. Todos los derechos reservados.</span><span>Cierres propios de cada rueda · índices del BCRA · riesgo país de ArgentinaDatos · no es recomendación de inversión</span></footer></div>';
 
   var st = document.createElement('style'); st.id = 'blIntroCss'; st.textContent = css; document.head.appendChild(st);
 
@@ -150,6 +150,8 @@
   // datos del tablero: los cierres que guarda la terminal cada rueda (no hace falta la cuenta para verlos)
   function nf(v, d) { return v == null || !isFinite(v) ? '—' : v.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); }
   function chg(a, b, d, u) { if (!(a > 0) || !(b > 0)) return '<span class="eq">&nbsp;</span>'; var x = u === 'pb' ? (a - b) * 100 : (a / b - 1) * 100, c = Math.abs(x) < (u === 'pb' ? 0.5 : 0.005) ? 'eq' : x > 0 ? 'up' : 'dn'; return '<span class="' + c + '">' + (x > 0 ? '▲ +' : x < 0 ? '▼ ' : '') + nf(x, d) + (u === 'pb' ? ' pb' : '%') + '</span>'; }
+  function rpc(a, b) { if (!(a > 0) || !(b > 0)) return '<span class="eq">&nbsp;</span>'; var x = a - b, c = !x ? 'eq' : x > 0 ? 'dn' : 'up'; return '<span class="' + c + '">' + (x > 0 ? '▲ +' : x < 0 ? '▼ ' : '') + nf(x, 0) + ' pb</span>'; } // riesgo país: subir es malo (rojo)
+  var RP = null;
   function spark(svg, ys, col) {
     ys = ys.filter(function (y) { return y > 0; }); if (!svg || ys.length < 2) return;
     var lo = Math.min.apply(null, ys), hi = Math.max.apply(null, ys), r = hi - lo || 1, pts = ys.map(function (y, i) { return (i / (ys.length - 1) * 100).toFixed(1) + ',' + (36 - (y - lo) / r * 32).toFixed(1); }).join(' ');
@@ -158,23 +160,27 @@
   function last(o, n) { var k = Object.keys(o || {}).sort(); return k.slice(-n).map(function (d) { return [d, o[d]]; }); }
   function market() {
     var q = function (u) { return fetch(u, { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
-    Promise.all([q('/data/closes.json'), q('/data/closes_ars.json'), q('/data/indices.json'), q('/data/dolar.json')]).then(function (R) {
+    var RPA = 'https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais';
+    Promise.all([q('/data/closes.json'), q('/data/closes_ars.json'), q('/data/indices.json'), q('/data/dolar.json'), q('/data/riesgo_pais.json'), q(RPA), q(RPA + '/ultimo')]).then(function (R) {
       var cl = R[0], ar = R[1], ix = R[2], dl = R[3], $ = function (k) { return ov.querySelector('[data-k="' + k + '"]'); }, day = '';
       try { // tablero
         var dd = dl && dl.d && last(dl.d, 1)[0], mp = dd && dd[1].mep && dd[1].mep.AL30, pD = cl && cl.D && cl.D[dd && dd[0]], pC = cl && cl.C && cl.C[dd && dd[0]];
         if (mp) { $('mep').textContent = '$ ' + nf(mp.close, 2); day = dd[0]; if (pD && pC && pD.AL30 > 0 && pC.AL30 > 0) $('ccl').textContent = 'Cable $ ' + nf(mp.close * pD.AL30 / pC.AL30, 2) + ' (AL30C)'; } // el cable sale del mismo AL30 en pesos sobre su precio en cable
         var of = last(dl && dl.A3500, 60); if (of.length) { var a = of[of.length - 1][1], b = of.length > 1 ? of[of.length - 2][1] : null; $('ofi').textContent = '$ ' + nf(a, 2); $('ofid').innerHTML = chg(a, b, 2); spark($('ofis'), of.map(function (x) { return x[1]; }), '#75aadb'); }
         var tm = last(ix && ix.TAMAR, 40); if (tm.length) { var t1 = tm[tm.length - 1][1], t0 = tm.length > 1 ? tm[tm.length - 2][1] : null; $('tam').textContent = nf(t1, 2) + '%'; $('tamd').innerHTML = chg(t1, t0, 0, 'pb'); spark($('tams'), tm.map(function (x) { return x[1]; }), '#f6b40e'); }
-        var al = last(cl && cl.D, 10).map(function (x) { return x[1].AL30; }); if (al.length) { var p1 = al[al.length - 1], p0 = al.length > 1 ? al[al.length - 2] : null; $('al').textContent = 'US$ ' + nf(p1, 2); $('ald').innerHTML = chg(p1, p0, 2); spark($('als'), al, '#34d399'); }
+        var rm = {}; if (R[4] && R[4].d) Object.keys(R[4].d).forEach(function (f) { rm[f] = R[4].d[f]; }); // riesgo país: lo guardado cada noche más lo último de ArgentinaDatos
+        [R[5], R[6]].forEach(function (x) { if (x) (Array.isArray(x) ? x : [x]).forEach(function (r) { var f = String(r && r.fecha || '').slice(0, 10); if (f.length === 10 && r.valor > 0) rm[f] = r.valor; }); });
+        var rp = last(rm, 90); if (rp.length) { var r1 = rp[rp.length - 1][1], r0 = rp.length > 1 ? rp[rp.length - 2][1] : null; $('rp').textContent = nf(r1, 0) + ' pb'; $('rpd').innerHTML = rpc(r1, r0); spark($('rps'), rp.map(function (x) { return x[1]; }), '#fb7185'); RP = [r1, r0]; }
         var lc = last(cl && cl.D, 1)[0]; if (lc && lc[0] > day) day = lc[0];
         if (day) $('src').textContent = 'Cierre del ' + day.slice(8, 10) + '/' + day.slice(5, 7) + '/' + day.slice(0, 4) + ' · cierres propios e índices del BCRA';
       } catch (e) { console.error(e); }
       try { // cinta: variación de cada bono contra la rueda anterior
         var it = [], two = function (o) { var k = Object.keys(o || {}).sort(); return k.length > 1 ? [o[k[k.length - 1]], o[k[k.length - 2]]] : null; };
         var hd = two(cl && cl.D), pe = two(ar);
+        if (RP) it.push(['RIESGO PAÍS', RP[0], RP[1], 0, 1]);
         if (hd) Object.keys(hd[0]).sort().forEach(function (t) { it.push([t + 'D', hd[0][t], hd[1][t], 2]); });
         if (pe) Object.keys(pe[0]).filter(function (t) { return /^(S\d|T\d|TX|TZX|TZV|TM|X\d|D\d)/.test(t); }).sort().forEach(function (t) { it.push([t, pe[0][t], pe[1][t], pe[0][t] >= 1000 ? 0 : 2]); });
-        if (it.length) { var tx = it.map(function (x) { return '<span><b>' + x[0] + '</b>' + nf(x[1], x[3]) + ' ' + chg(x[1], x[2], 2) + '</span>'; }).join(''); ov.querySelector('[data-tape]').innerHTML = tx + tx; } // dos veces: la cinta da la vuelta sin cortes
+        if (it.length) { var tx = it.map(function (x) { return '<span><b>' + x[0] + '</b>' + nf(x[1], x[3]) + (x[4] ? ' pb ' + rpc(x[1], x[2]) : ' ' + chg(x[1], x[2], 2)) + '</span>'; }).join(''); ov.querySelector('[data-tape]').innerHTML = tx + tx; } // dos veces: la cinta da la vuelta sin cortes
       } catch (e) { console.error(e); }
     });
     var mk = function () { try { if (typeof window.mktOpen === 'function') { var o = window.mktOpen(); ov.querySelector('[data-dot]').className = o ? 'ok' : ''; ov.querySelector('[data-mk]').textContent = o ? 'Mercado abierto' : 'Mercado cerrado'; } } catch (e) { } };
