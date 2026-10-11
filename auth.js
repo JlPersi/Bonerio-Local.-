@@ -1,10 +1,13 @@
 /* Portada de presentación y login (Google o link por mail, con Supabase).
-   Sin las claves de Supabase no hace nada, salvo con ?intro en la dirección (vista previa: los botones entran directo).
+   Mientras ENFORCE sea false, solo aplica a quien la prueba con ?login; con ?intro se ve la portada en vista previa (los botones entran directo).
    Va como primer hijo del <body>: la portada se pinta antes que el resto de la página, así no se ve la terminal por un instante. */
 (function () {
-  var CFG = { url: '', key: '' }; // Supabase → Project Settings → API: Project URL y la clave "anon public"
+  var CFG = { url: 'https://sbvebxqeltvkerrarzqn.supabase.co', key: 'sb_publishable_yhGb-WD_rjY-PohFtWjRig_g54LnhVf' }; // clave pública (publishable): va en la página a propósito
   var SB_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js';
-  var ON = !!(CFG.url && CFG.key), PREVIEW = /[?&]intro\b/.test(location.search);
+  // ENFORCE false = prueba: el login solo aplica en el navegador que entró una vez con ?login (se apaga con ?login=0); true = para todos
+  var ENFORCE = false, TEST = false;
+  try { var lq = location.search.match(/[?&]login(=0)?\b/); if (lq) { if (lq[1]) localStorage.removeItem('blLoginTest'); else localStorage.setItem('blLoginTest', '1'); } TEST = localStorage.getItem('blLoginTest') === '1'; } catch (e) { }
+  var ON = !!(CFG.url && CFG.key) && (ENFORCE || TEST), PREVIEW = /[?&]intro\b/.test(location.search);
   if (!ON && !PREVIEW) return;
 
   var REF = ON ? ((CFG.url.match(/^https:\/\/([^.]+)\./) || [])[1] || '') : '';
