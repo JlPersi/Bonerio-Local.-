@@ -150,17 +150,17 @@ Chart.register({ id: 'zoomFix', beforeEvent: function (ch, args) {
 
   --tx: #42392c; 
 
-  --mu: #918575; 
+  --mu: #675c4b; 
 
   --bd: #d9cfbe; 
 
-  --ac: #a37a57; 
+  --ac: #86603f; 
 
   --acx: #ffffff; 
 
-  --ok: #628f52; 
+  --ok: #3f6e33; 
 
-  --bad: #bd4848;
+  --bad: #a83a3a;
 
 
 
@@ -176,6 +176,12 @@ Chart.register({ id: 'zoomFix', beforeEvent: function (ch, args) {
 
 }
 
+/* etiquetas de color: en el tema claro, el mismo tono más oscuro para que se lea sobre su fondo */
+[data-theme="light"] .tg.ok, [data-theme="light"] #rot .tg.ok, [data-theme="light"] #vol .tg.ok { color: #17694d }
+[data-theme="light"] .tg.mg, [data-theme="light"] .tg.up, [data-theme="light"] #rot .tg.mg, [data-theme="light"] #vol .tg.mg, [data-theme="light"] #dol .tg.up { color: #7f5300 }
+[data-theme="light"] .tg.no, [data-theme="light"] #rot .tg.no, [data-theme="light"] #vol .tg.no { color: #9c2c43 }
+[data-theme="light"] .tg.dn, [data-theme="light"] #dol .tg.dn { color: #115b82 }
+.dimr { opacity: .45 } [data-theme="light"] .dimr { opacity: .7 } /* flujos fuera del horizonte: atenuados, pero legibles en el claro */
 html { scroll-padding-top: env(safe-area-inset-top,0px) }
 body { 
     margin: 0; background: var(--bg); color: var(--tx); 
@@ -242,7 +248,7 @@ button.icon-btn:hover { border-color: var(--ac); color: var(--ac); }
 .tins b { display: block; font-size: 19px; color: var(--tx); margin-top: 4px; font-variant-numeric: tabular-nums; }
 .tins b em { color: var(--ok); font-style: normal; }
 .tins span { display: block; color: var(--mu); font-size: 13px; margin-top: 2px; line-height: 1.45; }
-.tins .n, td.mk::after, th.mk::after { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: var(--ac); color: #1c1917; font-size: 10.5px; font-weight: 700; font-style: normal; letter-spacing: 0; }
+.tins .n, td.mk::after, th.mk::after { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: var(--ac); color: var(--acx); font-size: 10.5px; font-weight: 700; font-style: normal; letter-spacing: 0; }
 #t td.mk { box-shadow: inset 0 0 0 2px var(--ac); position: relative; }
 #t th.mk { position: relative; }
 #t td.mk::after, #t th.mk::after { content: attr(data-mk); position: absolute; top: 2px; right: 2px; }
@@ -1094,7 +1100,7 @@ window.updateCFChart = function() {
     // tabla de flujos
     let th = '<tr><th>Fecha</th><th>Renta</th><th>Amortización</th><th>Total</th><th>Acumulado</th><th>VN residual</th></tr>';
     rows.forEach(function(r) {
-        const dim = r.t > d1 ? ' style="opacity:.45"' : '';
+        const dim = r.t > d1 ? ' class="dimr"' : '';
         th += '<tr' + dim + '><td>' + fd(r.t) + '</td><td>' + usd(r.renta) + '</td><td>' + (r.amort > 0 ? usd(r.amort) : '—') + '</td><td><b>' + usd(r.total) + '</b></td><td>' + usd(r.acum) + '</td><td>' + (r.res == null ? '—' : r.res.toLocaleString('es-AR', { maximumFractionDigits: 2 })) + '</td></tr>';
     });
     $('cfTable').innerHTML = th;
@@ -2116,7 +2122,7 @@ setInterval(window.fetchLive, 90000);
       var cells = shk.map(function (s, i) { var v = r.n / 100 * (bxPv(r.o.fl, d0, r.o.tir + s / 1e4) - r.o.P); pl[i] += v; return '<td style="' + colorOf(v / (tot * 0.08 || 1), 1) + '">' + fm(v, 0) + '</td>'; }).join('');
       h += '<tr><td class="k">' + r.o.k + '</td><td><input class="vn" type="number" step="1000" min="0" value="' + r.n + '" onchange="window.quantVN(\'' + r.o.k + '\',this.value)"></td><td>' + fm(r.val, 0) + '</td><td>' + fm(r.val / tot * 100, 1) + '%</td><td>' + fm(r.n / 100 * r.o.dv01, 1) + '</td>' + cells + '</tr>';
     });
-    h += '<tr><td class="k">Total</td><td></td><td><b>' + fm(tot, 0) + '</b></td><td>100%</td><td><b>' + fm(dv, 1) + '</b></td>' + pl.map(function (v) { return '<td style="' + colorOf(v / (tot * 0.08), 1) + '"><b>' + fm(v, 0) + '</b><div class="note" style="margin:0">' + sg(v / tot * 100, 1) + '%</div></td>'; }).join('') + '</tr>';
+    h += '<tr><td class="k">Total</td><td></td><td><b>' + fm(tot, 0) + '</b></td><td>100%</td><td><b>' + fm(dv, 1) + '</b></td>' + pl.map(function (v) { return '<td style="' + colorOf(v / (tot * 0.08), 1) + '"><b>' + fm(v, 0) + '</b><div class="note" style="margin:0;color:inherit">' + sg(v / tot * 100, 1) + '%</div></td>'; }).join('') + '</tr>';
     document.getElementById('qPort').innerHTML = h;
   }
 
@@ -3886,7 +3892,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<li><b>Cómo se estima.</b> Cada compra es una venta: lo que muestra qué lado tuvo apuro es el precio. Cada rueda, el monto de un bono cuenta como compra si su tasa bajó más de lo habitual (en Bonares, Globales y Bopreal, si su precio en dólares subió) y como venta si subió. Lo habitual sale de sus 60 ruedas anteriores: hasta medio desvío es ruido y no cuenta, y con un desvío y medio cuenta todo el monto. Así lo que devenga un bono no pasa por compra. Es una estimación: no hay datos de quién inició cada operación.</li>' +
       '<li><b>Fuera de la tabla</b> quedan los bonos a menos de 30 días del vencimiento (operan como efectivo), los de <b>Otros</b> (pesan muy poco) y <b>AL30</b>, que se usa para operar el MEP y el CCL: va en la línea <b>Dólar</b>, salvo que tildes <b>Incluir AL30</b>.</li></ul></div></div>' +
       '<div class="rs" id="vlS2"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><h4 style="margin:0" id="vlRT">Ranking</h4><span style="display:flex;gap:12px;align-items:center"><label style="flex-direction:row;align-items:center;gap:8px;font-size:12px;color:var(--mu)">Mostrar<select id="vlTop" style="width:110px"><option value="15">15</option><option value="30">30</option><option value="60">60</option><option value="9999">Todos</option></select></label>' + dl('vlS2', 'Soberanos_Volumen_Ranking', 'Descargar el ranking en HD').replace(/onclick="[^"]*"/, 'onclick="window.vlDlRank()"') + '</span></div><div class="sc" id="vlSc2" style="max-height:520px;overflow:auto"><table class="rt" id="vlTab"></table></div><div class="hl"><p><b>Cómo se lee la columna Lectura.</b> Primero se mira si el precio se movió de verdad: la variación del período se compara con lo que ese bono suele moverse en un lapso igual, sin contar su tendencia habitual (por ejemplo, el devengamiento de una Lecap) y con los cupones y amortizaciones sumados. La vara es un desvío estándar de sus últimas 60 ruedas.</p><ul><li><b>Precio sin cambio significativo</b>: se movió menos de un desvío, es decir, dentro de lo normal, aunque haya subido o bajado unos centésimos.</li><li><b>Mucho volumen, precio quieto</b>: lo mismo, pero operó 3 veces o más de lo habitual.</li><li><b>Subió</b> o <b>Bajó</b>: se movió más de un desvío. Al lado se aclara el volumen: <b>con volumen</b> (1,5 veces lo habitual o más), <b>con volumen normal</b> (entre 0,7 y 1,5 veces) o <b>sin volumen</b> (menos de 0,7 veces).</li></ul><p style="margin-top:6px">Pasá el mouse por una etiqueta para ver los números de esa fila: la variación, lo habitual para ese bono y cuántos desvíos se apartó.</p></div></div>' +
-      '<div class="rs" id="vlS3"><div style="' + HD + ';flex-wrap:wrap"><h4 style="margin:0">Volumen contra precio</h4><span style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><label data-html2canvas-ignore="true" style="flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:12px;color:var(--mu)" title="Los bonos que operaron muy poco tienen variaciones y volúmenes relativos extremos que no dicen nada: por defecto no se dibujan">Bonos chicos<input type="range" id="vlMin" min="0" max="' + (MINS.length - 1) + '" step="1" style="width:130px"><span id="vlMinV" style="min-width:178px;color:var(--tx)"></span></label>' + dl('vlS3', 'Soberanos_Volumen_vs_Precio', 'Descargar este gráfico en HD') + '</span></div><p class="note xp" style="margin:0 0 8px">Cada punto es un bono. A la derecha, los que subieron en el período; a la izquierda, los que bajaron. Arriba de la línea punteada (1×) operaron más que de costumbre; abajo, menos. El tamaño del punto es el monto operado. Tocá un punto o una fila del ranking para ver el detalle.</p><div style="position:relative;height:clamp(520px,72vh,780px)"><canvas id="vlCh3"></canvas></div><p class="note" id="vlSN" style="margin:8px 0 0"></p></div>' +
+      '<div class="rs" id="vlS3"><div style="' + HD + ';flex-wrap:wrap"><h4 style="margin:0">Volumen contra precio</h4><span style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><label data-html2canvas-ignore="true" style="flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:12px;color:var(--mu)" title="Los bonos que operaron muy poco tienen variaciones y volúmenes relativos extremos que no dicen nada: por defecto no se dibujan">Bonos chicos<input type="range" id="vlMin" min="0" max="' + (MINS.length - 1) + '" step="1" style="width:130px"><span id="vlMinV" style="min-width:178px;color:var(--tx)"></span></label>' + dl('vlS3', 'Soberanos_Volumen_vs_Precio', 'Descargar este gráfico en HD') + '</span></div><p class="note xp" style="margin:0 0 8px">Cada punto es un bono. A la derecha, los que subieron en el período; a la izquierda, los que bajaron. Arriba de la línea del 1× operaron más que de costumbre; abajo, menos. El tamaño del punto es el monto operado. Tocá un punto o una fila del ranking para ver el detalle.</p><div style="position:relative;height:clamp(520px,72vh,780px)"><canvas id="vlCh3"></canvas></div><p class="note" id="vlSN" style="margin:8px 0 0"></p></div>' +
       '<div class="rs" id="vlDet"></div>' +
       '<div class="rs"><div class="hl" style="margin:0"><p><b>Qué mide cada cosa</b></p><ul><li><b>Monto</b>: lo operado en pesos en cada rueda. Si un bono tiene varias especies (AL30 en pesos, AL30D en MEP y AL30C en Cable), se suman pasando los dólares a pesos con el dólar implícito de los bonos (la mediana de AL30, GD30 y otros pares). Con <b>Moneda</b> podés ver solo una especie y con <b>Medida</b>, el valor nominal en vez del monto.</li><li><b>Volumen relativo</b>: el promedio diario del período dividido por el de las 60 ruedas anteriores. 1× es lo normal, 2× el doble y 0,5× la mitad. Si el bono operó en menos de 10 de esas 60 ruedas no tiene un volumen habitual, así que no se calcula (y no aparece en el gráfico).</li><li><b>Variación de precio</b>: el precio de cierre es sucio (incluye los intereses corridos) y cae el día que se corta un cupón, así que se le suma lo que el bono pagó en el período. En Lecaps y bonos que devengan, el devengamiento forma parte de la variación.</li><li><b>Símbolos</b>: ‡ el bono pagó un cupón variable (TAMAR o dual) de monto desconocido, así que su variación no es comparable y no se clasifica. † bono sin cronograma de pagos cargado (por ejemplo, Bopreal): su variación no descuenta cobros.</li><li><b>Rueda de hoy</b>: si la incluís, cuenta con lo operado hasta el momento (se actualiza cada minuto), así que el monto y el volumen relativo de hoy quedan bajos hasta el cierre.</li><li><b>Ojo</b>: que el volumen y el precio se muevan juntos muestra coincidencia, no causa. Un volumen alto puede ser el motivo de un movimiento o su consecuencia.</li></ul></div></div></div>';
     var on = function (id, ev, fn) { document.getElementById(id)[ev] = fn; };
@@ -4041,11 +4047,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var vm = function (m) { return '<span style="color:' + (m >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + sg(m, 0) + '%</span>'; };
     var fams = FORD.filter(function (f) { return F[f]; }), mx = 0;
     Object.keys(C).forEach(function (k) { mx = Math.max(mx, Math.abs(C[k].net)); });
-    var rgb = function (h) { h = (h || '').replace('#', ''); if (h.length === 3) h = h.replace(/./g, '$&$&'); var v = parseInt(h, 16); return isFinite(v) ? [(v >> 16) & 255, (v >> 8) & 255, v & 255].join(',') : '148,163,184'; }, OK = rgb(css('--ok')), BAD = rgb(css('--bad')); // los mismos verde y rojo del tema
+    var rgb = function (h) { h = (h || '').replace('#', ''); if (h.length === 3) h = h.replace(/./g, '$&$&'); var v = parseInt(h, 16); return isFinite(v) ? [(v >> 16) & 255, (v >> 8) & 255, v & 255].join(',') : '148,163,184'; }, OK = rgb(css('--ok')), BAD = rgb(css('--bad')), LT = document.documentElement.getAttribute('data-theme') === 'light'; // los mismos verde y rojo del tema; en el claro, fondo más suave para que el texto se lea
     var side = function (o) { return Math.abs(o.net) < 0.02 * o.now ? 0 : o.net > 0 ? 1 : -1; }; // menos del 2% de lo operado: sin un lado claro
     var cell = function (o) {
       if (!o || !(o.now > 0)) return '<td class="e">·</td>';
-      var s = side(o), a = !s || !mx ? 0 : 0.06 + 0.26 * Math.min(1, Math.abs(o.net) / mx), bg = a ? 'rgba(' + (s > 0 ? OK : BAD) + ',' + a.toFixed(2) + ')' : 'transparent', act = nr > 0 && o.ref > 0 ? ((o.now / nn) / (o.ref / nr) - 1) * 100 : null;
+      var s = side(o), a = !s || !mx ? 0 : (LT ? 0.04 : 0.06) + (LT ? 0.10 : 0.26) * Math.min(1, Math.abs(o.net) / mx), bg = a ? 'rgba(' + (s > 0 ? OK : BAD) + ',' + a.toFixed(2) + ')' : 'transparent', act = nr > 0 && o.ref > 0 ? ((o.now / nn) / (o.ref / nr) - 1) * 100 : null;
       return '<td style="background:' + bg + '"><b style="color:' + (!s ? 'var(--mu)' : s > 0 ? 'var(--ok)' : 'var(--bad)') + '">' + fmt(o.net) + '</b><small>operado ' + mon(o.now) + '</small>' + (act != null ? '<small>' + LM + ' por rueda ' + vm(act) + '</small>' : nr > 0 ? '<small>no operaba antes</small>' : '') + '</td>';
     };
     var lab = function (c) { return c === 'na' ? 'Sin dato' : BK.filter(function (b) { return b[0] === c; })[0][1]; };
@@ -4118,11 +4124,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       return { type: 'scatter', label: FAMS[f][0], data: p.map(function (e) { var o = { x: e.dPxS * 100, y: e.rel, name: e.key, bono: e.key, tot: e.tot, z: e.z }; if (lab[e.key]) o.k = e.key; return o; }), backgroundColor: FAMS[f][1] + 'cc', borderColor: FAMS[f][1], borderWidth: function (c) { return c.raw && c.raw.name === ST.sel ? 3 : 1; },
         pointRadius: p.map(function (e) { return 3 + Math.sqrt(e.tot / mx) * 13; }), hoverRadius: 10 };
     }).filter(Boolean);
-    var CROSS = { id: 'vlCross', afterDraw: function (ch) {
-      var a = ch.chartArea, c = ch.ctx, xs = ch.scales.x, ys = ch.scales.y; c.save(); c.strokeStyle = 'rgba(148,163,184,.55)'; c.setLineDash([4, 4]); c.lineWidth = 1;
-      if (xs.min < 0 && xs.max > 0) { var x0 = xs.getPixelForValue(0); c.beginPath(); c.moveTo(x0, a.top); c.lineTo(x0, a.bottom); c.stroke(); }
-      if (ys.min < 1 && ys.max > 1) { var y1 = ys.getPixelForValue(1); c.beginPath(); c.moveTo(a.left, y1); c.lineTo(a.right, y1); c.stroke(); }
-      c.setLineDash([]); c.fillStyle = 'rgba(148,163,184,.8)'; c.font = '600 12px sans-serif'; c.textAlign = 'left'; c.fillText('Bajó con volumen', a.left + 8, a.top + 16); c.textAlign = 'right'; c.fillText('Subió con volumen', a.right - 8, a.top + 16);
+    var CROSS = { id: 'vlCross', beforeDatasetsDraw: function (ch) { // el 0 % y el 1× arman los cuadrantes: líneas firmes, debajo de los puntos
+      var a = ch.chartArea, c = ch.ctx, xs = ch.scales.x, ys = ch.scales.y; c.save(); c.strokeStyle = css('--mu'); c.lineWidth = 1.5;
+      if (xs.min < 0 && xs.max > 0) { var x0 = Math.round(xs.getPixelForValue(0)) + 0.5; c.beginPath(); c.moveTo(x0, a.top); c.lineTo(x0, a.bottom); c.stroke(); }
+      if (ys.min < 1 && ys.max > 1) { var y1 = Math.round(ys.getPixelForValue(1)) + 0.5; c.beginPath(); c.moveTo(a.left, y1); c.lineTo(a.right, y1); c.stroke(); }
+      c.restore(); },
+      afterDraw: function (ch) {
+      var a = ch.chartArea, c = ch.ctx; c.save(); c.fillStyle = css('--mu'); c.font = '600 12px sans-serif'; c.textAlign = 'left'; c.fillText('Bajó con volumen', a.left + 8, a.top + 16); c.textAlign = 'right'; c.fillText('Subió con volumen', a.right - 8, a.top + 16);
       c.textAlign = 'left'; c.fillText('Bajó sin volumen', a.left + 8, a.bottom - 8); c.textAlign = 'right'; c.fillText('Subió sin volumen', a.right - 8, a.bottom - 8); c.restore(); } };
     CHP = new Chart(document.getElementById('vlCh3').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: X.LABELS ? [X.LABELS, CROSS] : [CROSS],
       options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { right: 30, top: 6 } },
@@ -4323,7 +4331,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<div class="rc rs"><label>Período<select id="dxW">' + PERIODS.map(function (p) { return '<option value="' + p[0] + '">' + p[1] + '</option>'; }).join('') + '</select></label>' +
       '<label class="ck"><input type="checkbox" id="dxL"> Incluir la rueda de hoy</label></div>' +
       '<div class="rs" id="dxS1"><div style="' + HD + '"><h4 id="dxT1">Cotización y brecha</h4><span style="display:flex;gap:12px;align-items:center"><label data-html2canvas-ignore="true" style="flex-direction:row;align-items:center;gap:6px;font-size:12px;color:var(--mu);margin:0" title="Con escala logarítmica, una misma suba porcentual ocupa la misma altura en 2023 que hoy"><input type="checkbox" id="dxLg" style="width:auto;margin:0"> Escala logarítmica</label>' + dl('dxS1', 'Soberanos_Dolar_Cotizacion', 'Descargar la cotización y la brecha en HD') + '</span></div>' +
-      '<p class="note" id="dxRead" data-html2canvas-ignore="true" style="margin:0 0 4px;color:var(--tx)"></p><div class="rchips" id="dxChips"></div>' +
+      '<div class="rchips" id="dxChips"></div>' +
       '<div class="rg" style="margin-top:18px"><div style="position:relative;height:340px"><canvas id="dxCh1"></canvas></div><div style="position:relative;height:340px"><canvas id="dxCh2"></canvas></div></div></div>' +
       '<div class="rs" id="dxS2"><div style="' + HD + '"><h4 id="dxT2">Flujo de dólares vía AL30</h4>' + dl('dxS2', 'Soberanos_Dolar_Flujo', 'Descargar el flujo en HD') + '</div>' +
       '<div class="rg"><div style="position:relative;height:340px"><canvas id="dxCh3"></canvas></div><div style="position:relative;height:340px"><canvas id="dxCh4"></canvas></div></div></div>' +
@@ -4371,10 +4379,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       sub.innerHTML = 'Serie diaria de AL30 en pesos, MEP (AL30D) y cable (AL30C) desde el ' + fr(D[0]) + ' y oficial del BCRA (A3500).' + (S.live ? ' Incluye la rueda de hoy, ' + (liveOpen() ? 'todavía incompleta.' : 'ya cerrada.') : ST.live && !mktStarted() ? ' Hoy no hay rueda o todavía no empezó: se muestra hasta el ' + fr(D[D.length - 1]) + '.' : '') + '<span class="xp"> Cuánto se pagó el dólar en el mercado de bonos, cuánta brecha hubo con el oficial y hacia dónde fue la plata: de pesos a dólares o al revés.</span>';
       var ch = function (Y, i0, i1) { return Y[i0] > 0 && Y[i1] > 0 ? Y[i1] / Y[i0] - 1 : null; };
       var bM = function (i) { return S.MEP[i] / S.OF[i] - 1; }, bC = function (i) { return S.CCL[i] / S.OF[i] - 1; }, cj = function (i) { return S.CCL[i] / S.MEP[i] - 1; };
-      // período: dólares de cada pata, flujo neto y movimiento del MEP contra su desvío
-      var mD = sumR(S.MD.E, a0, n), mC = sumR(S.CC.E, a0, n), fM = sumR(S.fM, a0, n), fC = sumR(S.fC, a0, n), r0 = Math.max(0, a0 - w), nr = a0 - r0;
-      var mD0 = nr > 0 && ST.w !== 0 ? sumR(S.MD.E, r0, a0) / nr : null, mC0 = mD0 != null ? sumR(S.CC.E, r0, a0) / nr : null, act = mD0 + mC0 > 0 ? ((mD + mC) / w) / (mD0 + mC0) - 1 : null;
-      var net = fM + fC, sh = mD + mC > 0 ? net / (mD + mC) : 0; // qué parte de los dólares operados fue compra (+) o venta (−) neta
+      // período: flujo neto estimado de cada pata
+      var fM = sumR(S.fM, a0, n), fC = sumR(S.fC, a0, n);
       var adrV = ADR ? ADR.vw : null, adrD = null; if (!adrV) { var sk = Object.keys(S.snap).sort(); for (var q = sk.length - 1; q >= 0; q--) if (S.snap[sk[q]].ccl && S.snap[sk[q]].ccl.vw > 0) { adrV = S.snap[sk[q]].ccl.vw; adrD = sk[q]; break; } }
       var pp = function (v) { return v == null || !isFinite(v) ? '' : sg(v * 100, 1) + ' pp'; };
       var chip = function (t, v, s) { return '<div class="rchip"><small>' + t + '</small><b>' + v + '</b><span>' + s + '</span></div>'; }, vs = w === 1 ? 'vs. la rueda anterior' : 'en ' + w + ' ruedas';
@@ -4387,20 +4393,6 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         chip('Brecha CCL', PC(bC(e)), pp(bC(e) - bC(b)) + ' ' + vs) +
         chip('Canje CCL/MEP', PC(cj(e)), pp(cj(e) - cj(b)) + ' ' + vs) +
         chip('Flujo neto estimado', MS(fM + fC), (fM + fC >= 0 ? 'compra' : 'venta') + ' de dólares ' + (w === 1 ? 'en la rueda' : 'en ' + w + ' ruedas'));
-      // lectura en palabras
-      var pd = w === 1 ? 'En la rueda del ' + fr(D[e]) : 'En las últimas ' + w + ' ruedas (' + fr(D[a0]) + ' al ' + fr(D[e]) + ')';
-      var mv = function (Y) { var c = ch(Y, b, e); return P$(Y[b]) + ' a ' + P$(Y[e]) + ' (' + sg((c || 0) * 100, 2) + '%)'; };
-      var txt = pd + ' el MEP pasó de ' + mv(S.MEP) + ' y el CCL de ' + mv(S.CCL) + '; el oficial, de ' + mv(S.OF) + '. La brecha del MEP quedó en ' + PC(bM(e)) + ' (' + pp(bM(e) - bM(b)) + '), la del CCL en ' + PC(bC(e)) + ' y el canje en ' + PC(cj(e)) + '.';
-      txt += ' Por AL30 se operaron ' + M(mD / w) + ' por rueda en MEP y ' + M(mC / w) + ' en cable' + (act == null ? '' : ', ' + (Math.abs(act) < 0.05 ? 'casi lo mismo que' : 'un ' + nf(Math.abs(act) * 100, 0) + '% ' + (act > 0 ? 'más' : 'menos') + ' que') + ' en ' + (w === 1 ? 'la rueda anterior' : 'las ' + w + ' ruedas anteriores')) + '.';
-      var leg = Math.abs(fC) > 2 * Math.abs(fM) ? ', sobre todo por cable' : Math.abs(fM) > 2 * Math.abs(fC) ? ', sobre todo por MEP' : '';
-      txt += ' Por cómo se movió el precio, el flujo neto estimado fue de ' + MS(net) + ' (MEP ' + MS(fM) + ', cable ' + MS(fC) + '), el ' + nf(Math.abs(sh) * 100, 0) + '% de los dólares operados: ' + (Math.abs(sh) < 0.08 ? 'compras y ventas de dólares bastante parejas.' : sh > 0 ? 'predominó la demanda de dólares (salieron pesos hacia el dólar)' + leg + '.' : 'predominó la oferta de dólares (entraron pesos)' + leg + '.');
-      if (w > 1) { // ruedas con más demanda y más oferta
-        var rs = []; for (var i = a0; i < n; i++) rs.push({ i: i, f: S.fM[i] + S.fC[i] });
-        var up = rs.filter(function (x) { return x.f > 0; }).sort(function (a, c) { return c.f - a.f; }).slice(0, 2), dn = rs.filter(function (x) { return x.f < 0; }).sort(function (a, c) { return a.f - c.f; }).slice(0, 2);
-        var lb = function (a) { return a.map(function (x) { return (w > 250 ? fr(D[x.i]) : fr(D[x.i]).slice(0, 5)) + ' (' + MS(x.f) + ', MEP ' + sg((S.MEP[x.i] / S.MEP[x.i - 1] - 1) * 100, 2) + '%)'; }).join(' y '); };
-        if (up.length || dn.length) txt += ' Ruedas con más demanda: ' + (up.length ? lb(up) : 'ninguna') + '; con más oferta: ' + (dn.length ? lb(dn) : 'ninguna') + '.';
-      }
-      document.getElementById('dxRead').textContent = txt;
       charts(a0, w); table(a0); stats();
     } catch (x) { console.error('dol', x); var s2 = document.getElementById('dxSub'); if (s2) s2.textContent = 'Error: ' + x.message; }
   }
