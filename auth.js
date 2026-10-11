@@ -1,11 +1,11 @@
 /* Portada de presentación y login con Supabase: Google, mail y contraseña (con recuperación) o link por mail.
-   Mientras ENFORCE sea false, solo aplica a quien la prueba con ?login; con ?intro se ve la portada en vista previa (los botones entran directo).
+   Con ENFORCE en true, toda persona tiene que entrar con su cuenta para usar la terminal (si se pone en false, solo aplica a quien la prueba con ?login).
    Va como primer hijo del <body>: la portada se pinta antes que el resto de la página, así no se ve la terminal por un instante. */
 (function () {
   var CFG = { url: 'https://sbvebxqeltvkerrarzqn.supabase.co', key: 'sb_publishable_yhGb-WD_rjY-PohFtWjRig_g54LnhVf' }; // clave pública (publishable): va en la página a propósito
   var SB_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js';
   // ENFORCE false = prueba: el login solo aplica en el navegador que entró una vez con ?login (se apaga con ?login=0); true = para todos
-  var ENFORCE = false, TEST = false;
+  var ENFORCE = true, TEST = false;
   try { var lq = location.search.match(/[?&]login(=0)?\b/); if (lq) { if (lq[1]) localStorage.removeItem('blLoginTest'); else localStorage.setItem('blLoginTest', '1'); } TEST = localStorage.getItem('blLoginTest') === '1'; } catch (e) { }
   var ON = !!(CFG.url && CFG.key) && (ENFORCE || TEST), PREVIEW = /[?&]intro\b/.test(location.search);
   if (!ON && !PREVIEW) return;
