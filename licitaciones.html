@@ -165,6 +165,9 @@ section.card>.sxh{padding-right:46px}
 .dlmenu button:hover{background:var(--bd)}
 .dlmenu button small{display:block;font-weight:500;font-size:11.5px;color:var(--mu);margin-top:1px}
 .dlmenu .hd{font:600 11px 'Inter',system-ui,sans-serif;color:var(--mu);padding:4px 12px 6px;text-transform:uppercase;letter-spacing:.04em}
+.dlmenu{max-height:calc(100vh - 24px);overflow-y:auto;max-width:330px}.dlmenu .sep{height:1px;background:var(--bd);margin:4px 6px}
+.dlmenu .seg{display:flex;gap:4px;padding:0 6px 4px}.dlmenu .seg button{flex:1;text-align:center;padding:7px 8px;border:1px solid var(--bd);font-size:12px}
+.dlmenu .pick{display:flex;flex-direction:column;gap:1px}.dlmenu .pick button{position:relative;padding:7px 12px 7px 30px;font-weight:500;line-height:1.3}.dlmenu .pick button.on{color:var(--ac);font-weight:700}.dlmenu .pick button.on::before{content:"✓";position:absolute;left:11px}
 .dlnote{position:fixed;z-index:10000;left:50%;bottom:22px;transform:translateX(-50%);background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:12px;padding:12px 16px;box-shadow:0 8px 28px rgba(0,0,0,.45);font:500 14px 'Inter',system-ui,sans-serif;display:flex;gap:12px;align-items:center;max-width:calc(100vw - 32px)}
 .dlnote button{background:var(--ac);color:var(--acx);border:0;border-radius:8px;padding:8px 14px;font:700 13px 'Inter',sans-serif;cursor:pointer}
 .dlnote button.alt{background:transparent;color:var(--tx);border:1px solid var(--bd)}
@@ -172,7 +175,7 @@ section.card>.sxh{padding-right:46px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
 </head>
 <body>
-<main>
+<main id="licMain">
 <div class="top">
   <div>
     <h1>Licitaciones del Tesoro</h1>
@@ -692,9 +695,9 @@ all();
     ctx.restore(); ctx.fillStyle = '#75aadb'; ctx.fillRect(12, 47, 40, 3.6); ctx.fillStyle = '#fff'; ctx.fillRect(12, 52, 40, 3.6); ctx.restore();
     ctx.fillStyle = mu; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillText(label, lx + logo + gap, ly + logo / 2); ctx.restore(); return cv;
   }
-  function snap(sec) { // la imagen va sin los textos que explican, sin controles y con los gráficos desplazados tal cual se ven
+  function snap(sec, keep) { // la imagen va sin los textos que explican, sin controles y con los gráficos desplazados tal cual se ven; keep: varias secciones dentro de sec
     if (typeof html2canvas === 'undefined') return Promise.reject(new Error('no se pudo cargar html2canvas (¿sin conexión?)'));
-    var bg = getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#1c1917', w0 = sec.scrollWidth, h0 = sec.scrollHeight;
+    var bg = getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#1c1917', w0 = sec.scrollWidth, h0 = keep ? keep.reduce(function (a, k) { return a + k.offsetHeight + 16; }, 0) : sec.scrollHeight;
     var sc = Math.max(1.5, Math.min(3, 16000 / Math.max(w0, h0), Math.sqrt(1.3e8 / (w0 * h0))));
     var scr = [].map.call(sec.querySelectorAll('.scr'), function (e) { return e.scrollLeft; });
     return html2canvas(sec, { scale: sc, backgroundColor: bg, useCORS: true, logging: false, onclone: function (doc) {
@@ -702,6 +705,7 @@ all();
       var st = doc.createElement('style'); st.textContent = '.note,.qs,.dlb,.src,#aPrev,#aNext{display:none !important}*{font-variant-numeric:normal !important}';
       doc.head.appendChild(st);
       var c = doc.getElementById(sec.id); if (!c) return; c.style.position = 'relative';
+      if (keep) { var ids = keep.map(function (k) { return k.id; }); [].forEach.call(c.children, function (x) { if (ids.indexOf(x.id) < 0) x.style.display = 'none'; }); }
       var sel = sec.querySelectorAll('select');
       [].forEach.call(c.querySelectorAll('select'), function (e, k) {
         var o = sel[k], t = o && o.selectedIndex >= 0 ? o.options[o.selectedIndex].text : '', sp = doc.createElement('span');
@@ -714,8 +718,8 @@ all();
   var save = function (cv, name) { var a = document.createElement('a'); a.download = 'Soberanos_Licitaciones_' + name + '_' + day() + '.png'; a.href = cv.toDataURL('image/png'); a.click(); };
   var blobOf = function (cv) { return new Promise(function (ok, ko) { cv.toBlob(function (b) { b ? ok(b) : ko(new Error('no se pudo armar la imagen')); }, 'image/png'); }); };
   var fail = function (err) { console.error(err); toast('No se pudo generar la imagen: ' + err.message); };
-  function run(sec, act) {
-    var name = NAMES[sec.id] || sec.id, pr = snap(sec);
+  function run(secs, act) {
+    var one = secs.length === 1, name = one ? NAMES[secs[0].id] || secs[0].id : secs.length + '_secciones', pr = one ? snap(secs[0]) : snap(document.getElementById('licMain'), secs);
     if (act === 'png') { pr.then(function (cv) { save(cv, name); }).catch(fail); return; }
     toast('Generando la imagen…', null, 0);
     if (act === 'copy') {
@@ -734,17 +738,41 @@ all();
       else toast('Imagen lista.', [['Compartir', go], ['Descargar', function () { pr.then(function (cv) { save(cv, name); }); }, 1]], 0);
     }).catch(fail);
   }
+  function list() { // las secciones que se ven, en orden, con su título
+    return [].filter.call(document.querySelectorAll('#licMain > section.card[id]'), function (x) { return x.children.length && x.getClientRects().length && x.querySelector(':scope > .dlb'); }).map(function (x) {
+      var h = x.querySelector('.qh'), t = h ? (h.firstChild && h.firstChild.nodeType === 3 ? h.firstChild.textContent : h.textContent).trim() : '';
+      return { el: x, t: t || (NAMES[x.id] || x.id).replace(/_/g, ' ') };
+    });
+  }
+  var esc = function (s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
   function open(btn, sec) {
-    closeMenu(); var r = btn.getBoundingClientRect();
+    closeMenu(); var r = btn.getBoundingClientRect(), secs = list(), sel = [sec];
     menu = document.createElement('div'); menu.className = 'dlmenu'; menu.setAttribute('data-html2canvas-ignore', 'true');
-    menu.innerHTML = '<div class="hd">Imagen HD</div><button data-a="png">Descargar PNG<small>guarda el archivo</small></button>' +
+    menu.innerHTML = '<div class="hd">Imagen HD</div>' + (secs.length > 1 ? '<div class="join"><button data-x="open">Juntar con otras secciones<small>varias en una sola imagen</small></button></div><div class="sep"></div>' : '') + '<button data-a="png">Descargar PNG<small>guarda el archivo</small></button>' +
       (canCopy ? '<button data-a="copy">Copiar imagen<small>para pegar en WhatsApp como foto</small></button>' : '') +
       (canShare ? '<button data-a="share">Compartir…<small>WhatsApp, Telegram, mail…</small></button>' : '');
     document.body.appendChild(menu);
-    var mw = menu.offsetWidth || 200, mh = menu.offsetHeight || 160, left = Math.max(8, Math.min(r.right - mw, window.innerWidth - mw - 8)), top = r.bottom + 6;
-    if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 6);
-    menu.style.left = left + 'px'; menu.style.top = top + 'px';
-    menu.onclick = function (e) { var a = e.target.closest('button[data-a]'); if (!a) return; closeMenu(); run(sec, a.getAttribute('data-a')); };
+    var place = function () {
+      var mw = menu.offsetWidth || 200, mh = menu.offsetHeight || 160, left = Math.max(8, Math.min(r.right - mw, window.innerWidth - mw - 8)), top = r.bottom + 6;
+      if (top + mh > window.innerHeight - 8) top = Math.max(8, Math.min(r.top - mh - 6, window.innerHeight - mh - 8));
+      menu.style.left = left + 'px'; menu.style.top = top + 'px';
+    };
+    place();
+    var paint = function () {
+      menu.querySelector('.join').innerHTML = '<div class="hd">Secciones de la imagen</div><div class="pick">' + secs.map(function (x, i) { return '<button data-s="' + i + '"' + (sel.indexOf(x.el) >= 0 ? ' class="on"' : '') + '>' + esc(x.t) + '</button>'; }).join('') + '</div>' +
+        '<div class="seg"><button data-x="all">Todas</button><button data-x="one">Solo esta</button></div>';
+    };
+    menu.onclick = function (e) {
+      var x = e.target.closest('button[data-x]'), q = e.target.closest('button[data-s]');
+      if (x || q) {
+        if (q) { var el = secs[+q.getAttribute('data-s')].el, i0 = sel.indexOf(el); if (i0 >= 0) { if (sel.length > 1) sel.splice(i0, 1); } else sel.push(el); }
+        else if (x.getAttribute('data-x') === 'all') sel = secs.map(function (y) { return y.el; });
+        else if (x.getAttribute('data-x') === 'one') sel = [sec];
+        paint(); place(); return;
+      }
+      var a = e.target.closest('button[data-a]'); if (!a) return; closeMenu();
+      run(secs.map(function (y) { return y.el; }).filter(function (el) { return sel.indexOf(el) >= 0; }), a.getAttribute('data-a'));
+    };
   }
   document.addEventListener('click', function (e) { if (menu && !(e.target.closest && e.target.closest('.dlmenu'))) closeMenu(); }, true);
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeMenu(); closeNote(); } });
