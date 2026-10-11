@@ -461,7 +461,7 @@ window.curveFitUSD = function (pts, model, minN) {
    </div>
   </div>
 
-  <div class="card wrap" id="tableContainer" data-dlpad="1" style="padding: 16px; border-radius: 12px; border: 1px solid var(--bd);">
+  <div class="card wrap" id="tableContainer" data-dlpad="1" data-dltitle="Tabla de retornos" style="padding: 16px; border-radius: 12px; border: 1px solid var(--bd);">
       <table id="t"></table>
       <div class="tins" id="read"></div>
       <p class="note xp" id="tNote" style="margin: 14px 2px 0; line-height: 1.55; text-align: left;"><b>TIR de salida (exit TIR)</b>: las columnas de 5,0% a 25,0% son la TIR a la que suponés que el bono cotiza en la fecha de corte, cuando lo vendés. Cada celda es el retorno total en USD hasta esa fecha (precio de venta más cupones cobrados), comprando hoy al precio de la tabla. <b>Ret. TIR constante</b> es el caso en que la TIR de salida es igual a la de hoy. <b>BE retorno 0</b> es la TIR de salida a la que ganás 0%; <b>BE vs reinv.</b>, la que iguala lo que rendiría reinvertir a la tasa de reinversión; y <b>Colchón</b>, los puntos básicos que puede subir la TIR desde hoy hasta el BE retorno 0. Los números en las celdas remiten a los recuadros de arriba.</p>
@@ -1589,8 +1589,9 @@ window.addBrandMark = function(cv, sc) {
 
 // la captura se hace sin el zoom del 90% y con el mismo ancho de diseño que la pantalla. Para que la página no se mueva, el zoom pasa
 // del <html> a cada hijo del <body> (se ve igual) y la copia de html2canvas, que va en un iframe nuevo del body, queda sin zoom.
-// hide: nodos que no van en la imagen (se ocultan solo en la copia)
-window.snapshotCanvas = function(targetId, scale, hide) { // promesa con el canvas de la sección (con la marca); la usan descargar, copiar y compartir
+// hide: nodos que no van en la imagen (se ocultan también en la página, para que lo que queda tome su ancho)
+// cloneHide: nodos que no van en la imagen y se ocultan solo en la copia (la página no se mueve; sirve para secciones enteras apiladas)
+window.snapshotCanvas = function(targetId, scale, hide, cloneHide) { // promesa con el canvas de la sección (con la marca); la usan descargar, copiar y compartir
     const target = targetId && document.getElementById(targetId);
     if (!target) return Promise.reject(new Error('no existe la sección ' + targetId));
     if (typeof html2canvas === 'undefined') return Promise.reject(new Error('no se pudo cargar html2canvas (¿sin conexión?)'));
@@ -1603,7 +1604,8 @@ window.snapshotCanvas = function(targetId, scale, hide) { // promesa con el canv
     const spans = [];
     (hide || []).forEach(function(n) { n.setAttribute('data-dlhide', '1'); });
     (hide || []).forEach(function(n) { const pa = n.parentElement; if (pa && getComputedStyle(pa).display === 'grid') [].forEach.call(pa.children, function(c) { if (!c.hasAttribute('data-dlhide') && spans.indexOf(c) < 0) { c.setAttribute('data-dlspan', '1'); spans.push(c); } }); });
-    const unhide = function() { (hide || []).forEach(function(n) { n.removeAttribute('data-dlhide'); }); spans.forEach(function(c) { c.removeAttribute('data-dlspan'); }); };
+    (cloneHide || []).forEach(function(n) { n.setAttribute('data-dlclone', '1'); });
+    const unhide = function() { (hide || []).forEach(function(n) { n.removeAttribute('data-dlhide'); }); spans.forEach(function(c) { c.removeAttribute('data-dlspan'); }); (cloneHide || []).forEach(function(n) { n.removeAttribute('data-dlclone'); }); };
     const kids = z !== 1 ? [].slice.call(document.body.children) : [];
     kids.forEach(function(n) { n._dlZoom = n.style.zoom; n.style.zoom = String(z); });
     if (kids.length) document.documentElement.style.zoom = '1';
@@ -1612,7 +1614,7 @@ window.snapshotCanvas = function(targetId, scale, hide) { // promesa con el canv
     // calidad máxima sin importar la pantalla: los gráficos se redibujan a 3x de resolución (mismo tamaño en pantalla) y la imagen se genera a 3x (acotado por el tamaño máximo del canvas)
     const HQ = 3, charts = (window.Chart && Chart.instances) ? Object.keys(Chart.instances).map(function(k) { return Chart.instances[k]; }).filter(function(c) { return c && c.canvas && target.contains(c.canvas); }) : [];
     charts.forEach(function(c) { try { c._hqPrev = c.options.devicePixelRatio; c.options.devicePixelRatio = HQ; c.resize(); } catch (e) {} });
-    const w0 = Math.max(1, target.scrollWidth), h0 = Math.max(1, target.scrollHeight);
+    const w0 = Math.max(1, target.scrollWidth), h0 = Math.max(1, target.scrollHeight - (cloneHide || []).reduce(function(a, n) { return a + n.offsetHeight; }, 0));
     const sc = Math.max(1.5, Math.min(scale || HQ, 16000 / Math.max(w0, h0), Math.sqrt(1.3e8 / (w0 * h0))));
     const restoreHQ = function() { charts.forEach(function(c) { try { if (c._hqPrev === undefined) delete c.options.devicePixelRatio; else c.options.devicePixelRatio = c._hqPrev; delete c._hqPrev; c.resize(); } catch (e) {} }); };
     const done = function() { unzoom(); unhide(); restoreHQ(); };
@@ -1621,8 +1623,9 @@ window.snapshotCanvas = function(targetId, scale, hide) { // promesa con el canv
             windowWidth: Math.round(window.innerWidth / z), windowHeight: Math.round(window.innerHeight / z),
             onclone: function(doc) {
                 doc.documentElement.style.zoom = '1'; [].forEach.call(doc.body.children, function(n) { n.style.zoom = ''; });
-                var st = doc.createElement('style'); st.textContent = '*{font-variant-numeric:normal !important}[data-dlhide]{display:none !important}.xp,.hl,.qs:not(.keep),details:not([open]){display:none !important}'; doc.head.appendChild(st); // la imagen va sin los textos que explican qué es cada cosa
-                var t = doc.getElementById(targetId); if (t) { t.style.overflowX = 'visible'; t.style.alignSelf = 'start'; if (t.hasAttribute('data-dlpad')) t.style.paddingTop = '52px'; } // data-dlpad: la sección empieza sin título, se deja lugar para la marca
+                var st = doc.createElement('style'); st.textContent = '*{font-variant-numeric:normal !important}[data-dlhide],[data-dlclone]{display:none !important}.xp,.hl,.qs:not(.keep),details:not([open]){display:none !important}'; doc.head.appendChild(st); // la imagen va sin los textos que explican qué es cada cosa
+                var t = doc.getElementById(targetId); if (t) { t.style.overflowX = 'visible'; t.style.alignSelf = 'start'; if (t.hasAttribute('data-dlpad')) t.style.paddingTop = '52px'; }
+                var p1 = doc.querySelector('[data-dlpad1]'); if (p1) p1.style.paddingTop = '52px'; // varias secciones: la primera, si empieza sin título // data-dlpad: la sección empieza sin título, se deja lugar para la marca
                 try { if (window.dlOnClone) window.dlOnClone(doc, targetId); } catch (e) {}
             } });
     }).then(function(canvas) {
@@ -1638,8 +1641,8 @@ window.saveCanvasPng = function(canvas, fileName) {
     link.href = canvas.toDataURL('image/png');
     link.click();
 };
-window.downloadSnapshotHD = function(targetId, fileName, scale, hide) {
-    return window.snapshotCanvas(targetId, scale, hide).then(function(cv) { window.saveCanvasPng(cv, fileName); }).catch(function(err) {
+window.downloadSnapshotHD = function(targetId, fileName, scale, hide, cloneHide) {
+    return window.snapshotCanvas(targetId, scale, hide, cloneHide).then(function(cv) { window.saveCanvasPng(cv, fileName); }).catch(function(err) {
         console.error(err); $('statusTxt').textContent = 'Error al generar la imagen: ' + err.message;
     });
 };
@@ -1945,7 +1948,7 @@ setInterval(window.fetchLive, 90000);
     cd.id = 'qxcard' + (cardNo++);
     var name = (cd.querySelector('.qh').textContent || '').trim().replace(/[^A-Za-z0-9ÁÉÍÓÚáéíóúñÑ]+/g, '_').replace(/^_|_$/g, '') || 'Seccion';
     var b = document.createElement('button'); b.className = 'icon-btn dl'; b.title = 'Descargar esta sección en HD'; b.setAttribute('data-html2canvas-ignore', 'true'); b.innerHTML = ICON;
-    b.onclick = function () { window.downloadSnapshotHD(cd.id, 'Soberanos_' + name); };
+    b.setAttribute('data-dl', cd.id); b.setAttribute('data-dlname', 'Soberanos_' + name); b.onclick = function () { window.downloadSnapshotHD(cd.id, 'Soberanos_' + name); };
     cd.appendChild(b);
   }); });
   var ctl = gid('qHz').closest('.card');
@@ -2448,7 +2451,7 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
     if (!cd.querySelector('.qh')) return; cd.id = 'pcard' + i;
     var name = (cd.querySelector('.qh').textContent || '').replace(/^\d+/, '').trim().replace(/[^A-Za-z0-9ÁÉÍÓÚáéíóúñÑ]+/g, '_').replace(/^_|_$/g, '') || 'Seccion';
     var b = document.createElement('button'); b.className = 'icon-btn dl'; b.title = 'Descargar esta sección en HD'; b.setAttribute('data-html2canvas-ignore', 'true'); b.innerHTML = ICON;
-    b.onclick = function () { window.downloadSnapshotHD(cd.id, 'Soberanos_Pesos_' + name); }; cd.appendChild(b);
+    b.setAttribute('data-dl', cd.id); b.setAttribute('data-dlname', 'Soberanos_Pesos_' + name); b.onclick = function () { window.downloadSnapshotHD(cd.id, 'Soberanos_Pesos_' + name); }; cd.appendChild(b);
   });
   var all = document.createElement('button'); all.className = 'act'; all.textContent = 'Descargar pestaña completa'; all.setAttribute('data-html2canvas-ignore', 'true');
   all.onclick = function () { window.downloadSnapshotHD('pesos', 'Soberanos_Pesos_Completo', 1); }; root.querySelector('.card.ctl').appendChild(all);
@@ -3891,7 +3894,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<div class="hl"><p><b>Cómo se lee.</b> Cada celda es la compra (<span style="color:var(--ok)">+</span>) o la venta (<span style="color:var(--bad)">−</span>) neta estimada de esa familia y ese plazo, con lo operado y el cambio del monto por rueda contra el período de comparación. Las barras muestran los bonos con más compra y más venta; tocá una para ver su detalle.</p><ul>' +
       '<li><b>Cómo se estima.</b> Cada compra es una venta: lo que muestra qué lado tuvo apuro es el precio. Cada rueda, el monto de un bono cuenta como compra si su tasa bajó más de lo habitual (en Bonares, Globales y Bopreal, si su precio en dólares subió) y como venta si subió. Lo habitual sale de sus 60 ruedas anteriores: hasta medio desvío es ruido y no cuenta, y con un desvío y medio cuenta todo el monto. Así lo que devenga un bono no pasa por compra. Es una estimación: no hay datos de quién inició cada operación.</li>' +
       '<li><b>Fuera de la tabla</b> quedan los bonos a menos de 30 días del vencimiento (operan como efectivo), los de <b>Otros</b> (pesan muy poco) y <b>AL30</b>, que se usa para operar el MEP y el CCL: va en la línea <b>Dólar</b>, salvo que tildes <b>Incluir AL30</b>.</li></ul></div></div>' +
-      '<div class="rs" id="vlS2"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><h4 style="margin:0" id="vlRT">Ranking</h4><span style="display:flex;gap:12px;align-items:center"><label style="flex-direction:row;align-items:center;gap:8px;font-size:12px;color:var(--mu)">Mostrar<select id="vlTop" style="width:110px"><option value="15">15</option><option value="30">30</option><option value="60">60</option><option value="9999">Todos</option></select></label>' + dl('vlS2', 'Soberanos_Volumen_Ranking', 'Descargar el ranking en HD').replace(/onclick="[^"]*"/, 'onclick="window.vlDlRank()"') + '</span></div><div class="sc" id="vlSc2" style="max-height:520px;overflow:auto"><table class="rt" id="vlTab"></table></div><div class="hl"><p><b>Cómo se lee la columna Lectura.</b> Primero se mira si el precio se movió de verdad: la variación del período se compara con lo que ese bono suele moverse en un lapso igual, sin contar su tendencia habitual (por ejemplo, el devengamiento de una Lecap) y con los cupones y amortizaciones sumados. La vara es un desvío estándar de sus últimas 60 ruedas.</p><ul><li><b>Precio sin cambio significativo</b>: se movió menos de un desvío, es decir, dentro de lo normal, aunque haya subido o bajado unos centésimos.</li><li><b>Mucho volumen, precio quieto</b>: lo mismo, pero operó 3 veces o más de lo habitual.</li><li><b>Subió</b> o <b>Bajó</b>: se movió más de un desvío. Al lado se aclara el volumen: <b>con volumen</b> (1,5 veces lo habitual o más), <b>con volumen normal</b> (entre 0,7 y 1,5 veces) o <b>sin volumen</b> (menos de 0,7 veces).</li></ul><p style="margin-top:6px">Pasá el mouse por una etiqueta para ver los números de esa fila: la variación, lo habitual para ese bono y cuántos desvíos se apartó.</p></div></div>' +
+      '<div class="rs" id="vlS2"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><h4 style="margin:0" id="vlRT">Ranking</h4><span style="display:flex;gap:12px;align-items:center"><label style="flex-direction:row;align-items:center;gap:8px;font-size:12px;color:var(--mu)">Mostrar<select id="vlTop" style="width:110px"><option value="15">15</option><option value="30">30</option><option value="60">60</option><option value="9999">Todos</option></select></label>' + dl('vlS2', 'Soberanos_Volumen_Ranking', 'Descargar el ranking en HD').replace(/onclick="[^"]*"/, 'data-dl="vlS2" data-dlname="Soberanos_Volumen_Ranking" onclick="window.vlDlRank()"') + '</span></div><div class="sc" id="vlSc2" style="max-height:520px;overflow:auto"><table class="rt" id="vlTab"></table></div><div class="hl"><p><b>Cómo se lee la columna Lectura.</b> Primero se mira si el precio se movió de verdad: la variación del período se compara con lo que ese bono suele moverse en un lapso igual, sin contar su tendencia habitual (por ejemplo, el devengamiento de una Lecap) y con los cupones y amortizaciones sumados. La vara es un desvío estándar de sus últimas 60 ruedas.</p><ul><li><b>Precio sin cambio significativo</b>: se movió menos de un desvío, es decir, dentro de lo normal, aunque haya subido o bajado unos centésimos.</li><li><b>Mucho volumen, precio quieto</b>: lo mismo, pero operó 3 veces o más de lo habitual.</li><li><b>Subió</b> o <b>Bajó</b>: se movió más de un desvío. Al lado se aclara el volumen: <b>con volumen</b> (1,5 veces lo habitual o más), <b>con volumen normal</b> (entre 0,7 y 1,5 veces) o <b>sin volumen</b> (menos de 0,7 veces).</li></ul><p style="margin-top:6px">Pasá el mouse por una etiqueta para ver los números de esa fila: la variación, lo habitual para ese bono y cuántos desvíos se apartó.</p></div></div>' +
       '<div class="rs" id="vlS3"><div style="' + HD + ';flex-wrap:wrap"><h4 style="margin:0">Volumen contra precio</h4><span style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><label data-html2canvas-ignore="true" style="flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:12px;color:var(--mu)" title="Los bonos que operaron muy poco tienen variaciones y volúmenes relativos extremos que no dicen nada: por defecto no se dibujan">Bonos chicos<input type="range" id="vlMin" min="0" max="' + (MINS.length - 1) + '" step="1" style="width:130px"><span id="vlMinV" style="min-width:178px;color:var(--tx)"></span></label>' + dl('vlS3', 'Soberanos_Volumen_vs_Precio', 'Descargar este gráfico en HD') + '</span></div><p class="note xp" style="margin:0 0 8px">Cada punto es un bono. A la derecha, los que subieron en el período; a la izquierda, los que bajaron. Arriba de la línea del 1× operaron más que de costumbre; abajo, menos. El tamaño del punto es el monto operado. Tocá un punto o una fila del ranking para ver el detalle.</p><div style="position:relative;height:clamp(520px,72vh,780px)"><canvas id="vlCh3"></canvas></div><p class="note" id="vlSN" style="margin:8px 0 0"></p></div>' +
       '<div class="rs" id="vlDet"></div>' +
       '<div class="rs"><div class="hl" style="margin:0"><p><b>Qué mide cada cosa</b></p><ul><li><b>Monto</b>: lo operado en pesos en cada rueda. Si un bono tiene varias especies (AL30 en pesos, AL30D en MEP y AL30C en Cable), se suman pasando los dólares a pesos con el dólar implícito de los bonos (la mediana de AL30, GD30 y otros pares). Con <b>Moneda</b> podés ver solo una especie y con <b>Medida</b>, el valor nominal en vez del monto.</li><li><b>Volumen relativo</b>: el promedio diario del período dividido por el de las 60 ruedas anteriores. 1× es lo normal, 2× el doble y 0,5× la mitad. Si el bono operó en menos de 10 de esas 60 ruedas no tiene un volumen habitual, así que no se calcula (y no aparece en el gráfico).</li><li><b>Variación de precio</b>: el precio de cierre es sucio (incluye los intereses corridos) y cae el día que se corta un cupón, así que se le suma lo que el bono pagó en el período. En Lecaps y bonos que devengan, el devengamiento forma parte de la variación.</li><li><b>Símbolos</b>: ‡ el bono pagó un cupón variable (TAMAR o dual) de monto desconocido, así que su variación no es comparable y no se clasifica. † bono sin cronograma de pagos cargado (por ejemplo, Bopreal): su variación no descuenta cobros.</li><li><b>Rueda de hoy</b>: si la incluís, cuenta con lo operado hasta el momento (se actualiza cada minuto), así que el monto y el volumen relativo de hoy quedan bajos hasta el cierre.</li><li><b>Ojo</b>: que el volumen y el precio se muevan juntos muestra coincidencia, no causa. Un volumen alto puede ser el motivo de un movimiento o su consecuencia.</li></ul></div></div></div>';
@@ -4725,7 +4728,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   if (window.Chart) Chart.defaults.devicePixelRatio = Math.max(window.devicePixelRatio || 1, 2);
   var orig = window.downloadSnapshotHD, last = null, menu = null, note = null;
   var st = document.createElement('style');
-  st.textContent = '.dlmenu{position:fixed;z-index:9999;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:6px;box-shadow:0 8px 28px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:2px;min-width:200px}.dlmenu button{background:transparent;border:0;color:var(--tx);text-align:left;padding:9px 12px;border-radius:7px;font:600 13px system-ui,-apple-system,sans-serif;cursor:pointer}.dlmenu button:hover{background:var(--bd)}.dlmenu button small{display:block;font-weight:500;font-size:11.5px;color:var(--mu);margin-top:1px}.dlmenu .hd{font:600 11px system-ui,sans-serif;color:var(--mu);padding:4px 12px 6px;text-transform:uppercase;letter-spacing:.04em}.dlmenu .sep{height:1px;background:var(--bd);margin:4px 6px}.dlmenu .seg{display:flex;gap:4px;padding:0 6px 4px}.dlmenu .seg button{flex:1;text-align:center;padding:7px 8px;border:1px solid var(--bd);font-size:12px}.dlmenu .seg button.on{background:var(--ac);border-color:var(--ac);color:#1c1917}.dlmenu{max-width:330px}.dlmenu .pick{display:flex;flex-direction:column;gap:1px}.dlmenu .pick button{position:relative;padding:7px 12px 7px 30px;font-weight:500;line-height:1.3}.dlmenu .pick button.on{color:var(--ac);font-weight:700}.dlmenu .pick button.on::before{content:"✓";position:absolute;left:11px}' +
+  st.textContent = '.dlmenu{position:fixed;z-index:9999;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:6px;box-shadow:0 8px 28px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:2px;min-width:200px}.dlmenu button{background:transparent;border:0;color:var(--tx);text-align:left;padding:9px 12px;border-radius:7px;font:600 13px system-ui,-apple-system,sans-serif;cursor:pointer}.dlmenu button:hover{background:var(--bd)}.dlmenu button small{display:block;font-weight:500;font-size:11.5px;color:var(--mu);margin-top:1px}.dlmenu .hd{font:600 11px system-ui,sans-serif;color:var(--mu);padding:4px 12px 6px;text-transform:uppercase;letter-spacing:.04em}.dlmenu .sep{height:1px;background:var(--bd);margin:4px 6px}.dlmenu .seg{display:flex;gap:4px;padding:0 6px 4px}.dlmenu .seg button{flex:1;text-align:center;padding:7px 8px;border:1px solid var(--bd);font-size:12px}.dlmenu .seg button.on{background:var(--ac);border-color:var(--ac);color:#1c1917}.dlmenu{max-width:330px}.dlmenu .pick{display:flex;flex-direction:column;gap:1px}.dlmenu .pick button{position:relative;padding:7px 12px 7px 30px;font-weight:500;line-height:1.3}.dlmenu .pick button.on{color:var(--ac);font-weight:700}.dlmenu .pick button.on::before{content:"✓";position:absolute;left:11px}.dlmenu{max-height:calc(100vh - 24px);overflow-y:auto}.dlmenu .off{display:none}.dlmenu .seg.lt button{font-weight:600}' +
     '.dlnote{position:fixed;z-index:10000;left:50%;bottom:22px;transform:translateX(-50%);background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:12px;padding:12px 16px;box-shadow:0 8px 28px rgba(0,0,0,.45);font:500 14px system-ui,-apple-system,sans-serif;display:flex;gap:12px;align-items:center;max-width:calc(100vw - 32px)}.dlnote button{background:var(--ac);color:#1c1917;border:0;border-radius:8px;padding:8px 14px;font:700 13px system-ui,sans-serif;cursor:pointer}.dlnote button.alt{background:transparent;color:var(--tx);border:1px solid var(--bd)}';
   document.head.appendChild(st);
   document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('button.icon-btn'); if (b) last = b; if (menu && !(e.target.closest && e.target.closest('.dlmenu'))) closeMenu(); }, true);
@@ -4756,18 +4759,45 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     if (mode === 'table') card.querySelectorAll('canvas').forEach(function (c) { var n = climb(c, card, 'table'); if (n && out.indexOf(n) < 0) out.push(n); });
     return out;
   }
+  function sections(card) { // las secciones de la pestaña con imagen propia, en el orden de la página (sin las que agrupan a otras, como la pestaña completa)
+    var tab = card.closest('.tab-content'), L = [], seen = {}; if (!tab) return L;
+    tab.querySelectorAll('button').forEach(function (b) {
+      var id = b.getAttribute('data-dl'), nm = b.getAttribute('data-dlname');
+      if (!id) { var m = (b.getAttribute('onclick') || '').match(/downloadSnapshotHD\(\s*'([^']+)'\s*,\s*'([^']+)'/); if (m) { id = m[1]; nm = m[2]; } }
+      var el = id && document.getElementById(id); if (!el || seen[id] || !el.getClientRects().length) return; seen[id] = 1; L.push({ id: id, el: el, nm: nm || id });
+    });
+    L = L.filter(function (x) { return !L.some(function (o) { return o !== x && x.el.contains(o.el); }); });
+    L.sort(function (a, b) { return a.el.compareDocumentPosition(b.el) & 4 ? -1 : 1; });
+    L.forEach(function (x) { var h = x.el.querySelector('h4, .qh, h3'), t = x.el.getAttribute('data-dltitle') || (h ? h.textContent.trim().split(' · ')[0].replace(/^\d+\s*/, '') : ''); x.t = t || x.nm.replace(/^Soberanos_/, '').replace(/_/g, ' '); });
+    return L;
+  }
+  function multiJob(L) { // varias secciones en una imagen: se captura lo que las contiene y lo demás se oculta solo en la copia
+    var els = L.map(function (x) { return x.el; }), box = els[0], keep = [], out = [];
+    while (box && !els.every(function (e) { return box.contains(e); })) box = box.parentElement;
+    els.forEach(function (e) { for (var n = e; n && n !== box; n = n.parentElement) if (keep.indexOf(n) < 0) keep.push(n); });
+    (function walk(n) { [].forEach.call(n.children, function (c) { if (els.indexOf(c) >= 0) return; if (keep.indexOf(c) >= 0) walk(c); else if (!c.hasAttribute('data-html2canvas-ignore')) out.push(c); }); })(box);
+    var tmp = !box.id; if (tmp) box.id = 'dlMultiBox';
+    var p1 = els[0].hasAttribute('data-dlpad') ? els[0] : null; if (p1) p1.setAttribute('data-dlpad1', '1'); // la primera empieza sin título: lugar para la marca
+    var tb = document.querySelector('.tab-btn.active');
+    return { id: box.id, hid: [], cl: out, tmp: tmp ? box : null, p1: p1, fname: 'Soberanos_' + slug(tb ? tb.textContent : box.id) + '_' + L.length + '_secciones' };
+  }
   var canCopy = !!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem);
   var canShare = (function () { try { return !!(navigator.share && navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.png', { type: 'image/png' })] })); } catch (e) { return false; } })();
   var blobOf = function (cv) { return new Promise(function (ok, ko) { cv.toBlob(function (b) { b ? ok(b) : ko(new Error('no se pudo armar la imagen')); }, 'image/png'); }); };
   var fail = function (err) { console.error(err); toast('No se pudo generar la imagen: ' + err.message); };
   // act: png (descargar), copy (portapapeles) o share (menú de compartir del sistema)
-  function run(id, name, scale, mode, act) {
-    var card = document.getElementById(id), hid = [];
-    if (mode !== 'both') hid = hideSet(card, mode);
-    var k = /^c\d+$/.test(mode) ? +mode.slice(1) : -1, cs = k >= 0 ? charts(card) : [];
-    var fname = name + (k >= 0 && cs[k] ? '_' + slug(cname(cs[k], k)) : mode === 'chart' ? '_grafico' : mode === 'table' ? '_tabla' : (card.querySelector('canvas') && card.querySelector('table') ? '_completo' : ''));
-    if (act === 'png') { orig(id, fname, scale, hid); return; }
-    var pr = window.snapshotCanvas(id, scale, hid);
+  function run(id, name, scale, mode, act, multi) {
+    var job;
+    if (multi) job = multiJob(multi);
+    else {
+      var card = document.getElementById(id), hid = [];
+      if (mode !== 'both') hid = hideSet(card, mode);
+      var k = /^c\d+$/.test(mode) ? +mode.slice(1) : -1, cs = k >= 0 ? charts(card) : [];
+      job = { id: id, hid: hid, fname: name + (k >= 0 && cs[k] ? '_' + slug(cname(cs[k], k)) : mode === 'chart' ? '_grafico' : mode === 'table' ? '_tabla' : (card.querySelector('canvas') && card.querySelector('table') ? '_completo' : '')) };
+    }
+    var fname = job.fname, end = function () { if (job.tmp) job.tmp.removeAttribute('id'); if (job.p1) job.p1.removeAttribute('data-dlpad1'); };
+    if (act === 'png') { Promise.resolve(orig(job.id, fname, scale, job.hid, job.cl)).then(end, end); return; }
+    var pr = window.snapshotCanvas(job.id, scale, job.hid, job.cl); pr.then(end, end);
     if (act === 'copy') { // el portapapeles se pide ya, dentro del clic, con la imagen como promesa (Safari lo exige)
       toast('Generando la imagen…', null, 0);
       var copied = function () { toast('Imagen copiada. Pegala con Ctrl+V (o mantené apretado y Pegar) en WhatsApp: llega como foto.'); };
@@ -4791,21 +4821,41 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var card = id && document.getElementById(id); if (!card) return;
     if (!last || !last.isConnected) return orig(id, name, scale); // llamada sin botón de por medio: descarga directa
     var cvs = charts(card), multi = cvs.length > 1, both = !multi && !!(card.querySelector('canvas') && card.querySelector('table')), mode = both ? MODE : 'both'; // varios gráficos: se elige cuál
+    var secs = sections(card), canJoin = secs.length > 1 && secs.some(function (x) { return x.id === id; }), sel = [id]; // juntar con otras secciones de la pestaña en una sola imagen
     closeMenu(); var r = last.getBoundingClientRect(), z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
     menu = document.createElement('div'); menu.className = 'dlmenu'; menu.setAttribute('data-html2canvas-ignore', 'true');
-    menu.innerHTML = '<div class="hd">Imagen HD</div>' +
+    menu.innerHTML = '<div class="hd">Imagen HD</div><div class="mode">' +
       (multi ? '<div class="pick">' + [['both', 'Toda la sección']].concat(cvs.map(function (c, i) { return ['c' + i, 'Solo: ' + cname(c, i)]; }), card.querySelector('table') ? [['table', 'Solo la tabla']] : []).map(function (m) { return '<button data-m="' + m[0] + '"' + (m[0] === mode ? ' class="on"' : '') + '>' + esc(m[1]) + '</button>'; }).join('') + '</div><div class="sep"></div>' : '') +
-      (both ? '<div class="seg">' + [['chart', 'Gráfico'], ['table', 'Tabla'], ['both', 'Ambos']].map(function (m) { return '<button data-m="' + m[0] + '"' + (m[0] === mode ? ' class="on"' : '') + '>' + m[1] + '</button>'; }).join('') + '</div><div class="sep"></div>' : '') +
+      (both ? '<div class="seg">' + [['chart', 'Gráfico'], ['table', 'Tabla'], ['both', 'Ambos']].map(function (m) { return '<button data-m="' + m[0] + '"' + (m[0] === mode ? ' class="on"' : '') + '>' + m[1] + '</button>'; }).join('') + '</div><div class="sep"></div>' : '') + '</div>' +
+      (canJoin ? '<div class="join"><button data-x="open">Juntar con otras secciones<small>varias en una sola imagen</small></button></div><div class="sep"></div>' : '') +
       '<button data-a="png">Descargar PNG<small>guarda el archivo</small></button>' +
       (canCopy ? '<button data-a="copy">Copiar imagen<small>para pegar en WhatsApp como foto</small></button>' : '') +
       (canShare ? '<button data-a="share">Compartir…<small>WhatsApp, Telegram, mail…</small></button>' : '');
     document.body.appendChild(menu);
-    var mw = menu.offsetWidth || 200, mh = menu.offsetHeight || 200, left = Math.max(8, Math.min(r.right / z - mw, window.innerWidth / z - mw - 8)), top = r.bottom / z + 6;
-    if (top + mh > window.innerHeight / z - 8) top = Math.max(8, r.top / z - mh - 6);
-    menu.style.left = left + 'px'; menu.style.top = top + 'px';
+    var place = function () {
+      var mw = menu.offsetWidth || 200, mh = menu.offsetHeight || 200, left = Math.max(8, Math.min(r.right / z - mw, window.innerWidth / z - mw - 8)), top = r.bottom / z + 6;
+      if (top + mh > window.innerHeight / z - 8) top = Math.max(8, Math.min(r.top / z - mh - 6, window.innerHeight / z - mh - 8));
+      menu.style.left = left + 'px'; menu.style.top = top + 'px';
+    };
+    place();
+    var paint = function () { // la lista de secciones y, si hay más de una, sin las opciones de una sola sección
+      var j = menu.querySelector('.join');
+      j.innerHTML = '<div class="hd">Secciones de la imagen</div><div class="pick">' + secs.map(function (x) { return '<button data-s="' + x.id + '"' + (sel.indexOf(x.id) >= 0 ? ' class="on"' : '') + '>' + esc(x.t) + '</button>'; }).join('') + '</div>' +
+        '<div class="seg lt"><button data-x="all">Todas</button><button data-x="one">Solo esta</button></div>';
+      menu.querySelector('.mode').classList.toggle('off', sel.length > 1);
+    };
     menu.onclick = function (e) {
+      var x = e.target.closest('button[data-x]'), q = e.target.closest('button[data-s]');
+      if (x || q) {
+        if (q) { var s0 = q.getAttribute('data-s'), i0 = sel.indexOf(s0); if (i0 >= 0) { if (sel.length > 1) sel.splice(i0, 1); } else sel.push(s0); }
+        else if (x.getAttribute('data-x') === 'all') sel = secs.map(function (y) { return y.id; });
+        else if (x.getAttribute('data-x') === 'one') sel = [id];
+        paint(); place(); return;
+      }
       var m = e.target.closest('button[data-m]'); if (m) { mode = m.getAttribute('data-m'); if (!multi) { MODE = mode; try { localStorage.setItem('dlMode', mode); } catch (x) { } } menu.querySelectorAll('button[data-m]').forEach(function (b) { b.classList.toggle('on', b === m); }); return; }
-      var a = e.target.closest('button[data-a]'); if (!a) return; closeMenu(); run(id, name, scale, mode, a.getAttribute('data-a'));
+      var a = e.target.closest('button[data-a]'); if (!a) return; closeMenu();
+      var pick = sel.length > 1 ? secs.filter(function (y) { return sel.indexOf(y.id) >= 0; }) : null;
+      run(id, name, scale, pick ? 'both' : mode, a.getAttribute('data-a'), pick);
     };
   };
 })();
