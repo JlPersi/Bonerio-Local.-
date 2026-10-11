@@ -3000,11 +3000,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var box = document.getElementById('psOpt');
     if (!box) {
       box = document.createElement('details'); box.id = 'psOpt'; box.className = 'psfwd'; try { box.open = localStorage.getItem('psOpt') !== '0'; } catch (e) { box.open = true; }
-      box.innerHTML = '<summary>Valor de la opción</summary><p class="note" id="psOptR" style="margin:6px 0 10px;color:var(--tx)"></p><div class="wrap"><table class="qt" id="psOptT"></table></div><p class="qs" id="psOptN" style="margin-top:8px"></p>';
+      box.innerHTML = '<summary>Valor de la opción</summary><div class="wrap" style="margin-top:8px"><table class="qt" id="psOptT"></table></div><p class="qs" id="psOptN" style="margin-top:8px"></p>';
       box.addEventListener('toggle', function () { try { localStorage.setItem('psOpt', box.open ? '1' : '0'); } catch (e) { } });
       card.appendChild(box);
     }
-    var S = (PER[5] && PER[5].S) || [], R = document.getElementById('psOptR'), T = document.getElementById('psOptT'), NT = document.getElementById('psOptN');
+    var S = (PER[5] && PER[5].S) || [], T = document.getElementById('psOptT'), NT = document.getElementById('psOptN');
     var curve = function (rows, f, x) { return rows.map(function (o) { return [x ? x(o) : o.d, f(o)]; }).filter(function (q) { return isFinite(q[0]) && isFinite(q[1]) && q[1] != null; }).sort(function (a, b) { return a[0] - b[0]; }); };
     var at = function (c, d) { if (!c.length) return NaN; if (d <= c[0][0]) return c[0][1]; if (d >= c[c.length - 1][0]) return c[c.length - 1][1]; for (var i = 1; i < c.length; i++) if (d <= c[i][0]) { var w = (d - c[i - 1][0]) / (c[i][0] - c[i - 1][0]); return c[i - 1][1] + w * (c[i][1] - c[i - 1][1]); } };
     var C = {
@@ -3027,7 +3027,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (sd > 1e-6) { var d1 = (Math.log(PA / PB) + sd * sd / 2) / sd, d2 = d1 - sd; opt = PA * OPT_N(d1) + PB * OPT_N(-d2) - best; pA = OPT_N(d2); }
       return { o: o, typ: typ, PA: PA, PB: PB, best: best, opt: opt, prem: o.P - best, pA: pA, ext: ext, mny: PA / PB - 1 };
     }).filter(Boolean);
-    if (!rows.length) { R.textContent = 'No hay duales con precio.'; T.innerHTML = ''; NT.textContent = ''; return; }
+    if (!rows.length) { T.innerHTML = ''; NT.textContent = 'No hay duales con precio.'; return; }
     var dec = function (r) { return r.o.P > 1000 ? 0 : 2; }, pc = function (v) { return fm(v * 100, 1) + '%'; };
     var h = '<thead><tr><th class="l">Bono</th><th class="l">Vence</th><th>Pata CER / dólar / fija</th><th>Pata TAMAR</th><th>Gana hoy</th><th>Opción (modelo)</th><th>Paga el mercado</th><th>Prob. de que gane la otra pata</th></tr></thead><tbody>';
     rows.forEach(function (r) {
@@ -3041,14 +3041,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         '<td>' + fm(pOther * 100, 0) + '% <span class="vdsup">' + other + '</span></td></tr>';
     });
     T.innerHTML = h + '</tbody>';
-    var cr = rows.filter(function (r) { return r.typ === 'CER'; }), inR = rows.filter(function (r) { return !r.ext.length && r.opt / r.o.P > 0.0005; });
-    var txt = '';
-    if (cr.length) { var lo = Math.min.apply(null, cr.map(function (r) { return r.opt / r.o.P; })), hi = Math.max.apply(null, cr.map(function (r) { return r.opt / r.o.P; })), pl = Math.min.apply(null, cr.map(function (r) { return r.pA; })), ph = Math.max.apply(null, cr.map(function (r) { return r.pA; })), allT = cr.every(function (r) { return r.PB > r.PA; });
-      txt += 'En los duales CER/TAMAR la opción vale entre ' + pc(lo) + ' y ' + pc(hi) + ' del precio' + (allT ? ': hoy gana la pata TAMAR en todos y la CER tiene entre ' + fm(pl * 100, 0) + '% y ' + fm(ph * 100, 0) + '% de chances de ganar' : '') + '. '; }
-    inR.forEach(function (r) { var m = r.prem / r.o.P, v = r.opt / r.o.P; if (Math.abs(m - v) >= 0.003) txt += r.o.k + ': el mercado paga ' + pc(Math.max(m, 0)) + ' contra ' + pc(v) + ' del modelo (' + (m > v ? 'la paga más cara' : 'la paga más barata') + '). '; });
-    R.textContent = txt;
-    var kd = function (x, nm) { return x ? nm + ': ' + x.pair.replace('/', ' contra ') + ', ' + fm(x.sd * 100, 1) + '% anual' : ''; }, pr = [kd(K.cer, 'CER/TAMAR'), kd(K.dl, 'dólar/TAMAR')].filter(Boolean);
-    NT.innerHTML = 'Cada pata se valúa con la curva de su familia al mismo plazo: Boncer (CER), bonos TAMAR, dollar linked (dólar) y Lecaps (fija). La opción es lo que agrega poder quedarse con la mejor pata (Margrabe): vale más cuanto más cerca están las patas y cuanto más se mueven una contra otra.' + (pr.length ? ' Ese movimiento sale de las últimas 26 semanas (' + pr.join('; ') + ') y se achica hacia el vencimiento.' : '') + ' <b>Paga el mercado</b>: precio menos la mejor pata, con un error de alrededor de 1%. <b>†</b> Pata fuera de la curva de su familia: ese dato no es confiable.';
+    var kd = function (x, nm) { return x ? nm + ': ' + x.pair.replace('/', ' contra ') + ', ' + fm(x.sd * 100, 1) + '% anual en ' + x.n + ' semanas' : ''; }, pr = [kd(K.cer, 'CER/TAMAR'), kd(K.dl, 'dólar/TAMAR')].filter(Boolean);
+    NT.innerHTML = 'Cada pata se valúa con la curva de su familia al mismo plazo: Boncer (CER), bonos TAMAR, dollar linked (dólar) y Lecaps (fija). La opción es lo que agrega poder quedarse con la mejor pata (Margrabe): vale más cuanto más cerca están las patas y cuanto más se mueven una contra otra.' + (pr.length ? ' Ese movimiento sale de los cambios semanales recientes, hasta 26 semanas (' + pr.join('; ') + '), y se achica hacia el vencimiento.' : '') + ' <b>Paga el mercado</b>: precio menos la mejor pata, con un error de alrededor de 1%. <b>†</b> Pata fuera de la curva de su familia: ese dato no es confiable.';
   }
   window.renderPesos = function () {
     if (typeof Chart === 'undefined') return;
