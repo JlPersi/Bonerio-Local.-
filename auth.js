@@ -154,6 +154,7 @@
     if (/session missing|expired|code verifier|invalid flow|invalid grant/i.test(t)) return 'El link venció o se abrió en otro navegador. Pedí uno nuevo desde este navegador.';
     if (/rate limit|too many|seconds/i.test(t)) return 'Hubo varios intentos seguidos. Esperá un minuto y probá de nuevo.';
     if (/invalid.*email|email.*invalid/i.test(t)) return 'Revisá el mail.';
+    if (/error sending|smtp|HTTP 5\d\d|gateway|timeout|timed out/i.test(t)) return 'No pudimos mandar el mail en este momento. Probá de nuevo en unos minutos.';
     if (/fetch|network/i.test(t)) return 'No se pudo conectar con el servicio de cuentas. Probá de nuevo en un rato.';
     return 'No se pudo completar el ingreso (' + t + ').';
   }
