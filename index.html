@@ -2977,6 +2977,79 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
             y: { title: { display: true, text: F.yl, color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, F.lin ? 1 : 0) + '%'; } }, grid: { color: bd } } } } });
     });
   }
+  /* ---------- duales: cuánto vale la opción de quedarse con la mejor pata ----------
+     Cada pata se valúa con la curva de mercado de su familia (CER: TIR real de los Boncer cero; TAMAR: margen de los bonos TAMAR;
+     dólar: TIR en dólares de los dollar linked; fija: TEA de las Lecaps), interpolando por plazo. La opción (Margrabe) es lo que
+     suma poder quedarse con la mejor: E[máx(A, B)] − máx(A, B). La volatilidad del cociente A/B sale de dos bonos de esas familias
+     con vencimientos parecidos (cambios semanales de las últimas 26 semanas) y se achica a medida que se acerca el vencimiento:
+     σ(t) = k × plazo restante, con varianza total k² T³ / 3. */
+  var OPT_N = function (x) { var t = 1 / (1 + 0.2316419 * Math.abs(x)), d = 0.3989423 * Math.exp(-x * x / 2), q = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return x > 0 ? 1 - q : q; };
+  function optVolK(S, fa, fb) { // k: volatilidad anual del cociente por año de plazo, con el par de bonos más parecido en vencimiento
+    var A = S.filter(function (o) { return fa(o) && o.d >= 365 && HIST[o.k]; }), Bs = S.filter(function (o) { return fb(o) && o.d >= 365 && HIST[o.k]; }), best = null;
+    A.forEach(function (a) { Bs.forEach(function (b) { var g = Math.abs(a.mat - b.mat); if (!best || g < best.g) best = { a: a, b: b, g: g }; }); });
+    if (!best) return null;
+    var PA = {}, PB = {}; ptsOf(best.a.k).forEach(function (q) { PA[q[0]] = q[1]; }); ptsOf(best.b.k).forEach(function (q) { PB[q[0]] = q[1]; });
+    var ds = Object.keys(PA).filter(function (t) { return PB[t] > 0 && PA[t] > 0; }).map(Number).sort(function (x, y) { return x - y; }), wk = [], last = null;
+    ds.forEach(function (t) { if (last == null || t - last >= 7) { wk.push(Math.log(PA[t] / PB[t])); last = t; } });
+    var r = []; for (var i = Math.max(1, wk.length - 26); i < wk.length; i++) r.push(wk[i] - wk[i - 1]); if (r.length < 12) return null;
+    var m = r.reduce(function (x, y) { return x + y; }, 0) / r.length, sd = Math.sqrt(r.reduce(function (x, y) { return x + (y - m) * (y - m); }, 0) / (r.length - 1) * 52);
+    var T = ((best.a.d + best.b.d) / 2) / 365; return { k: sd / T, sd: sd, pair: best.a.k + '/' + best.b.k, n: r.length };
+  }
+  function renderOpt(PER, s) {
+    var cv0 = document.getElementById('psC5'), card = cv0 && cv0.closest('.card'); if (!card) return;
+    var box = document.getElementById('psOpt');
+    if (!box) {
+      box = document.createElement('details'); box.id = 'psOpt'; box.className = 'psfwd'; try { box.open = localStorage.getItem('psOpt') !== '0'; } catch (e) { box.open = true; }
+      box.innerHTML = '<summary>Valor de la opción</summary><p class="note" id="psOptR" style="margin:6px 0 10px;color:var(--tx)"></p><div class="wrap"><table class="qt" id="psOptT"></table></div><p class="qs" id="psOptN" style="margin-top:8px"></p>';
+      box.addEventListener('toggle', function () { try { localStorage.setItem('psOpt', box.open ? '1' : '0'); } catch (e) { } });
+      card.appendChild(box);
+    }
+    var S = (PER[5] && PER[5].S) || [], R = document.getElementById('psOptR'), T = document.getElementById('psOptT'), NT = document.getElementById('psOptN');
+    var curve = function (rows, f, x) { return rows.map(function (o) { return [x ? x(o) : o.d, f(o)]; }).filter(function (q) { return isFinite(q[0]) && isFinite(q[1]) && q[1] != null; }).sort(function (a, b) { return a[0] - b[0]; }); };
+    var at = function (c, d) { if (!c.length) return NaN; if (d <= c[0][0]) return c[0][1]; if (d >= c[c.length - 1][0]) return c[c.length - 1][1]; for (var i = 1; i < c.length; i++) if (d <= c[i][0]) { var w = (d - c[i - 1][0]) / (c[i][0] - c[i - 1][0]); return c[i - 1][1] + w * (c[i][1] - c[i - 1][1]); } };
+    var C = {
+      cer: curve(S.filter(function (o) { return o.ins.k === 'cer0' && o.d >= 20; }), function (o) { return o.realTea; }).concat(curve(S.filter(function (o) { return o.ins.k === 'cerc' && o.d > 1500 && o.d < 2500; }), function (o) { return o.realTea; }, function (o) { return o.mac; })).sort(function (a, b) { return a[0] - b[0]; }), // más allá del último Boncer cero, un CER con cupón de 4 a 7 años (por su duración)
+      tam: curve(S.filter(function (o) { return o.ins.k === 'tamar' && o.d >= 20; }), function (o) { return o.dm; }),
+      dl: curve(S.filter(function (o) { return o.ins.k === 'dl' && o.d >= 20; }), function (o) { return o.usdTea; }),
+      fix: curve(S.filter(function (o) { return o.ins.k === 'cap' && o.d >= 20; }), function (o) { return o.tea; }) };
+    var lastD = function (c) { return c.length ? c[c.length - 1][0] : 0; }, lastTamCer = curve(S.filter(function (o) { return o.ins.k === 'cer0'; }), function (o) { return o.realTea; });
+    var isT = function (o) { return o.ins.k === 'tamar'; };
+    var K = { cer: optVolK(S, function (o) { return o.ins.k === 'cer0'; }, isT), dl: optVolK(S, function (o) { return o.ins.k === 'dl'; }, isT), fix: optVolK(S, function (o) { return o.ins.k === 'cap'; }, isT) };
+    var rows = S.filter(function (o) { return (o.ins.k === 'dual' || o.ins.k === 'dualtf') && o.P > 0 && o.clean > 0 && o.d > 0; }).sort(function (a, b) { return a.mat - b.mat; }).map(function (o) {
+      var d = o.d, Ty = d / 365, Anow = o.P / o.clean, dm = at(C.tam, d), typ, PA, kv, ext = [];
+      var PB = Anow * 100 / Math.pow(1 + (dm - (o.sp || 0) * 100) / 100 * 30 / 365, d / 30);
+      if (d > lastD(C.tam) + 60) ext.push('TAMAR');
+      if (o.ins.k === 'dualtf') { typ = 'fija'; PA = o.bv.fix / Math.pow(1 + at(C.fix, d), Ty); kv = K.fix; if (d > lastD(C.fix) + 60) ext.push('fija'); }
+      else if (o.isCer) { typ = 'CER'; PA = o.coef * 100 / Math.pow(1 + at(C.cer, d), Ty); kv = K.cer; if (d > lastD(lastTamCer) + 60) ext.push('CER'); }
+      else { typ = 'dólar'; PA = 100 * o.fx0 / Math.pow(1 + at(C.dl, d), Ty); kv = K.dl; if (d > lastD(C.dl) + 60) ext.push('dólar'); }
+      if (!(PA > 0 && PB > 0)) return null;
+      var best = Math.max(PA, PB), sd = kv ? kv.k * Ty * Math.sqrt(Ty) / Math.sqrt(3) : 0, opt = 0, pA = PA > PB ? 1 : 0;
+      if (sd > 1e-6) { var d1 = (Math.log(PA / PB) + sd * sd / 2) / sd, d2 = d1 - sd; opt = PA * OPT_N(d1) + PB * OPT_N(-d2) - best; pA = OPT_N(d2); }
+      return { o: o, typ: typ, PA: PA, PB: PB, best: best, opt: opt, prem: o.P - best, pA: pA, ext: ext, mny: PA / PB - 1 };
+    }).filter(Boolean);
+    if (!rows.length) { R.textContent = 'No hay duales con precio.'; T.innerHTML = ''; NT.textContent = ''; return; }
+    var dec = function (r) { return r.o.P > 1000 ? 0 : 2; }, pc = function (v) { return fm(v * 100, 1) + '%'; };
+    var h = '<thead><tr><th class="l">Bono</th><th class="l">Vence</th><th>Pata CER / dólar / fija</th><th>Pata TAMAR</th><th>Gana hoy</th><th>Opción (modelo)</th><th>Paga el mercado</th><th>Prob. de que gane la otra pata</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      var win = r.PA >= r.PB ? r.typ : 'TAMAR', other = r.PA >= r.PB ? 'TAMAR' : r.typ, pOther = r.PA >= r.PB ? 1 - r.pA : r.pA, X = r.ext.length ? ' †' : '';
+      h += '<tr><td class="l k">' + r.o.k + '</td><td class="l">' + dstr(r.o.mat).replace(/\/\d{2}(\d{2})$/, '/$1') + '</td>' +
+        '<td>' + fm(r.PA, dec(r)) + (r.ext.indexOf(r.typ) >= 0 ? ' †' : '') + ' <span class="vdsup">' + r.typ + '</span></td><td>' + fm(r.PB, dec(r)) + (r.ext.indexOf('TAMAR') >= 0 ? ' †' : '') + '</td>' +
+        '<td>' + win + ' <span class="vdsup">por ' + pc(Math.abs(r.mny)) + '</span></td>' +
+        (pOther < 0.01 ? '<td style="color:var(--mu)">≈ 0 <span class="vdsup">sin chances</span></td><td style="color:var(--mu)">—</td>' : // la otra pata ya no puede ganar: la diferencia con el precio es error de valuación, no opción
+        '<td style="font-weight:700">' + fm(r.opt, dec(r)) + ' <span class="vdsup">' + pc(r.opt / r.o.P) + '</span></td>' +
+        '<td' + (X ? ' class="fwc"' : '') + '>' + (r.prem >= 0 ? '' : '−') + fm(Math.abs(r.prem), dec(r)) + ' <span class="vdsup">' + (r.prem >= 0 ? '' : '−') + pc(Math.abs(r.prem) / r.o.P) + '</span>' + X + '</td>') +
+        '<td>' + fm(pOther * 100, 0) + '% <span class="vdsup">' + other + '</span></td></tr>';
+    });
+    T.innerHTML = h + '</tbody>';
+    var cr = rows.filter(function (r) { return r.typ === 'CER'; }), inR = rows.filter(function (r) { return !r.ext.length && r.opt / r.o.P > 0.0005; });
+    var txt = '';
+    if (cr.length) { var lo = Math.min.apply(null, cr.map(function (r) { return r.opt / r.o.P; })), hi = Math.max.apply(null, cr.map(function (r) { return r.opt / r.o.P; })), pl = Math.min.apply(null, cr.map(function (r) { return r.pA; })), ph = Math.max.apply(null, cr.map(function (r) { return r.pA; })), allT = cr.every(function (r) { return r.PB > r.PA; });
+      txt += 'En los duales CER/TAMAR la opción vale entre ' + pc(lo) + ' y ' + pc(hi) + ' del precio' + (allT ? ': hoy gana la pata TAMAR en todos y la CER tiene entre ' + fm(pl * 100, 0) + '% y ' + fm(ph * 100, 0) + '% de chances de ganar' : '') + '. '; }
+    inR.forEach(function (r) { var m = r.prem / r.o.P, v = r.opt / r.o.P; if (Math.abs(m - v) >= 0.003) txt += r.o.k + ': el mercado paga ' + pc(Math.max(m, 0)) + ' contra ' + pc(v) + ' del modelo (' + (m > v ? 'la paga más cara' : 'la paga más barata') + '). '; });
+    R.textContent = txt;
+    var kd = function (x, nm) { return x ? nm + ' ' + x.pair + ' (' + fm(x.sd * 100, 1) + '% anual)' : ''; };
+    NT.innerHTML = 'Cada pata se valúa con la curva de mercado de su familia, interpolando por plazo: la CER con la TIR real de los Boncer cupón cero, la TAMAR con el margen de los bonos TAMAR, la dólar con la TIR en dólares de los dollar linked y la fija con las Lecaps. La opción es lo que agrega poder quedarse con la mejor pata (fórmula de Margrabe): depende de cuán lejos están las patas y de la volatilidad del cociente entre dos bonos de esas familias con vencimientos parecidos (' + [kd(K.cer, 'CER/TAMAR:'), kd(K.dl, 'dólar/TAMAR:')].filter(Boolean).join('; ') + ', cambios semanales de las últimas 26 semanas), que se achica a medida que se acerca el vencimiento. <b>Paga el mercado</b>: el precio menos la mejor pata; tiene un margen de error de alrededor de 1% por la valuación de las patas. † Pata extrapolada: el bono vence más de dos meses después del último de esa familia, así que lo que paga el mercado no es confiable.';
+  }
   window.renderPesos = function () {
     if (typeof Chart === 'undefined') return;
     syncMir(); scenVis();
@@ -2988,7 +3061,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         if (ch && !base0) base0 = snapshot(s, constSc(DEF.pi, DEF.tam, DEF.dev));
         PER[n] = { S: SN, S0: ch ? base0 : null, SC: scN }; renderTables(SN, s, scN, fc, n);
       });
-      renderCharts(PER); renderFwd(PER, s);
+      renderCharts(PER); renderFwd(PER, s); renderOpt(PER, s);
       if (!window._psT2) { window._psT2 = 1; [1, 2, 3, 4, 5].forEach(function (n) { renderTables(PER[n].S, s, PER[n].SC, fc, n); }); } // primera vez: los controles del gráfico recién existen, la tabla los toma
       renderHist(); renderSummary(PER);
       var lc = lastOf(IDX.CER), lt = lastOf(IDX.TAMAR), lf = lastOf(IDX.FX);
@@ -4468,7 +4541,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
    ===================================================================== */
 ;(function () {
   var TAB_NAMES = { tabla: 'Tabla_Retornos', desglose: 'Flujos_TotalReturn', curva: 'Curva_Spreads', pesos: 'Pesos', vard: 'Variacion_diaria', rot: 'Rotacion', vol: 'Volumen', dol: 'Dolar' };
-  var TABLE_NAMES = { dxTab: 'Dolar_ruedas', dxVar: 'Dolar_variaciones', vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', vlRot: 'Volumen_flujo', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', psFwT1: 'Fija_tasas_implicitas', psFwT2: 'CER_tasas_implicitas', psFwT3: 'TAMAR_margen_implicito', psFwT4: 'DL_tasas_implicitas', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
+  var TABLE_NAMES = { dxTab: 'Dolar_ruedas', dxVar: 'Dolar_variaciones', vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', vlRot: 'Volumen_flujo', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', psFwT1: 'Fija_tasas_implicitas', psFwT2: 'CER_tasas_implicitas', psFwT3: 'TAMAR_margen_implicito', psFwT4: 'DL_tasas_implicitas', psOptT: 'Duales_valor_opcion', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
 
   function parse(raw) {
     var s = raw.replace(/−/g, '-').replace(/ /g, ' ').replace(/^US\$\s*/, '').replace(/^([+-])\s+/, '$1').trim();
