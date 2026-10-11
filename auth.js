@@ -1,4 +1,4 @@
-/* Portada de presentación y login (Google o link por mail, con Supabase).
+/* Portada de presentación y login con Supabase: Google, mail y contraseña (con recuperación) o link por mail.
    Mientras ENFORCE sea false, solo aplica a quien la prueba con ?login; con ?intro se ve la portada en vista previa (los botones entran directo).
    Va como primer hijo del <body>: la portada se pinta antes que el resto de la página, así no se ve la terminal por un instante. */
 (function () {
@@ -17,6 +17,7 @@
     try { var s = JSON.parse(localStorage.getItem('sb-' + REF + '-auth-token') || 'null'); return !!(s && s.refresh_token); } catch (e) { return false; }
   }
   var returning = /[?&]code=/.test(location.search); // vuelve del login de Google o del link del mail
+  var RESET = returning && /[?&]reset=1\b/.test(location.search); // vuelve del link para elegir una contraseña nueva
 
   var css = '' +
     'html.blg,html.blg body{overflow:hidden!important}' +
@@ -48,10 +49,13 @@
     '#blIntro .ac .sw{display:flex;gap:4px;background:#1c1917;border:1px solid #44403c;border-radius:9px;padding:3px;margin-bottom:20px}#blIntro .ac .sw button{flex:1;border:0;border-radius:6px;background:none;color:#a8a29e;font:600 13px Inter,system-ui,sans-serif;padding:8px;cursor:pointer}#blIntro .ac .sw button.on{background:#44403c;color:#f5f5f4}' +
     '#blIntro .bt{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;border-radius:9px;font:600 14px Inter,system-ui,sans-serif;padding:12px 14px;cursor:pointer;border:1px solid #57534e;background:#f5f5f4;color:#1c1917;transition:.15s}#blIntro .bt:hover{background:#fff}#blIntro .bt svg{width:18px;height:18px}' +
     '#blIntro .or{display:flex;align-items:center;gap:12px;margin:18px 0;font:500 11px "JetBrains Mono",ui-monospace,monospace;color:#78716c;text-transform:uppercase;letter-spacing:.08em}#blIntro .or:before,#blIntro .or:after{content:"";flex:1;height:1px;background:#44403c}' +
-    '#blIntro input[type=email]{width:100%;padding:12px 14px;border-radius:9px;border:1px solid #57534e;background:#1c1917;color:#f5f5f4;font:14px Inter,system-ui,sans-serif;outline:none}#blIntro input[type=email]:focus{border-color:#f6b40e}' +
-    '#blIntro .eb{margin-top:10px;background:#f6b40e;border-color:#f6b40e}#blIntro .eb:hover{background:#fbbf24}#blIntro .eb[disabled]{opacity:.6;cursor:default}' +
+    '#blIntro .lb{display:block;margin:0 0 12px;font-size:12px;font-weight:600;color:#d6d3d1}#blIntro .lb>span{display:block;margin-bottom:6px}' +
+    '#blIntro .lb input{display:block;width:100%;padding:12px 14px;border-radius:9px;border:1px solid #57534e;background:#1c1917;color:#f5f5f4;font:14px Inter,system-ui,sans-serif;outline:none}#blIntro .lb input:focus{border-color:#f6b40e}' +
+    '#blIntro .pw{position:relative;display:block}#blIntro .pw input{padding-right:46px}#blIntro .pw button{position:absolute;top:0;right:0;bottom:0;width:44px;display:flex;align-items:center;justify-content:center;background:none;border:0;color:#a8a29e;cursor:pointer}#blIntro .pw button:hover{color:#f5f5f4}#blIntro .pw svg{width:18px;height:18px}' +
+    '#blIntro .ln{background:none;border:0;padding:0;color:#f6b40e;font:500 12px Inter,system-ui,sans-serif;cursor:pointer;text-decoration:underline;text-underline-offset:3px}#blIntro .ln:hover{color:#fbbf24}#blIntro .fx{display:flex;justify-content:flex-end;margin:-4px 0 12px}#blIntro .ml{display:block;margin:14px auto 0}#blIntro [hidden]{display:none!important}' +
+    '#blIntro .eb{margin-top:4px;background:#f6b40e;border-color:#f6b40e}#blIntro .eb:hover{background:#fbbf24}#blIntro .eb[disabled]{opacity:.6;cursor:default}' +
     '#blIntro .msg{margin:14px 0 0;font-size:13px;line-height:1.5;color:#d6d3d1}#blIntro .msg:empty{display:none}#blIntro .msg.err{color:#fb7185}#blIntro .msg.ok{color:#34d399}' +
-    '#blIntro .lgl{margin:18px 0 0;font-size:11px;color:#78716c;line-height:1.5}' +
+    '#blIntro .lgl{margin:18px 0 0;font-size:11px;color:#78716c;line-height:1.5}#blIntro .lgl a,#blIntro footer a{color:#a8a29e;text-underline-offset:2px}#blIntro .lgl a:hover,#blIntro footer a:hover{color:#f6b40e}' +
     '#blIntro .cat{padding:70px 0 0}#blIntro .cat h3{margin:0 0 6px;font-size:clamp(24px,2.6vw,32px);letter-spacing:-.025em;font-weight:700}#blIntro .cat>p{margin:0 0 26px;color:#a8a29e;font-size:15px}' +
     '#blIntro .cg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.55fr);gap:24px;align-items:start}' +
     '#blIntro .ls{border-top:1px solid #44403c}#blIntro .ls button{display:grid;grid-template-columns:38px 1fr;gap:4px 10px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #44403c;padding:13px 10px;color:#d6d3d1;cursor:pointer;font-family:inherit;border-radius:0;transition:background .15s}' +
@@ -65,6 +69,7 @@
     '#blUser .mn{display:none;position:absolute;right:0;top:48px;z-index:100;min-width:220px;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px;box-shadow:0 10px 30px rgba(0,0,0,.35)}#blUser.on .mn{display:block}' +
     '#blUser .mn div{padding:8px 10px;font-size:13px;color:var(--mu);word-break:break-all}#blUser .mn button{width:100%;text-align:left;background:none;border:0;border-radius:6px;padding:9px 10px;color:var(--tx);font:500 14px Inter,system-ui,sans-serif;cursor:pointer}#blUser .mn button:hover{background:var(--bd)}';
 
+  var EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
   var G = '<svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
 
   var TABS = [ // pestaña, descripción, captura
@@ -93,17 +98,21 @@
     '<div class="t"><small>Riesgo país · pb</small><b data-k="rp">—</b><span data-k="rpd">&nbsp;</span><svg data-k="rps" viewBox="0 0 100 40" preserveAspectRatio="none"></svg></div>' +
     '</div><p class="src" data-k="src">&nbsp;</p></div>' +
 
-    '<div class="ac" data-ac><h2 data-t>Entrá a la terminal</h2><p class="sub" data-s>Con tu cuenta de Google o con un link que te llega al mail. Es gratis.</p>' +
-    '<div class="sw"><button data-mode="in" class="on">Ingresar</button><button data-mode="up">Crear cuenta</button></div>' +
-    '<button class="bt" data-g>' + G + 'Continuar con Google</button><div class="or">o con tu mail</div>' +
-    '<form data-f><input type="email" required placeholder="tu@mail.com" autocomplete="email"><button class="bt eb" type="submit">Mandame el link para entrar</button></form>' +
-    '<p class="msg" data-m></p><p class="lgl">Información de mercado con fines informativos; no es una recomendación de inversión. Solo usamos tu mail para el acceso.</p></div></div>' +
+    '<div class="ac" data-ac><h2 data-t>Entrá a la terminal</h2><p class="sub" data-s></p>' +
+    '<div class="sw" data-v="sw"><button data-mode="in" class="on">Ingresar</button><button data-mode="up">Crear cuenta</button></div>' +
+    '<div data-v="g"><button class="bt" data-g>' + G + 'Continuar con Google</button><div class="or">o con tu mail</div></div>' +
+    '<form data-f novalidate><label class="lb" data-v="em"><span>Correo electrónico</span><input type="email" name="em" placeholder="tu@mail.com" autocomplete="email"></label>' +
+    '<label class="lb" data-v="pw"><span data-pwl>Contraseña</span><span class="pw"><input type="password" name="pw" placeholder="Tu contraseña" autocomplete="current-password"><button type="button" data-eye aria-label="Mostrar contraseña" title="Mostrar contraseña">' + EYE + '</button></span></label>' +
+    '<div class="fx" data-v="fg"><button type="button" class="ln" data-go="forgot">¿Olvidaste tu contraseña?</button></div>' +
+    '<button class="bt eb" type="submit" data-sub>Ingresar</button></form>' +
+    '<button type="button" class="ln ml" data-alt></button>' +
+    '<p class="msg" data-m></p><p class="lgl">Al ingresar, aceptás los <a href="/terminos.html" target="_blank" rel="noopener">Términos y Condiciones</a> y confirmás que leíste la <a href="/privacidad.html" target="_blank" rel="noopener">Política de Privacidad</a>. La información es con fines informativos; no es una recomendación de inversión.</p></div></div>' +
 
     '<div class="cat"><h3>Nueve pantallas, un mismo mercado.</h3><p>Pasá por cada una para ver qué hay adentro.</p><div class="cg"><div class="ls">' +
     TABS.map(function (t, i) { return '<button data-tab="' + i + '"' + (i ? '' : ' class="on"') + '><i>' + (i < 9 ? '0' : '') + (i + 1) + '</i><b>' + t[0] + '</b><span>' + t[1] + '</span></button>'; }).join('') +
     '</div><figure class="pv" style="margin:0"><img data-pv src="/intro/' + TABS[0][2] + '.webp?v=1" alt="' + TABS[0][0] + '" decoding="async"><figcaption><span data-pvn>01 · ' + TABS[0][0] + '</span><span>captura de la terminal</span></figcaption></figure></div></div>' +
 
-    '<footer><span>© ' + new Date().getFullYear() + ' Bonerío Local. Todos los derechos reservados.</span><span>Cierres propios de cada rueda · índices del BCRA · riesgo país de ArgentinaDatos · no es recomendación de inversión</span></footer></div>';
+    '<footer><span>© ' + new Date().getFullYear() + ' Bonerío Local. Todos los derechos reservados. <a href="/terminos.html" target="_blank" rel="noopener">Términos</a> · <a href="/privacidad.html" target="_blank" rel="noopener">Privacidad</a></span><span>Cierres propios de cada rueda · índices del BCRA · riesgo país de ArgentinaDatos · no es recomendación de inversión</span></footer></div>';
 
   var st = document.createElement('style'); st.id = 'blIntroCss'; st.textContent = css; document.head.appendChild(st);
 
@@ -118,7 +127,11 @@
     });
     ov.querySelectorAll('[data-tab]').forEach(function (b) { b.addEventListener('mouseenter', function () { if (matchMedia('(hover:hover)').matches) pick(+b.getAttribute('data-tab')); }); });
     ov.querySelector('[data-g]').onclick = google;
-    ov.querySelector('[data-f]').onsubmit = function (e) { e.preventDefault(); mail(this.querySelector('input').value.trim()); };
+    ov.querySelector('[data-f]').onsubmit = function (e) { e.preventDefault(); submit(this.em.value.trim(), this.pw.value); };
+    ov.querySelector('[data-eye]').onclick = function () { var i = ov.querySelector('[data-f]').pw, v = i.type === 'password'; i.type = v ? 'text' : 'password'; this.title = v ? 'Ocultar contraseña' : 'Mostrar contraseña'; this.setAttribute('aria-label', this.title); };
+    ov.querySelector('[data-go]').onclick = function () { view('forgot'); };
+    ov.querySelector('[data-alt]').onclick = function () { if (V === 'reset') { RESET = false; if (user) { view('in'); unlock(); return; } } view(V === 'link' || V === 'forgot' || V === 'reset' ? 'in' : 'link'); };
+    view('in');
     TABS.forEach(function (t) { var im = new Image(); im.src = '/intro/' + t[2] + '.webp?v=1'; }); // las capturas quedan listas para el cambio
     market();
     return ov;
@@ -132,6 +145,14 @@
   function er(t) { // errores de Supabase en castellano
     if (/email logins are disabled|provider is not enabled|unsupported provider/i.test(t)) return 'Este modo de ingreso todavía no está habilitado. Probá con el otro o escribinos.';
     if (/signups? not allowed/i.test(t)) return 'Por ahora no estamos sumando cuentas nuevas.';
+    if (/invalid login credentials/i.test(t)) return 'Mail o contraseña incorrectos. Si tu cuenta es de Google o entraste con un link, tocá "¿Olvidaste tu contraseña?" para crear una.';
+    if (/email not confirmed/i.test(t)) return 'Todavía no confirmaste tu mail: abrí el mail de confirmación que te mandamos (mirá en spam).';
+    if (/already registered|already been registered/i.test(t)) return 'Ese mail ya tiene cuenta. Ingresá, o tocá "¿Olvidaste tu contraseña?" si no la recordás.';
+    if (/weak|pwned|known to be|easy to guess/i.test(t)) return 'Esa contraseña es muy fácil de adivinar o apareció en filtraciones. Elegí otra.';
+    if (/at least (\d+) char/i.test(t)) return 'La contraseña tiene que tener al menos ' + t.match(/at least (\d+)/i)[1] + ' caracteres.';
+    if (/should be different|same as/i.test(t)) return 'La contraseña nueva tiene que ser distinta de la anterior.';
+    if (/session missing|expired|code verifier|invalid flow|invalid grant/i.test(t)) return 'El link venció o se abrió en otro navegador. Pedí uno nuevo desde este navegador.';
+    if (/rate limit|too many|seconds/i.test(t)) return 'Hubo varios intentos seguidos. Esperá un minuto y probá de nuevo.';
     if (/invalid.*email|email.*invalid/i.test(t)) return 'Revisá el mail.';
     if (/fetch|network/i.test(t)) return 'No se pudo conectar con el servicio de cuentas. Probá de nuevo en un rato.';
     return 'No se pudo completar el ingreso (' + t + ').';
@@ -142,11 +163,52 @@
     var im = ov.querySelector('[data-pv]'); im.src = '/intro/' + TABS[i][2] + '.webp?v=1'; im.alt = TABS[i][0];
     ov.querySelector('[data-pvn]').textContent = (i < 9 ? '0' : '') + (i + 1) + ' · ' + TABS[i][0];
   }
-  function mode(k) {
-    ov.querySelectorAll('[data-mode]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-mode') === k); });
-    ov.querySelector('[data-t]').textContent = k === 'up' ? 'Creá tu cuenta' : 'Entrá a la terminal';
-    ov.querySelector('[data-s]').textContent = k === 'up' ? 'Gratis. Elegí Google o tu mail: la cuenta se crea la primera vez que entrás.' : 'Con tu cuenta de Google o con un link que te llega al mail. Es gratis.';
+  function mode(k) { view(k === 'up' ? 'up' : 'in'); }
+  // vistas de la tarjeta: in (mail y contraseña), up (crear cuenta), link (link al mail), forgot (pedir link para cambiar la contraseña), reset (elegir la nueva)
+  var V = 'in', VW = {
+    in: ['Entrá a la terminal', 'Con tu cuenta de Google o con tu mail. Es gratis.', 'Ingresar', 'Prefiero que me manden un link al mail', 'sw g em pw fg'],
+    up: ['Creá tu cuenta', 'Gratis. Con Google o con tu mail y una contraseña.', 'Crear cuenta', 'Prefiero que me manden un link al mail', 'sw g em pw'],
+    link: ['Entrá con un link', 'Te mandamos un link al mail: lo abrís y entrás, sin contraseña.', 'Mandame el link para entrar', 'Prefiero usar contraseña', 'sw g em'],
+    forgot: ['Recuperá tu contraseña', 'Te mandamos un link para elegir una contraseña nueva. Sirve también si tu cuenta es de Google o de link y querés sumarle una.', 'Mandame el link', 'Volver a ingresar', 'em'],
+    reset: ['Elegí tu contraseña nueva', 'Es la que vas a usar desde ahora para entrar con tu mail.', 'Guardar y entrar', 'Ahora no, entrar igual', 'pw']
+  };
+  function view(k) {
+    var c = VW[k]; V = k; build();
+    ov.querySelectorAll('[data-mode]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-mode') === (k === 'up' ? 'up' : 'in')); });
+    ov.querySelector('[data-t]').textContent = c[0]; ov.querySelector('[data-s]').textContent = c[1];
+    ov.querySelector('[data-sub]').textContent = c[2]; ov.querySelector('[data-alt]').textContent = c[3];
+    ov.querySelectorAll('[data-v]').forEach(function (e) { e.hidden = (' ' + c[4] + ' ').indexOf(' ' + e.getAttribute('data-v') + ' ') < 0; });
+    var pw = ov.querySelector('[data-f]').pw, nw = k === 'up' || k === 'reset';
+    pw.autocomplete = nw ? 'new-password' : 'current-password'; pw.placeholder = nw ? 'Al menos 6 caracteres' : 'Tu contraseña';
+    ov.querySelector('[data-pwl]').textContent = k === 'reset' ? 'Contraseña nueva' : 'Contraseña';
     msg('');
+  }
+  function busy(on) { var b = ov.querySelector('[data-sub]'); b.disabled = on; if (on) msg(V === 'reset' ? 'Guardando…' : V === 'link' || V === 'forgot' ? 'Mandando…' : 'Entrando…'); }
+  function submit(em, pw) {
+    if (V !== 'reset' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { msg('Revisá el mail.', 'err'); return; }
+    if (V === 'link') { mail(em); return; }
+    if (V !== 'forgot' && pw.length < 6) { msg(pw ? 'La contraseña tiene que tener al menos 6 caracteres.' : 'Escribí tu contraseña.', 'err'); return; }
+    if (!ON) { unlock(); return; } // vista previa
+    if (!sb) { msg('No se pudo conectar con el servicio de cuentas. Probá de nuevo en un rato.', 'err'); return; }
+    busy(true);
+    if (V === 'forgot') sb.auth.resetPasswordForEmail(em, { redirectTo: back() + '?reset=1' }).then(function (r) {
+      busy(false);
+      if (r.error) msg(er(r.error.message), 'err');
+      else msg('Si ' + em + ' tiene cuenta, te llega un link para elegir la contraseña nueva. Abrilo en este mismo navegador (si no llega, mirá en spam).', 'ok');
+    });
+    else if (V === 'reset') sb.auth.updateUser({ password: pw }).then(function (r) {
+      busy(false);
+      if (r.error) { msg(er(r.error.message), 'err'); return; }
+      RESET = false; user = r.data.user || user; view('in'); unlock();
+    });
+    else if (V === 'up') sb.auth.signUp({ email: em, password: pw, options: { emailRedirectTo: back() } }).then(function (r) {
+      busy(false);
+      if (r.error) { msg(er(r.error.message), 'err'); return; }
+      if (r.data.session) return; // sin confirmación por mail: entra directo
+      var u = r.data.user; if (u && u.identities && !u.identities.length) { msg('Ese mail ya tiene cuenta. Ingresá, o tocá "¿Olvidaste tu contraseña?" si no la recordás.', 'err'); return; }
+      msg('Listo: te mandamos un mail a ' + em + ' para confirmar la cuenta. Abrilo en este mismo navegador y ya entrás (si no llega, mirá en spam).', 'ok');
+    });
+    else sb.auth.signInWithPassword({ email: em, password: pw }).then(function (r) { busy(false); if (r.error) msg(er(r.error.message), 'err'); else msg(''); });
   }
   function openLogin(k) {
     build(); mode(k || 'in'); var a = ov.querySelector('[data-ac]');
@@ -204,9 +266,9 @@
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { msg('Revisá el mail.', 'err'); return; }
     if (!ON) { unlock(); return; }
     if (!sb) { msg('No se pudo conectar con el servicio de cuentas. Probá de nuevo en un rato.', 'err'); return; }
-    var b = ov.querySelector('.eb'); b.disabled = true; msg('Mandando…');
+    busy(true);
     sb.auth.signInWithOtp({ email: em, options: { emailRedirectTo: back() } }).then(function (r) {
-      b.disabled = false;
+      busy(false);
       if (r.error) msg(/rate|seconds/i.test(r.error.message) ? 'Ya te mandamos un link hace un momento: esperá un minuto antes de pedir otro.' : er(r.error.message), 'err');
       else msg('Listo: te mandamos un link a ' + em + '. Abrilo en este mismo navegador para entrar (si no llega, mirá en spam).', 'ok');
     });
@@ -231,14 +293,16 @@
   }
 
   // arranque: quien ya entró ve la terminal directo; el resto, la portada
-  if (stored() || returning) document.documentElement.classList.remove('blg'); else lock();
+  if (RESET) { lock(); view('reset'); } else if (stored() || returning) document.documentElement.classList.remove('blg'); else lock();
   if (!ON) return;
   var s = document.createElement('script'); s.src = SB_JS; s.async = true;
   s.onload = function () {
     try { sb = window.supabase.createClient(CFG.url, CFG.key, { auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }); } catch (e) { console.error(e); if (!stored()) lock(); return; }
     sb.auth.onAuthStateChange(function (ev, ses) {
-      if (ses && ses.user) { user = ses.user; unlock(); if (/[?&]code=/.test(location.search)) history.replaceState(null, '', back() + location.hash); }
-      else if (ev === 'SIGNED_OUT' || ev === 'INITIAL_SESSION') { user = null; var c = document.getElementById('blUser'); if (c) c.remove(); lock(); }
+      if (ses && /[?&](code|reset)=/.test(location.search)) history.replaceState(null, '', back() + location.hash);
+      if (ses && ses.user && (RESET || ev === 'PASSWORD_RECOVERY')) { RESET = true; user = ses.user; lock(); if (V !== 'reset') view('reset'); return; } // primero elige la contraseña nueva
+      if (ses && ses.user) { user = ses.user; unlock(); }
+      else if ((ev === 'SIGNED_OUT' || ev === 'INITIAL_SESSION') && !RESET) { user = null; var c = document.getElementById('blUser'); if (c) c.remove(); lock(); }
     });
   };
   s.onerror = function () { if (!stored()) lock(); else unlock(); }; // sin el servicio de cuentas, quien ya había entrado sigue entrando
