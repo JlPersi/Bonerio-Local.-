@@ -10,7 +10,13 @@
 <link rel="icon" href="/favicon.ico?v=2" sizes="any">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=2">
-<link rel="apple-touch-icon" href="https://boneriolocal.com.ar/apple-touch-icon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bonerío">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<script>if ('serviceWorker' in navigator) addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });</script>
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Bonerío Local">
 <meta property="og:locale" content="es_AR">
@@ -348,7 +354,8 @@ html{zoom:.9}
   #pesos .qc.mid { height: 420px; }
   #pesos .ctl select, #pesos select { min-width: 0; width: 100%; }
   #vol .rg, #rot .rg { gap: 12px; }
-  #spreadPreset { position: static !important; display: block; width: auto !important; margin: 0 0 8px; }
+  #spreadPreset { top: 0 !important; left: 0 !important; width: auto !important; max-width: calc(100% - 44px) !important; margin: 0; }
+  .chart-wrap:has(> #spreadPreset) { padding-top: 46px; } /* el selector de rango va arriba del gráfico, no encima */
   .chart-wrap[style*="height:600px"], .chart-wrap[style*="height: 600px"] { height: 420px !important; }
   .chart-wrap[style*="450px"] { height: 340px !important; }
   .chart-wrap[style*="380px"] { height: 320px !important; }
@@ -1535,7 +1542,7 @@ window.updateSpreadChart = function() {
      tooltip: { filter: function(it) { return it.datasetIndex === 5; }, callbacks: { title: function(it) { return it.length ? dd(it[0].label) : ''; }, label: function(it) { const v = it.raw; return 'Spread ' + Math.round(v) + ' pb · z ' + fmtZ(std > 0 ? (v - mean) / std : null); } } }
     },
     scales: {
-     x: { grid: { display: false }, ticks: { maxTicksLimit: 10, maxRotation: 0, font: { size: 13 }, callback: function(v) { return dd(this.getLabelForValue(v)); } } },
+     x: { grid: { display: false }, ticks: { maxTicksLimit: canvas.parentNode.clientWidth < 520 ? 3 : 10, maxRotation: 0, font: { size: canvas.parentNode.clientWidth < 520 ? 11 : 13 }, callback: function(v) { return dd(this.getLabelForValue(v)); } } },
      y: { grid: { color: colorBd, drawBorder: false }, grace: '6%', title: { display: true, text: 'TIR ley local − TIR ley NY (pb)', font: { weight: 'bold' } }, ticks: { font: { size: 13 }, callback: function(v) { return Math.round(v) + ' pb'; } } }
     }
    }
@@ -2211,7 +2218,7 @@ setInterval(window.fetchLive, 90000);
             { text: 'Media ' + fm(m, 0) + ' ' + unit, fillStyle: c2, strokeStyle: c2, lineWidth: 3, pointStyle: 'line', fontColor: tx },
             { text: 'Banda ±1σ', fillStyle: 'rgba(148,163,184,.35)', strokeStyle: mu, lineWidth: 1, pointStyle: 'rect', fontColor: tx }]; } } },
           tooltip: { filter: function (i) { return i.datasetIndex === 3; }, callbacks: { label: function (i) { return i.dataset.label + ': ' + fm(i.raw, 0) + ' ' + unit + (s ? ' · z ' + sg((i.raw - m) / s, 2) : ''); } } } },
-        scales: { x: { ticks: { color: tx, maxTicksLimit: 8, maxRotation: 0 }, grid: { display: false } }, y: { ticks: { color: tx }, grid: { color: bd }, border: { display: false }, title: { display: true, text: unit, color: mu } } } }
+        scales: { x: { ticks: { color: tx, maxTicksLimit: cv.parentNode.clientWidth < 520 ? 4 : 8, maxRotation: 0 }, grid: { display: false } }, y: { ticks: { color: tx }, grid: { color: bd }, border: { display: false }, title: { display: true, text: unit, color: mu } } } }
     });
     return { m: m, s: s, cur: vals[vals.length - 1], pct: pctl(vals, vals[vals.length - 1]) };
   }
