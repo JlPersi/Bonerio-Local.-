@@ -30,7 +30,7 @@
     '#blIntro .w{max-width:1200px;margin:0 auto;padding:0 28px}' +
     '#blIntro .tb{display:flex;align-items:center;gap:14px;height:64px}#blIntro .tb .sp{flex:1}' +
     '#blIntro .lg{display:flex;align-items:center;gap:10px;font:700 15px "JetBrains Mono",ui-monospace,monospace;letter-spacing:.02em}#blIntro .lg img{width:30px;height:30px;border-radius:7px}' +
-    '#blIntro .st{display:flex;align-items:center;gap:8px;font:500 12px "JetBrains Mono",ui-monospace,monospace;color:#a8a29e}#blIntro .st i{width:8px;height:8px;border-radius:50%;background:#78716c}#blIntro .st i.ok{background:#34d399;box-shadow:0 0 0 4px rgba(52,211,153,.15)}' +
+    '#blIntro .st{display:flex;align-items:center;gap:8px;font:500 12px "JetBrains Mono",ui-monospace,monospace;color:#a8a29e}#blIntro .st i{width:8px;height:8px;border-radius:50%;background:#78716c}#blIntro .st i.ok{background:#84cc16;box-shadow:0 0 8px rgba(132,204,22,.5)}#blIntro .st i.bad{background:#ef4444;box-shadow:0 0 8px rgba(239,68,68,.5)}#blIntro .st.ok{color:#84cc16}#blIntro .st.bad{color:#ef4444}' +
     '#blIntro .tb a{font:600 13px Inter,system-ui,sans-serif;color:#1c1917;background:#f6b40e;border-radius:6px;padding:8px 14px;cursor:pointer;text-decoration:none}#blIntro .tb a:hover{background:#fbbf24}' +
     '#blIntro .mn{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:40px;align-items:start;padding:52px 0 20px}' +
     '#blIntro .ey{font:600 12px "JetBrains Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#75aadb;margin:0 0 18px}' +
@@ -43,7 +43,7 @@
     '#blIntro .t svg{position:absolute;right:12px;bottom:12px;width:44%;height:42px}' +
     '#blIntro .src{margin:12px 0 0;font:500 11px "JetBrains Mono",ui-monospace,monospace;color:#78716c}' +
     '#blIntro .ac{position:sticky;top:24px;background:#292524;border:1px solid #44403c;border-radius:16px;padding:28px 26px 24px;box-shadow:0 24px 60px rgba(0,0,0,.35)}' +
-    '#blIntro .ac:before{content:"";position:absolute;left:26px;right:26px;top:-1px;height:3px;border-radius:0 0 3px 3px;background:linear-gradient(90deg,#75aadb 0 33%,#f5f5f4 33% 66%,#75aadb 66%)}' +
+    '#blIntro .ac:before{content:"";position:absolute;left:26px;right:26px;top:-1px;height:3px;border-radius:0 0 3px 3px;background:linear-gradient(90deg,transparent 45.5%,#f6b40e 45.5% 54.5%,transparent 54.5%),linear-gradient(90deg,#75aadb 0 33%,#f5f5f4 33% 66%,#75aadb 66%)}' +
     '#blIntro .ac h2{margin:0;font-size:22px;font-weight:700;letter-spacing:-.02em}#blIntro .ac .sub{margin:6px 0 22px;font-size:13px;color:#a8a29e;line-height:1.5}' +
     '#blIntro .ac .sw{display:flex;gap:4px;background:#1c1917;border:1px solid #44403c;border-radius:9px;padding:3px;margin-bottom:20px}#blIntro .ac .sw button{flex:1;border:0;border-radius:6px;background:none;color:#a8a29e;font:600 13px Inter,system-ui,sans-serif;padding:8px;cursor:pointer}#blIntro .ac .sw button.on{background:#44403c;color:#f5f5f4}' +
     '#blIntro .bt{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;border-radius:9px;font:600 14px Inter,system-ui,sans-serif;padding:12px 14px;cursor:pointer;border:1px solid #57534e;background:#f5f5f4;color:#1c1917;transition:.15s}#blIntro .bt:hover{background:#fff}#blIntro .bt svg{width:18px;height:18px}' +
@@ -129,6 +129,13 @@
     try { window.dispatchEvent(new Event('resize')); } catch (e) { }
     chip();
   }
+  function er(t) { // errores de Supabase en castellano
+    if (/email logins are disabled|provider is not enabled|unsupported provider/i.test(t)) return 'Este modo de ingreso todavía no está habilitado. Probá con el otro o escribinos.';
+    if (/signups? not allowed/i.test(t)) return 'Por ahora no estamos sumando cuentas nuevas.';
+    if (/invalid.*email|email.*invalid/i.test(t)) return 'Revisá el mail.';
+    if (/fetch|network/i.test(t)) return 'No se pudo conectar con el servicio de cuentas. Probá de nuevo en un rato.';
+    return 'No se pudo completar el ingreso (' + t + ').';
+  }
   function msg(t, k) { var m = ov.querySelector('[data-m]'); m.textContent = t || ''; m.className = 'msg' + (k ? ' ' + k : ''); }
   function pick(i) {
     ov.querySelectorAll('[data-tab]').forEach(function (b) { b.classList.toggle('on', +b.getAttribute('data-tab') === i); });
@@ -183,7 +190,7 @@
         if (it.length) { var tx = it.map(function (x) { return '<span><b>' + x[0] + '</b>' + nf(x[1], x[3]) + (x[4] ? ' pb ' + rpc(x[1], x[2]) : ' ' + chg(x[1], x[2], 2)) + '</span>'; }).join(''); ov.querySelector('[data-tape]').innerHTML = tx + tx; } // dos veces: la cinta da la vuelta sin cortes
       } catch (e) { console.error(e); }
     });
-    var mk = function () { try { if (typeof window.mktOpen === 'function') { var o = window.mktOpen(); ov.querySelector('[data-dot]').className = o ? 'ok' : ''; ov.querySelector('[data-mk]').textContent = o ? 'Mercado abierto' : 'Mercado cerrado'; } } catch (e) { } };
+    var mk = function () { try { if (typeof window.mktOpen === 'function') { var o = window.mktOpen(); ov.querySelector('[data-dot]').className = o ? 'ok' : 'bad'; ov.querySelector('.st').className = 'st ' + (o ? 'ok' : 'bad'); ov.querySelector('[data-mk]').textContent = o ? 'Mercado abierto' : 'Mercado cerrado'; } } catch (e) { } };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mk); else mk();
   }
   function back() { return location.origin + location.pathname; }
@@ -191,7 +198,7 @@
     if (!ON) { unlock(); return; } // vista previa
     if (!sb) { msg('No se pudo conectar con el servicio de cuentas. Probá de nuevo en un rato.', 'err'); return; }
     msg('Abriendo Google…');
-    sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: back() } }).then(function (r) { if (r.error) msg(r.error.message, 'err'); });
+    sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: back() } }).then(function (r) { if (r.error) msg(er(r.error.message), 'err'); });
   }
   function mail(em) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { msg('Revisá el mail.', 'err'); return; }
@@ -200,7 +207,7 @@
     var b = ov.querySelector('.eb'); b.disabled = true; msg('Mandando…');
     sb.auth.signInWithOtp({ email: em, options: { emailRedirectTo: back() } }).then(function (r) {
       b.disabled = false;
-      if (r.error) msg(/rate|seconds/i.test(r.error.message) ? 'Ya te mandamos un link hace un momento: esperá un minuto antes de pedir otro.' : r.error.message, 'err');
+      if (r.error) msg(/rate|seconds/i.test(r.error.message) ? 'Ya te mandamos un link hace un momento: esperá un minuto antes de pedir otro.' : er(r.error.message), 'err');
       else msg('Listo: te mandamos un link a ' + em + '. Abrilo en este mismo navegador para entrar (si no llega, mirá en spam).', 'ok');
     });
   }
