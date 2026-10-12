@@ -112,7 +112,7 @@
     TABS.map(function (t, i) { return '<button data-tab="' + i + '"' + (i ? '' : ' class="on"') + '><i>' + (i < 9 ? '0' : '') + (i + 1) + '</i><b>' + t[0] + '</b><span>' + t[1] + '</span></button>'; }).join('') +
     '</div><figure class="pv" style="margin:0"><img data-pv src="/intro/' + TABS[0][2] + '.webp?v=1" alt="' + TABS[0][0] + '" decoding="async"><figcaption><span data-pvn>01 · ' + TABS[0][0] + '</span><span>captura de la terminal</span></figcaption></figure></div></div>' +
 
-    '<footer><span>© ' + new Date().getFullYear() + ' Bonerío Local. Todos los derechos reservados. <a href="/terminos.html" target="_blank" rel="noopener">Términos</a> · <a href="/privacidad.html" target="_blank" rel="noopener">Privacidad</a></span><span>Herramienta de análisis; no constituye recomendación de inversión · Fuentes: cierres propios de cada rueda, BCRA y ArgentinaDatos</span></footer></div>';
+    '<footer><span>© ' + new Date().getFullYear() + ' Bonerío Local. Todos los derechos reservados. <a href="/terminos.html" target="_blank" rel="noopener">Términos</a> · <a href="/privacidad.html" target="_blank" rel="noopener">Privacidad</a></span><span>Herramienta de análisis; no constituye recomendación de inversión.</span></footer></div>';
 
   var st = document.createElement('style'); st.id = 'blIntroCss'; st.textContent = css; document.head.appendChild(st);
 
