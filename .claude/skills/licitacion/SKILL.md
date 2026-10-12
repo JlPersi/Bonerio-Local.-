@@ -10,7 +10,7 @@ Todo se hace en una rama nueva desde `main` actualizado, se prueba en el navegad
 ## 1. ¿Hay algo nuevo?
 
 1. Mirar `CAL` en `licitaciones.html` (`[llamado, licitación, liquidación]`). Si hoy no es día de llamado ni de licitación, y no quedó pendiente nada de una fecha anterior, terminar sin cambios.
-2. Fuente oficial: noticias de la Secretaría de Finanzas en `https://www.argentina.gob.ar/economia/finanzas` (títulos "Llamado a licitación de instrumentos del Tesoro Nacional…" y "Resultado de la licitación…"). Si no se puede entrar, buscar el comunicado con WebSearch (los brokers suelen republicar el PDF). Nunca inventar datos: si no hay comunicado, avisar y terminar.
+2. Fuente oficial: noticias de la Secretaría de Finanzas en `https://www.argentina.gob.ar/economia/finanzas` (títulos "Llamado a licitación de instrumentos del Tesoro Nacional…" y "Resultado de la licitación…"). El Ministerio de Economía también lo publica en X (@MinEconomia_Ar) con el link a `argentina.gob.ar/noticias/…`. Los resultados suelen salir el día de la licitación entre las 17:10 y las 18 hs; la rutina corre 18:22 y 20:22 por si se atrasan. Si no se puede entrar, buscar el comunicado con WebSearch (los brokers suelen republicar el PDF). Nunca inventar datos: si no hay comunicado, avisar y terminar.
 3. Comparar con lo cargado: llamado → `LLAM[fechaLicitación]`; resultado → `RES[fechaLicitación]` y `LD.AUC` (entrada con `c` = fecha de licitación).
 
 ## 2. Llamado
