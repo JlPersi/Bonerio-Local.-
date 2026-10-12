@@ -2420,12 +2420,13 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
       real(P / o.coef, kd === 'cerc' ? ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; }) : null);
     }
     if (kd === 'dl') { o.fx0 = fx0; o.usdTea = Math.pow(100 * fx0 / P, 365 / o.d) - 1; o.usdTnas = (100 * fx0 / P - 1) * 365 / o.d; o.usdTna30 = tnaOf(o.usdTea); o.vt = 100 * fxAt(bdBack(s, 3), ZERO); o.par = P / o.vt; } // como BYMA: TIR con el último A3500 (tipo de cambio constante); paridad contra el valor técnico, 100 × A3500 de 3 días hábiles antes de la liquidación
+    var kn = mkSc(sc.piF, function () { return T0(); }, sc.devF); // el devengado hasta hoy usa la TAMAR publicada: los días sin dato van con la última, no con tu escenario
     if (kd === 'tamar') {
-      var sp = ins.r[0][3], A = factor(ins.iss, s, sp, sc); o.sp = sp; o.A = A; o.clean = P / A;
+      var sp = ins.r[0][3], A = factor(ins.iss, s, sp, kn); o.sp = sp; o.A = A; o.clean = P / A;
       o.dm = sp * 100 + (Math.pow(100 / o.clean, 30 / o.d) - 1) * 365 / 30 * 100; o.tnaT = T0() * 100 + o.dm;
     }
     if (kd === 'dual') {
-      var rt = rowOf(ins, 'TAMAR'), A2 = factor(ins.iss, s, rt[3], sc), isCer = !!rowOf(ins, 'CER'); o.isCer = isCer; o.sp = rt[3];
+      var rt = rowOf(ins, 'TAMAR'), A2 = factor(ins.iss, s, rt[3], kn), isCer = !!rowOf(ins, 'CER'); o.isCer = isCer; o.sp = rt[3];
       o.bv = branchVals(ins, mat, sc); o.clean = P / (isCer ? A2 : A2 * fxAt(bdBack(ins.iss, 3), ZERO));
       o.dm = rt[3] * 100 + (Math.pow(100 / o.clean, 30 / o.d) - 1) * 365 / 30 * 100; o.tnaT = T0() * 100 + o.dm;
       if (isCer) { o.coef = cerAt(bdBack(s, 10), ZERO) / cerBase(ins); real(P / o.coef, null); }
@@ -2434,7 +2435,7 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
     var du = null; try { du = (kd === 'cer0' || kd === 'cerc') ? (o.preal ? durOf(kd === 'cerc' ? ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; }) : [[mat, 100]], s, o.preal) : null) : kd === 'dl' ? durOf([[mat, 100 * fx0]], s, P) : durOf(fl, s, P); } catch (e) {} // como BYMA: CER en términos reales, dollar linked a tipo de cambio constante
     o.mac = du ? du.mac : null; o.mdur = du ? du.md : null;
     if (kd === 'dualtf') {
-      var A3 = factor(ins.iss, s, TTD_M, sc); o.isFix = true; o.sp = TTD_M; o.bv = branchVals(ins, mat, sc); o.clean = P / A3;
+      var A3 = factor(ins.iss, s, TTD_M, kn); o.isFix = true; o.sp = TTD_M; o.bv = branchVals(ins, mat, sc); o.clean = P / A3;
       o.dm = TTD_M * 100 + (Math.pow(100 / o.clean, 30 / o.d) - 1) * 365 / 30 * 100; o.tnaT = T0() * 100 + o.dm; o.fixTnas = (o.bv.fix / P - 1) * 365 / o.d;
     }
     return o;
