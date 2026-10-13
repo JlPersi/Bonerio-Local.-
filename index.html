@@ -4631,11 +4631,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var KR = [0.25, 0.5, 1, 2, 3, 5, 7, 10, 20], KRL = ['3m', '6m', '1a', '2a', '3a', '5a', '7a', '10a', '20a'];
   var FKEY = 'pfFav1', SKEY = 'pfSt1';
   var FAV = (function () { try { var o = JSON.parse(localStorage.getItem(FKEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } })();
-  var ST = { ccy: 'ARS', conf: 0.95, hz: 1, win: 250, grp: 'all', q: '', sort: 'mat' };
+  var ST = { ccy: 'ARS', conf: 0.95, hz: 1, win: 250, grp: 'all', q: '', sort: 'mat', sc: 'par', scM: 100, scTo: 'all', shk: null };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(SKEY) || '{}')); } catch (e) {}
   var VD = null, VDerr = false, VDask = false, CH = {}, RET = {}, timer = null;
   var isAct = function () { return root.classList.contains('active'); };
-  var save = function () { try { localStorage.setItem(FKEY, JSON.stringify(FAV)); localStorage.setItem(SKEY, JSON.stringify({ ccy: ST.ccy, conf: ST.conf, hz: ST.hz, win: ST.win, grp: ST.grp })); } catch (e) {} };
+  var save = function () { try { localStorage.setItem(FKEY, JSON.stringify(FAV)); localStorage.setItem(SKEY, JSON.stringify({ ccy: ST.ccy, conf: ST.conf, hz: ST.hz, win: ST.win, grp: ST.grp, sc: ST.sc, scM: ST.scM, scTo: ST.scTo, shk: ST.shk })); } catch (e) {} };
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var pc = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : fm(v * 100, d == null ? 2 : d) + '%'; };
   var dfull = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
@@ -4830,6 +4830,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         '<div class="pfc"><label>Moneda<select id="pfC"><option value="ARS">Pesos</option><option value="USD">Dólares (MEP)</option></select></label>' +
         '<button class="act" id="pfClr" data-html2canvas-ignore="true">Vaciar portfolio</button></div>' +
         '<div class="pfw" style="max-height:none"><table class="pft" id="pfTab"></table></div><div class="pfchips" id="pfChips" style="margin-top:14px"></div>', 'Portfolio') +
+      cardH('pfShape', 'Estructura: ladder, barbell o bullet', 'Cómo se reparte el valor del portfolio a lo largo de los plazos. <b>Bullet</b>: concentrado alrededor de un plazo. <b>Barbell</b>: cargado en las dos puntas (corto y largo) con poco en el medio. <b>Ladder</b>: repartido en escalones parejos a lo largo de la curva.',
+        '<div class="pfchips" id="pfShapeChips" style="margin-top:12px"></div><div class="pfcv" style="height:280px;margin-top:14px"><canvas id="pfShapeC"></canvas></div><p class="pfnote" id="pfShapeNote"></p>', 'Estructura_portfolio') +
+      cardH('pfScen', 'Escenarios de tasas', 'El impacto de un cambio de tasas en tu cartera: elegí cuántos pb se mueve cada plazo de la curva (o un escenario armado) y se revalúa cada bono con sus flujos, sin aproximaciones de duración.',
+        '<div class="pfc"><label>Escenario<select id="pfScS"><option value="par">Suba paralela</option><option value="steep">Empinamiento (largos suben, cortos bajan)</option><option value="flat">Aplanamiento (cortos suben, largos bajan)</option><option value="bfly">Butterfly (puntas suben, medio baja)</option><option value="short">Solo tramo corto (hasta 1 año)</option><option value="long">Solo tramo largo (desde 3 años)</option><option value="custom">Personalizado</option></select></label>' +
+        '<label>Magnitud (pb)<input type="number" id="pfScM" step="25" style="width:110px"></label><label>Aplicar a<select id="pfScTo"><option value="all">Todas las curvas</option>' + ORDER.map(function (g) { return '<option value="' + g + '">Solo ' + GN[g] + '</option>'; }).join('') + '</select></label></div>' +
+        '<div class="pfchips" id="pfScChips"></div><div class="pfg"><div style="overflow:auto"><table class="pft" id="pfScIn"></table></div><div class="pfcv"><canvas id="pfScC"></canvas></div></div><div style="overflow:auto;margin-top:14px"><table class="pft" id="pfScT"></table></div><p class="pfnote" id="pfScNote"></p>', 'Escenario_tasas') +
       cardH('pfRisk', 'Duración y key rate durations', 'Cuánto cambia el valor del portfolio si sube 1 pb la tasa de cada plazo. La duración modificada de cada bono se reparte entre los nodos de la curva según cuándo paga; la suma de las barras es la duración del portfolio. Cada grupo responde a su propia curva (pesos nominales, CER real, dólares), así que el total mezcla riesgos distintos.',
         '<div class="pfcv" style="margin-top:14px"><canvas id="pfKrC"></canvas></div><div style="overflow:auto;margin-top:14px"><table class="pft" id="pfKrT"></table></div><div class="pfg"><div style="overflow:auto"><table class="pft" id="pfStress"></table></div><div style="overflow:auto"><table class="pft" id="pfGrpT"></table></div></div>', 'Key_rate_durations') +
       cardH('pfFlow', 'Flujo de fondos proyectado', 'Lo que cobrás cada mes con tus nominales: renta y amortización. CER, TAMAR, duales y dólar linked con las proyecciones del escenario de Curva Pesos; los bonos en dólares, pasados al MEP de hoy.',
@@ -4847,12 +4853,17 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     g('pfCf').onchange = function () { ST.conf = +this.value; save(); render(); };
     g('pfHz').onchange = function () { ST.hz = +this.value; save(); render(); };
     g('pfW').onchange = function () { ST.win = +this.value; save(); render(); };
+    g('pfScS').value = ST.sc; g('pfScM').value = ST.scM; g('pfScTo').value = ST.scTo;
+    g('pfScS').onchange = function () { ST.sc = this.value; if (ST.sc !== 'custom') ST.shk = null; save(); render(); };
+    g('pfScM').onchange = function () { ST.scM = parseFloat(this.value) || 0; if (ST.sc !== 'custom') ST.shk = null; save(); render(); };
+    g('pfScTo').onchange = function () { ST.scTo = this.value; if (ST.sc !== 'custom') ST.shk = null; save(); render(); };
+    root.addEventListener('change', function (e) { var i = e.target.closest('.pfsh'); if (!i) return; var sh = shocks(), gg = i.getAttribute('data-g'), n = +i.getAttribute('data-n'); sh[gg] = sh[gg] || KR.map(function () { return 0; }); sh[gg][n] = parseFloat(String(i.value).replace(',', '.')) || 0; ST.shk = sh; ST.sc = 'custom'; save(); render(); });
     g('pfClr').onclick = function () { if (!Object.keys(FAV).length) return; if (confirm('¿Sacar todos los bonos de tu portfolio?')) { FAV = {}; save(); render(); } };
     root.addEventListener('click', function (e) {
       var b = e.target.closest('.pfs'); if (b) { var k = b.getAttribute('data-k'); if (FAV[k] != null) delete FAV[k]; else FAV[k] = 0; save(); render(); return; }
       var th = e.target.closest('#pfAll th[data-s]'); if (th) { var s = th.getAttribute('data-s'); ST.sort = ST.sort === s ? '-' + s : s; renderPick(); }
     });
-    root.addEventListener('change', function (e) { var i = e.target.closest('.pfn'); if (!i) return; var v = parseFloat(String(i.value).replace(/\./g, '').replace(',', '.')); FAV[i.getAttribute('data-k')] = isFinite(v) && v > 0 ? v : 0; save(); render(); });
+    root.addEventListener('change', function (e) { var i = e.target.closest('.pfn'); if (!i || i.classList.contains('pfsh')) return; var v = parseFloat(String(i.value).replace(/\./g, '').replace(',', '.')); FAV[i.getAttribute('data-k')] = isFinite(v) && v > 0 ? v : 0; save(); render(); });
   }
 
   var U = [];
@@ -4939,6 +4950,94 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     });
     document.getElementById('pfGrpT').innerHTML = gt + '</tbody><caption style="caption-side:bottom;text-align:left;color:var(--mu);font-size:12.5px;padding-top:8px">La TIR de cada grupo está en su propia moneda (CER real, dólar linked y hard dollar en dólares).</caption>';
   }
+  /* ---------- estructura: ladder / barbell / bullet ---------- */
+  var BK = [0, 0.5, 1, 2, 3, 5, 7, 10, 1e9], BKL = ['< 6m', '6m–1a', '1–2a', '2–3a', '3–5a', '5–7a', '7–10a', '10a +'];
+  function shapeOf(P) { // la definición de manual: cada bono ubicado en su vencimiento, pesado por su valor
+    var cf = [], tot = 0;
+    P.H.forEach(function (x) { if (x.d > 0 && x.val > 0) { cf.push([x.d / 365, x.val, x.grp]); tot += x.val; } });
+    if (!(tot > 0)) return null;
+    var D = cf.reduce(function (a, q) { return a + q[0] * q[1]; }, 0) / tot, M2 = cf.reduce(function (a, q) { return a + (q[0] - D) * (q[0] - D) * q[1]; }, 0) / tot, cv = D > 0 ? Math.sqrt(M2) / D : 0;
+    var sh = BKL.map(function () { return 0; }), byG = {}; cf.forEach(function (q) { for (var i = 0; i < BKL.length; i++) if (q[0] < BK[i + 1]) { sh[i] += q[1] / tot; (byG[q[2]] = byG[q[2]] || BKL.map(function () { return 0; }))[i] += q[1] / tot; break; } });
+    var lo = 0, mid = 0, hi = 0; cf.forEach(function (q) { var w = q[1] / tot; if (q[0] < 0.5 * D) lo += w; else if (q[0] > 1.5 * D) hi += w; else mid += w; });
+    var occ = sh.map(function (v, i) { return v >= 0.07 ? i : -1; }).filter(function (i) { return i >= 0; }), gaps = 0; for (var i = 1; i < occ.length; i++) gaps += occ[i] - occ[i - 1] - 1;
+    var mx = Math.max.apply(null, sh), type, why;
+    var rg = {}; cf.forEach(function (q) { var m = Math.round(q[0] * 12); rg[m] = (rg[m] || 0) + q[1] / tot; }); // escalones: vencimientos agrupados por mes
+    var rk = Object.keys(rg).map(Number).sort(function (a, b) { return a - b; }), rw = rk.map(function (m) { return rg[m]; }), rmx = rw.length ? Math.max.apply(null, rw) : 1;
+    var gcv = function (xs) { var g = []; for (var i = 1; i < xs.length; i++) g.push(xs[i] - xs[i - 1]); if (g.length < 2) return 0; var m = g.reduce(function (a, x) { return a + x; }, 0) / g.length; return m > 0 ? Math.sqrt(g.reduce(function (a, x) { return a + (x - m) * (x - m); }, 0) / g.length) / m : 9; };
+    var even = rk.length >= 3 && rmx <= 0.45 && (gcv(rk) < 0.75 || gcv(rk.map(function (m) { return Math.log(Math.max(m, 0.5)); })) < 0.5); // escalones parejos en plazo lineal o logarítmico
+    var isBar = mid < 0.3 && lo >= 0.2 && hi >= 0.2;
+    if (cv < 0.35 || occ.length <= 1 || mid >= 0.7) { type = 'Bullet'; why = pc(mid, 0) + ' del valor vence cerca del plazo promedio (entre ' + fm(0.5 * D, 1) + ' y ' + fm(1.5 * D, 1) + ' años); dispersión ' + fm(cv * 100, 0) + '% del plazo promedio.'; }
+    else if (even && (rk.length >= 4 || !isBar)) { type = 'Ladder'; why = rk.length + ' escalones de vencimiento espaciados de forma pareja, ninguno con más de ' + pc(rmx, 0) + ' del valor.'; }
+    else if (isBar) { type = 'Barbell'; why = pc(lo, 0) + ' del valor vence antes de la mitad del plazo promedio y ' + pc(hi, 0) + ' después de 1,5 veces ese plazo; el medio tiene solo ' + pc(mid, 0) + '.'; }
+    else if (occ.length >= 3 && mx <= 0.45 && gaps <= 1) { type = 'Ladder'; why = 'El valor se reparte en ' + occ.length + ' tramos seguidos, ninguno con más de ' + pc(mx, 0) + '.'; }
+    else if (cv < 0.6) { type = 'Bullet'; why = 'Con algo de dispersión, pero el grueso vence alrededor de ' + fm(D, 1) + ' años (dispersión ' + fm(cv * 100, 0) + '% del plazo promedio).'; }
+    else { type = 'Mixto'; why = 'No encaja limpio en ninguno: hay tramos cargados y huecos entre medio.'; }
+    return { type: type, why: why, D: D, M2: M2, cv: cv, sh: sh, byG: byG, lo: lo, mid: mid, hi: hi, occ: occ.length };
+  }
+  function renderShape(P) {
+    kill('pfShapeC'); var ch = document.getElementById('pfShapeChips'), nt = document.getElementById('pfShapeNote');
+    var S = P && shapeOf(P); if (!S) { ch.innerHTML = ''; nt.textContent = 'Cargá nominales para ver la estructura.'; return; }
+    var TIP = { Bullet: 'más sensible a un solo plazo de la curva; poco riesgo de reinversión antes de ese plazo', Barbell: 'gana más con movimientos grandes (más convexidad) y con aplanamientos; pierde con empinamientos', Ladder: 'riesgo repartido en toda la curva y vencimientos que se reinvierten de a poco', Mixto: 'mirá las key rate durations para ver dónde está el riesgo' };
+    ch.innerHTML = chip('Tipo de portfolio', S.type, TIP[S.type]) + chip('Plazo promedio', fm(S.D, 2) + ' años', 'al vencimiento, ponderado por valor') +
+      chip('Dispersión', fm(Math.sqrt(S.M2), 2) + ' años', 'desvío de los vencimientos alrededor del promedio') + chip('Corto · medio · largo', pc(S.lo, 0) + ' · ' + pc(S.mid, 0) + ' · ' + pc(S.hi, 0), 'vence antes de ½ del plazo promedio, entre ½ y 1½, después de 1½');
+    var G = ORDER.filter(function (g) { return S.byG[g]; }), tx = css('--tx'), mu = css('--mu'), bd = css('--bd');
+    CH.pfShapeC = new Chart(document.getElementById('pfShapeC'), { type: 'bar', data: { labels: BKL, datasets: G.map(function (g) { return { label: GN[g], data: S.byG[g].map(function (v) { return v * 100; }), backgroundColor: GC[g], borderRadius: 3, maxBarThickness: 56 }; }) },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: tx, usePointStyle: true } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + fm(c.raw, 1) + '% del valor'; } } } },
+        scales: { x: { stacked: true, ticks: { color: tx }, grid: { display: false }, title: { display: true, text: 'Vencimiento', color: mu } }, y: { stacked: true, ticks: { color: tx, callback: function (v) { return fm(v, 0) + '%'; } }, grid: { color: bd } } } } });
+    nt.innerHTML = '<b>' + S.type + '.</b> ' + S.why + ' Se clasifica por el vencimiento de cada bono, pesado por su valor. Los bonos que amortizan en cuotas (AL30, GD35…) cobran antes del vencimiento: su riesgo real por plazo está en las key rate durations.';
+  }
+
+  /* ---------- escenarios de tasas: revaluación completa con un shock por nodo ---------- */
+  function preset(kind, m, t) {
+    var cl = function (x) { return Math.max(-1, Math.min(1, x)); };
+    if (kind === 'par') return m;
+    if (kind === 'steep') return m * cl(Math.log(t / 2) / Math.log(10));
+    if (kind === 'flat') return -m * cl(Math.log(t / 2) / Math.log(10));
+    if (kind === 'bfly') return m * cl(2 * Math.abs(Math.log(t / 2.5)) / Math.log(8) - 1);
+    if (kind === 'short') return t <= 1 ? m : t < 2 ? m * (2 - t) : 0;
+    if (kind === 'long') return t >= 3 ? m : t > 2 ? m * (t - 2) : 0;
+    return 0;
+  }
+  function shocks() { // { grupo: [pb por nodo] }
+    if (ST.sc === 'custom' && ST.shk) return JSON.parse(JSON.stringify(ST.shk));
+    var o = {}; ORDER.forEach(function (g) { o[g] = KR.map(function (t) { return ST.scTo === 'all' || ST.scTo === g ? Math.round(preset(ST.sc, ST.scM, t)) : 0; }); }); return o;
+  }
+  function shockAt(arr, t) { var w = wKey(t), v = 0; for (var i = 0; i < KR.length; i++) v += w[i] * arr[i]; return v / 1e4; } // interpolación lineal entre nodos
+  function reprice(x, arr) {
+    if (!x.krFl || x.krY == null) return null; var p0 = 0, p1 = 0;
+    x.krFl.forEach(function (f) { if (f[0] <= x.s) return; var t = (f[0] - x.s) / 365; p0 += f[1] / Math.pow(1 + x.krY, t); p1 += f[1] / Math.pow(1 + x.krY + shockAt(arr, t), t); });
+    return p0 > 0 ? p1 / p0 - 1 : null;
+  }
+  function renderScen(P) {
+    kill('pfScC'); var ch = document.getElementById('pfScChips'), tin = document.getElementById('pfScIn'), tb = document.getElementById('pfScT'), nt = document.getElementById('pfScNote');
+    document.getElementById('pfScS').value = ST.sc;
+    if (!P) { ch.innerHTML = ''; tin.innerHTML = ''; tb.innerHTML = ''; nt.textContent = 'Cargá nominales para simular escenarios.'; return; }
+    var SH = shocks(), G = ORDER.filter(function (g) { return P.byG[g]; });
+    tin.innerHTML = '<thead><tr><th class="l">Nodo</th>' + G.map(function (g) { return '<th><i class="pfdot" style="background:' + GC[g] + '"></i>' + GN[g] + ' (pb)</th>'; }).join('') + '</tr></thead><tbody>' +
+      KR.map(function (_, n) { return '<tr><td class="l">' + KRL[n] + '</td>' + G.map(function (g) { return '<td><input class="pfn pfsh" style="width:80px" inputmode="decimal" data-g="' + g + '" data-n="' + n + '" value="' + (SH[g] ? SH[g][n] : 0) + '"></td>'; }).join('') + '</tr>'; }).join('') + '</tbody>';
+    var tot = 0, lin = 0, byG = {}, rows = [];
+    P.H.forEach(function (x) {
+      var arr = SH[x.grp] || KR.map(function () { return 0; }), r = reprice(x, arr), d = r == null ? 0 : r * x.val;
+      var l = x.kr ? -x.kr.reduce(function (a, k, i) { return a + k * arr[i] / 1e4; }, 0) * x.val : 0;
+      tot += d; lin += l; byG[x.grp] = (byG[x.grp] || 0) + d; rows.push({ x: x, r: r, d: d });
+    });
+    var node = KR.map(function (_, i) { var s = 0; P.H.forEach(function (x) { var arr = SH[x.grp]; if (x.kr && arr) s -= x.kr[i] * arr[i] / 1e4 * x.val; }); return s; });
+    var col = function (v) { return 'color:' + (v > 0 ? 'var(--ok)' : v < 0 ? 'var(--bad)' : 'var(--mu)'); };
+    ch.innerHTML = chip('Impacto en la cartera', '<em style="font-style:normal;' + col(tot) + '">' + (tot > 0 ? '+' : '') + money(tot) + '</em>', sg(tot / P.tot * 100, 2) + '% del valor · queda en ' + money(P.tot + tot)) +
+      chip('Con duración (lineal)', money(lin), 'suma de key rate durations × shock; la diferencia es la convexidad') +
+      chip('Grupo más afectado', (function () { var g = G.slice().sort(function (a, b) { return Math.abs(byG[b]) - Math.abs(byG[a]); })[0]; return GN[g]; })(), (function () { var g = G.slice().sort(function (a, b) { return Math.abs(byG[b]) - Math.abs(byG[a]); })[0]; return money(byG[g]) + ' (' + sg(byG[g] / P.byG[g] * 100, 2) + '% del grupo)'; })());
+    var tx = css('--tx'), mu = css('--mu'), bd = css('--bd');
+    CH.pfScC = new Chart(document.getElementById('pfScC'), { type: 'bar', data: { labels: KRL, datasets: [{ label: 'Aporte de cada nodo', data: node, backgroundColor: node.map(function (v) { return v >= 0 ? css('--ok') : css('--bad'); }), borderRadius: 3, maxBarThickness: 46 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return 'Aporte: ' + money(c.raw); } } } },
+        scales: { x: { ticks: { color: tx }, grid: { display: false }, title: { display: true, text: 'Qué plazo explica el resultado (key rate duration × shock)', color: mu } }, y: { ticks: { color: tx, callback: function (v) { return money(v); } }, grid: { color: bd } } } } });
+    rows.sort(function (a, b) { return a.d - b.d; });
+    tb.innerHTML = '<thead><tr><th class="l">Bono</th><th class="l">Grupo</th><th>Valor hoy</th><th>Cambio de precio</th><th>Impacto</th><th>% del impacto</th></tr></thead><tbody>' +
+      rows.map(function (o) { return '<tr><td class="k">' + o.x.k + '</td><td class="l"><i class="pfdot" style="background:' + GC[o.x.grp] + '"></i>' + o.x.tipo + '</td><td>' + money(o.x.val) + '</td><td style="' + col(o.r) + '">' + (o.r == null ? 'n/a' : sg(o.r * 100, 2) + '%') + '</td><td style="' + col(o.d) + '">' + money(o.d) + '</td><td>' + (tot ? pc(o.d / tot, 1) : '—') + '</td></tr>'; }).join('') +
+      '</tbody><tfoot><tr><td class="l" colspan="2">Total</td><td>' + money(P.tot) + '</td><td style="' + col(tot) + '">' + sg(tot / P.tot * 100, 2) + '%</td><td style="' + col(tot) + '">' + money(tot) + '</td><td>100%</td></tr></tfoot>';
+    nt.innerHTML = 'Cada bono se revalúa descontando sus flujos a su TIR más el shock del plazo de cada pago (interpolado entre nodos). Cada grupo se mueve con su propia curva: tasa fija y TAMAR en tasa nominal en pesos, CER en tasa real, dólar linked y hard dollar en tasa en dólares. ' +
+      'En TAMAR y duales los flujos quedan como los proyecta el escenario de Curva Pesos: el shock mueve la tasa de descuento, no la TAMAR futura. Editá cualquier celda para armar tu propio escenario.';
+  }
+
   function renderFlow(P, mep) {
     kill('pfFlC'); var cv = document.getElementById('pfFlC'); if (!P) return;
     var tx = css('--tx'), mu = css('--mu'), bd = css('--bd'), fx = function (r) { return ST.ccy === 'USD' ? (r.fccy === 'USD' ? 1 : 1 / mep) : (r.fccy === 'USD' ? mep : 1); };
@@ -4988,7 +5087,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (!document.getElementById('pfAll')) html();
       U = universe(); renderPick();
       var mep = mepNow(), Hh = holdings(mep);
-      var P = renderMine(Hh, mep); renderRisk(P); renderFlow(P, mep); renderVar(P);
+      var P = renderMine(Hh, mep); renderShape(P); renderScen(P); renderRisk(P); renderFlow(P, mep); renderVar(P);
       if (!VD) loadVol();
     } catch (e) { console.error('port', e); var s = document.getElementById('pfMineSub'); if (s) s.textContent = 'Error: ' + e.message; }
   }
