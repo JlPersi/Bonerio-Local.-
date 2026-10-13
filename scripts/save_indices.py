@@ -11,7 +11,7 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "data", "indices.json")
 SERIES = {"CER": 30, "TAMAR": 44, "FX": 5}
 today = dt.date.today()
 desde = (today - dt.timedelta(days=75)).isoformat()
-hasta = (today + dt.timedelta(days=20)).isoformat()  # el CER se publica unos días adelante
+hasta = (today + dt.timedelta(days=45)).isoformat()  # el CER se publica hasta el 15 del mes siguiente (después del dato de inflación)
 
 
 def fetch(i):
