@@ -4665,15 +4665,17 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var GN = { usd: 'Hard Dollar', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dl: 'Dólar linked', dual: 'Duales' };
   var ORDER = ['usd', 'fija', 'cer', 'tamar', 'dl', 'dual'];
   var GC = { usd: '#2dd4bf', fija: '#f59e0b', cer: '#84cc16', tamar: '#38bdf8', dl: '#f87171', dual: '#c084fc' };
-  var KR = [0.25, 0.5, 1, 2, 3, 5, 7, 10, 20], KRL = ['3m', '6m', '1a', '2a', '3a', '5a', '7a', '10a', '20a'];
+  var KR = [0.25, 0.5, 1, 2, 3, 5, 7, 10, 15, 20], KRL = ['3m', '6m', '1a', '2a', '3a', '5a', '7a', '10a', '15a', '20a']; // nodos de Fabozzi hasta 20 años (más 6m por la curva corta en pesos)
   var FKEY = 'pfFav1', SKEY = 'pfSt1';
   var FAV = (function () { try { var o = JSON.parse(localStorage.getItem(FKEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } })();
-  var ST = { ccy: 'ARS', conf: 0.95, hz: 1, win: 250, grp: 'all', q: '', sort: 'mat', sc: 'par', scM: 100, scTo: 'all', shk: null };
+  var ST = { ccy: 'ARS', conf: 0.95, hz: 1, win: 250, wt: 'eq', grp: 'all', q: '', sort: 'mat', sc: 'par', scM: 100, scTo: 'all', shk: null };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(SKEY) || '{}')); } catch (e) {}
   if (['par', 'bullst', 'bearst', 'bullfl', 'bearfl', 'pbfly', 'nbfly', 'custom'].indexOf(ST.sc) < 0) ST.sc = 'par'; // escenarios de una versión anterior
+  if (ST.shk && Object.keys(ST.shk).some(function (g) { return !ST.shk[g] || ST.shk[g].length !== KR.length; })) { ST.shk = null; if (ST.sc === 'custom') ST.sc = 'par'; } // escenario guardado con otros nodos
+  if (ST.wt !== 'ewma') ST.wt = 'eq';
   var VD = null, VDerr = false, VDask = false, CH = {}, RET = {}, timer = null;
   var isAct = function () { return root.classList.contains('active'); };
-  var save = function () { try { localStorage.setItem(FKEY, JSON.stringify(FAV)); localStorage.setItem(SKEY, JSON.stringify({ ccy: ST.ccy, conf: ST.conf, hz: ST.hz, win: ST.win, grp: ST.grp, sc: ST.sc, scM: ST.scM, scTo: ST.scTo, shk: ST.shk })); } catch (e) {} };
+  var save = function () { try { localStorage.setItem(FKEY, JSON.stringify(FAV)); localStorage.setItem(SKEY, JSON.stringify({ ccy: ST.ccy, conf: ST.conf, hz: ST.hz, win: ST.win, wt: ST.wt, grp: ST.grp, sc: ST.sc, scM: ST.scM, scTo: ST.scTo, shk: ST.shk })); } catch (e) {} };
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var pc = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : fm(v * 100, d == null ? 2 : d) + '%'; };
   var dfull = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
@@ -4828,13 +4830,19 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       return { h: h, r: col, own: nOwn, px: nPx, zero: nZero, used: Object.keys(used).slice(0, 3) };
     });
     var m = cols.length, Vv = H.map(function (h) { return h.val; }), pnl = J.map(function (_, t) { var s = 0; for (var i = 0; i < m; i++) s += Vv[i] * cols[i].r[t]; return s; });
-    var mu = cols.map(function (c) { return c.r.reduce(function (a, x) { return a + x; }, 0) / W; });
-    var cov = cols.map(function (ci, i) { return cols.map(function (cj, j) { var s = 0; for (var t = 0; t < W; t++) s += (ci.r[t] - mu[i]) * (cj.r[t] - mu[j]); return s / (W - 1); }); });
+    var ew = ST.wt === 'ewma', L = 0.94, wt = J.map(function (_, t) { return ew ? Math.pow(L, W - 1 - t) : 1; }), ws = wt.reduce(function (a, x) { return a + x; }, 0); wt = wt.map(function (x) { return x / ws; }); // EWMA: la rueda más nueva pesa más
+    var mu = cols.map(function (c) { return c.r.reduce(function (a, x, t) { return a + wt[t] * x; }, 0); });
+    var cov = cols.map(function (ci, i) { return cols.map(function (cj, j) { var s = 0; for (var t = 0; t < W; t++) s += wt[t] * (ci.r[t] - mu[i]) * (cj.r[t] - mu[j]); return ew ? s : s * W / (W - 1); }); });
     var SV = cov.map(function (row) { return row.reduce(function (a, x, j) { return a + x * Vv[j]; }, 0); });
     var vp = Math.sqrt(Math.max(0, SV.reduce(function (a, x, i) { return a + x * Vv[i]; }, 0)));
     var z = Z[ST.conf] || 1.6449, sh = Math.sqrt(ST.hz);
     var srt = pnl.slice().sort(function (a, b) { return a - b; }), qi = Math.max(0, Math.floor((1 - ST.conf) * W) - 0), qv = srt[Math.min(W - 1, qi)];
     var tail = srt.filter(function (x) { return x <= qv; }), es = tail.reduce(function (a, x) { return a + x; }, 0) / (tail.length || 1);
+    if (ew) { // simulación histórica ponderada por antigüedad: se acumulan los pesos de los peores días hasta llegar a 1 − confianza
+      var ord = pnl.map(function (v, t) { return [v, wt[t]]; }).sort(function (a, b) { return a[0] - b[0]; }), cw = 0, sw = 0, se = 0;
+      for (var k = 0; k < ord.length; k++) { cw += ord[k][1]; se += ord[k][0] * ord[k][1]; sw += ord[k][1]; if (cw >= 1 - ST.conf) { qv = ord[k][0]; break; } }
+      es = se / (sw || 1);
+    }
     cols.forEach(function (c, i) { c.vol = Math.sqrt(cov[i][i]); c.comp = vp > 0 ? Vv[i] * SV[i] / vp * z * sh : 0; });
     return { W: W, from: VD.dates[J[0]], to: VD.dates[J[J.length - 1]], pnl: pnl, pVar: z * vp * sh, hVar: -qv * sh, hEs: -es * sh, vp: vp, cols: cols };
   }
@@ -4871,7 +4879,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       cardH('pfShape', 'Estructura: ladder, barbell o bullet', 'Cómo se reparte el valor del portfolio a lo largo de los plazos. <b>Bullet</b>: concentrado alrededor de un plazo. <b>Barbell</b>: cargado en las dos puntas (corto y largo) con poco en el medio. <b>Ladder</b>: repartido en escalones parejos a lo largo de la curva.',
         '<div class="pfchips" id="pfShapeChips" style="margin-top:12px"></div><div class="pfcv" style="height:280px;margin-top:14px"><canvas id="pfShapeC"></canvas></div><p class="pfnote" id="pfShapeNote"></p>', 'Estructura_portfolio') +
       cardH('pfScen', 'Escenarios de tasas', 'El impacto de un cambio de tasas en tu cartera: elegí cuántos pb se mueve cada plazo de la curva (o un escenario armado) y se revalúa cada bono con sus flujos, sin aproximaciones de duración.',
-        '<div class="pfc"><label>Escenario<select id="pfScS"><option value="par">Parallel shift (todas las tasas igual)</option><option value="bullst">Bull steepening (bajan, más los cortos)</option><option value="bearst">Bear steepening (suben, más los largos)</option><option value="bullfl">Bull flattening (bajan, más los largos)</option><option value="bearfl">Bear flattening (suben, más los cortos)</option><option value="pbfly">Butterfly positiva (puntas suben, panza baja)</option><option value="nbfly">Butterfly negativa (puntas bajan, panza sube)</option><option value="custom">Personalizado</option></select></label>' +
+        '<div class="pfc"><label>Escenario<select id="pfScS"><option value="par">Parallel shift (todas las tasas igual)</option><option value="bullst">Bull steepening (bajan, más los cortos · el más común en bajas)</option><option value="bearst">Bear steepening (suben, más los largos)</option><option value="bullfl">Bull flattening (bajan, más los largos)</option><option value="bearfl">Bear flattening (suben, más los cortos · el más común en subas)</option><option value="pbfly">Butterfly positiva (puntas suben, panza baja)</option><option value="nbfly">Butterfly negativa (puntas bajan, panza sube)</option><option value="custom">Personalizado</option></select></label>' +
         '<label title="En parallel shift el signo manda (negativo = baja). En el resto es cuánto se mueve el nodo que más se mueve.">Magnitud (pb)<input type="number" id="pfScM" step="25" style="width:110px"></label><label>Aplicar a<select id="pfScTo"><option value="all">Todas las curvas</option>' + ORDER.map(function (g) { return '<option value="' + g + '">Solo ' + GN[g] + '</option>'; }).join('') + '</select></label></div>' +
         '<div class="pfchips" id="pfScChips"></div><div class="pfg"><div style="overflow:auto"><table class="pft" id="pfScIn"></table></div><div class="pfcv"><canvas id="pfScC"></canvas></div></div><div style="overflow:auto;margin-top:14px"><table class="pft" id="pfScT"></table></div><p class="pfnote" id="pfScNote"></p>', 'Escenario_tasas') +
       cardH('pfRisk', 'Duración y key rate durations', 'Cuánto cambia el valor del portfolio si sube 1 pb la tasa de cada plazo. La duración modificada de cada bono se reparte entre los nodos de la curva según cuándo paga; la suma de las barras es la duración del portfolio. Cada grupo responde a su propia curva (pesos nominales, CER real, dólares), así que el total mezcla riesgos distintos.',
@@ -4881,16 +4889,18 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       cardH('pfVar', 'Value at Risk', '#pfVarSub',
         '<div class="pfc"><label>Confianza<select id="pfCf"><option value="0.95">95%</option><option value="0.99">99%</option></select></label>' +
         '<label>Horizonte<select id="pfHz"><option value="1">1 día</option><option value="5">1 semana (5 ruedas)</option><option value="10">10 ruedas</option><option value="21">1 mes (21 ruedas)</option></select></label>' +
-        '<label>Ventana<select id="pfW"><option value="60">60 ruedas</option><option value="120">120 ruedas</option><option value="250">250 ruedas</option><option value="500">500 ruedas</option></select></label></div>' +
+        '<label>Ventana<select id="pfW"><option value="60">60 ruedas</option><option value="120">120 ruedas</option><option value="250">250 ruedas</option><option value="500">500 ruedas</option></select></label>' +
+        '<label title="EWMA (RiskMetrics): el peso de cada rueda cae 6% por rueda hacia atrás, así la volatilidad reciente pesa más.">Ponderación<select id="pfWt"><option value="eq">Igual para todas las ruedas</option><option value="ewma">EWMA λ 0,94 (más peso a lo reciente)</option></select></label></div>' +
         '<div class="pfchips" id="pfVarChips"></div><div class="pfg"><div class="pfcv"><canvas id="pfVarC"></canvas></div><div style="overflow:auto"><table class="pft" id="pfVarT"></table></div></div><p class="pfnote" id="pfVarNote"></p>', 'VaR_portfolio');
     var g = function (id) { return document.getElementById(id); };
-    g('pfG').value = ST.grp; g('pfC').value = ST.ccy; g('pfCf').value = String(ST.conf); g('pfHz').value = String(ST.hz); g('pfW').value = String(ST.win);
+    g('pfG').value = ST.grp; g('pfC').value = ST.ccy; g('pfCf').value = String(ST.conf); g('pfHz').value = String(ST.hz); g('pfW').value = String(ST.win); g('pfWt').value = ST.wt;
     g('pfG').onchange = function () { ST.grp = this.value; save(); render(); };
     g('pfQ').oninput = function () { ST.q = this.value; renderPick(); };
     g('pfC').onchange = function () { ST.ccy = this.value; save(); render(); };
     g('pfCf').onchange = function () { ST.conf = +this.value; save(); render(); };
     g('pfHz').onchange = function () { ST.hz = +this.value; save(); render(); };
     g('pfW').onchange = function () { ST.win = +this.value; save(); render(); };
+    g('pfWt').onchange = function () { ST.wt = this.value; save(); render(); };
     g('pfScS').value = ST.sc; g('pfScM').value = ST.scM; g('pfScTo').value = ST.scTo;
     g('pfScS').onchange = function () { ST.sc = this.value; if (ST.sc !== 'custom') ST.shk = null; save(); render(); };
     g('pfScM').onchange = function () { ST.scM = parseFloat(this.value) || 0; if (ST.sc !== 'custom') ST.shk = null; save(); render(); };
@@ -4952,7 +4962,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       chip('Valor de mercado', money(tot), H.length + ' bonos · ' + (ST.ccy === 'USD' ? 'en dólares MEP' : 'en pesos')) +
       chip('Duración modificada', fm(md, 2), 'años, ponderada por valor') +
       chip('DV01', money(dv01), 'pierde esto si las tasas suben 1 pb') +
-      chip('Convexidad', fm(cv, 2), 'ponderada por valor') +
+      chip('Convexidad', fm(cv, 2), 'ponderada por valor · suma ½ × C × Δy² al precio') +
       chip('Plazo promedio', fm(pz, 0) + ' días', 'al vencimiento, ponderado') +
       chip('Mayor exposición', GN[top], pc(byG[top] / tot, 1) + ' del portfolio · ' + fm(1 / hhi, 1) + ' bonos efectivos');
     return { H: H, tot: tot, md: md, cv: cv, byG: byG };
@@ -4976,10 +4986,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     document.getElementById('pfKrT').innerHTML = h;
     var sh = [-200, -100, -50, 50, 100, 200];
     var dv = function (dy) { return (-P.md * dy + 0.5 * P.cv * dy * dy) * P.tot; };
-    var s = '<thead><tr><th class="l">Movimiento paralelo de tasas</th><th>Cambio de valor</th><th>En % del portfolio</th></tr></thead><tbody>';
-    sh.forEach(function (x) { var v = dv(x / 1e4), c = v >= 0 ? 'var(--ok)' : 'var(--bad)'; s += '<tr><td class="l">' + sg(x, 0) + ' pb</td><td style="color:' + c + '">' + money(v) + '</td><td style="color:' + c + '">' + sg(v / P.tot * 100, 2) + '%</td></tr>'; });
+    var full = function (x) { var arr = KR.map(function () { return x; }); return P.H.reduce(function (a, b) { var r = reprice(b, arr); return a + (r == null ? 0 : r * b.val); }, 0); };
+    var s = '<thead><tr><th class="l">Movimiento paralelo de tasas</th><th>Duración + convexidad</th><th>Revaluación completa</th><th>En % del portfolio</th></tr></thead><tbody>';
+    sh.forEach(function (x) { var v = dv(x / 1e4), f = full(x), c = f >= 0 ? 'var(--ok)' : 'var(--bad)'; s += '<tr><td class="l">' + sg(x, 0) + ' pb</td><td>' + money(v) + '</td><td style="color:' + c + '">' + money(f) + '</td><td style="color:' + c + '">' + sg(f / P.tot * 100, 2) + '%</td></tr>'; });
     s += '</tbody>';
-    document.getElementById('pfStress').innerHTML = s + '<caption style="caption-side:bottom;text-align:left;color:var(--mu);font-size:12.5px;padding-top:8px">Con duración y convexidad, moviendo todas las tasas a la vez.</caption>';
+    document.getElementById('pfStress').innerHTML = s + '<caption style="caption-side:bottom;text-align:left;color:var(--mu);font-size:12.5px;padding-top:8px">Todas las tasas se mueven igual. La primera columna aproxima con la serie de Taylor (−MD × Δy + ½ × C × Δy²); la segunda revalúa cada bono con sus flujos. La diferencia son los términos de orden 3 en adelante.</caption>';
     var gt = '<thead><tr><th class="l">Grupo</th><th>Valor</th><th>Peso</th><th>TIR ponderada</th><th>MD</th><th>Aporte a la MD</th></tr></thead><tbody>';
     G.forEach(function (g) {
       var xs = P.H.filter(function (x) { return x.grp === g; }), v = P.byG[g], ty = 0, tw = 0, m = 0;
@@ -5063,9 +5074,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       tot += d; lin += l; byG[x.grp] = (byG[x.grp] || 0) + d; rows.push({ x: x, r: r, d: d });
     });
     var node = KR.map(function (_, i) { var s = 0; P.H.forEach(function (x) { var arr = SH[x.grp]; if (x.kr && arr) s -= x.kr[i] * arr[i] / 1e4 * x.val; }); return s; });
+    var bul = 0; G.forEach(function (g) { // benchmark de Fabozzi: un cupón cero por grupo con el mismo valor y la misma duración modificada que tus bonos de ese grupo
+      var xs = P.H.filter(function (x) { return x.grp === g && x.kr && x.krY != null; }), v = 0, m = 0, y = 0; xs.forEach(function (x) { v += x.val; m += x.kr.reduce(function (a, k) { return a + k; }, 0) * x.val; y += x.krY * x.val; });
+      if (!(v > 0)) return; m /= v; y /= v; var T = m * (1 + y), sh = shockAt(SH[g] || KR.map(function () { return 0; }), T); bul += v * (Math.pow((1 + y) / (1 + y + sh), T) - 1);
+    });
     var col = function (v) { return 'color:' + (v > 0 ? 'var(--ok)' : v < 0 ? 'var(--bad)' : 'var(--mu)'); };
     ch.innerHTML = chip('Impacto en la cartera', '<em style="font-style:normal;' + col(tot) + '">' + (tot > 0 ? '+' : '') + money(tot) + '</em>', sg(tot / P.tot * 100, 2) + '% del valor · queda en ' + money(P.tot + tot)) +
       chip('Con duración (lineal)', money(lin), 'suma de key rate durations × shock; la diferencia es la convexidad') +
+      chip('Bullet de igual duración', money(bul), 'tu cartera ' + (tot - bul >= 0 ? 'le gana por ' : 'pierde por ') + money(Math.abs(tot - bul)) + ' contra un cupón cero por grupo con tu misma duración') +
       chip('Grupo más afectado', (function () { var g = G.slice().sort(function (a, b) { return Math.abs(byG[b]) - Math.abs(byG[a]); })[0]; return GN[g]; })(), (function () { var g = G.slice().sort(function (a, b) { return Math.abs(byG[b]) - Math.abs(byG[a]); })[0]; return money(byG[g]) + ' (' + sg(byG[g] / P.byG[g] * 100, 2) + '% del grupo)'; })());
     var tx = css('--tx'), mu = css('--mu'), bd = css('--bd');
     CH.pfScC = new Chart(document.getElementById('pfScC'), { type: 'bar', data: { labels: KRL, datasets: [{ label: 'Aporte de cada nodo', data: node, backgroundColor: node.map(function (v) { return v >= 0 ? css('--ok') : css('--bad'); }), borderRadius: 3, maxBarThickness: 46 }] },
@@ -5117,7 +5133,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     });
     tb.innerHTML = h + '</tbody>';
     var px = R.cols.filter(function (c) { return c.px; }).length, thin = R.cols.filter(function (c) { return c.zero > R.W * 0.2; }).map(function (c) { return c.h.k; });
-    note.innerHTML = 'Período: ' + dfull(bxDayNum(R.from)) + ' a ' + dfull(bxDayNum(R.to)) + ' (' + R.W + ' ruedas), con los nominales de hoy. <b>Histórico</b>: el percentil de los resultados diarios que habría tenido este portfolio. <b>Paramétrico</b>: supone retornos normales y usa la matriz de varianzas y covarianzas del período. ' +
+    note.innerHTML = 'Período: ' + dfull(bxDayNum(R.from)) + ' a ' + dfull(bxDayNum(R.to)) + ' (' + R.W + ' ruedas), con los nominales de hoy. <b>Histórico</b>: el percentil de los resultados diarios que habría tenido este portfolio. <b>Paramétrico</b>: supone retornos normales y usa la matriz de varianzas y covarianzas del período. ' + (ST.wt === 'ewma' ? 'Con <b>EWMA</b> cada rueda pesa 0,94 veces la siguiente (vida media de unas 11 ruedas), en las varianzas y en el percentil histórico. ' : '') +
       'Para más de un día se escala por la raíz del horizonte. ' + (ST.ccy === 'USD' ? 'En dólares: cada retorno en pesos se divide por la variación del MEP (AL30 / AL30D). ' : 'En pesos: los bonos en dólares incluyen el movimiento del tipo de cambio. ') +
       (px ? 'Los días sin precio propio (bonos nuevos o sin operaciones) usan el retorno del bono del mismo grupo con duración más parecida, escalado por la relación de duraciones. ' : '') +
       'El aporte de cada bono es su VaR componente paramétrico: suma el VaR total y muestra qué bonos concentran el riesgo.' +
