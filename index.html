@@ -4911,8 +4911,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         '<label>Buscar<input type="search" id="pfQ" placeholder="Ticker o tipo"></label></div><div class="pfw"><table class="pft" id="pfAll"></table></div>', 'Portfolio_bonos') +
       cardH('pfMine', 'Tu portfolio', '#pfMineSub',
         '<div class="pfc"><label>Moneda<select id="pfC"><option value="ARS">Pesos</option><option value="USD">Dólares (MEP)</option></select></label>' +
-        '<button class="act" id="pfClr" data-html2canvas-ignore="true">Vaciar portfolio</button></div>' +
-        '<div class="pfw" style="max-height:none"><table class="pft" id="pfTab"></table></div><div class="pfchips" id="pfChips" style="margin-top:14px"></div><div class="pfcv" id="pfPieW" style="height:320px;margin-top:14px;display:none"><canvas id="pfPie"></canvas></div>', 'Portfolio') +
+        '<button class="act" id="pfDist" data-html2canvas-ignore="true" disabled>Ver distribución</button><button class="act" id="pfClr" data-html2canvas-ignore="true">Vaciar portfolio</button></div>' +
+        '<div class="pfw" style="max-height:none"><table class="pft" id="pfTab"></table></div><div class="pfchips" id="pfChips" style="margin-top:14px"></div>', 'Portfolio') +
       cardH('pfShape', 'Estructura: ladder, barbell o bullet', 'Cómo se reparte el valor del portfolio a lo largo de los plazos. <b>Bullet</b>: concentrado alrededor de un plazo. <b>Barbell</b>: cargado en las dos puntas (corto y largo) con poco en el medio. <b>Ladder</b>: repartido en escalones parejos a lo largo de la curva.',
         '<div class="pfchips" id="pfShapeChips" style="margin-top:12px"></div><div class="pfcv" style="height:280px;margin-top:14px"><canvas id="pfShapeC"></canvas></div><p class="pfnote" id="pfShapeNote"></p>', 'Estructura_portfolio') +
       cardH('pfScen', 'Escenarios de tasas', 'El impacto de un cambio de tasas en tu cartera: elegí cuántos pb se mueve cada plazo de la curva (o un escenario armado) y se revalúa cada bono con sus flujos, sin aproximaciones de duración.',
@@ -4943,6 +4943,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     g('pfScM').onchange = function () { ST.scM = parseFloat(this.value) || 0; if (ST.sc !== 'custom') ST.shk = null; save(); render(); };
     g('pfScTo').onchange = function () { ST.scTo = this.value; if (ST.sc !== 'custom') ST.shk = null; save(); render(); };
     root.addEventListener('change', function (e) { var i = e.target.closest('.pfsh'); if (!i) return; var sh = shocks(), gg = i.getAttribute('data-g'), n = +i.getAttribute('data-n'); sh[gg] = sh[gg] || KR.map(function () { return 0; }); sh[gg][n] = parseFloat(String(i.value).replace(',', '.')) || 0; ST.shk = sh; ST.sc = 'custom'; save(); render(); });
+    g('pfDist').onclick = openDist;
     g('pfClr').onclick = function () { if (!Object.keys(FAV).length) return; if (confirm('¿Sacar todos los bonos de tu portfolio?')) { FAV = {}; save(); render(); } };
     root.addEventListener('click', function (e) {
       var b = e.target.closest('.pfs'); if (b) { var k = b.getAttribute('data-k'); if (FAV[k] != null) delete FAV[k]; else FAV[k] = 0; save(); render(); return; }
@@ -4989,7 +4990,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       h += '<tfoot><tr><td></td><td class="l" colspan="4">Total (' + H.length + ' bonos con nominales)</td><td>' + money(tot) + '</td><td>100%</td><td colspan="3"></td><td>' + fm(wa('md'), 2) + '</td><td></td><td>' + fm(wa('d'), 0) + '</td><td></td></tr></tfoot>';
     }
     document.getElementById('pfTab').innerHTML = h;
-    renderPie(H, tot);
+    PIE = { H: H, tot: tot }; document.getElementById('pfDist').disabled = !H.length;
     if (!H.length) { document.getElementById('pfChips').innerHTML = ''; return null; }
     var md = H.reduce(function (a, x) { return a + (x.md || 0) * x.val; }, 0) / tot, cv = H.reduce(function (a, x) { return a + (x.conv || 0) * x.val; }, 0) / tot;
     var dv01 = md * tot * 1e-4, pz = H.reduce(function (a, x) { return a + x.d * x.val; }, 0) / tot;
@@ -5010,15 +5011,25 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var n = parseInt(hex.slice(1), 16), c = [n >> 16, (n >> 8) & 255, n & 255].map(function (v) { return Math.round(f >= 0 ? v + (255 - v) * f : v * (1 + f)); });
     return 'rgb(' + c.join(',') + ')';
   }
-  function renderPie(H, tot) { // torta: el peso de cada bono, con el color de su grupo (tonos distintos dentro del grupo)
-    kill('pfPie'); var w = document.getElementById('pfPieW'); if (!H.length || !(tot > 0)) { w.style.display = 'none'; return; } w.style.display = '';
+  var PIE = null;
+  function openDist() { // la torta en una ventana encima de la página, con el fondo difuminado (mismo estilo que Ampliar)
+    if (!PIE || !PIE.H.length || document.getElementById('ampOv')) return; var H = PIE.H, tot = PIE.tot;
+    var ov = document.createElement('div'); ov.id = 'ampOv'; ov.setAttribute('data-html2canvas-ignore', 'true');
+    ov.innerHTML = '<div id="ampPn" role="dialog" aria-modal="true" aria-label="Distribución de tu portfolio" style="width:min(980px,94%);height:min(640px,86%)"><div id="ampHd"><b>Distribución de tu portfolio · ' + money(tot) + '</b><button type="button" id="ampX" title="Cerrar (Esc)" aria-label="Cerrar">×</button></div><div id="ampBx"><canvas></canvas></div></div>';
+    var ovf = document.documentElement.style.overflow, ch = null;
+    var close = function () { if (ch) { try { ch.destroy(); } catch (e) {} } ov.remove(); document.documentElement.style.overflow = ovf; document.removeEventListener('keydown', key); var b = document.getElementById('pfDist'); if (b) b.focus({ preventScroll: true }); };
+    var key = function (e) { if (e.key === 'Escape') close(); };
+    var down = false; ov.addEventListener('pointerdown', function (e) { down = e.target === ov; }); ov.addEventListener('click', function (e) { if (e.target === ov && down) close(); });
+    ov.querySelector('#ampX').onclick = close;
+    document.body.appendChild(ov); document.documentElement.style.overflow = 'hidden'; document.addEventListener('keydown', key);
     var cnt = {}, idx = {}; H.forEach(function (x) { cnt[x.grp] = (cnt[x.grp] || 0) + 1; });
-    var col = H.map(function (x) { var i = idx[x.grp] = (idx[x.grp] || 0) + 1, n = cnt[x.grp]; return shade(GC[x.grp], n > 1 ? -0.3 + 0.75 * (i - 1) / (n - 1) : 0); });
-    var tx = css('--tx'), wide = w.clientWidth > 620;
-    CH.pfPie = new Chart(document.getElementById('pfPie'), { type: 'doughnut',
+    var col = H.map(function (x) { var i = idx[x.grp] = (idx[x.grp] || 0) + 1, n = cnt[x.grp]; return shade(GC[x.grp], n > 1 ? -0.3 + 0.75 * (i - 1) / (n - 1) : 0); }); // color del grupo, tonos distintos dentro del grupo
+    var tx = css('--tx'), wide = ov.querySelector('#ampBx').clientWidth > 620;
+    ch = new Chart(ov.querySelector('canvas'), { type: 'doughnut',
       data: { labels: H.map(function (x) { return x.k + ' · ' + fm(x.val / tot * 100, 1) + '%'; }), datasets: [{ data: H.map(function (x) { return x.val; }), backgroundColor: col, borderColor: css('--card') || '#fff', borderWidth: 2 }] },
-      options: { responsive: true, maintainAspectRatio: false, cutout: '55%', plugins: { legend: { position: wide ? 'right' : 'bottom', labels: { color: tx, usePointStyle: true, boxWidth: 10, padding: 10 } },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '55%', plugins: { legend: { position: wide ? 'right' : 'bottom', labels: { color: tx, usePointStyle: true, boxWidth: 10, padding: 12, font: { size: 13 } } },
         tooltip: { callbacks: { label: function (c) { var x = H[c.dataIndex]; return x.k + ' (' + x.tipo + '): ' + money(x.val) + ' · ' + fm(x.val / tot * 100, 1) + '%'; } } } } } });
+    ov.querySelector('#ampX').focus({ preventScroll: true });
   }
   function renderRisk(P) {
     var tx = css('--tx'), mu = css('--mu'), bd = css('--bd');
