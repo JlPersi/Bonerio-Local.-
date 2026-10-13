@@ -4633,6 +4633,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var FAV = (function () { try { var o = JSON.parse(localStorage.getItem(FKEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } })();
   var ST = { ccy: 'ARS', conf: 0.95, hz: 1, win: 250, grp: 'all', q: '', sort: 'mat', sc: 'par', scM: 100, scTo: 'all', shk: null };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(SKEY) || '{}')); } catch (e) {}
+  if (['par', 'bullst', 'bearst', 'bullfl', 'bearfl', 'pbfly', 'nbfly', 'custom'].indexOf(ST.sc) < 0) ST.sc = 'par'; // escenarios de una versión anterior
   var VD = null, VDerr = false, VDask = false, CH = {}, RET = {}, timer = null;
   var isAct = function () { return root.classList.contains('active'); };
   var save = function () { try { localStorage.setItem(FKEY, JSON.stringify(FAV)); localStorage.setItem(SKEY, JSON.stringify({ ccy: ST.ccy, conf: ST.conf, hz: ST.hz, win: ST.win, grp: ST.grp, sc: ST.sc, scM: ST.scM, scTo: ST.scTo, shk: ST.shk })); } catch (e) {} };
@@ -4833,8 +4834,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       cardH('pfShape', 'Estructura: ladder, barbell o bullet', 'Cómo se reparte el valor del portfolio a lo largo de los plazos. <b>Bullet</b>: concentrado alrededor de un plazo. <b>Barbell</b>: cargado en las dos puntas (corto y largo) con poco en el medio. <b>Ladder</b>: repartido en escalones parejos a lo largo de la curva.',
         '<div class="pfchips" id="pfShapeChips" style="margin-top:12px"></div><div class="pfcv" style="height:280px;margin-top:14px"><canvas id="pfShapeC"></canvas></div><p class="pfnote" id="pfShapeNote"></p>', 'Estructura_portfolio') +
       cardH('pfScen', 'Escenarios de tasas', 'El impacto de un cambio de tasas en tu cartera: elegí cuántos pb se mueve cada plazo de la curva (o un escenario armado) y se revalúa cada bono con sus flujos, sin aproximaciones de duración.',
-        '<div class="pfc"><label>Escenario<select id="pfScS"><option value="par">Suba paralela</option><option value="steep">Empinamiento (largos suben, cortos bajan)</option><option value="flat">Aplanamiento (cortos suben, largos bajan)</option><option value="bfly">Butterfly (puntas suben, medio baja)</option><option value="short">Solo tramo corto (hasta 1 año)</option><option value="long">Solo tramo largo (desde 3 años)</option><option value="custom">Personalizado</option></select></label>' +
-        '<label>Magnitud (pb)<input type="number" id="pfScM" step="25" style="width:110px"></label><label>Aplicar a<select id="pfScTo"><option value="all">Todas las curvas</option>' + ORDER.map(function (g) { return '<option value="' + g + '">Solo ' + GN[g] + '</option>'; }).join('') + '</select></label></div>' +
+        '<div class="pfc"><label>Escenario<select id="pfScS"><option value="par">Parallel shift (todas las tasas igual)</option><option value="bullst">Bull steepening (bajan, más los cortos)</option><option value="bearst">Bear steepening (suben, más los largos)</option><option value="bullfl">Bull flattening (bajan, más los largos)</option><option value="bearfl">Bear flattening (suben, más los cortos)</option><option value="pbfly">Butterfly positiva (puntas suben, panza baja)</option><option value="nbfly">Butterfly negativa (puntas bajan, panza sube)</option><option value="custom">Personalizado</option></select></label>' +
+        '<label title="En parallel shift el signo manda (negativo = baja). En el resto es cuánto se mueve el nodo que más se mueve.">Magnitud (pb)<input type="number" id="pfScM" step="25" style="width:110px"></label><label>Aplicar a<select id="pfScTo"><option value="all">Todas las curvas</option>' + ORDER.map(function (g) { return '<option value="' + g + '">Solo ' + GN[g] + '</option>'; }).join('') + '</select></label></div>' +
         '<div class="pfchips" id="pfScChips"></div><div class="pfg"><div style="overflow:auto"><table class="pft" id="pfScIn"></table></div><div class="pfcv"><canvas id="pfScC"></canvas></div></div><div style="overflow:auto;margin-top:14px"><table class="pft" id="pfScT"></table></div><p class="pfnote" id="pfScNote"></p>', 'Escenario_tasas') +
       cardH('pfRisk', 'Duración y key rate durations', 'Cuánto cambia el valor del portfolio si sube 1 pb la tasa de cada plazo. La duración modificada de cada bono se reparte entre los nodos de la curva según cuándo paga; la suma de las barras es la duración del portfolio. Cada grupo responde a su propia curva (pesos nominales, CER real, dólares), así que el total mezcla riesgos distintos.',
         '<div class="pfcv" style="margin-top:14px"><canvas id="pfKrC"></canvas></div><div style="overflow:auto;margin-top:14px"><table class="pft" id="pfKrT"></table></div><div class="pfg"><div style="overflow:auto"><table class="pft" id="pfStress"></table></div><div style="overflow:auto"><table class="pft" id="pfGrpT"></table></div></div>', 'Key_rate_durations') +
@@ -4990,12 +4991,15 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   /* ---------- escenarios de tasas: revaluación completa con un shock por nodo ---------- */
   function preset(kind, m, t) {
     var cl = function (x) { return Math.max(-1, Math.min(1, x)); };
-    if (kind === 'par') return m;
-    if (kind === 'steep') return m * cl(Math.log(t / 2) / Math.log(10));
-    if (kind === 'flat') return -m * cl(Math.log(t / 2) / Math.log(10));
-    if (kind === 'bfly') return m * cl(2 * Math.abs(Math.log(t / 2.5)) / Math.log(8) - 1);
-    if (kind === 'short') return t <= 1 ? m : t < 2 ? m * (2 - t) : 0;
-    if (kind === 'long') return t >= 3 ? m : t > 2 ? m * (t - 2) : 0;
+    var a = Math.abs(m), w = Math.max(0, Math.min(1, Math.log(t / KR[0]) / Math.log(KR[KR.length - 1] / KR[0]))); // w: 0 en el nodo más corto, 1 en el más largo (escala logarítmica)
+    var b = cl(2 * Math.abs(Math.log(t / 2.5)) / Math.log(8) - 1); // butterfly: +1 en las puntas (3m y 20a), -1 en la panza (2,5 años)
+    if (kind === 'par') return m; // con signo: negativo es una baja paralela
+    if (kind === 'bullst') return -a * (1 - w); // bajan las tasas, los cortos más: la curva se empina
+    if (kind === 'bearst') return a * w; // suben, los largos más: se empina
+    if (kind === 'bullfl') return -a * w; // bajan, los largos más: se aplana
+    if (kind === 'bearfl') return a * (1 - w); // suben, los cortos más: se aplana
+    if (kind === 'pbfly') return a * b; // puntas arriba, panza abajo: la curva pierde curvatura
+    if (kind === 'nbfly') return -a * b; // puntas abajo, panza arriba: más joroba
     return 0;
   }
   function shocks() { // { grupo: [pb por nodo] }
@@ -5032,7 +5036,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         scales: { x: { ticks: { color: tx }, grid: { display: false }, title: { display: true, text: 'Qué plazo explica el resultado (key rate duration × shock)', color: mu } }, y: { ticks: { color: tx, callback: function (v) { return money(v); } }, grid: { color: bd } } } } });
     rows.sort(function (a, b) { return a.d - b.d; });
     tb.innerHTML = '<thead><tr><th class="l">Bono</th><th class="l">Grupo</th><th>Valor hoy</th><th>Cambio de precio</th><th>Impacto</th><th>% del impacto</th></tr></thead><tbody>' +
-      rows.map(function (o) { return '<tr><td class="k">' + o.x.k + '</td><td class="l"><i class="pfdot" style="background:' + GC[o.x.grp] + '"></i>' + o.x.tipo + '</td><td>' + money(o.x.val) + '</td><td style="' + col(o.r) + '">' + (o.r == null ? 'n/a' : sg(o.r * 100, 2) + '%') + '</td><td style="' + col(o.d) + '">' + money(o.d) + '</td><td>' + (tot ? pc(o.d / tot, 1) : '—') + '</td></tr>'; }).join('') +
+      rows.map(function (o) { return '<tr><td class="k">' + o.x.k + '</td><td class="l"><i class="pfdot" style="background:' + GC[o.x.grp] + '"></i>' + o.x.tipo + '</td><td>' + money(o.x.val) + '</td><td style="' + col(o.r) + '">' + (o.r == null ? 'n/a' : sg(o.r * 100, 2) + '%') + '</td><td style="' + col(o.d) + '">' + money(o.d) + '</td><td>' + (tot ? pc(Math.abs(o.d / tot) < 5e-4 ? 0 : o.d / tot, 1) : '—') + '</td></tr>'; }).join('') +
       '</tbody><tfoot><tr><td class="l" colspan="2">Total</td><td>' + money(P.tot) + '</td><td style="' + col(tot) + '">' + sg(tot / P.tot * 100, 2) + '%</td><td style="' + col(tot) + '">' + money(tot) + '</td><td>100%</td></tr></tfoot>';
     nt.innerHTML = 'Cada bono se revalúa descontando sus flujos a su TIR más el shock del plazo de cada pago (interpolado entre nodos). Cada grupo se mueve con su propia curva: tasa fija y TAMAR en tasa nominal en pesos, CER en tasa real, dólar linked y hard dollar en tasa en dólares. ' +
       'En TAMAR y duales los flujos quedan como los proyecta el escenario de Curva Pesos: el shock mueve la tasa de descuento, no la TAMAR futura. Editá cualquier celda para armar tu propio escenario.';
@@ -5093,6 +5097,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
   function later() { if (timer) clearTimeout(timer); timer = setTimeout(render, 250); }
   window.renderPortfolio = render;
+  window.PFQ = { preset: preset, krd: krd, reprice: reprice, wKey: wKey, KR: KR, universe: function () { return universe(); } }; // para revisar los cálculos desde la consola
 
   var _sw = window.switchTab;
   window.switchTab = function (id) { _sw(id); var gc = document.getElementById('globalControls'); if (id === 'port') { if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
