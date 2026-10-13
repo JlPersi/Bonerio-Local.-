@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 URL = "https://data912.com/live/arg_bonds"
 OUT = os.path.join(os.path.dirname(__file__), "..", "data", "closes.json")
-PAT = re.compile(r"^(AL|GD|AE|AO|AN)\d{2}[DC]$")
+PAT = re.compile(r"^((AL|GD|AE|AO|AN)\d{2}|BP[A-D]\d)[DC]$")  # soberanos y BOPREAL (BPA7D, BPB8C...)
 
 today = dt.datetime.now(ZoneInfo("America/Argentina/Buenos_Aires")).date()
 if os.environ.get("FORCE_DATE"):
