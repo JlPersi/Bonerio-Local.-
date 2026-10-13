@@ -2279,7 +2279,8 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
   }
 
   /* ---------- calendario / índices / escenario por mes ---------- */
-  function bdBack(t, n) { while (n > 0) { t--; if (bxIsBiz(t)) n--; } return t; }
+  var BANKH = {}; for (var y = 2015; y <= 2045; y++) BANKH[Date.UTC(y, 10, 6) / 864e5] = 1; // Día del Bancario (6/11): no es feriado, pero no hay actividad bancaria, así que no cuenta como hábil al contar los 10 hábiles del CER (ej.: cupón de TX26 de nov-25 = CER del 24/10, coef. 28,5507)
+  function bdBack(t, n) { while (n > 0) { t--; if (bxIsBiz(t) && !BANKH[t]) n--; } return t; }
   function lastOf(o) { return o.s + o.v.length - 1; }
   var T0 = function () { return IDX.TAMAR.v[IDX.TAMAR.v.length - 1] / 100; };
   var MI = {};
@@ -2326,8 +2327,7 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
     return Math.pow(1 + (a / n + sp) * 32 / 365, 365 / 384 * m360(iss, T));
   }
   var TTD_M = 0; // margen de la rama TAMAR de TTD26 (supuesto: TAMAR sin margen; ajustar si el prospecto dice otra cosa)
-  var BSH = { TX26: 3, TX28: 3 }; Object.keys(BSH).forEach(function (k) { if (INST[k]) INST[k].bs = BSH[k]; }); // TX26 y TX28: la base del CER de emisión queda 3 días después del cálculo estándar (calza con la paridad de mercado; confirmar con el prospecto)
-  function cerBase(ins) { return cerAt(bdBack(ins.iss, 10) + (ins.bs || 0), ZERO); }
+  function cerBase(ins) { return cerAt(bdBack(ins.iss, 10), ZERO); }
   function cerFix() { // Lecer cupón cero cuyo CER de pago (vencimiento − 10 hábiles) ya está publicado: el flujo final queda fijo en pesos y opera como una Lecap
     Object.keys(INST).forEach(function (k) {
       var ins = INST[k], lc = lastOf(IDX.CER), b, c;
