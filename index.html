@@ -1375,7 +1375,7 @@ window.updateCurveChart = function() {
     BOP.forEach(function (q) { // BOPREAL: mismo cálculo (TIR efectiva y duración modificada de calc) con su precio en la especie elegida
         const P = q.px[especie]; if (!(P > 0) || q.f[q.f.length - 1][0] <= d0) return;
         const r = calc({ k: q.k, p: P, f: q.f }, d0, d1, u);
-        if (r.tir != null && r.modD != null) dataNew.push({ x: xaxVal(ax, q.f[q.f.length - 1][0] - d0, r.modD * (1 + r.tir) * 365, r.modD), y: r.tir * 100, bono: q.k + (q.put ? '*' : ''), md: r.modD, bop: q });
+        if (r.tir != null && r.modD != null) dataNew.push({ x: xaxVal(ax, q.f[q.f.length - 1][0] - d0, r.modD * (1 + r.tir) * 365, r.modD), y: r.tir * 100, bono: q.k, md: r.modD, bop: q });
     });
 
     function getReg(dataArr) { const r = window.curveFitUSD(dataArr.filter(function (p) { return p.md >= 1.1; }).map(function (p) { return { x: p.x * w, y: p.y }; }), window.USD_MODEL, 2); return r ? { f: function (x) { return r.f(x * w); }, name: r.name } : null; } // la curva se ajusta en años // misma regla que el desvío de Quant: los bonos de menos de ~1 año de duración no entran al ajuste
@@ -1402,7 +1402,7 @@ window.updateCurveChart = function() {
         window.curveChartObj.data.datasets[0].backgroundColor = colorAc;
         window.curveChartObj.data.datasets[1].data = dataLoc;
         window.curveChartObj.data.datasets[1].backgroundColor = colorOk;
-        window.curveChartObj.data.datasets[2].data = lineNY; window.curveChartObj.data.datasets[2].label = 'Fair Value NY · ' + (regNY ? regNY.name : 's/d'); window.curveChartObj.data.datasets[3].label = 'Fair Value Local · ' + (regLoc ? regLoc.name : 's/d');
+        window.curveChartObj.data.datasets[2].data = lineNY; window.curveChartObj.data.datasets[2].label = 'Fair Value Globales · ' + (regNY ? regNY.name : 's/d'); window.curveChartObj.data.datasets[3].label = 'Fair Value Bonares · ' + (regLoc ? regLoc.name : 's/d');
         window.curveChartObj.data.datasets[2].borderColor = colorAc;
         window.curveChartObj.data.datasets[3].data = lineLoc;
         window.curveChartObj.data.datasets[3].borderColor = colorOk;
@@ -1418,16 +1418,16 @@ window.updateCurveChart = function() {
             type: 'scatter',
             data: {
                 datasets: [
-                    { label: 'Ley NY (GD)', data: dataNY, backgroundColor: colorAc, pointRadius: 8, hoverRadius: 10 },
-                    { label: 'Ley Local (AL, AE, AO, AN)', data: dataLoc, backgroundColor: colorOk, pointRadius: 8, hoverRadius: 10 },
-                    { label: 'Fair Value NY · ' + (regNY ? regNY.name : 's/d'), data: lineNY, type: 'line', borderColor: colorAc, borderDash: [6, 6], fill: false, pointRadius: 0, tension: 0.4, borderWidth: 2 },
-                    { label: 'Fair Value Local · ' + (regLoc ? regLoc.name : 's/d'), data: lineLoc, type: 'line', borderColor: colorOk, borderDash: [6, 6], fill: false, pointRadius: 0, tension: 0.4, borderWidth: 2 },
-                    { label: 'BOPREAL (BCRA) · * solo BPA7, BPB7, BPC7 y BPA8: rescate anticipado no incluido en la TIR', data: dataNew, backgroundColor: colorBop, pointStyle: 'rectRot', pointRadius: 9, hoverRadius: 11 }
+                    { label: 'Globales', data: dataNY, backgroundColor: colorAc, pointRadius: 8, hoverRadius: 10 },
+                    { label: 'Bonares', data: dataLoc, backgroundColor: colorOk, pointRadius: 8, hoverRadius: 10 },
+                    { label: 'Fair Value Globales · ' + (regNY ? regNY.name : 's/d'), data: lineNY, type: 'line', borderColor: colorAc, borderDash: [6, 6], fill: false, pointRadius: 0, tension: 0.4, borderWidth: 2 },
+                    { label: 'Fair Value Bonares · ' + (regLoc ? regLoc.name : 's/d'), data: lineLoc, type: 'line', borderColor: colorOk, borderDash: [6, 6], fill: false, pointRadius: 0, tension: 0.4, borderWidth: 2 },
+                    { label: 'Bopreales', data: dataNew, backgroundColor: colorBop, pointStyle: 'rectRot', pointRadius: 9, hoverRadius: 11 }
                 ]
             },
             options: {
                 responsive: true, maintainAspectRatio: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2.5), layout: { padding: { right: 50 } }, 
-                plugins: { tooltip: { callbacks: { label: function(ctx) { return ctx.raw.bono ? ctx.raw.bono + (ctx.raw.bop ? ' (BOPREAL ' + ctx.raw.bop.serie + (ctx.raw.bop.put ? ', con rescate anticipado no incluido' : '') + ')' : '') + ': TIR ' + ctx.raw.y.toFixed(2) + '% | ' + xaxTip(window.USD_AX || 'md', ctx.raw.x) : ''; } } }, legend: { labels: { usePointStyle: true, padding: 20 } } },
+                plugins: { tooltip: { callbacks: { label: function(ctx) { return ctx.raw.bono ? ctx.raw.bono + (ctx.raw.bop ? ' (BOPREAL ' + ctx.raw.bop.serie + ')' : '') + ': TIR ' + ctx.raw.y.toFixed(2) + '% | ' + xaxTip(window.USD_AX || 'md', ctx.raw.x) : ''; } } }, legend: { labels: { usePointStyle: true, padding: 20 } } },
                 scales: {
                     x: { title: { display: true, text: xaxTitle(ax), font: { weight: 'bold' } }, grid: { color: colorBd, drawBorder: false }, ticks: { font: { size: 14 }, callback: function (v) { return v.toLocaleString('es-AR', { maximumFractionDigits: (window.USD_AX || 'md') === 'md' ? 1 : 0 }); } } },
                     y: { grace: '6%', title: { display: true, text: 'TIR (%)', font: { weight: 'bold' } }, grid: { color: colorBd, drawBorder: false }, ticks: { font: { size: 14 }, callback: function(value) { return value.toFixed(0) + '%'; } } }
@@ -1441,7 +1441,7 @@ window.updateCurveChart = function() {
                     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--tx').trim(); 
                     ctx.textAlign = "left"; ctx.textBaseline = "middle";
 
-                    // rótulos: los puntos casi superpuestos (BOPREAL con el mismo precio) comparten uno solo ("BPB7* · BPC7* · BPD7");
+                    // rótulos: los puntos casi superpuestos (BOPREAL con el mismo precio) comparten uno solo ("BPB7 · BPC7 · BPD7");
                     // si un rótulo pisa a otro se corre arriba o abajo, siempre dentro del área del gráfico
                     const A = chart.chartArea, items = [];
                     chart.data.datasets.forEach(function(dataset, i) {
