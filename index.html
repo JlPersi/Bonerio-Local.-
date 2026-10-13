@@ -426,8 +426,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('desglose')">Flujos y Total Return</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('curva')">Globales / Bonares</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('pesos')">Curva Pesos</button>
-      <button class="tab-btn" id="tabPort" style="display:none" onclick="if(window.switchTab) window.switchTab('port')">Portfolio <small style="font-size:11px;opacity:.75">(vista previa)</small></button>
-      <script>(function () { var on = false; try { if (/[?&]preview=portfolio\b/.test(location.search)) localStorage.setItem('pfPreview', '1'); if (/[?&]preview=off\b/.test(location.search)) localStorage.removeItem('pfPreview'); on = localStorage.getItem('pfPreview') === '1'; } catch (e) { on = /[?&]preview=portfolio\b/.test(location.search); } if (on) document.getElementById('tabPort').style.display = ''; })(); /* pestaña Portfolio en vista previa: solo se ve con ?preview=portfolio (queda recordado en el navegador; ?preview=off lo saca) */</script>
+      <button class="tab-btn" id="tabPort" onclick="if(window.switchTab) window.switchTab('port')">Portfolio</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('vard')">Variación diaria</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('rot')">Rotación</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('vol')">Volumen</button>
@@ -802,7 +801,7 @@ function logPrices(rows) {
   rows.forEach(function (r) {
     if (!r || !r.symbol || !(r.c > 0)) return;
     var sp = r.symbol.slice(-1); if (sp !== 'D' && sp !== 'C') return;
-    var k = r.symbol.slice(0, -1); if (!B.some(function (b) { return b.k === k; })) return;
+    var k = r.symbol.slice(0, -1); if (!B.some(function (b) { return b.k === k; }) && !BOP.some(function (q) { return q.k === k; })) return; // soberanos y BOPREAL
     LOG[sp] = LOG[sp] || {}; var e = LOG[sp][ds] = LOG[sp][ds] || {};
     e[k] = r.c;
   });
@@ -2918,8 +2917,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         { label: 'TNA simple (%)', val: function (o) { return o.tnas; } }, { label: 'TEA (%)', val: function (o) { return o.tea; } },
         { label: 'TEM (%)', val: function (o) { return o.tem; } }, { label: 'TNA 30/365 (%)', val: function (o) { return o.tna30; } }],
       c2: [{ label: 'TNA real 30/365 (%)', val: function (o) { return o.realTna30; } }, { label: 'TIR real (TEA, %)', val: function (o) { return o.realTea; } },
-        { label: 'Nominal en el escenario: TNA 30/365 (%)', val: function (o) { return o.tna30; } }, { label: 'Nominal en el escenario: TEA (%)', val: function (o) { return o.tea; } }, { label: 'Nominal en el escenario: TEM (%)', val: function (o) { return o.tem; } }, { label: 'Inflación breakeven mensual (%)', val: function (o) { return o.be; }, inv: true, gsc: function (o, sc) { return remCer(o, sc); } },
-        { label: 'TIR real (TEA) con tu escenario (%)', val: function (o) { return o.realTea; }, scen: function (o) { return o.fairRealTea; } }, { label: 'TNA real 30/365 con tu escenario (%)', val: function (o) { return o.realTna30; }, scen: function (o) { return o.fairRealTna30; } }],
+        { label: 'Nominal en el escenario: TEA (%)', val: function (o) { return o.tea; } }, { label: 'Inflación breakeven mensual (%)', val: function (o) { return o.be; }, inv: true, gsc: function (o, sc) { return remCer(o, sc); } },
+        { label: 'TIR real (TEA) con tu escenario (%)', val: function (o) { return o.realTea; }, scen: function (o) { return o.fairRealTea; } }],
       c3: [{ label: 'Margen sobre TAMAR (TNA, %)', val: function (o) { return o.dm == null ? null : o.dm / 100; } }, { label: 'TEA en el escenario (%)', val: function (o) { return o.tea; } }, { label: 'TAMAR + margen en el escenario (TNA 30/365, %)', th: 'TAMAR + margen<br>esc. (TNA 30/365)', val: function (o) { return o.tna30; } },
         { label: 'TAMAR + margen (TNA, %)', val: function (o) { return o.tnaT == null ? null : o.tnaT / 100; } }, { label: 'TAMAR breakeven (TNA, %)', val: function (o) { return o.be; }, inv: true, gsc: function (o, sc) { return remTam(o, sc); } }],
       c4: [{ label: 'TNA en USD 30/365 (%)', val: function (o) { return o.usdTna30; } }, { label: 'En pesos en el escenario: TNA 30/365 (%)', val: function (o) { return o.tna30; } }, { label: 'En pesos en el escenario: TEA (%)', val: function (o) { return o.tea; } }, { label: 'En pesos en el escenario: TEM (%)', val: function (o) { return o.tem; } },
@@ -3068,9 +3067,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var F = FWD[n], cv0 = document.getElementById('psC' + n), card = cv0 && cv0.closest('.card'); if (!card) return;
       var box = document.getElementById('psFw' + n);
       if (!box) {
-        box = document.createElement('details'); box.id = 'psFw' + n; box.className = 'psfwd'; try { box.open = localStorage.getItem('psFw' + n) !== '0'; } catch (e) { box.open = true; }
+        box = document.createElement('details'); box.id = 'psFw' + n; box.className = 'psfwd'; try { box.open = localStorage.getItem('psFwO' + n) === '1'; } catch (e) { box.open = false; } // cerrada por default; queda abierta solo si el usuario la abrió
         box.innerHTML = '<summary>' + F.tit + '</summary><p class="note" id="psFwR' + n + '" style="margin:6px 0 10px;color:var(--tx)"></p><div style="position:relative;height:260px"><canvas id="psFwC' + n + '"></canvas></div><div class="wrap" style="margin-top:12px"><table class="qt" id="psFwT' + n + '"></table></div><p class="qs" style="margin-top:8px">' + F.sub + ' Los tramos de menos de ' + FWD_MIN + ' días van en gris: con tan poco plazo, un error chico de precio mueve mucho la tasa. Un pico seguido de un pozo suele ser un bono fuera de la curva (barato), no un tramo que pague más.</p>';
-        box.addEventListener('toggle', function () { try { localStorage.setItem('psFw' + n, box.open ? '1' : '0'); } catch (e) { } });
+        box.addEventListener('toggle', function () { try { localStorage.setItem('psFwO' + n, box.open ? '1' : '0'); } catch (e) { } });
         card.appendChild(box);
         if (!document.getElementById('psFwCss')) { var st = document.createElement('style'); st.id = 'psFwCss'; st.textContent = '#pesos .psfwd{margin-top:18px;border-top:1px solid var(--bd);padding-top:14px}#pesos .psfwd>summary{cursor:pointer;font-weight:600;color:var(--tx);font-size:15px;list-style:none;display:flex;align-items:center;gap:10px}#pesos .psfwd>summary::-webkit-details-marker{display:none}#pesos .psfwd>summary:before{content:"▸";color:var(--ac);transition:transform .15s}#pesos .psfwd[open]>summary:before{transform:rotate(90deg)}#pesos .psfwd table{width:100%}#pesos .psfwd th,#pesos .psfwd td{padding:7px 10px;white-space:nowrap}@media(max-width:700px){#pesos .psfwd th,#pesos .psfwd td{padding:6px 6px;font-size:12.5px}}#pesos .psfwd td.fwc{color:var(--mu)}#pesos .psfwd tr.fwx td{background:rgba(245,158,11,.10)}#pesos .psfwd tr.fwx td.fwv{color:var(--ac);font-weight:700}#pesos .psfwd .vdsup{color:var(--mu);font-size:11px;margin-left:4px;font-weight:400}'; document.head.appendChild(st); }
       }
@@ -3320,6 +3319,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       out.push(finish({ k: b.k, grp: 'usd', law: b.k.indexOf('GD') === 0 ? 'NY' : 'Local', mat: mat, P0: pk.P0, P1: pk.P1, t0: pk.t0, t1: pk.t1, src: pk.src, pay: payBetween(fl, pk.t0, pk.t1), payKnown: true,
         yl: 'TIR', y0: a0 ? a0.y : null, y1: a1 ? a1.y : null, x0: mat - bxSettle(pk.t0), x1: mat - bxSettle(pk.t1), mac0: a0 && a0.mac, mac1: a1 && a1.mac, md0: a0 && a0.md, md1: a1 && a1.md }));
     });
+    BOP.forEach(function (q) { // BOPREAL: cierres guardados (data/closes.json) y precio en vivo; si falta el de ayer, la variación de data912
+      var pk = pick(usdSeries(q.k, sp), q.k + sp); if (!pk) return;
+      var mat = q.f[q.f.length - 1][0]; if (mat <= bxSettle(pk.t1)) return;
+      var a1 = usdYield(q, q.f, pk.t1, pk.P1), a0 = usdYield(q, q.f, pk.t0, pk.P0);
+      out.push(finish({ k: q.k, grp: 'usd', law: 'BOP', mat: mat, P0: pk.P0, P1: pk.P1, t0: pk.t0, t1: pk.t1, src: pk.src, pay: payBetween(q.f, pk.t0, pk.t1), payKnown: true,
+        yl: 'TIR', y0: a0 ? a0.y : null, y1: a1 ? a1.y : null, x0: mat - bxSettle(pk.t0), x1: mat - bxSettle(pk.t1), mac0: a0 && a0.mac, mac1: a1 && a1.mac, md0: a0 && a0.md, md1: a1 && a1.md }));
+    });
     return out;
   }
   function psRows() {
@@ -3419,7 +3425,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       else if (r.payKnown === false) { flag = ' ‡'; tip = 'Pagó cupón entre ' + dfull(r.t0) + ' y ' + dfull(r.t1) + ': la caída incluye el pago (no se descuenta)'; }
       var common = r.t0 === c0 ? '' : '<span class="vdsup" title="Comparado contra el ' + dfull(r.t0) + '">vs ' + dstr(r.t0) + '</span>';
       if (r.src === 'data912') common = '<span class="vdsup" title="Cierre anterior no guardado: se usó la variación diaria que informa data912">d912</span>';
-      var gl = r.grp === 'usd' ? 'USD · ' + (r.law === 'NY' ? 'Ley NY' : 'Ley local') : GN[r.grp] || r.grp;
+      var gl = r.grp === 'usd' ? 'USD · ' + (r.law === 'NY' ? 'Ley NY' : r.law === 'BOP' ? 'BOPREAL' : 'Ley local') : GN[r.grp] || r.grp;
       var dpb = r.dpb == null ? 'n/a' : sg(r.dpb, 0);
       h += '<tr><td class="k">' + r.k + (r.star ? ' *' : '') + '</td><td class="l" style="color:var(--mu)">' + gl + '</td><td class="l" style="color:var(--mu)">' + dfull(r.mat).slice(0, 5) + '/' + String(bxDayStr(r.mat).slice(2, 4)) + '</td>' +
         '<td>' + fm(r.P0, 2) + common + '</td><td>' + fm(r.P1, 2) + '</td><td style="color:' + col + ';font-weight:700" title="' + tip + '">' + sg(r.dpct, 2) + '%' + flag + '</td>' +
@@ -3445,7 +3451,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var leg = document.getElementById('vdLeg'), shift = document.getElementById('vdShift'), detS = document.getElementById('vdDetS');
     if (CH) { CH.destroy(); CH = null; }
     if (good.length < 2) { leg.innerHTML = 'No hay suficientes bonos con datos de ayer y de hoy para dibujar la curva.'; shift.innerHTML = ''; detS.textContent = 'Detalle por bono'; return good; }
-    var SER = isUsd ? [{ n: 'Ley NY', c: css('--c-s1'), st: 'circle', r: good.filter(function (r) { return r.law === 'NY'; }) }, { n: 'Ley local', c: css('--c-s2'), st: 'triangle', r: good.filter(function (r) { return r.law === 'Local'; }) }]
+    var SER = isUsd ? [{ n: 'Globales', c: css('--c-s1'), st: 'circle', r: good.filter(function (r) { return r.law === 'NY'; }) }, { n: 'Bonares', c: css('--c-s2'), st: 'triangle', r: good.filter(function (r) { return r.law === 'Local'; }) }, { n: 'Bopreales', c: css('--c-s3'), st: 'rectRot', noFit: true, r: good.filter(function (r) { return r.law === 'BOP'; }) }].filter(function (S) { return S.r.length; }) // los BOPREAL van como puntos: con dos plazos no hay curva que ajustar
       : [{ n: GN[grp], c: css('--c-s1'), st: 'circle', r: good }];
     var xs = good.map(function (r) { return r.x1; }).sort(function (a, b) { return a - b; });
     var useLog = !yrs && xs.length > 3 && (xs[xs.length - 1] > 1500 || (xs[xs.length - 1] > 600 && xs[Math.ceil(xs.length * 0.85) - 1] < xs[xs.length - 1] / 3));
@@ -3453,7 +3459,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     SER.forEach(function (S) {
       var rf = isUsd ? S.r : S.r.filter(function (r) { return r.days >= 30; }); if (rf.length < 3) rf = S.r; S.nEx = S.r.length - rf.length; // en pesos la curva no usa los que vencen en menos de 30 días: con tan poco plazo, 0,05% de precio mueve la tasa cientos de pb
       var ph = rf.map(function (r) { return { x: r.x1, y: r.y1, k: r.k + (r.star ? ' *' : '') }; }), pa = rf.map(function (r) { return { x: r.x0, y: r.y0, k: r.k + (r.star ? ' *' : '') }; });
-      var fh = fitOf(grp, ph), fa = fitOf(grp, pa); S.fh = fh; S.fa = fa;
+      var fh = S.noFit ? null : fitOf(grp, ph), fa = S.noFit ? null : fitOf(grp, pa); S.fh = fh; S.fa = fa;
       if (fh && fa) {
         var x0 = Math.min.apply(null, ph.map(function (p) { return p.x; })), x1 = Math.max.apply(null, ph.map(function (p) { return p.x; })), N = 80, ch_ = [], ca = [];
         for (var i = 0; i <= N; i++) { var xx = useLog ? x0 * Math.pow(x1 / x0, i / N) : x0 + (x1 - x0) * i / N; ch_.push({ x: xx, y: fh.f(xx) }); ca.push({ x: xx, y: fa.f(xx) }); }
@@ -3484,7 +3490,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         y: { title: { display: true, text: yl, color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd }, grace: '6%' } } } });
     var sh = function (c, ico) { return '<i style="width:' + (ico === 'ring' ? 10 : 12) + 'px;height:' + (ico === 'ring' ? 10 : 12) + 'px;border-radius:50%;background:' + (ico === 'ring' ? 'transparent' : c) + ';border:' + (ico === 'ring' ? '1.5px solid var(--mu)' : '0') + '"></i>'; };
     leg.innerHTML = (nTf.length ? '<span>' + nTf.map(function (r) { return r.k; }).join(', ') + ' (dual tasa fija / TAMAR) no va en el gráfico: se mide por TEA y no por margen sobre TAMAR; está en la tabla</span>' : '') + '<span>' + sh(GR) + 'La tasa bajó</span><span>' + sh(RD) + 'La tasa subió</span><span>' + sh(NE) + 'Sin cambio</span><span>' + sh('', 'ring') + 'Ayer</span>' +
-      SER.map(function (S) { return '<span><i style="width:22px;height:0;border-top:3px solid ' + S.c + '"></i>Curva hoy ' + (isUsd ? S.n + (S.st === 'triangle' ? ' (▲)' : ' (●)') : '') + '</span>'; }).join('') + '<span><i style="width:22px;height:0;border-top:2px dashed var(--mu)"></i>Curva ayer</span>' + (nShort ? '<span>No se muestran ' + nShort + (nShort === 1 ? ' bono que vence' : ' bonos que vencen') + ' en menos de 30 días: con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb</span>' : SER.some(function (S) { return S.nEx; }) ? '<span>En gris, los que vencen en menos de 30 días: no entran en la curva porque 0,01% de precio les mueve la tasa decenas o cientos de pb</span>' : '');
+      SER.map(function (S) { return S.noFit ? '<span>◆ ' + S.n + ' (puntos, sin curva)</span>' : '<span><i style="width:22px;height:0;border-top:3px solid ' + S.c + '"></i>Curva hoy ' + (isUsd ? S.n + (S.st === 'triangle' ? ' (▲)' : ' (●)') : '') + '</span>'; }).join('') + '<span><i style="width:22px;height:0;border-top:2px dashed var(--mu)"></i>Curva ayer</span>' + (nShort ? '<span>No se muestran ' + nShort + (nShort === 1 ? ' bono que vence' : ' bonos que vencen') + ' en menos de 30 días: con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb</span>' : SER.some(function (S) { return S.nEx; }) ? '<span>En gris, los que vencen en menos de 30 días: no entran en la curva porque 0,01% de precio les mueve la tasa decenas o cientos de pb</span>' : '');
     shift.innerHTML = shifts.map(function (s) {
       var mu = mean(s.rows.map(function (r) { return (r.h - r.a) * 100; }));
       return '<div><div style="font-weight:600;margin-bottom:6px;color:var(--tx)">' + s.n + ' · desplazamiento de la curva <span style="color:' + dcol(mu == null ? null : -mu, 0.5) + '">(promedio ' + sg(mu, 0) + ' pb)</span></div><table class="vdt"><thead><tr><th class="l" style="cursor:default">' + (ax === 'plazo' ? 'Plazo' : ax === 'mac' ? 'Duración' : 'Duración mod.') + '</th><th style="cursor:default">Ayer</th><th style="cursor:default">Hoy</th><th style="cursor:default">Δ pb</th></tr></thead><tbody>' +
