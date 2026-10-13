@@ -2044,8 +2044,7 @@ setInterval(window.fetchLive, 90000);
     '<label>Ventana de volatilidad<select id="qWin"><option value="30">30 ruedas</option><option value="60" selected>60 ruedas</option><option value="120">120 ruedas</option><option value="250">250 ruedas</option><option value="9999">Todo el historial</option></select></label></div>' +
     '<div class="qrow">' + qCard('Carry y roll-down', 'Retorno esperado al horizonte (sin reinvertir cupones): con la TIR constante y con roll-down (el bono se desliza por la curva manteniendo su desvío actual).', '<div class="qc tall"><canvas id="qCarryChart"></canvas></div>') +
     qCard('Detalle de carry', 'Detalle por bono. Colchón = cuántos pb puede subir la TIR antes de perder contra mantener caja (carry ÷ duración).', '<div class="wrap"><table class="qt" id="qCarry"></table></div>') + '</div>' +
-    qCard('Cartera: riesgo y P&amp;L por escenario', 'Cargá tus nominales (VN). Valores de ejemplo precargados; se guardan en tu navegador. VaR paramétrico normal con la covarianza de retornos diarios de la ventana elegida.', '<div class="qgrid" id="qPortSum"></div><div class="wrap"><table class="qt" id="qPort"></table></div>') +
-    qCard('Volatilidad', 'Retornos diarios en precio clean (se descartan las ruedas con pago de capital). Vol. de TIR en pb por día.', '<div class="wrap"><table class="qt" id="qVol"></table></div>')));
+    qCard('Cartera: riesgo y P&amp;L por escenario', 'Cargá tus nominales (VN). Valores de ejemplo precargados; se guardan en tu navegador. VaR paramétrico normal con la covarianza de retornos diarios de la ventana elegida.', '<div class="qgrid" id="qPortSum"></div><div class="wrap"><table class="qt" id="qPort"></table></div>')));
   hosts.push(mount('curva',
     '<hr style="border:0;border-top:1px solid var(--bd);margin:36px 0 20px">' +
     qCard('Desvío histórico contra la curva', 'Evolución del desvío (pb) del bono contra la curva de su legislación, cada día. Positivo = más barato (TIR por encima).', '<div class="ctl" style="margin-bottom:10px"><label>Bono<select id="qResSel" onchange="window.renderQuant()"></select></label></div><div class="qgrid s" id="qResStats" style="margin-bottom:10px"></div><div class="qc"><canvas id="qResChart"></canvas></div>')));
@@ -2205,7 +2204,7 @@ setInterval(window.fetchLive, 90000);
     var vs = volStats(S, H, n), V = vs.V;
     var h = '<tr><th class="l">Bono</th><th>Obs.</th><th>Vol. anual<br>(precio)</th><th>Vol. TIR<br>(pb/día)</th><th>Carry / vol.<br>(TIR ÷ vol.)</th></tr>';
     S.forEach(function (o) { var v = V[o.k]; h += '<tr><td class="k">' + o.k + '</td><td>' + v.n + '</td><td>' + (v.vol == null ? 'n/a' : fm(v.vol * 100, 1) + '%') + '</td><td>' + fm(v.tvol, 1) + '</td><td>' + (v.vol ? fm(o.tir / v.vol, 2) : 'n/a') + '</td></tr>'; });
-    document.getElementById('qVol').innerHTML = h;
+    var el = document.getElementById('qVol'); if (el) el.innerHTML = h; // la tarjeta de volatilidad se sacó; las covarianzas siguen alimentando el VaR de la cartera
     return vs;
   }
 
@@ -5213,7 +5212,6 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var hz = ST.hz === 1 ? '1 día' : ST.hz + ' ruedas', cf = fm(ST.conf * 100, 0) + '%';
     chips.innerHTML =
       chip('VaR histórico', money(R.hVar), R.hVar < 0 ? 'ganancia: en el período, ni el peor ' + fm((1 - ST.conf) * 100, 0) + '% de los tramos de ' + hz + ' perdió plata (el devengamiento le ganó a las bajas)' : pc(R.hVar / P.tot, 2) + ' del portfolio · ' + cf + ' a ' + hz) +
-      chip('VaR paramétrico', money(R.pVar), pc(R.pVar / P.tot, 2) + ' · normal, varianzas y correlaciones') +
       chip('Expected shortfall', money(R.hEs), 'pérdida promedio en el peor ' + fm((1 - ST.conf) * 100, 0) + '% de los ' + (R.ovl ? 'tramos de ' + hz : 'días')) +
       chip('Volatilidad anual', pc(R.vp / P.tot * Math.sqrt(252), 1), 'del portfolio, con ' + R.W + ' ruedas');
     var pl = R.pnl, mn = Math.min.apply(null, pl), mx = Math.max.apply(null, pl), nb = 30, w = (mx - mn) / nb || 1, bins = []; for (var i = 0; i < nb; i++) bins.push(0);
@@ -5222,18 +5220,18 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     CH.pfVarC = new Chart(document.getElementById('pfVarC'), { type: 'bar', data: { labels: bins.map(function (_, i) { return mn + (i + 0.5) * w; }), datasets: [{ label: 'Días', data: bins, backgroundColor: bins.map(function (_, i) { return mn + (i + 1) * w <= -v1 ? css('--bad') : css('--c-s1'); }), barPercentage: 1, categoryPercentage: 1 }] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { title: function (c) { return 'Resultado diario ≈ ' + money(+c[0].label); }, label: function (c) { return c.raw + ' días'; } } } },
         scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: true, maxTicksLimit: 7, callback: function (v, i) { return money(mn + (i + 0.5) * w); } }, grid: { display: false }, title: { display: true, text: 'Resultado diario del portfolio de hoy en cada rueda (en rojo, peor que el VaR de 1 día)', color: mu } }, y: { ticks: { color: tx }, grid: { color: bd }, title: { display: true, text: 'Días', color: mu } } } } });
-    var h = '<thead><tr><th class="l">Bono</th><th>Valor</th><th>Vol. diaria</th><th>Aporte al VaR</th><th>% del VaR</th><th class="l">Datos</th></tr></thead><tbody>';
+    var h = '<thead><tr><th class="l">Bono</th><th>Valor</th><th>Vol. diaria</th><th>% del riesgo</th><th class="l">Datos</th></tr></thead><tbody>';
     R.cols.forEach(function (c) {
       var dat = c.own === R.W ? 'Propios' : c.own + ' propios' + (c.px ? ', ' + c.px + ' con ' + c.used.join('/') : '') + (c.zero ? ', ' + c.zero + ' sin dato' : '');
-      h += '<tr><td class="k">' + c.h.k + '</td><td>' + money(c.h.val) + '</td><td>' + pc(c.vol, 2) + '</td><td>' + money(c.comp) + '</td><td>' + (R.pVar ? pc(c.comp / R.pVar, 1) : 'n/a') + '</td><td class="l" style="color:var(--mu);font-size:12.5px">' + dat + '</td></tr>';
+      h += '<tr><td class="k">' + c.h.k + '</td><td>' + money(c.h.val) + '</td><td>' + pc(c.vol, 2) + '</td><td>' + (R.pVar ? pc(c.comp / R.pVar, 1) : 'n/a') + '</td><td class="l" style="color:var(--mu);font-size:12.5px">' + dat + '</td></tr>';
     });
     tb.innerHTML = h + '</tbody>';
     var px = R.cols.filter(function (c) { return c.px; }).length, thin = R.cols.filter(function (c) { return c.zero > R.W * 0.2; }).map(function (c) { return c.h.k; });
-    note.innerHTML = 'Período: ' + dfull(bxDayNum(R.from)) + ' a ' + dfull(bxDayNum(R.to)) + ' (' + R.W + ' ruedas), con los nominales de hoy. <b>Histórico</b>: el percentil de los resultados diarios que habría tenido este portfolio. <b>Paramétrico</b>: supone retornos normales y usa la matriz de varianzas y covarianzas del período. ' + (ST.wt === 'ewma' ? 'Con <b>EWMA</b> cada rueda pesa 0,94 veces la siguiente (vida media de unas 11 ruedas), en las varianzas y en el percentil histórico. ' : '') +
-      (ST.hz > 1 ? (R.ovl ? 'Para ' + ST.hz + ' ruedas, el histórico usa lo que habría perdido el portfolio en cada tramo de ' + ST.hz + ' ruedas seguidas (en las crisis las caídas vienen en racha y la raíz del tiempo se queda corta); el paramétrico escala por la raíz del horizonte. ' : 'Para más de un día se escala por la raíz del horizonte (la ventana es corta para medir tramos de ' + ST.hz + ' ruedas). ') : '') +
+    note.innerHTML = 'Período: ' + dfull(bxDayNum(R.from)) + ' a ' + dfull(bxDayNum(R.to)) + ' (' + R.W + ' ruedas), con los nominales de hoy. <b>Histórico</b>: el percentil de los resultados diarios que habría tenido este portfolio. ' + (ST.wt === 'ewma' ? 'Con <b>EWMA</b> cada rueda pesa 0,94 veces la siguiente (vida media de unas 11 ruedas), en las varianzas y en el percentil histórico. ' : '') +
+      (ST.hz > 1 ? (R.ovl ? 'Para ' + ST.hz + ' ruedas, el histórico usa lo que habría perdido el portfolio en cada tramo de ' + ST.hz + ' ruedas seguidas (en las crisis las caídas vienen en racha y la raíz del tiempo se queda corta). ' : 'Para más de un día se escala por la raíz del horizonte (la ventana es corta para medir tramos de ' + ST.hz + ' ruedas). ') : '') +
       'Cada bono se lleva a su duración de hoy: un bono que hace un año tenía el doble de duración se movía el doble, y su retorno de ese día se escala a la mitad (el devengamiento promedio no se toca). ' + (ST.ccy === 'USD' ? 'En dólares: cada retorno en pesos se divide por la variación del MEP (AL30 / AL30D). ' : 'En pesos: los bonos en dólares incluyen el movimiento del tipo de cambio. ') +
       (px ? 'Los días sin precio propio (bonos nuevos o sin operaciones) usan el retorno del bono del mismo grupo con duración más parecida, escalado por la relación de duraciones. ' : '') +
-      'El aporte de cada bono es su VaR componente paramétrico: suma el VaR total y muestra qué bonos concentran el riesgo.' +
+      'El % del riesgo de cada bono sale de las varianzas y correlaciones del período (su aporte a la volatilidad del portfolio; suma 100%): sirve para ver qué bonos concentran el riesgo.' +
       (thin.length ? ' <b style="color:var(--bad)">Ojo:</b> ' + thin.join(', ') + (thin.length > 1 ? ' no tienen' : ' no tiene') + ' precio propio ni un bono parecido en buena parte del período; esos días cuentan como retorno cero y el VaR puede quedar corto. Probá con una ventana más corta.' : '');
   }
   function render() {
