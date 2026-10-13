@@ -3231,7 +3231,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     Object.keys(dd).map(Number).sort(function (a, b) { return a - b; }).forEach(function (t) { rows.push([{ v: bxDayStr(t) }].concat(ks.map(function (k) { return m[t][k] == null ? { v: '' } : { v: m[t][k], z: '0.00' }; }))); });
     return rows;
   };
-  window.PSX = { snap: function (n) { var s0 = day($('d0').value), sc0 = n === 1 ? scen() : scenFor(n); return { s: s0, sc: sc0, S: snapshot(s0, sc0) }; }, INST: INST, ptsOf: ptsOf, yieldAt: yieldAt, durAt: durAt, yieldLab: yieldLab, famOf: famOf, FAM: FAM, paidFlows: paidFlows, LABELS: LABELS, fairFit: fairFit, css: css, fm: fm, sg: sg, rgba: rgba, bdBack: bdBack, mdOf: mdOf, flowsOf: flowsOf, ZERO: function () { return ZERO; }, views: function () { if (!window.PSV || !window.PSV.c1) window.renderPesos(); return window.PSV; }, hasPts: function (k) { return !!HIST[k]; } };
+  window.PSX = { snap: function (n) { var s0 = day($('d0').value), sc0 = n === 1 ? scen() : scenFor(n); return { s: s0, sc: sc0, S: snapshot(s0, sc0) }; }, INST: INST, ptsOf: ptsOf, yieldAt: yieldAt, durAt: durAt, yieldLab: yieldLab, famOf: famOf, FAM: FAM, paidFlows: paidFlows, LABELS: LABELS, fairFit: fairFit, css: css, fm: fm, sg: sg, rgba: rgba, bdBack: bdBack, mdOf: mdOf, flowsOf: flowsOf, mkSc: mkSc, ZERO: function () { return ZERO; }, views: function () { if (!window.PSV || !window.PSV.c1) window.renderPesos(); return window.PSV; }, hasPts: function (k) { return !!HIST[k]; } };
   window.addEventListener('load', function () {
     window.psLive = live; live(); setInterval(live, 90000); window.loadClosesARS();
     setInterval(function () { if (root.classList.contains('active')) window.renderPesos(); }, 60000);
@@ -4785,7 +4785,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (ins.iss) feat.push('Emitido el ' + dfull(ins.iss));
       var tna = o.tnas != null ? o.tnas : o.tna30; if (kd === 'cer0' || kd === 'cerc') tna = o.realTna30; if (kd === 'dl') tna = o.usdTnas;
       out.push({ k: o.k, grp: grp, fams: String(ins.f || grp).split('+'), tipo: tipo, P: o.P, pccy: 'ARS', pars: o.P, mat: o.mat, d: o.d, tir: tir, tna: tna, tem: temOf(tir), md: o.mdur != null ? o.mdur : o.md,
-        krFl: krFl, krP: krP, krY: krY, fl: o.fl, fccy: 'ARS', feat: feat, tl: tl });
+        krFl: krFl, krP: krP, krY: krY, fl: o.fl, fccy: 'ARS', feat: feat, tl: tl, flt: kd === 'tamar' || kd === 'dual' || kd === 'dualtf' ? { ins: ins, sc: snap.sc } : null });
     });
     return out;
   }
@@ -4793,8 +4793,31 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var s = day($('d0').value), rows = [];
     try { rows = rows.concat(usdRows(s)); } catch (e) { console.error('port usd', e); }
     try { rows = rows.concat(psRows(X.snap(1))); } catch (e) { console.error('port pesos', e); }
-    rows.forEach(function (r) { var a = krd(r.krFl, s, r.krP, r.krY); r.kr = a.kr; r.conv = a.conv; r.s = s; });
+    rows.forEach(function (r) { var a = krd(r.krFl, s, r.krP, r.krY); r.kr = a.kr; r.conv = a.conv; r.s = s; if (r.flt) effDur(r); });
     return rows;
+  }
+
+  /* ---------- TAMAR y duales: duración efectiva (la TAMAR futura acompaña a la tasa) y duración de margen ---------- */
+  function floatChg(x, arr) { // cambio de precio si la curva se mueve arr (pb por nodo): la tasa de descuento se mueve con el shock de cada plazo y la TAMAR proyectada de cada mes con el de la tasa forward de ese mes; lo devengado con TAMAR publicada queda fijo, la inflación y el dólar del escenario no cambian
+    var f = x.flt, s = x.s, sc = f.sc;
+    var fwd = function (m) { // shock de la tasa forward del mes m: lo que se mueve la TAMAR de ese mes cuando la curva cero se mueve arr
+      var t1 = Math.max(0, (Date.UTC(Math.floor(m / 12), m % 12, 1) / 864e5 - s) / 365), t2 = (Date.UTC(Math.floor(m / 12), m % 12 + 1, 1) / 864e5 - s) / 365;
+      return t2 <= 0 ? 0 : (shockAt(arr, t2) * t2 - shockAt(arr, t1) * t1) / (t2 - t1);
+    };
+    var sc2 = X.mkSc(sc.piF, function (m) { var tna = sc.tamF(m), e = 365 * 12 / 384, tea = Math.pow(1 + tna * 32 / 365, e) - 1; return (Math.pow((1 + tea) * (1 + fwd(m) / (1 + x.krY)), 1 / e) - 1) * 365 / 32; }, sc.devF); // el shock es en TEA: la TAMAR se mueve lo mismo en términos relativos que la tasa de descuento, (1 + TAMAR) / (1 + TIR) constante, así el margen no cambia; la TNA sale de la capitalización del prospecto (TNA × 32/365, 365/384 por mes) sc2._cer = sc._cer; sc2._fx = sc._fx;
+    var fl = X.flowsOf(f.ins, s, sc2); if (!fl || !fl.length) return null;
+    var p0 = 0, p1 = 0;
+    x.krFl.forEach(function (q) { if (q[0] > s) p0 += q[1] / Math.pow(1 + x.krY, (q[0] - s) / 365); });
+    fl.forEach(function (q) { if (q[0] <= s) return; var t = (q[0] - s) / 365; p1 += q[1] / Math.pow(1 + x.krY + shockAt(arr, t), t); });
+    return p0 > 0 && isFinite(p1) ? p1 / p0 - 1 : null;
+  }
+  function effDur(x) {
+    if (!x.kr || x.krY == null) return; var one = function (i, b) { return KR.map(function (_, j) { return i < 0 || j === i ? b : 0; }); };
+    var kr = KR.map(function (_, i) { var u = floatChg(x, one(i, 1)), d = floatChg(x, one(i, -1)); return u == null || d == null ? null : -(u - d) / 2e-4; });
+    if (kr.some(function (v) { return v == null || !isFinite(v); })) return;
+    var up = floatChg(x, one(-1, 50)), dn = floatChg(x, one(-1, -50)); // convexidad efectiva con ±50 pb
+    x.mdS = x.md; x.krS = x.kr; x.kr = kr; x.md = kr.reduce(function (a, v) { return a + v; }, 0); x.conv = up != null && dn != null ? (up + dn) / (0.005 * 0.005) : x.conv;
+    x.feat = x.feat.concat(['Duración efectiva ' + fm(x.md, 2) + ' (la TAMAR futura acompaña a la tasa) · de margen ' + fm(x.mdS, 2)]);
   }
 
   /* ---------- key rate durations y convexidad de un bono ---------- */
@@ -4863,13 +4886,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     if (!VD) return null;
     var n = VD.dates.length, W = Math.min(ST.win, n - 1), J = []; for (var j = n - W; j < n; j++) J.push(j);
     var famOk = function (h, c) { return c.grp === h.grp || h.fams.indexOf(c.grp) >= 0 || (h.grp === 'tamar' && c.grp === 'dual'); }; // un dual se aproxima con sus dos ramas (dólar linked o CER, y TAMAR)
-    var cand = U.filter(function (c) { return c.md > 0.02 && VD.t[c.k]; }), near = function (h, c) { var q = h.md / c.md; return q > 1 / 3 && q < 3; }; // proxy solo con duración parecida (hasta 3 veces): escalar un bono muy corto amplifica su ruido
+    var dP = function (r) { return r.mdS != null ? r.mdS : r.md; }; // en TAMAR y duales el precio de cada día lo mueve el margen: los proxies se escalan con la duración de margen
+    var cand = U.filter(function (c) { return dP(c) > 0.02 && VD.t[c.k]; }), near = function (h, c) { var q = dP(h) / dP(c); return q > 1 / 3 && q < 3; }; // proxy solo con duración parecida (hasta 3 veces): escalar un bono muy corto amplifica su ruido
     var cols = H.map(function (h) {
       var own = returns(h), col = [], nOwn = 0, nPx = 0, nZero = 0, used = {};
-      var cs = cand.filter(function (c) { return c.k !== h.k && famOk(h, c) && near(h, c); }).sort(function (a, b) { return Math.abs(a.md - h.md) - Math.abs(b.md - h.md); });
+      var cs = cand.filter(function (c) { return c.k !== h.k && famOk(h, c) && near(h, c); }).sort(function (a, b) { return Math.abs(dP(a) - dP(h)) - Math.abs(dP(b) - dP(h)); });
       J.forEach(function (j) {
         if (own[j] != null) { col.push(own[j]); nOwn++; return; }
-        for (var i = 0; i < cs.length; i++) { var rr = returns(cs[i])[j]; if (rr != null) { col.push(rr * (h.md || 0) / cs[i].md); nPx++; used[cs[i].k] = 1; return; } }
+        for (var i = 0; i < cs.length; i++) { var rr = returns(cs[i])[j]; if (rr != null) { col.push(rr * (dP(h) || 0) / dP(cs[i])); nPx++; used[cs[i].k] = 1; return; } }
         col.push(0); nZero++;
       });
       return { h: h, r: col, own: nOwn, px: nPx, zero: nZero, used: Object.keys(used).slice(0, 3) };
@@ -4927,7 +4951,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         '<div class="pfc"><label>Escenario<select id="pfScS"><option value="par">Parallel shift (todas las tasas igual)</option><option value="bullst">Bull steepening (bajan, más los cortos · el más común en bajas)</option><option value="bearst">Bear steepening (suben, más los largos)</option><option value="bullfl">Bull flattening (bajan, más los largos)</option><option value="bearfl">Bear flattening (suben, más los cortos · el más común en subas)</option><option value="pbfly">Butterfly positiva (puntas suben, panza baja)</option><option value="nbfly">Butterfly negativa (puntas bajan, panza sube)</option><option value="custom">Personalizado</option></select></label>' +
         '<label title="En parallel shift el signo manda (negativo = baja). En el resto es cuánto se mueve el nodo que más se mueve.">Magnitud (pb)<input type="number" id="pfScM" step="25" style="width:110px"></label><label>Aplicar a<select id="pfScTo"><option value="all">Todas las curvas</option>' + ORDER.map(function (g) { return '<option value="' + g + '">Solo ' + GN[g] + '</option>'; }).join('') + '</select></label></div>' +
         '<div class="pfchips" id="pfScChips"></div><div class="pfg"><div style="overflow:auto"><table class="pft" id="pfScIn"></table></div><div class="pfcv"><canvas id="pfScC"></canvas></div></div><div style="overflow:auto;margin-top:14px"><table class="pft" id="pfScT"></table></div><p class="pfnote" id="pfScNote"></p>', 'Escenario_tasas') +
-      cardH('pfRisk', 'Duración y key rate durations', 'Cuánto cambia el valor del portfolio si sube 1 pb la tasa de cada plazo. La duración modificada de cada bono se reparte entre los nodos de la curva según cuándo paga; la suma de las barras es la duración del portfolio. Cada grupo responde a su propia curva (pesos nominales, CER real, dólares), así que el total mezcla riesgos distintos.',
+      cardH('pfRisk', 'Duración y key rate durations', 'Cuánto cambia el valor del portfolio si sube 1 pb la tasa de cada plazo. La duración modificada de cada bono se reparte entre los nodos de la curva según cuándo paga; la suma de las barras es la duración del portfolio. Cada grupo responde a su propia curva (pesos nominales, CER real, dólares), así que el total mezcla riesgos distintos. TAMAR y duales van con duración efectiva: la TAMAR futura acompaña a la tasa, así que casi no tienen riesgo de tasa; su riesgo es el margen (el chip Riesgo de margen, en tu portfolio).',
         '<div class="pfcv" style="margin-top:14px"><canvas id="pfKrC"></canvas></div><div style="overflow:auto;margin-top:14px"><table class="pft" id="pfKrT"></table></div><div class="pfg"><div style="overflow:auto"><table class="pft" id="pfStress"></table></div><div style="overflow:auto"><table class="pft" id="pfGrpT"></table></div></div>', 'Key_rate_durations') +
       cardH('pfFlow', 'Flujo de fondos proyectado', 'Lo que cobrás cada mes con tus nominales: renta y amortización. CER, TAMAR, duales y dólar linked con las proyecciones del escenario de Curva Pesos; los bonos en dólares, pasados al MEP de hoy.',
         '<div class="pfcv" style="height:340px"><canvas id="pfFlC"></canvas></div>', 'Flujo_portfolio') +
@@ -5008,6 +5032,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       chip('Duración modificada', fm(md, 2), 'años, ponderada por valor') +
       chip('DV01', money(dv01), 'pierde esto si las tasas suben 1 pb') +
       chip('Convexidad', fm(cv, 2), 'ponderada por valor · suma ½ × C × Δy² al precio') +
+      (function () { var F = H.filter(function (x) { return x.mdS != null; }); if (!F.length) return ''; var v = F.reduce(function (a, x) { return a + x.mdS * x.val; }, 0); return chip('Riesgo de margen', money(v * 1e-4), 'pierde esto si el margen que pide el mercado en TAMAR y duales sube 1 pb (' + pc(F.reduce(function (a, x) { return a + x.val; }, 0) / tot, 0) + ' del portfolio)'); })() +
       chip('Plazo promedio', fm(pz, 0) + ' días', 'al vencimiento, ponderado') +
       chip('Mayor exposición', GN[top], pc(byG[top] / tot, 1) + ' del portfolio · ' + fm(1 / hhi, 1) + ' bonos efectivos');
     return { H: H, tot: tot, md: md, cv: cv, byG: byG };
@@ -5100,7 +5125,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var o = {}; ORDER.forEach(function (g) { o[g] = KR.map(function (t) { return ST.scTo === 'all' || ST.scTo === g ? Math.round(preset(ST.sc, ST.scM, t)) : 0; }); }); return o;
   }
   function shockAt(arr, t) { var w = wKey(t), v = 0; for (var i = 0; i < KR.length; i++) v += w[i] * arr[i]; return v / 1e4; } // interpolación lineal entre nodos
-  function reprice(x, arr) {
+  function reprice(x, arr) { return x.flt && x.mdS != null ? floatChg(x, arr) : repriceFix(x, arr); }
+  function repriceFix(x, arr) {
     if (!x.krFl || x.krY == null) return null; var p0 = 0, p1 = 0;
     x.krFl.forEach(function (f) { if (f[0] <= x.s) return; var t = (f[0] - x.s) / 365; p0 += f[1] / Math.pow(1 + x.krY, t); p1 += f[1] / Math.pow(1 + x.krY + shockAt(arr, t), t); });
     return p0 > 0 ? p1 / p0 - 1 : null;
@@ -5137,7 +5163,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       rows.map(function (o) { return '<tr><td class="k">' + o.x.k + '</td><td class="l"><i class="pfdot" style="background:' + GC[o.x.grp] + '"></i>' + o.x.tipo + '</td><td>' + money(o.x.val) + '</td><td style="' + col(o.r) + '">' + (o.r == null ? 'n/a' : sg(o.r * 100, 2) + '%') + '</td><td style="' + col(o.d) + '">' + money(o.d) + '</td><td>' + (tot ? pc(Math.abs(o.d / tot) < 5e-4 ? 0 : o.d / tot, 1) : '—') + '</td></tr>'; }).join('') +
       '</tbody><tfoot><tr><td class="l" colspan="2">Total</td><td>' + money(P.tot) + '</td><td style="' + col(tot) + '">' + sg(tot / P.tot * 100, 2) + '%</td><td style="' + col(tot) + '">' + money(tot) + '</td><td>100%</td></tr></tfoot>';
     nt.innerHTML = 'Cada bono se revalúa descontando sus flujos a su TIR más el shock del plazo de cada pago (interpolado entre nodos). Cada grupo se mueve con su propia curva: tasa fija y TAMAR en tasa nominal en pesos, CER en tasa real, dólar linked y hard dollar en tasa en dólares. ' +
-      'En TAMAR y duales los flujos quedan como los proyecta el escenario de Curva Pesos: el shock mueve la tasa de descuento, no la TAMAR futura. Editá cualquier celda para armar tu propio escenario.';
+      'En TAMAR y duales el shock mueve también la TAMAR proyectada de cada mes (la de su plazo): lo ya devengado queda fijo, así que su duración es la efectiva y no la del bono a tasa fija; la inflación y el dólar del escenario no cambian, y en los duales gana la rama que corresponda después del shock. El riesgo de margen está en la tarjeta de tu portfolio. Editá cualquier celda para armar tu propio escenario.';
   }
 
   function renderFlow(P, mep) {
