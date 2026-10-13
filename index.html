@@ -2373,7 +2373,7 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
     var o = IDX.FX, l = lastOf(o); if (t < o.s) return NaN; if (t <= l) return o.v[t - o.s];
     var a = fxArr(sc), i = t - l; return i < a.length ? a[i] : a[a.length - 1];
   }
-  function tamAt(t, sc) { var o = IDX.TAMAR; if (t < o.s) return NaN; return t <= lastOf(o) ? o.v[t - o.s] / 100 : sc.tamF(mIdx(t)); }
+  function tamAt(t, sc) { var o = IDX.TAMAR; if (t < o.s) return NaN; return t <= lastOf(o) ? o.v[t - o.s] / 100 : sc.tamD ? sc.tamD(t) : sc.tamF(mIdx(t)); } // tamD (opcional): TAMAR por día, para shocks que no tocan los días ya transcurridos
   function m360(a, b) { // meses 30/360 entre dos fechas
     var d0 = new Date(a * 864e5), d1 = new Date(b * 864e5), x = Math.min(d0.getUTCDate(), 30), y = d1.getUTCDate(); if (x === 30) y = Math.min(y, 30);
     return ((d1.getUTCFullYear() - d0.getUTCFullYear()) * 360 + (d1.getUTCMonth() - d0.getUTCMonth()) * 30 + y - x) / 30;
@@ -4804,7 +4804,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var t1 = Math.max(0, (Date.UTC(Math.floor(m / 12), m % 12, 1) / 864e5 - s) / 365), t2 = (Date.UTC(Math.floor(m / 12), m % 12 + 1, 1) / 864e5 - s) / 365;
       return t2 <= 0 ? 0 : (shockAt(arr, t2) * t2 - shockAt(arr, t1) * t1) / (t2 - t1);
     };
-    var sc2 = X.mkSc(sc.piF, function (m) { var tna = sc.tamF(m), e = 365 * 12 / 384, tea = Math.pow(1 + tna * 32 / 365, e) - 1; return (Math.pow((1 + tea) * (1 + fwd(m) / (1 + x.krY)), 1 / e) - 1) * 365 / 32; }, sc.devF); // el shock es en TEA: la TAMAR se mueve lo mismo en términos relativos que la tasa de descuento, (1 + TAMAR) / (1 + TIR) constante, así el margen no cambia; la TNA sale de la capitalización del prospecto (TNA × 32/365, 365/384 por mes) sc2._cer = sc._cer; sc2._fx = sc._fx;
+    var e = 365 * 12 / 384, sc2 = X.mkSc(sc.piF, sc.tamF, sc.devF); sc2._cer = sc._cer; sc2._fx = sc._fx;
+    sc2.tamD = function (t) { // el shock es en TEA: la TAMAR se mueve lo mismo en términos relativos que la tasa de descuento, (1 + TAMAR) / (1 + TIR) constante, así el margen no cambia; la TNA sale de la capitalización del prospecto (TNA × 32/365, 365/384 por mes). Los días ya transcurridos cuya TAMAR el BCRA todavía no publicó (sale con rezago) quedan fijos: ya están determinados
+      var d = new Date(t * 864e5), m = d.getUTCFullYear() * 12 + d.getUTCMonth(), tna = sc.tamF(m); if (t < s) return tna;
+      var tea = Math.pow(1 + tna * 32 / 365, e) - 1; return (Math.pow((1 + tea) * (1 + fwd(m) / (1 + x.krY)), 1 / e) - 1) * 365 / 32;
+    };
     var fl = X.flowsOf(f.ins, s, sc2); if (!fl || !fl.length) return null;
     var p0 = 0, p1 = 0;
     x.krFl.forEach(function (q) { if (q[0] > s) p0 += q[1] / Math.pow(1 + x.krY, (q[0] - s) / 365); });
