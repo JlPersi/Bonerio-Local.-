@@ -3333,7 +3333,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var fam = X.famOf(ins), pay = 0, known = true, dcer = fam === 'dual' && ins.r.some(function (rw) { return rw[6] === 'CER'; });
       if (ins.k === 'cpn' || ins.k === 'cerc') pay = payBetween(X.paidFlows(k), pk.t0, pk.t1);
       else if (ins.k === 'tamar' || ins.k === 'dual') { ins.r.forEach(function (rw) { if (rw[0] < mat) { var e = bxExDay(rw[0]); if (e > pk.t0 && e <= pk.t1) known = false; } }); }
-      out.push(finish({ k: k, grp: fam, dualCer: dcer, mat: mat, P0: pk.P0, P1: pk.P1, t0: pk.t0, t1: pk.t1, src: pk.src, pay: pay, payKnown: known,
+      out.push(finish({ k: k, grp: fam, dualCer: dcer, dualTf: ins.k === 'dualtf', mat: mat, P0: pk.P0, P1: pk.P1, t0: pk.t0, t1: pk.t1, src: pk.src, pay: pay, payKnown: known,
         yl: X.yieldLab(k), y0: y0, y1: y1, x0: mat - bxSettle(pk.t0), x1: mat - bxSettle(pk.t1), mac0: u0 && u0.mac, mac1: u1 && u1.mac, md0: u0 && u0.md, md1: u1 && u1.md }));
     });
     return out;
@@ -3440,6 +3440,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var tx = css('--tx'), bd = css('--bd'), card = css('--card'), isUsd = grp === 'usd', ax = isUsd ? ST.axU : ST.ax, yrs = ax === 'md';
     if (ax !== 'plazo') rows = rows.map(function (r) { return Object.assign({}, r, { x0: xaxVal(ax, r.x0, r.mac0, r.md0), x1: xaxVal(ax, r.x1, r.mac1, r.md1) }); });
     var good = rows.filter(function (r) { return r.x0 != null && r.x1 != null && r.y0 != null && r.y1 != null && isFinite(r.x1) && r.x1 > 0 && (isUsd || r.days >= 3); });
+    var nTf = good.filter(function (r) { return r.dualTf; }); good = good.filter(function (r) { return !r.dualTf; }); // TTD26 (dual tasa fija / TAMAR) se mide por TEA, no por margen sobre TAMAR: no entra al gráfico de duales ni a su curva
     var nShort = good.filter(isShort).length; if (ST.sh === 'hide' && good.length - nShort >= 2) good = good.filter(function (r) { return !isShort(r); }); else nShort = 0; // nShort: cuántos quedaron afuera
     var leg = document.getElementById('vdLeg'), shift = document.getElementById('vdShift'), detS = document.getElementById('vdDetS');
     if (CH) { CH.destroy(); CH = null; }
@@ -3482,7 +3483,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         : { title: { display: true, text: xaxTitle(ax), color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, yrs ? 1 : 0); } }, grid: { color: bd }, min: 0, grace: '6%' },
         y: { title: { display: true, text: yl, color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd }, grace: '6%' } } } });
     var sh = function (c, ico) { return '<i style="width:' + (ico === 'ring' ? 10 : 12) + 'px;height:' + (ico === 'ring' ? 10 : 12) + 'px;border-radius:50%;background:' + (ico === 'ring' ? 'transparent' : c) + ';border:' + (ico === 'ring' ? '1.5px solid var(--mu)' : '0') + '"></i>'; };
-    leg.innerHTML = '<span>' + sh(GR) + 'La tasa bajó</span><span>' + sh(RD) + 'La tasa subió</span><span>' + sh(NE) + 'Sin cambio</span><span>' + sh('', 'ring') + 'Ayer</span>' +
+    leg.innerHTML = (nTf.length ? '<span>' + nTf.map(function (r) { return r.k; }).join(', ') + ' (dual tasa fija / TAMAR) no va en el gráfico: se mide por TEA y no por margen sobre TAMAR; está en la tabla</span>' : '') + '<span>' + sh(GR) + 'La tasa bajó</span><span>' + sh(RD) + 'La tasa subió</span><span>' + sh(NE) + 'Sin cambio</span><span>' + sh('', 'ring') + 'Ayer</span>' +
       SER.map(function (S) { return '<span><i style="width:22px;height:0;border-top:3px solid ' + S.c + '"></i>Curva hoy ' + (isUsd ? S.n + (S.st === 'triangle' ? ' (▲)' : ' (●)') : '') + '</span>'; }).join('') + '<span><i style="width:22px;height:0;border-top:2px dashed var(--mu)"></i>Curva ayer</span>' + (nShort ? '<span>No se muestran ' + nShort + (nShort === 1 ? ' bono que vence' : ' bonos que vencen') + ' en menos de 30 días: con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb</span>' : SER.some(function (S) { return S.nEx; }) ? '<span>En gris, los que vencen en menos de 30 días: no entran en la curva porque 0,01% de precio les mueve la tasa decenas o cientos de pb</span>' : '');
     shift.innerHTML = shifts.map(function (s) {
       var mu = mean(s.rows.map(function (r) { return (r.h - r.a) * 100; }));
