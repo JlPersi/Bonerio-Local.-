@@ -2330,8 +2330,14 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
   function cerBase(ins) { return cerAt(bdBack(ins.iss, 10) + (ins.bs || 0), ZERO); }
   function cerFix() { // Lecer cupón cero cuyo CER de pago (vencimiento − 10 hábiles) ya está publicado: el flujo final queda fijo en pesos y opera como una Lecap
     Object.keys(INST).forEach(function (k) {
-      var ins = INST[k]; if (ins.k !== 'cer0') return; var mat = ins.r[0][0], T = bdBack(mat, 10);
-      if (T > lastOf(IDX.CER) || mat <= bxToday()) return; var b = cerBase(ins), c = cerAt(T, ZERO); if (!isFinite(b) || !isFinite(c) || !(b > 0)) return;
+      var ins = INST[k], lc = lastOf(IDX.CER), b, c;
+      if (ins.k === 'cerc') { // Boncer: si el CER de todos los pagos que faltan ya está publicado, sus flujos quedan fijos en pesos y opera como un bono a tasa fija
+        var mt = ins.r[ins.r.length - 1][0]; if (mt <= bxToday() || ins.r.some(function (r) { return r[0] > bxToday() && bdBack(r[0], 10) > lc; })) return;
+        b = cerBase(ins); if (!isFinite(b) || !(b > 0)) return; var rr = ins.r.map(function (r) { var q = r.slice(); q[1] = r[1] * cerAt(bdBack(r[0], 10), ZERO) / b; q[6] = 'FIXED_RATE'; return q; });
+        if (rr.some(function (q) { return !isFinite(q[1]); })) return; ins.cerFix = { r: ins.r }; ins.k = 'cpn'; ins.f = 'fija'; ins.r = rr; return;
+      }
+      if (ins.k !== 'cer0') return; var mat = ins.r[0][0], T = bdBack(mat, 10);
+      if (T > lc || mat <= bxToday()) return; b = cerBase(ins); c = cerAt(T, ZERO); if (!isFinite(b) || !isFinite(c) || !(b > 0)) return;
       ins.cerFix = { amt: ins.r[0][1] * c / b, T: T, r: ins.r }; ins.k = 'cap'; ins.f = 'fija'; ins.r = [[mat, ins.r[0][1] * c / b, 100, 0, 0, 0, 'FIXED_RATE']];
     });
   }
@@ -4706,7 +4712,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function psTipo(k, ins) {
     var kd = ins.k;
     if (kd === 'cap') return ins.cerFix ? 'Lecer con CER fijado (opera como Lecap)' : k.charAt(0) === 'S' ? 'Lecap' : 'Boncap';
-    if (kd === 'cpn') return 'Bono a tasa fija con cupones';
+    if (kd === 'cpn') return ins.cerFix ? 'Boncer con CER fijado (opera como tasa fija)' : 'Bono a tasa fija con cupones';
     if (kd === 'cer0') return 'CER cupón cero';
     if (kd === 'cerc') return 'CER con cupones';
     if (kd === 'tamar') return 'TAMAR';
@@ -4724,7 +4730,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       else if (kd === 'dl') { tir = o.usdTea; tl = 'TIR en dólares (A3500 constante)'; krFl = [[o.mat, 100 * o.fx0]]; krY = o.usdTea; feat.push('Ajusta por dólar oficial A3500'); }
       else if (kd === 'tamar') { feat.push('TAMAR + ' + fm(ins.r[0][3] * 100, 2) + '%'); tl = 'TIR nominal con la TAMAR proyectada'; }
       else if (kd === 'dual' || kd === 'dualtf') tl = 'TIR nominal con la rama que gana en el escenario';
-      if (kd === 'cpn') feat.push('Cupón ' + fm(ins.r[0][3] * 100, 2) + '% anual');
+      if (kd === 'cpn' && !ins.cerFix) feat.push('Cupón ' + fm(ins.r[0][3] * 100, 2) + '% anual');
       var cuotas = ins.r.filter(function (r) { return r[0] > s; }).length;
       feat.push(kd === 'cpn' || kd === 'cerc' ? (cuotas > 1 ? cuotas + ' pagos por delante' : 'Último pago') : 'Paga todo al vencimiento');
       if (ins.iss) feat.push('Emitido el ' + dfull(ins.iss));
