@@ -2043,8 +2043,7 @@ setInterval(window.fetchLive, 90000);
     '<div class="card ctl"><label>Horizonte carry / roll-down<select id="qHz"><option value="30">30 días</option><option value="60">60 días</option><option value="90" selected>90 días</option><option value="180">180 días</option></select></label>' +
     '</div>' +
     '<div class="qrow">' + qCard('Carry y roll-down', 'Retorno esperado al horizonte (sin reinvertir cupones): con la TIR constante y con roll-down (el bono se desliza por la curva manteniendo su desvío actual).', '<div class="qc tall"><canvas id="qCarryChart"></canvas></div>') +
-    qCard('Detalle de carry', 'Detalle por bono. Colchón = cuántos pb puede subir la TIR antes de perder contra mantener caja (carry ÷ duración).', '<div class="wrap"><table class="qt" id="qCarry"></table></div>') + '</div>' +
-    qCard('Cartera: riesgo y P&amp;L por escenario', 'Cargá tus nominales (VN). Valores de ejemplo precargados; se guardan en tu navegador.', '<div class="qgrid" id="qPortSum"></div><div class="wrap"><table class="qt" id="qPort"></table></div>')));
+    qCard('Detalle de carry', 'Detalle por bono. Colchón = cuántos pb puede subir la TIR antes de perder contra mantener caja (carry ÷ duración).', '<div class="wrap"><table class="qt" id="qCarry"></table></div>') + '</div>'));
   hosts.push(mount('curva',
     '<hr style="border:0;border-top:1px solid var(--bd);margin:36px 0 20px">' +
     qCard('Desvío histórico contra la curva', 'Evolución del desvío (pb) del bono contra la curva de su legislación, cada día. Positivo = más barato (TIR por encima).', '<div class="ctl" style="margin-bottom:10px"><label>Bono<select id="qResSel" onchange="window.renderQuant()"></select></label></div><div class="qgrid s" id="qResStats" style="margin-bottom:10px"></div><div class="qc"><canvas id="qResChart"></canvas></div>')));
@@ -2180,32 +2179,7 @@ setInterval(window.fetchLive, 90000);
     document.getElementById('qScen').innerHTML = h;
   }
 
-  /* ---------- 4. Cartera ---------- */
-  function loadVN() { try { var o = JSON.parse(localStorage.getItem('quant_vn')); if (o) return o; } catch (e) {} return {}; }
-  function saveVN(o) { try { localStorage.setItem('quant_vn', JSON.stringify(o)); } catch (e) {} }
-  window.quantVN = function (k, v) { var o = loadVN(); o[k] = parseFloat(v) || 0; saveVN(o); window.renderQuant(); };
-  function renderPort(S, c) {
-    var vn = loadVN(), rows = S.map(function (o) { var n = vn[o.k] != null ? vn[o.k] : 100000, val = n / 100 * o.P; return { o: o, n: n, val: val }; });
-    var tot = rows.reduce(function (s, r) { return s + r.val; }, 0) || 1;
-    var dv = rows.reduce(function (s, r) { return s + r.n / 100 * r.o.dv01; }, 0);
-    var md = rows.reduce(function (s, r) { return s + r.val / tot * r.o.md; }, 0), tir = rows.reduce(function (s, r) { return s + r.val / tot * r.o.tir; }, 0), cy = rows.reduce(function (s, r) { return s + r.val / tot * r.o.cy; }, 0);
-    var hhi = rows.reduce(function (s, r) { return s + Math.pow(r.val / tot, 2); }, 0);
-    var box = function (a, v, n) { return '<div class="qbox"><div class="a">' + a + '</div><div class="v">' + v + '</div><div class="n">' + n + '</div></div>'; };
-    var usd = function (v) { return 'US$ ' + fm(v, 0); };
-    document.getElementById('qPortSum').innerHTML =
-      box('Valor de mercado', usd(tot), 'Precio sucio × VN') + box('Duración modificada', fm(md, 2), 'Ponderada por valor') + box('DV01 cartera', usd(dv), 'Pérdida por +1 pb de TIR') +
-      box('TIR ponderada', fm(tir * 100, 2) + '%', 'Cur. yield ' + fm(cy * 100, 1) + '%') + box('Concentración (HHI)', fm(hhi, 2), hhi > 0.25 ? 'Alta' : hhi > 0.15 ? 'Media' : 'Diversificada');
-    var shk = [-200, -100, 100, 200];
-    var d0 = c.d0;
-    var h = '<tr><th class="l">Bono</th><th>VN</th><th>Valor<br>(US$)</th><th>Peso</th><th>DV01<br>(US$)</th>' + shk.map(function (s) { return '<th>P&amp;L ' + sg(s, 0) + ' pb<br>(US$)</th>'; }).join('') + '</tr>';
-    var pl = shk.map(function () { return 0; });
-    rows.forEach(function (r) {
-      var cells = shk.map(function (s, i) { var v = r.n / 100 * (bxPv(r.o.fl, d0, r.o.tir + s / 1e4) - r.o.P); pl[i] += v; return '<td style="' + colorOf(v / (tot * 0.08 || 1), 1) + '">' + fm(v, 0) + '</td>'; }).join('');
-      h += '<tr><td class="k">' + r.o.k + '</td><td><input class="vn" type="number" step="1000" min="0" value="' + r.n + '" onchange="window.quantVN(\'' + r.o.k + '\',this.value)"></td><td>' + fm(r.val, 0) + '</td><td>' + fm(r.val / tot * 100, 1) + '%</td><td>' + fm(r.n / 100 * r.o.dv01, 1) + '</td>' + cells + '</tr>';
-    });
-    h += '<tr><td class="k">Total</td><td></td><td><b>' + fm(tot, 0) + '</b></td><td>100%</td><td><b>' + fm(dv, 1) + '</b></td>' + pl.map(function (v) { return '<td style="' + colorOf(v / (tot * 0.08), 1) + '"><b>' + fm(v, 0) + '</b><div class="note" style="margin:0;color:inherit">' + sg(v / tot * 100, 1) + '%</div></td>'; }).join('') + '</tr>';
-    document.getElementById('qPort').innerHTML = h;
-  }
+
 
   /* ---------- 6. Canje ---------- */
   function lineChart(canvasId, ref, ser, label, unit) { // mismo estilo que el panel de spread: serie azul, media ámbar y banda ±1σ sombreada
@@ -2252,7 +2226,7 @@ setInterval(window.fetchLive, 90000);
       if (all === 'all' || at === 'tabla') renderScen(S);
       if (all === 'all' || at === 'desglose') {
         var hz = parseInt(gid('qHz').value, 10);
-        renderCarry(S, c, hz); renderPort(S, c);
+        renderCarry(S, c, hz);
       }
       if (all === 'all' || at === 'curva') { var H2 = history(c); renderRes(H2, S); }
     } catch (e) { console.error('quant', e); }
@@ -4681,6 +4655,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var KR = [0.25, 0.5, 1, 2, 3, 5, 7, 10, 15, 20], KRL = ['3m', '6m', '1a', '2a', '3a', '5a', '7a', '10a', '15a', '20a']; // nodos de Fabozzi hasta 20 años (más 6m por la curva corta en pesos)
   var FKEY = 'pfFav1', SKEY = 'pfSt1';
   var FAV = (function () { try { var o = JSON.parse(localStorage.getItem(FKEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } })();
+  try { if (!localStorage.getItem('pfMigQ')) { localStorage.setItem('pfMigQ', '1'); var qv = JSON.parse(localStorage.getItem('quant_vn') || '{}'); if (qv && !Object.keys(FAV).length) { Object.keys(qv).forEach(function (k) { if (+qv[k] > 0) FAV[k] = +qv[k]; }); localStorage.setItem(FKEY, JSON.stringify(FAV)); } } } catch (e) {} // la cartera de Flujos y Total Return se unificó acá: sus nominales cargados pasan al portfolio (una vez, si estaba vacío)
   var ST = { ccy: 'ARS', conf: 0.95, hz: 1, win: 500, wt: 'eq', grp: 'all', q: '', sort: 'mat', sc: 'par', scM: 100, scTo: 'all', shk: null };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(SKEY) || '{}')); } catch (e) {}
   if (['par', 'bullst', 'bearst', 'bullfl', 'bearfl', 'pbfly', 'nbfly', 'custom'].indexOf(ST.sc) < 0) ST.sc = 'par'; // escenarios de una versión anterior
