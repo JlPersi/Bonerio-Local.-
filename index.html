@@ -5016,10 +5016,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     return 'rgb(' + c.join(',') + ')';
   }
   var PIE = null, LASTP = null;
-  function popup(title, html, size, build, back) { // ventana encima de la página con el fondo difuminado (mismo estilo que Ampliar); build arma los gráficos y devuelve la lista para destruirlos al cerrar
+  function popup(title, html, size, build, back, file) { // ventana encima de la página con el fondo difuminado (mismo estilo que Ampliar); build arma los gráficos y devuelve la lista para destruirlos al cerrar
     if (document.getElementById('ampOv')) return;
-    var ov = document.createElement('div'); ov.id = 'ampOv'; ov.setAttribute('data-html2canvas-ignore', 'true');
-    ov.innerHTML = '<div id="ampPn" role="dialog" aria-modal="true" style="' + size + '"><div id="ampHd"><b></b><button type="button" id="ampX" title="Cerrar (Esc)" aria-label="Cerrar">×</button></div><div id="ampBx">' + html + '</div></div>';
+    var ov = document.createElement('div'); ov.id = 'ampOv'; // sin data-html2canvas-ignore: la ventana misma se descarga como imagen (los botones no salen)
+    ov.innerHTML = '<div id="ampPn" role="dialog" aria-modal="true" style="' + size + '"><div id="ampHd"><b></b><span style="display:flex;gap:8px"><button type="button" id="ampDl" data-html2canvas-ignore="true" title="Descargar en HD" aria-label="Descargar en HD" style="width:34px;height:34px;padding:0;margin:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--bd);border-radius:9px;background:var(--bg);color:var(--tx);cursor:pointer">' + DL.replace(/22/g, '18') + '</button><button type="button" id="ampX" data-html2canvas-ignore="true" title="Cerrar (Esc)" aria-label="Cerrar">×</button></span></div><div id="ampBx">' + html + '</div></div>';
+    ov.querySelector('#ampDl').onclick = function () { if (window.snapshotCanvas) window.snapshotCanvas('ampPn').then(function (cv) { window.saveCanvasPng(cv, 'Bonerio_' + file); }).catch(function (e) { console.error(e); }); };
     ov.querySelector('#ampHd b').textContent = title; ov.querySelector('#ampPn').setAttribute('aria-label', title);
     var ovf = document.documentElement.style.overflow, chs = [];
     var close = function () { chs.forEach(function (c) { try { c.destroy(); } catch (e) {} }); ov.remove(); document.documentElement.style.overflow = ovf; document.removeEventListener('keydown', key); var b = document.getElementById(back); if (b) b.focus({ preventScroll: true }); };
@@ -5039,7 +5040,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         data: { labels: H.map(function (x) { return x.k + ' · ' + fm(x.val / tot * 100, 1) + '%'; }), datasets: [{ data: H.map(function (x) { return x.val; }), backgroundColor: col, borderColor: css('--card') || '#fff', borderWidth: 2 }] },
         options: { responsive: true, maintainAspectRatio: false, cutout: '55%', plugins: { legend: { position: wide ? 'right' : 'bottom', labels: { color: tx, usePointStyle: true, boxWidth: 10, padding: 12, font: { size: 13 } } },
           tooltip: { callbacks: { label: function (c) { var x = H[c.dataIndex]; return x.k + ' (' + x.tipo + '): ' + money(x.val) + ' · ' + fm(x.val / tot * 100, 1) + '%'; } } } } } })];
-    }, 'pfDist');
+    }, 'pfDist', 'Distribucion_portfolio');
   }
   function openShape() { // ladder, barbell o bullet
     var S = LASTP && shapeOf(LASTP); if (!S) return;
@@ -5055,7 +5056,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       return [new Chart(ov.querySelector('canvas'), { type: 'bar', data: { labels: BKL, datasets: G.map(function (g) { return { label: GN[g], data: S.byG[g].map(function (v) { return v * 100; }), backgroundColor: GC[g], borderRadius: 3, maxBarThickness: 56 }; }) },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: tx, usePointStyle: true } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + fm(c.raw, 1) + '% del valor'; } } } },
           scales: { x: { stacked: true, ticks: { color: tx }, grid: { display: false }, title: { display: true, text: 'Vencimiento', color: mu } }, y: { stacked: true, ticks: { color: tx, callback: function (v) { return fm(v, 0) + '%'; } }, grid: { color: bd } } } } })];
-    }, 'pfShp');
+    }, 'pfShp', 'Estructura_portfolio');
   }
   function renderRisk(P) {
     var tx = css('--tx'), mu = css('--mu'), bd = css('--bd');
