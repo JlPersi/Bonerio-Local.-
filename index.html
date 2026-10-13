@@ -738,9 +738,11 @@ const PX = {"S":{"AE38":{"iss":18509,"r":[[18968,0.11,0.0,100.0],[19002,1.0,0.0,
 
 const BX_HOLS = {}; PX.HOL.forEach(function (d) { BX_HOLS[d] = 1; });
 function bxIsBiz(t) { var w = (t + 3) % 7; return w < 5 && !BX_HOLS[t]; }
+const BX_BANK = (function () { var o = {}; for (var y = 2015; y <= 2045; y++) o[Date.UTC(y, 10, 6) / 864e5] = 1; return o; })(); // Día del Bancario (6/11): hay negociación pero no liquidación en BYMA ni actividad bancaria
+function bxIsSet(t) { return bxIsBiz(t) && !BX_BANK[t]; } // día en que se puede liquidar
 window.settleMode = 'T1'; try { if (localStorage.getItem('settle3') === 'CI') window.settleMode = 'CI'; } catch (e) {} // por defecto T+1: los precios de data912 son de 24 hs (en CI, las tasas de las Lecaps cortas caen ~90 pb el día antes de cada fin de semana y suben al siguiente). La clave nueva (settle3) hace que también pase a T+1 quien había quedado en CI cuando era lo de fábrica
-function bxSettleT1(t) { var s = t + 1; while (!bxIsBiz(s)) s++; return s; }
-function bxSettle(t) { if (window.settleMode === 'T1') return bxSettleT1(t); var s = t; while (!bxIsBiz(s)) s++; return s; } // CI: el mismo día (o el próximo hábil); T+1: el día hábil siguiente
+function bxSettleT1(t) { var s = t + 1; while (!bxIsSet(s)) s++; return s; }
+function bxSettle(t) { if (window.settleMode === 'T1') return bxSettleT1(t); var s = t; while (!bxIsSet(s)) s++; return s; } // CI: el mismo día (o el próximo hábil); T+1: el día hábil siguiente
 function bxExDay(p) { var t = p; while (bxSettleT1(t - 1) >= p) t--; return t; }
 function bxDayStr(t) { return new Date(t * 864e5).toISOString().slice(0, 10); }
 function bxDayNum(s) { return Date.parse(s + 'T00:00:00Z') / 864e5; }
@@ -997,7 +999,7 @@ $('pr').innerHTML = B.map(function(b) { return '<label>' + b.k + '<input type="n
 $('spreadPairSelect').innerHTML = Object.keys(SPREADS).map(function(k) { return '<option value="' + k + '">' + SPREADS[k].loc + ' vs ' + SPREADS[k].ny + '</option>'; }).join('');
 
 window.settleDate = function (mode) { // CI: hoy (o el próximo día hábil); T+1: el día hábil siguiente a la liquidación CI. Respeta fines de semana y feriados
-  var t = bxToday(); while (!bxIsBiz(t)) t++; return mode === 'CI' ? t : bxSettleT1(t);
+  var t = bxToday(); while (!bxIsBiz(t)) t++; if (mode !== 'CI') return bxSettleT1(t); while (!bxIsSet(t)) t++; return t;
 };
 window.applySettle = function (mode, redraw) {
   window.settleMode = mode; if (redraw) { try { localStorage.setItem('settle3', mode); } catch (e) {} }
@@ -2279,7 +2281,7 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
   }
 
   /* ---------- calendario / índices / escenario por mes ---------- */
-  var BANKH = {}; for (var y = 2015; y <= 2045; y++) BANKH[Date.UTC(y, 10, 6) / 864e5] = 1; // Día del Bancario (6/11): no es feriado, pero no hay actividad bancaria, así que no cuenta como hábil al contar los 10 hábiles del CER (ej.: cupón de TX26 de nov-25 = CER del 24/10, coef. 28,5507)
+  var BANKH = BX_BANK; // el Día del Bancario no cuenta como hábil al contar los 10 hábiles del CER (ej.: cupón de TX26 de nov-25 = CER del 24/10, coef. 28,5507)
   function bdBack(t, n) { while (n > 0) { t--; if (bxIsBiz(t) && !BANKH[t]) n--; } return t; }
   function lastOf(o) { return o.s + o.v.length - 1; }
   var T0 = function () { return IDX.TAMAR.v[IDX.TAMAR.v.length - 1] / 100; };
