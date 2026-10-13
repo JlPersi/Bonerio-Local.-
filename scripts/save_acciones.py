@@ -138,7 +138,8 @@ def write_index():
 def full():
     want = [t.strip().upper() for t in os.environ.get("TICKERS", "").split(",") if t.strip()]
     if not want:
-        want = sorted(tickers_from_live(live()))
+        L = tickers_from_live(live())
+        want = sorted(t for t in L if "." not in t and not (t[-1] in "DC" and t[:-1] in L))  # sin las especies en dólares
     print("histórico de %d tickers" % len(want))
     ok = 0
     for i, t in enumerate(want):
@@ -179,7 +180,9 @@ def daily():
     upd = {}
     for t, r in L.items():
         old = load(t)
-        rows = (old or {}).get("r", [])
+        if not old:  # solo tickers con histórico: /live/arg_stocks también trae las especies en dólares (GGALD, BMA.D...) y otros papeles
+            continue
+        rows = old.get("r", [])
         c = num(r.get("c"))
         prev = [x for x in rows if x[0] < ds]
         if prev:
@@ -196,7 +199,7 @@ def daily():
         rows = [x for x in rows if x[0] != ds] + [new]
         rows.sort(key=lambda x: x[0])
         save(t, rows)
-    print("cierre %s: %d tickers" % (ds, len(upd)))
+    print("cierre %s: %d tickers con histórico" % (ds, len(upd)))
     write_index()
 
 
