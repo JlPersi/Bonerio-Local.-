@@ -2385,6 +2385,14 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
   var TTD_M = 0; // margen de la rama TAMAR de TTD26 (supuesto: TAMAR sin margen; ajustar si el prospecto dice otra cosa)
   var BSH = { TX26: 3, TX28: 3 }; Object.keys(BSH).forEach(function (k) { if (INST[k]) INST[k].bs = BSH[k]; }); // TX26 y TX28: la base del CER de emisión queda 3 días después del cálculo estándar (calza con la paridad de mercado; confirmar con el prospecto)
   function cerBase(ins) { return cerAt(bdBack(ins.iss, 10) + (ins.bs || 0), ZERO); }
+  function cerFix() { // Lecer cupón cero cuyo CER de pago (vencimiento − 10 hábiles) ya está publicado: el flujo final queda fijo en pesos y opera como una Lecap
+    Object.keys(INST).forEach(function (k) {
+      var ins = INST[k]; if (ins.k !== 'cer0') return; var mat = ins.r[0][0], T = bdBack(mat, 10);
+      if (T > lastOf(IDX.CER) || mat <= bxToday()) return; var b = cerBase(ins), c = cerAt(T, ZERO); if (!isFinite(b) || !isFinite(c) || !(b > 0)) return;
+      ins.cerFix = { amt: ins.r[0][1] * c / b, T: T, r: ins.r }; ins.k = 'cap'; ins.f = 'fija'; ins.r = [[mat, ins.r[0][1] * c / b, 100, 0, 0, 0, 'FIXED_RATE']];
+    });
+  }
+  cerFix();
 
   /* ---------- flujos por instrumento (según escenario) ---------- */
   function rowOf(ins, ty) { return ins.r.filter(function (r) { return r[6] === ty; })[0]; }
@@ -3212,7 +3220,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var dss = Object.keys(LOGARS).sort(); if (dss.length) { var d = dss[dss.length - 1]; Object.keys(LOGARS[d]).forEach(function (k) { PRICE[k] = LOGARS[d][k]; }); }
     }).catch(function () {});
     var b = fetch('data/indices.json?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (o) {
-      extendIdx('CER', o.CER); extendIdx('TAMAR', o.TAMAR); extendIdx('FX', o.FX);
+      extendIdx('CER', o.CER); extendIdx('TAMAR', o.TAMAR); extendIdx('FX', o.FX); cerFix();
     }).catch(function () {});
     return Promise.all([a, b]).then(function () { if (root.classList.contains('active')) window.renderPesos(); });
   };
@@ -3251,7 +3259,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var GN = { usd: 'Hard Dollar', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dl: 'Dólar linked', dual: 'Duales' };
   var ORDER = ['usd', 'fija', 'cer', 'tamar', 'dl', 'dual'];
   var GR = '#34d399', RD = '#fb7185', NE = '#94a3b8';
-  var ST = { grp: 'usd', sort: 'dpct', dir: -1, mU: window.USD_MODEL || 'log', mP: 'auto', cap: 0, dual: '0', ax: 'plazo', axU: 'md', sh: 'hide' }, PCT = {}, DATA = null, CH = null, timer = null;
+  var ST = { n: 1, grp: 'usd', sort: 'dpct', dir: -1, mU: window.USD_MODEL || 'log', mP: 'auto', cap: 0, dual: '0', ax: 'plazo', axU: 'md', sh: 'hide' }, PCT = {}, DATA = null, CH = null, timer = null;
   var dstr = function (t) { return bxDayStr(t).split('-').reverse().slice(0, 2).join('/'); };
   var dfull = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
   var isAct = function () { return root.classList.contains('active'); };
@@ -3259,6 +3267,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var mean = function (a) { a = a.filter(function (x) { return x != null && isFinite(x); }); return a.length ? a.reduce(function (s, x) { return s + x; }, 0) / a.length : null; };
   function prevBiz(t) { t--; while (!bxIsBiz(t)) t--; return t; }
   var dcol = function (v, eps) { return v == null || !isFinite(v) ? 'var(--mu)' : Math.abs(v) < eps ? 'var(--mu)' : v > 0 ? 'var(--ok)' : 'var(--bad)'; };
+  var AY = function (cap) { var t = ST.n === 1 ? 'ayer' : 'hace ' + ST.n + ' ruedas'; return cap ? t.charAt(0).toUpperCase() + t.slice(1) : t; }; // contra qué se compara: el cierre anterior o el de N ruedas atrás
   var isShort = function (r) { return r.grp !== 'usd' && r.days < 30; }; // en pesos, con menos de 30 días 0,01% de precio mueve la tasa decenas o cientos de pb: no son comparables con el resto
 
   /* ---------- variación diaria que informa data912 (respaldo cuando falta el cierre anterior) ---------- */
@@ -3277,16 +3286,22 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   };
 
   /* ---------- series y comparación ---------- */
-  function usdSeries(k, sp) { // precios SUCIOS por día: base Excel (limpio + corrido) y cierres guardados
-    var tk = k + sp, out = [], h = PX.H[tk];
-    if (h) { var x = h.s; for (var i = 0; i < h.d.length; i++) { x += h.d[i]; out.push([x, h.p[i] + bxAccr(k, bxSettle(x))]); } }
+  function usdSeries(k, sp) { // precios SUCIOS por día: base Excel (limpio + corrido), cierres guardados y, para los días que falten, data/volumen.json (mismo cierre de data912)
+    var tk = k + sp, out = [], h = PX.H[tk], have = {};
+    if (h) { var x = h.s; for (var i = 0; i < h.d.length; i++) { x += h.d[i]; out.push([x, h.p[i] + bxAccr(k, bxSettle(x))]); have[x] = 1; } }
     var L = LOG[sp] || {};
-    Object.keys(L).sort().forEach(function (ds) { var t = bxDayNum(ds); if (t <= PX.last || L[ds][k] == null) return; out.push([t, L[ds][k]]); });
-    return out;
+    Object.keys(L).sort().forEach(function (ds) { var t = bxDayNum(ds); if ((h && t <= PX.last) || L[ds][k] == null || have[t]) return; out.push([t, L[ds][k]]); have[t] = 1; });
+    if (VJ && VJ.t[tk]) { var o = VJ.t[tk], acc = 0, t0 = out.length ? out[0][0] : -Infinity; for (var j = 0; j < o.i.length; j++) { acc += o.i[j]; var t = bxDayNum(VJ.dates[acc]); if (o.c[j] > 0 && !have[t] && (h ? t >= t0 : true)) { out.push([t, o.c[j]]); have[t] = 1; } } } // BOPREAL (sin base Excel) y huecos de la base
+    return out.sort(function (a, b) { return a[0] - b[0]; });
   }
   function pick(ser, sym) { // [t1, P1, t0, P0, fuente]
     if (!ser || !ser.length) return null;
     var cur = ser[ser.length - 1], t1 = cur[0], P1 = cur[1], tp = prevBiz(t1), pv = null, i;
+    if (ST.n > 1) { // N ruedas atrás: el cierre de ese día o, si no operó, el último dentro de los 4 días previos
+      for (var j = 1; j < ST.n; j++) tp = prevBiz(tp);
+      for (i = ser.length - 2; i >= 0; i--) if (ser[i][0] <= tp) return tp - ser[i][0] <= 4 ? { t1: t1, P1: P1, t0: ser[i][0], P0: ser[i][1], src: ser[i][0] === tp ? 'cierre' : 'previo' } : null;
+      return null;
+    }
     for (i = ser.length - 2; i >= 0; i--) if (ser[i][0] === tp) { pv = ser[i]; break; }
     if (pv) return { t1: t1, P1: P1, t0: pv[0], P0: pv[1], src: 'cierre' };
     var pc = PCT[sym];
@@ -3345,7 +3360,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     return out;
   }
   function build() {
-    var rows = []; try { rows = rows.concat(usdRows()); } catch (e) { console.error('vard usd', e); }
+    vjLoad(); var rows = []; try { rows = rows.concat(usdRows()); } catch (e) { console.error('vard usd', e); }
     try { rows = rows.concat(psRows()); } catch (e) { console.error('vard pesos', e); }
     return rows.filter(function (r) { return r.dpct != null && isFinite(r.dpct); });
   }
@@ -3367,9 +3382,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '#vard .vdleg{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;font-size:13px;color:var(--mu);margin:0 0 10px}#vard .vdleg i{display:inline-block;vertical-align:middle;margin-right:6px}' +
       '#vard .vdsup{color:var(--mu);font-size:11px;margin-left:4px}' +
       '</style>' +
-      '<div class="card sx" id="vdCap"><div class="sxh"><div style="min-width:0"><p class="qh">Variación diaria contra el cierre anterior</p><p class="qs keep" id="vdInfo"></p></div>' +
+      '<div class="card sx" id="vdCap"><div class="sxh"><div style="min-width:0"><p class="qh" id="vdTit">Variación diaria contra el cierre anterior</p><p class="qs keep" id="vdInfo"></p></div>' +
       '<div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'vdCap\', \'Soberanos_Variacion_Diaria\')" title="Descargar en HD"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>' +
-      '<div class="vdc sxc"><label>Grupo<select id="vdG"></select></label>' +
+      '<div class="vdc sxc"><label>Grupo<select id="vdG"></select></label><label>Comparar contra<select id="vdN"><option value="1">Ayer (cierre anterior)</option><option value="5">5 ruedas atrás</option><option value="10">10 ruedas atrás</option><option value="20">20 ruedas atrás</option></select></label>' +
       '<label id="vdKL">Curva<select id="vdK"></select></label><label id="vdAxL">Eje X<select id="vdAx">' + xaxOpts('plazo') + '</select></label><label>Plazo máximo<select id="vdX"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000">1.000 días</option><option value="1500">1.500 días</option><option value="0" selected>Todos</option></select></label><label id="vdDL">Duales<select id="vdD"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' +
       '<label id="vdShL" title="Con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb (S16O6, a 3 días, 149 pb): su cambio de tasa no se compara con el del resto">Menos de 30 días<select id="vdSh"><option value="hide">Ocultar en el gráfico</option><option value="gray">Mostrar en gris</option></select></label>' +
       '</div>' +
@@ -3381,6 +3396,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     g.innerHTML = ORDER.map(function (k) { return '<option value="' + k + '">' + GN[k] + '</option>'; }).join('');
     g.value = ST.grp;
     g.onchange = function () { ST.grp = g.value; render(); };
+    document.getElementById('vdN').onchange = function () { ST.n = +this.value; render(); };
     document.getElementById('vdK').onchange = function () { if (ST.grp === 'usd') ST.mU = this.value; else ST.mP = this.value; render(); };
     document.getElementById('vdAx').value = ST.ax;
     document.getElementById('vdAx').onchange = function () { if (ST.grp === 'usd') ST.axU = this.value; else ST.ax = this.value; render(); };
@@ -3417,7 +3433,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     });
     var mx = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.dpct); }).concat([0.05]));
     var th = function (s, t, l) { return '<th ' + (s ? 'data-s="' + s + '" ' : '') + 'class="' + (l ? 'l ' : '') + (ST.sort === s ? 'on' : '') + '">' + t + (ST.sort === s ? (ST.dir > 0 ? ' ▲' : ' ▼') : '') + '</th>'; };
-    var h = '<thead><tr>' + th('k', 'Bono', 1) + '<th class="l">Grupo</th>' + th('x1', 'Vence', 1) + '<th>Precio ayer</th><th>Precio hoy</th>' + th('dpct', 'Δ % precio') + '<th style="min-width:160px"></th><th class="l">Tasa</th><th>Ayer</th><th>Hoy</th>' + th('dpb', 'Δ pb') + '</tr></thead><tbody>';
+    var h = '<thead><tr>' + th('k', 'Bono', 1) + '<th class="l">Grupo</th>' + th('x1', 'Vence', 1) + '<th>Precio ' + AY() + '</th><th>Precio hoy</th>' + th('dpct', 'Δ % precio') + '<th style="min-width:160px"></th><th class="l">Tasa</th><th>Ayer</th><th>Hoy</th>' + th('dpb', 'Δ pb') + '</tr></thead><tbody>';
     rows.forEach(function (r) {
       var col = dcol(r.dpct, 0.005), w = Math.abs(r.dpct) / mx * 50, bar = r.dpct >= 0 ? 'left:50%;width:' + w + '%;background:' + GR : 'right:50%;width:' + w + '%;background:' + RD;
       var flag = '', tip = '';
@@ -3450,7 +3466,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var nShort = good.filter(isShort).length; if (ST.sh === 'hide' && good.length - nShort >= 2) good = good.filter(function (r) { return !isShort(r); }); else nShort = 0; // nShort: cuántos quedaron afuera
     var leg = document.getElementById('vdLeg'), shift = document.getElementById('vdShift'), detS = document.getElementById('vdDetS');
     if (CH) { CH.destroy(); CH = null; }
-    if (good.length < 2) { leg.innerHTML = 'No hay suficientes bonos con datos de ayer y de hoy para dibujar la curva.'; shift.innerHTML = ''; detS.textContent = 'Detalle por bono'; return good; }
+    if (good.length < 2) { leg.innerHTML = 'No hay suficientes bonos con datos de ' + AY() + ' y de hoy para dibujar la curva.'; shift.innerHTML = ''; detS.textContent = 'Detalle por bono'; return good; }
     var SER = isUsd ? [{ n: 'Globales', c: css('--c-s1'), st: 'circle', r: good.filter(function (r) { return r.law === 'NY'; }) }, { n: 'Bonares', c: css('--c-s2'), st: 'triangle', r: good.filter(function (r) { return r.law === 'Local'; }) }, { n: 'Bopreales', c: css('--c-s3'), st: 'rectRot', noFit: true, r: good.filter(function (r) { return r.law === 'BOP'; }) }].filter(function (S) { return S.r.length; }) // los BOPREAL van como puntos: con dos plazos no hay curva que ajustar
       : [{ n: GN[grp], c: css('--c-s1'), st: 'circle', r: good }];
     var xs = good.map(function (r) { return r.x1; }).sort(function (a, b) { return a - b; });
@@ -3463,7 +3479,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (fh && fa) {
         var x0 = Math.min.apply(null, ph.map(function (p) { return p.x; })), x1 = Math.max.apply(null, ph.map(function (p) { return p.x; })), N = 80, ch_ = [], ca = [];
         for (var i = 0; i <= N; i++) { var xx = useLog ? x0 * Math.pow(x1 / x0, i / N) : x0 + (x1 - x0) * i / N; ch_.push({ x: xx, y: fh.f(xx) }); ca.push({ x: xx, y: fa.f(xx) }); }
-        sets.push({ type: 'line', label: 'Curva ayer · ' + S.n, data: ca, borderColor: rgba(S.c, 0.6), borderDash: [6, 5], borderWidth: 2, pointRadius: 0, fill: false, order: 5 });
+        sets.push({ type: 'line', label: 'Curva ' + AY() + ' · ' + S.n, data: ca, borderColor: rgba(S.c, 0.6), borderDash: [6, 5], borderWidth: 2, pointRadius: 0, fill: false, order: 5 });
         sets.push({ type: 'line', label: 'Curva hoy · ' + S.n, data: ch_, borderColor: S.c, borderWidth: 2.8, pointRadius: 0, fill: false, order: 4 });
         var q = [0.1, 0.3, 0.5, 0.7, 0.9].map(function (p) { return ph.map(function (z) { return z.x; }).sort(function (a, b) { return a - b; })[Math.round(p * (ph.length - 1))]; });
         shifts.push({ n: S.n, c: S.c, rows: q.map(function (x) { return { x: x, a: fa.f(x), h: fh.f(x) }; }), fa: fa.name, fh: fh.name });
@@ -3474,7 +3490,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         ayer.push({ x: r.x0, y: r.y0, k: kn, dv: d / 100, y0: r.y1 });
       });
     });
-    sets.push({ type: 'scatter', role: 'ayer', label: 'Ayer', data: ayer, ghostPts: true, noLabel: true, unitPb: true, unit: ' pb', backgroundColor: 'rgba(0,0,0,0)', borderColor: rgba(tx.charAt(0) === '#' ? tx : '#e7e5e4', 0.55), borderWidth: 1.5, pointRadius: 5, hoverRadius: 6, pointStyle: hs, order: 3 });
+    sets.push({ type: 'scatter', role: 'ayer', label: AY(1), data: ayer, ghostPts: true, noLabel: true, unitPb: true, unit: ' pb', backgroundColor: 'rgba(0,0,0,0)', borderColor: rgba(tx.charAt(0) === '#' ? tx : '#e7e5e4', 0.55), borderWidth: 1.5, pointRadius: 5, hoverRadius: 6, pointStyle: hs, order: 3 });
     sets.push({ type: 'scatter', role: 'hoy', tip: true, label: 'Hoy', data: hoy, backgroundColor: hc, borderColor: hc, pointRadius: 7, hoverRadius: 9, pointStyle: hs, order: 1 });
     var yl = isUsd ? 'TIR (%)' : (good[0].yl === 'TEA' ? 'TEA (%)' : good[0].yl + ' (%)');
     var LINK = { id: 'vdLink', beforeDatasetsDraw: function (ch) {
@@ -3484,16 +3500,16 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var logTicks = function (a) { var set = [10, 20, 30, 60, 90, 180, 365, 540, 730, 1000, 1500, 2000, 3000, 5000, 7000, 10000]; a.ticks = set.filter(function (v) { return v >= a.min && v <= a.max; }).map(function (v) { return { value: v }; }); };
     CH = new Chart(document.getElementById('vdChart').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [X.LABELS, LINK], options: {
       responsive: true, maintainAspectRatio: false, animation: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2), layout: { padding: { right: 28, top: 6 } }, interaction: { mode: 'nearest', intersect: true },
-      plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.dataset.tip; }, callbacks: { label: function (c) { var r = c.raw; return [r.k + ': ' + fm(r.y, 2) + '% hoy · ' + fm(r.y0, 2) + '% ayer', sg(r.dv * 100, 0) + ' pb · precio ' + sg(r.p, 2) + '%']; } } } },
+      plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.dataset.tip; }, callbacks: { label: function (c) { var r = c.raw; return [r.k + ': ' + fm(r.y, 2) + '% hoy · ' + fm(r.y0, 2) + '% ' + AY(), sg(r.dv * 100, 0) + ' pb · precio ' + sg(r.p, 2) + '%']; } } } },
       scales: { x: useLog ? { type: 'logarithmic', title: { display: true, text: xaxTitle(ax, true), color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 0); } }, afterBuildTicks: logTicks, grid: { color: bd } }
         : { title: { display: true, text: xaxTitle(ax), color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, yrs ? 1 : 0); } }, grid: { color: bd }, min: 0, grace: '6%' },
         y: { title: { display: true, text: yl, color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd }, grace: '6%' } } } });
     var sh = function (c, ico) { return '<i style="width:' + (ico === 'ring' ? 10 : 12) + 'px;height:' + (ico === 'ring' ? 10 : 12) + 'px;border-radius:50%;background:' + (ico === 'ring' ? 'transparent' : c) + ';border:' + (ico === 'ring' ? '1.5px solid var(--mu)' : '0') + '"></i>'; };
-    leg.innerHTML = (nTf.length ? '<span>' + nTf.map(function (r) { return r.k; }).join(', ') + ' (dual tasa fija / TAMAR) no va en el gráfico: se mide por TEA y no por margen sobre TAMAR; está en la tabla</span>' : '') + '<span>' + sh(GR) + 'La tasa bajó</span><span>' + sh(RD) + 'La tasa subió</span><span>' + sh(NE) + 'Sin cambio</span><span>' + sh('', 'ring') + 'Ayer</span>' +
-      SER.map(function (S) { return S.noFit ? '<span>◆ ' + S.n + ' (puntos, sin curva)</span>' : '<span><i style="width:22px;height:0;border-top:3px solid ' + S.c + '"></i>Curva hoy ' + (isUsd ? S.n + (S.st === 'triangle' ? ' (▲)' : ' (●)') : '') + '</span>'; }).join('') + '<span><i style="width:22px;height:0;border-top:2px dashed var(--mu)"></i>Curva ayer</span>' + (nShort ? '<span>No se muestran ' + nShort + (nShort === 1 ? ' bono que vence' : ' bonos que vencen') + ' en menos de 30 días: con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb</span>' : SER.some(function (S) { return S.nEx; }) ? '<span>En gris, los que vencen en menos de 30 días: no entran en la curva porque 0,01% de precio les mueve la tasa decenas o cientos de pb</span>' : '');
+    leg.innerHTML = (nTf.length ? '<span>' + nTf.map(function (r) { return r.k; }).join(', ') + ' (dual tasa fija / TAMAR) no va en el gráfico: se mide por TEA y no por margen sobre TAMAR; está en la tabla</span>' : '') + '<span>' + sh(GR) + 'La tasa bajó</span><span>' + sh(RD) + 'La tasa subió</span><span>' + sh(NE) + 'Sin cambio</span><span>' + sh('', 'ring') + AY(1) + '</span>' +
+      SER.map(function (S) { return S.noFit ? '<span>◆ ' + S.n + ' (puntos, sin curva)</span>' : '<span><i style="width:22px;height:0;border-top:3px solid ' + S.c + '"></i>Curva hoy ' + (isUsd ? S.n + (S.st === 'triangle' ? ' (▲)' : ' (●)') : '') + '</span>'; }).join('') + '<span><i style="width:22px;height:0;border-top:2px dashed var(--mu)"></i>Curva ' + AY() + '</span>' + (nShort ? '<span>No se muestran ' + nShort + (nShort === 1 ? ' bono que vence' : ' bonos que vencen') + ' en menos de 30 días: con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb</span>' : SER.some(function (S) { return S.nEx; }) ? '<span>En gris, los que vencen en menos de 30 días: no entran en la curva porque 0,01% de precio les mueve la tasa decenas o cientos de pb</span>' : '');
     shift.innerHTML = shifts.map(function (s) {
       var mu = mean(s.rows.map(function (r) { return (r.h - r.a) * 100; }));
-      return '<div><div style="font-weight:600;margin-bottom:6px;color:var(--tx)">' + s.n + ' · desplazamiento de la curva <span style="color:' + dcol(mu == null ? null : -mu, 0.5) + '">(promedio ' + sg(mu, 0) + ' pb)</span></div><table class="vdt"><thead><tr><th class="l" style="cursor:default">' + (ax === 'plazo' ? 'Plazo' : ax === 'mac' ? 'Duración' : 'Duración mod.') + '</th><th style="cursor:default">Ayer</th><th style="cursor:default">Hoy</th><th style="cursor:default">Δ pb</th></tr></thead><tbody>' +
+      return '<div><div style="font-weight:600;margin-bottom:6px;color:var(--tx)">' + s.n + ' · desplazamiento de la curva <span style="color:' + dcol(mu == null ? null : -mu, 0.5) + '">(promedio ' + sg(mu, 0) + ' pb)</span></div><table class="vdt"><thead><tr><th class="l" style="cursor:default">' + (ax === 'plazo' ? 'Plazo' : ax === 'mac' ? 'Duración' : 'Duración mod.') + '</th><th style="cursor:default">' + AY(1) + '</th><th style="cursor:default">Hoy</th><th style="cursor:default">Δ pb</th></tr></thead><tbody>' +
         s.rows.map(function (r) { var d = (r.h - r.a) * 100; return '<tr><td class="l">' + (yrs ? fm(r.x, 1) + ' años' : fm(r.x, 0) + ' días') + '</td><td>' + fm(r.a, 2) + '%</td><td>' + fm(r.h, 2) + '%</td><td style="font-weight:700;color:' + dcol(-d, 0.5) + '">' + sg(d, 0) + '</td></tr>'; }).join('') + '</tbody></table></div>';
     }).join('');
     detS.innerHTML = 'Desplazamiento de la curva' + (shifts.length ? ' (' + shifts.map(function (s) { var mu = mean(s.rows.map(function (r) { return (r.h - r.a) * 100; })); return (shifts.length > 1 ? s.n + ' ' : '') + '<span style="color:' + dcol(mu == null ? null : -mu, 0.5) + '">' + sg(mu, 0) + ' pb</span>'; }).join(' · ') + ' en promedio)' : '') + ' y detalle por bono';
@@ -3554,9 +3570,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (ST.cap > 0) rows = rows.filter(function (r) { return r.days <= ST.cap; });
       var cnt = {}; DATA.forEach(function (r) { var k = r.t0 + '|' + r.t1; cnt[k] = (cnt[k] || 0) + 1; }); var best = Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a]; })[0];
       var t0 = best ? +best.split('|')[0] : 0, t1 = best ? +best.split('|')[1] : 0, n912 = DATA.filter(function (r) { return r.src === 'data912'; }).length, nOld = DATA.filter(function (r) { return r.src === 'previo' || (r.src === 'cierre' && r.t0 !== t0); }).length;
-      document.getElementById('vdInfo').textContent = DATA.length ? 'Hoy ' + dfull(t1) + ' contra el cierre del ' + dfull(t0) + ' · ' + DATA.length + ' bonos · liquidación ' + (window.settleMode === 'T1' ? 'T+1' : 'CI') + (bxSettle(t1) - bxSettle(t0) > 1 ? ' (ayer liquida el ' + dstr(bxSettle(t0)) + ' y hoy el ' + dstr(bxSettle(t1)) + ': ' + (bxSettle(t1) - bxSettle(t0)) + ' días de devengamiento)' : '') + ' · hard dollar en ' + (especie === 'D' ? 'MEP' : 'Cable') + (n912 ? ' · ' + n912 + ' con la variación diaria de data912' : '') + (nOld ? ' · ' + nOld + ' contra una fecha anterior' : '') : 'Sin datos todavía: esperando precios en vivo o cierres guardados.';
+      document.getElementById('vdInfo').textContent = DATA.length ? 'Hoy ' + dfull(t1) + ' contra el cierre del ' + dfull(t0) + (ST.n > 1 ? ' (' + ST.n + ' ruedas)' : '') + ' · ' + DATA.length + ' bonos · liquidación ' + (window.settleMode === 'T1' ? 'T+1' : 'CI') + (ST.n === 1 && bxSettle(t1) - bxSettle(t0) > 1 ? ' (ayer liquida el ' + dstr(bxSettle(t0)) + ' y hoy el ' + dstr(bxSettle(t1)) + ': ' + (bxSettle(t1) - bxSettle(t0)) + ' días de devengamiento)' : '') + ' · hard dollar en ' + (especie === 'D' ? 'MEP' : 'Cable') + (n912 ? ' · ' + n912 + ' con la variación diaria de data912' : '') + (nOld ? ' · ' + nOld + ' contra una fecha anterior' : '') : 'Sin datos todavía: esperando precios en vivo o cierres guardados.';
       chips(rows);
-      volView(curveView(rows, ST.grp) || [], t0, t1);
+      document.getElementById('vdTit').textContent = ST.n === 1 ? 'Variación diaria contra el cierre anterior' : 'Variación contra ' + ST.n + ' ruedas atrás'; document.getElementById('vdN').value = String(ST.n);
+      volView(curveView(rows, ST.grp) || [], ST.n > 1 ? prevBiz(t1) : t0, t1); // el volumen siempre contra la rueda anterior
       table(rows, t0);
     } catch (e) { console.error('vard', e); var i = document.getElementById('vdInfo'); if (i) i.textContent = 'Error: ' + e.message; }
   }
@@ -4681,6 +4698,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   if (ST.wt !== 'ewma') ST.wt = 'eq';
   var VD = null, VDerr = false, VDask = false, CH = {}, RET = {}, timer = null;
   var isAct = function () { return root.classList.contains('active'); };
+  var _oc = window.dlOnClone; window.dlOnClone = function (doc, id) { if (_oc) _oc(doc, id); if (id !== 'pfPick') return; var w = doc.querySelector('#pfPick .pfw'); if (w) { w.style.maxHeight = 'none'; w.style.overflow = 'visible'; } }; // la imagen lleva todos los bonos de la lista, no solo los que entran en el recuadro con scroll
   var save = function () { try { localStorage.setItem(FKEY, JSON.stringify(FAV)); localStorage.setItem(SKEY, JSON.stringify({ ccy: ST.ccy, conf: ST.conf, hz: ST.hz, win: ST.win, wt: ST.wt, grp: ST.grp, sc: ST.sc, scM: ST.scM, scTo: ST.scTo, shk: ST.shk })); } catch (e) {} };
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var pc = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : fm(v * 100, d == null ? 2 : d) + '%'; };
@@ -4721,7 +4739,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function mdNum(fl, s, y) { var h = 1e-4, p0 = bxPv(fl, s, y); return p0 > 0 ? (bxPv(fl, s, y - h) - bxPv(fl, s, y + h)) / (2 * h * p0) : null; }
   function psTipo(k, ins) {
     var kd = ins.k;
-    if (kd === 'cap') return k.charAt(0) === 'S' ? 'Lecap' : 'Boncap';
+    if (kd === 'cap') return ins.cerFix ? 'Lecer con CER fijado (opera como Lecap)' : k.charAt(0) === 'S' ? 'Lecap' : 'Boncap';
     if (kd === 'cpn') return 'Bono a tasa fija con cupones';
     if (kd === 'cer0') return 'CER cupón cero';
     if (kd === 'cerc') return 'CER con cupones';
@@ -4877,7 +4895,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '</style>' +
       cardH('pfPick', 'Elegí tus bonos', 'Marcá con la estrella los bonos que querés seguir: pasan a tu portfolio, más abajo. Las tasas son las del sitio: CER en términos reales, dólar linked sobre dólares, TAMAR y duales con la proyección del escenario de Curva Pesos.',
         '<div class="pfc"><label>Grupo<select id="pfG"><option value="all">Todos</option>' + ORDER.map(function (g) { return '<option value="' + g + '">' + GN[g] + '</option>'; }).join('') + '</select></label>' +
-        '<label>Buscar<input type="search" id="pfQ" placeholder="Ticker o tipo"></label></div><div class="pfw"><table class="pft" id="pfAll"></table></div>', '') +
+        '<label>Buscar<input type="search" id="pfQ" placeholder="Ticker o tipo"></label></div><div class="pfw"><table class="pft" id="pfAll"></table></div>', 'Portfolio_bonos') +
       cardH('pfMine', 'Tu portfolio', '#pfMineSub',
         '<div class="pfc"><label>Moneda<select id="pfC"><option value="ARS">Pesos</option><option value="USD">Dólares (MEP)</option></select></label>' +
         '<button class="act" id="pfClr" data-html2canvas-ignore="true">Vaciar portfolio</button></div>' +
