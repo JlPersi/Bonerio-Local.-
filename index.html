@@ -1381,7 +1381,7 @@ window.updateCurveChart = function() {
     function getReg(dataArr) { const r = window.curveFitUSD(dataArr.filter(function (p) { return p.md >= 1.1; }).map(function (p) { return { x: p.x * w, y: p.y }; }), window.USD_MODEL, 2); return r ? { f: function (x) { return r.f(x * w); }, name: r.name } : null; } // la curva se ajusta en años // misma regla que el desvío de Quant: los bonos de menos de ~1 año de duración no entran al ajuste
 
     const regNY = getReg(dataNY), regLoc = getReg(dataLoc);
-    let allPoints = dataNY.concat(dataLoc, dataNew);
+    let allPoints = dataNY.concat(dataLoc); // las curvas de fair value se dibujan solo sobre el rango de los soberanos (los BOPREAL cortos las estiraban hacia abajo)
     let minX = Math.min.apply(null, allPoints.map(function(p) { return p.x; })) * 0.95;
     let maxX = Math.max.apply(null, allPoints.map(function(p) { return p.x; })) * 1.15;
     
@@ -1430,7 +1430,7 @@ window.updateCurveChart = function() {
                 plugins: { tooltip: { callbacks: { label: function(ctx) { return ctx.raw.bono ? ctx.raw.bono + (ctx.raw.bop ? ' (BOPREAL ' + ctx.raw.bop.serie + (ctx.raw.bop.put ? ', con rescate anticipado no incluido' : '') + ')' : '') + ': TIR ' + ctx.raw.y.toFixed(2) + '% | ' + xaxTip(window.USD_AX || 'md', ctx.raw.x) : ''; } } }, legend: { labels: { usePointStyle: true, padding: 20 } } },
                 scales: {
                     x: { title: { display: true, text: xaxTitle(ax), font: { weight: 'bold' } }, grid: { color: colorBd, drawBorder: false }, ticks: { font: { size: 14 }, callback: function (v) { return v.toLocaleString('es-AR', { maximumFractionDigits: (window.USD_AX || 'md') === 'md' ? 1 : 0 }); } } },
-                    y: { title: { display: true, text: 'TIR (%)', font: { weight: 'bold' } }, grid: { color: colorBd, drawBorder: false }, ticks: { font: { size: 14 }, callback: function(value) { return value.toFixed(0) + '%'; } } }
+                    y: { grace: '6%', title: { display: true, text: 'TIR (%)', font: { weight: 'bold' } }, grid: { color: colorBd, drawBorder: false }, ticks: { font: { size: 14 }, callback: function(value) { return value.toFixed(0) + '%'; } } }
                 }
             },
             plugins: [{
@@ -1441,18 +1441,30 @@ window.updateCurveChart = function() {
                     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--tx').trim(); 
                     ctx.textAlign = "left"; ctx.textBaseline = "middle";
 
-                    const used = []; // rótulos ya escritos: si uno pisaría a otro (BOPREAL con casi el mismo precio), baja una línea
+                    // rótulos: los puntos casi superpuestos (BOPREAL con el mismo precio) comparten uno solo ("BPB7* · BPC7* · BPD7");
+                    // si un rótulo pisa a otro se corre arriba o abajo, siempre dentro del área del gráfico
+                    const A = chart.chartArea, items = [];
                     chart.data.datasets.forEach(function(dataset, i) {
                         if (!chart.isDatasetVisible(i)) return; // serie oculta desde la leyenda: sin rótulos
                         if (dataset.data && dataset.data.length && dataset.data[0] && dataset.data[0].bono) {
                             const meta = chart.getDatasetMeta(i);
                             meta.data.forEach(function(element, index) {
-                                if (!dataset.data[index].bono) return;
-                                let y = element.y; const x = element.x + 12;
-                                for (let k = 0; k < 8 && used.some(function (u) { return Math.abs(u[0] - x) < 52 && Math.abs(u[1] - y) < 14; }); k++) y += 14;
-                                used.push([x, y]); ctx.fillText(dataset.data[index].bono, x, y);
+                                if (!dataset.data[index].bono || !isFinite(element.x) || !isFinite(element.y)) return;
+                                const near = items.find(function (it) { return Math.abs(it.x - element.x) < 10 && Math.abs(it.y - element.y) < 10; });
+                                if (near) near.t.push(dataset.data[index].bono); else items.push({ x: element.x, y: element.y, t: [dataset.data[index].bono] });
                             });
                         }
+                    });
+                    const boxes = [], H = 15, hit = function (b) { return boxes.some(function (o) { return b.x < o.x + o.w && o.x < b.x + b.w && Math.abs(b.y - o.y) < H; }); };
+                    items.forEach(function (it) {
+                        const txt = it.t.join(' · '), w = ctx.measureText(txt).width, x = it.x + 12 + w > A.right + 48 ? it.x - 12 - w : it.x + 12;
+                        let best = null;
+                        for (let k = 0; k < 13 && !best; k++) {
+                            const dy = (k % 2 ? -1 : 1) * Math.ceil(k / 2) * H, y = Math.max(A.top + 7, Math.min(A.bottom - 7, it.y + dy)), b = { x: x, y: y, w: w };
+                            if (!hit(b)) best = b;
+                        }
+                        best = best || { x: x, y: Math.max(A.top + 7, Math.min(A.bottom - 7, it.y)), w: w };
+                        boxes.push(best); ctx.fillText(txt, best.x, best.y);
                     });
                 }
             }]
