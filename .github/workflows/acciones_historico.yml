@@ -1,0 +1,34 @@
+name: "Acciones: bajar histórico"
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Tickers separados por coma (vacío = todos los de /live/arg_stocks)"
+        required: false
+        default: ""
+permissions:
+  contents: write
+jobs:
+  historico:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Histórico de precios (data912 /historical/stocks)
+        env:
+          FULL: "1"
+          TICKERS: ${{ github.event.inputs.tickers }}
+        run: python3 scripts/save_acciones.py
+      - name: Métricas (retornos, volatilidad, beta)
+        run: python3 scripts/metricas_acciones.py
+      - name: Ratios con los balances cargados
+        run: python3 scripts/ratios_acciones.py
+      - name: Commit
+        run: |
+          if [ -n "$(git status --porcelain data)" ]; then
+            git config user.name "cierre-bot"
+            git config user.email "bot@users.noreply.github.com"
+            git add data
+            git commit -m "acciones: histórico $(date -u +%F)"
+            git pull --rebase -q origin "${GITHUB_REF_NAME}" || true
+            git push
+          fi
