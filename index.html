@@ -3267,7 +3267,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var mean = function (a) { a = a.filter(function (x) { return x != null && isFinite(x); }); return a.length ? a.reduce(function (s, x) { return s + x; }, 0) / a.length : null; };
   function prevBiz(t) { t--; while (!bxIsBiz(t)) t--; return t; }
   var dcol = function (v, eps) { return v == null || !isFinite(v) ? 'var(--mu)' : Math.abs(v) < eps ? 'var(--mu)' : v > 0 ? 'var(--ok)' : 'var(--bad)'; };
-  var AY = function (cap) { var t = ST.n === 1 ? 'ayer' : 'hace ' + ST.n + ' ruedas'; return cap ? t.charAt(0).toUpperCase() + t.slice(1) : t; }; // contra qué se compara: el cierre anterior o el de N ruedas atrás
+  var REF = null; // [t0, t1] de la comparación que se está mostrando
+  var AY = function (cap) { // contra qué se compara: "ayer" solo si la rueda anterior fue el día anterior (después de un feriado o un fin de semana, su fecha)
+    if (ST.n > 1) return (cap ? 'Hace ' : 'hace ') + ST.n + ' ruedas';
+    if (!REF || REF[1] - REF[0] === 1) return cap ? 'Ayer' : 'ayer';
+    return (cap ? 'Cierre del ' : 'del ') + dstr(REF[0]);
+  };
   var isShort = function (r) { return r.grp !== 'usd' && r.days < 30; }; // en pesos, con menos de 30 días 0,01% de precio mueve la tasa decenas o cientos de pb: no son comparables con el resto
 
   /* ---------- variación diaria que informa data912 (respaldo cuando falta el cierre anterior) ---------- */
@@ -3466,7 +3471,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var nShort = good.filter(isShort).length; if (ST.sh === 'hide' && good.length - nShort >= 2) good = good.filter(function (r) { return !isShort(r); }); else nShort = 0; // nShort: cuántos quedaron afuera
     var leg = document.getElementById('vdLeg'), shift = document.getElementById('vdShift'), detS = document.getElementById('vdDetS');
     if (CH) { CH.destroy(); CH = null; }
-    if (good.length < 2) { leg.innerHTML = 'No hay suficientes bonos con datos de ' + AY() + ' y de hoy para dibujar la curva.'; shift.innerHTML = ''; detS.textContent = 'Detalle por bono'; return good; }
+    if (good.length < 2) { leg.innerHTML = 'No hay suficientes bonos con datos de las dos fechas para dibujar la curva.'; shift.innerHTML = ''; detS.textContent = 'Detalle por bono'; return good; }
     var SER = isUsd ? [{ n: 'Globales', c: css('--c-s1'), st: 'circle', r: good.filter(function (r) { return r.law === 'NY'; }) }, { n: 'Bonares', c: css('--c-s2'), st: 'triangle', r: good.filter(function (r) { return r.law === 'Local'; }) }, { n: 'Bopreales', c: css('--c-s3'), st: 'rectRot', noFit: true, r: good.filter(function (r) { return r.law === 'BOP'; }) }].filter(function (S) { return S.r.length; }) // los BOPREAL van como puntos: con dos plazos no hay curva que ajustar
       : [{ n: GN[grp], c: css('--c-s1'), st: 'circle', r: good }];
     var xs = good.map(function (r) { return r.x1; }).sort(function (a, b) { return a - b; });
@@ -3553,7 +3558,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var open = live && typeof mktOpen === 'function' && mktOpen(), dur = function (m) { return Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) + ' min' : ''); };
     var lab1 = live ? (open ? 'Hoy hasta las ' + hm : 'Hoy') : 'Rueda del ' + dstr(t1), lab0 = 'Rueda del ' + dstr(t0), M = function (v) { return '$ ' + fm(v / 1e6, 0) + ' M'; };
     el.innerHTML = (live ? (open ? 'Hoy, hasta las ' + hm + ' (van ' + dur(el0) + ' de las 6 h 30 min de rueda), contra toda la rueda del ' : 'Hoy, con la rueda cerrada, contra la del ') : 'Rueda del ' + dfull(t1) + ' contra la del ') + dfull(t0) + ': ' +
-      '<b>' + M(sa) + '</b> contra ' + M(sb) + (sb > 0 ? ' (<b style="color:' + (sa >= sb ? 'var(--ok)' : 'var(--bad)') + '">' + (open ? fm(sa / sb * 100, 0) + '% de lo de ayer' : sg((sa / sb - 1) * 100, 0) + '%') + '</b>)' : '') + ', en los bonos del gráfico. Monto en pesos; las especies en dólares, al MEP o al CCL de AL30.';
+      '<b>' + M(sa) + '</b> contra ' + M(sb) + (sb > 0 ? ' (<b style="color:' + (sa >= sb ? 'var(--ok)' : 'var(--bad)') + '">' + (open ? fm(sa / sb * 100, 0) + '% de lo de la rueda del ' + dstr(t0) : sg((sa / sb - 1) * 100, 0) + '%') + '</b>)' : '') + ', en los bonos del gráfico. Monto en pesos; las especies en dólares, al MEP o al CCL de AL30.';
     volChart(rows, A, Bv, lab1, lab0, function (i) { return Bv[i] > 0 ? (open ? fm(A[i] / Bv[i] * 100, 0) + '% de lo de la rueda anterior' : sg((A[i] / Bv[i] - 1) * 100, 0) + '% contra la rueda anterior') : ''; });
   }
   function volChart(rows, A, Bv, lab1, lab0, foot) {
@@ -3585,8 +3590,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (ST.cap > 0) rows = rows.filter(function (r) { return r.days <= ST.cap; });
       var cnt = {}; DATA.forEach(function (r) { var k = r.t0 + '|' + r.t1; cnt[k] = (cnt[k] || 0) + 1; }); var best = Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a]; })[0];
       var t0 = best ? +best.split('|')[0] : 0, t1 = best ? +best.split('|')[1] : 0, n912 = DATA.filter(function (r) { return r.src === 'data912'; }).length, nOld = DATA.filter(function (r) { return r.src === 'previo' || (r.src === 'cierre' && r.t0 !== t0); }).length;
-      document.getElementById('vdInfo').textContent = DATA.length ? 'Hoy ' + dfull(t1) + ' contra el cierre del ' + dfull(t0) + (ST.n > 1 ? ' (' + ST.n + ' ruedas)' : '') + ' · ' + DATA.length + ' bonos · liquidación ' + (window.settleMode === 'T1' ? 'T+1' : 'CI') + (ST.n === 1 && bxSettle(t1) - bxSettle(t0) > 1 ? ' (ayer liquida el ' + dstr(bxSettle(t0)) + ' y hoy el ' + dstr(bxSettle(t1)) + ': ' + (bxSettle(t1) - bxSettle(t0)) + ' días de devengamiento)' : '') + ' · hard dollar en ' + (especie === 'D' ? 'MEP' : 'Cable') + (n912 ? ' · ' + n912 + ' con la variación diaria de data912' : '') + (nOld ? ' · ' + nOld + ' contra una fecha anterior' : '') : 'Sin datos todavía: esperando precios en vivo o cierres guardados.';
+      document.getElementById('vdInfo').textContent = DATA.length ? 'Hoy ' + dfull(t1) + ' contra el cierre del ' + dfull(t0) + (ST.n > 1 ? ' (' + ST.n + ' ruedas)' : '') + ' · ' + DATA.length + ' bonos · liquidación ' + (window.settleMode === 'T1' ? 'T+1' : 'CI') + (ST.n === 1 && bxSettle(t1) - bxSettle(t0) > 1 ? ' (la rueda anterior liquida el ' + dstr(bxSettle(t0)) + ' y hoy el ' + dstr(bxSettle(t1)) + ': ' + (bxSettle(t1) - bxSettle(t0)) + ' días de devengamiento)' : '') + ' · hard dollar en ' + (especie === 'D' ? 'MEP' : 'Cable') + (n912 ? ' · ' + n912 + ' con la variación diaria de data912' : '') + (nOld ? ' · ' + nOld + ' contra una fecha anterior' : '') : 'Sin datos todavía: esperando precios en vivo o cierres guardados.';
       chips(rows);
+      REF = (function () { var c = {}; rows.forEach(function (r) { var k = r.t0 + '|' + r.t1; c[k] = (c[k] || 0) + 1; }); var k = Object.keys(c).sort(function (a, b) { return c[b] - c[a]; })[0]; return k ? k.split('|').map(Number) : [t0, t1]; })(); // las fechas del grupo que se muestra
       document.getElementById('vdTit').textContent = ST.n === 1 ? 'Variación diaria contra el cierre anterior' : 'Variación contra ' + ST.n + ' ruedas atrás'; document.getElementById('vdN').value = String(ST.n);
       volView(curveView(rows, ST.grp) || [], ST.n > 1 ? prevBiz(t1) : t0, t1); // con N ruedas, el volumen compara el promedio de las últimas N contra las N anteriores
       table(rows, t0);
