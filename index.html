@@ -4712,15 +4712,16 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var KR = [0.25, 0.5, 1, 2, 3, 5, 7, 10, 15, 20], KRL = ['3m', '6m', '1a', '2a', '3a', '5a', '7a', '10a', '15a', '20a']; // nodos de Fabozzi hasta 20 años (más 6m por la curva corta en pesos)
   var FKEY = 'pfFav1', SKEY = 'pfSt1';
   var FAV = (function () { try { var o = JSON.parse(localStorage.getItem(FKEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } })();
-  var ST = { ccy: 'ARS', conf: 0.95, hz: 1, win: 250, wt: 'eq', grp: 'all', q: '', sort: 'mat', sc: 'par', scM: 100, scTo: 'all', shk: null };
+  var ST = { ccy: 'ARS', conf: 0.95, hz: 1, win: 500, wt: 'eq', grp: 'all', q: '', sort: 'mat', sc: 'par', scM: 100, scTo: 'all', shk: null };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(SKEY) || '{}')); } catch (e) {}
   if (['par', 'bullst', 'bearst', 'bullfl', 'bearfl', 'pbfly', 'nbfly', 'custom'].indexOf(ST.sc) < 0) ST.sc = 'par'; // escenarios de una versión anterior
   if (ST.shk && Object.keys(ST.shk).some(function (g) { return !ST.shk[g] || ST.shk[g].length !== KR.length; })) { ST.shk = null; if (ST.sc === 'custom') ST.sc = 'par'; } // escenario guardado con otros nodos
   if (ST.wt !== 'ewma') ST.wt = 'eq';
+  if (ST.wv !== 2) { ST.win = 500; ST.wv = 2; } // ventana por defecto: 500 ruedas (entra la crisis de septiembre de 2025); reemplaza la de 250 que quedó guardada
   var VD = null, VDerr = false, VDask = false, CH = {}, RET = {}, timer = null, SCN = null;
   var isAct = function () { return root.classList.contains('active'); };
   var _oc = window.dlOnClone; window.dlOnClone = function (doc, id) { if (_oc) _oc(doc, id); if (id !== 'pfPick') return; var w = doc.querySelector('#pfPick .pfw'); if (w) { w.style.maxHeight = 'none'; w.style.overflow = 'visible'; } }; // la imagen lleva todos los bonos de la lista, no solo los que entran en el recuadro con scroll
-  var save = function () { try { localStorage.setItem(FKEY, JSON.stringify(FAV)); localStorage.setItem(SKEY, JSON.stringify({ ccy: ST.ccy, conf: ST.conf, hz: ST.hz, win: ST.win, wt: ST.wt, grp: ST.grp, sc: ST.sc, scM: ST.scM, scTo: ST.scTo, shk: ST.shk })); } catch (e) {} };
+  var save = function () { try { localStorage.setItem(FKEY, JSON.stringify(FAV)); localStorage.setItem(SKEY, JSON.stringify({ ccy: ST.ccy, conf: ST.conf, hz: ST.hz, win: ST.win, wv: ST.wv, wt: ST.wt, grp: ST.grp, sc: ST.sc, scM: ST.scM, scTo: ST.scTo, shk: ST.shk })); } catch (e) {} };
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var pc = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : fm(v * 100, d == null ? 2 : d) + '%'; };
   var dfull = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
