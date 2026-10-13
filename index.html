@@ -901,6 +901,17 @@ B.forEach(function (b) {
   b.f = b.f.map(function (x) { return m[x[0]] != null ? [x[0], Math.round(m[x[0]] * 1e6) / 1e6] : x; });
 });
 
+/* BOPREAL (letras del BCRA en dólares). Solo van a la curva de Globales / Bonares, no al resto de las pestañas.
+   Serie 1 (BPOA7 a BPOD7): 5% anual semestral; amortiza 50% en abril y 50% en noviembre de 2027.
+   Serie 4 (BPOA8, BPOB8): 3% anual semestral; amortiza todo el 31/10/2028. Flujos exactos por ticker en BOP_FL.
+   Precios de respaldo: cierre del 09/10/2026; en vivo los pisa data912 (BPA7D, BPA7C, ...).
+   BPOA7, BPOB7, BPOC7 y BPOA8 tienen rescate anticipado (put) que las métricas no incluyen. */
+const BOP_FL = {"BPOA7": [["2026-11-02", 2.5], ["2027-04-30", 52.5], ["2027-11-01", 51.25]], "BPOB7": [["2026-11-02", 2.5], ["2027-04-30", 52.5], ["2027-11-01", 51.25]], "BPOC7": [["2026-10-30", 2.5], ["2027-04-30", 52.5], ["2027-11-01", 51.256944]], "BPOD7": [["2026-11-02", 2.5], ["2027-04-30", 52.5], ["2027-11-01", 51.25]], "BPOA8": [["2026-10-30", 1.50411], ["2027-04-30", 1.49589], ["2027-11-01", 1.50411], ["2028-05-01", 1.50411], ["2028-10-31", 101.512329]], "BPOB8": [["2026-11-02", 1.5], ["2027-04-30", 1.5], ["2027-11-01", 1.5], ["2028-05-02", 1.5], ["2028-10-31", 101.5]]}; // flujos futuros por 100 VN (cash-flow de Bopreal que pasó Juan Luis)
+const BOP = [
+  ['BPA7', 'BPOA7', 'Serie 1A', 103.95, 99.5, true], ['BPB7', 'BPOB7', 'Serie 1B', 104.65, 99.97, true], ['BPC7', 'BPOC7', 'Serie 1C', 104.5, 99.85, true], ['BPD7', 'BPOD7', 'Serie 1D', 104.55, 100.05, false],
+  ['BPA8', 'BPOA8', 'Serie 4A', 92.35, 87.46, true], ['BPB8', 'BPOB8', 'Serie 4B', 91.99, 87.5, false]
+].map(function (x) { return { k: x[0], serie: x[2], f: BOP_FL[x[1]].map(function (f) { return [Date.parse(f[0] + 'T00:00:00Z') / 864e5, f[1]]; }), px: { D: x[3], C: x[4] }, put: x[5] }; });
+
 // ==== DEFINICIONES DE FUNCIONES BASE PRIMERO PARA EVITAR REFERENCE ERRORS ====
 
 const $ = function(id) { return document.getElementById(id); };
@@ -1361,6 +1372,11 @@ window.updateCurveChart = function() {
             if (b.k.startsWith('GD')) dataNY.push(pt); else dataLoc.push(pt); 
         }
     }
+    BOP.forEach(function (q) { // BOPREAL: mismo cálculo (TIR efectiva y duración modificada de calc) con su precio en la especie elegida
+        const P = q.px[especie]; if (!(P > 0) || q.f[q.f.length - 1][0] <= d0) return;
+        const r = calc({ k: q.k, p: P, f: q.f }, d0, d1, u);
+        if (r.tir != null && r.modD != null) dataNew.push({ x: xaxVal(ax, q.f[q.f.length - 1][0] - d0, r.modD * (1 + r.tir) * 365, r.modD), y: r.tir * 100, bono: q.k + (q.put ? '*' : ''), md: r.modD, bop: q });
+    });
 
     function getReg(dataArr) { const r = window.curveFitUSD(dataArr.filter(function (p) { return p.md >= 1.1; }).map(function (p) { return { x: p.x * w, y: p.y }; }), window.USD_MODEL, 2); return r ? { f: function (x) { return r.f(x * w); }, name: r.name } : null; } // la curva se ajusta en años // misma regla que el desvío de Quant: los bonos de menos de ~1 año de duración no entran al ajuste
 
@@ -1379,6 +1395,7 @@ window.updateCurveChart = function() {
     const colorAc = style.getPropertyValue('--c-s1').trim(); // ley NY
     const colorOk = style.getPropertyValue('--c-s2').trim(); // ley local
     const colorBd = style.getPropertyValue('--bd').trim();
+    const colorBop = style.getPropertyValue('--c-s3').trim(); // BOPREAL
 
     if (window.curveChartObj instanceof Chart) {
         window.curveChartObj.data.datasets[0].data = dataNY;
@@ -1389,6 +1406,7 @@ window.updateCurveChart = function() {
         window.curveChartObj.data.datasets[2].borderColor = colorAc;
         window.curveChartObj.data.datasets[3].data = lineLoc;
         window.curveChartObj.data.datasets[3].borderColor = colorOk;
+        window.curveChartObj.data.datasets[4].data = dataNew; window.curveChartObj.data.datasets[4].backgroundColor = colorBop;
         window.curveChartObj.options.scales.x.title.text = xaxTitle(ax);
         window.curveChartObj.update('none');
     } else {
@@ -1403,12 +1421,13 @@ window.updateCurveChart = function() {
                     { label: 'Ley NY (GD)', data: dataNY, backgroundColor: colorAc, pointRadius: 8, hoverRadius: 10 },
                     { label: 'Ley Local (AL, AE, AO, AN)', data: dataLoc, backgroundColor: colorOk, pointRadius: 8, hoverRadius: 10 },
                     { label: 'Fair Value NY · ' + (regNY ? regNY.name : 's/d'), data: lineNY, type: 'line', borderColor: colorAc, borderDash: [6, 6], fill: false, pointRadius: 0, tension: 0.4, borderWidth: 2 },
-                    { label: 'Fair Value Local · ' + (regLoc ? regLoc.name : 's/d'), data: lineLoc, type: 'line', borderColor: colorOk, borderDash: [6, 6], fill: false, pointRadius: 0, tension: 0.4, borderWidth: 2 }
+                    { label: 'Fair Value Local · ' + (regLoc ? regLoc.name : 's/d'), data: lineLoc, type: 'line', borderColor: colorOk, borderDash: [6, 6], fill: false, pointRadius: 0, tension: 0.4, borderWidth: 2 },
+                    { label: 'BOPREAL (BCRA) · * con rescate anticipado, no incluido', data: dataNew, backgroundColor: colorBop, pointStyle: 'rectRot', pointRadius: 9, hoverRadius: 11 }
                 ]
             },
             options: {
                 responsive: true, maintainAspectRatio: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2.5), layout: { padding: { right: 50 } }, 
-                plugins: { tooltip: { callbacks: { label: function(ctx) { return ctx.raw.bono ? ctx.raw.bono + ': TIR ' + ctx.raw.y.toFixed(2) + '% | ' + xaxTip(window.USD_AX || 'md', ctx.raw.x) : ''; } } }, legend: { labels: { usePointStyle: true, padding: 20 } } },
+                plugins: { tooltip: { callbacks: { label: function(ctx) { return ctx.raw.bono ? ctx.raw.bono + (ctx.raw.bop ? ' (BOPREAL ' + ctx.raw.bop.serie + (ctx.raw.bop.put ? ', con rescate anticipado no incluido' : '') + ')' : '') + ': TIR ' + ctx.raw.y.toFixed(2) + '% | ' + xaxTip(window.USD_AX || 'md', ctx.raw.x) : ''; } } }, legend: { labels: { usePointStyle: true, padding: 20 } } },
                 scales: {
                     x: { title: { display: true, text: xaxTitle(ax), font: { weight: 'bold' } }, grid: { color: colorBd, drawBorder: false }, ticks: { font: { size: 14 }, callback: function (v) { return v.toLocaleString('es-AR', { maximumFractionDigits: (window.USD_AX || 'md') === 'md' ? 1 : 0 }); } } },
                     y: { title: { display: true, text: 'TIR (%)', font: { weight: 'bold' } }, grid: { color: colorBd, drawBorder: false }, ticks: { font: { size: 14 }, callback: function(value) { return value.toFixed(0) + '%'; } } }
@@ -1422,12 +1441,16 @@ window.updateCurveChart = function() {
                     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--tx').trim(); 
                     ctx.textAlign = "left"; ctx.textBaseline = "middle";
 
+                    const used = []; // rótulos ya escritos: si uno pisaría a otro (BOPREAL con casi el mismo precio), baja una línea
                     chart.data.datasets.forEach(function(dataset, i) {
                         if (!chart.isDatasetVisible(i)) return; // serie oculta desde la leyenda: sin rótulos
                         if (dataset.data && dataset.data.length && dataset.data[0] && dataset.data[0].bono) {
                             const meta = chart.getDatasetMeta(i);
                             meta.data.forEach(function(element, index) {
-                                if (dataset.data[index].bono) ctx.fillText(dataset.data[index].bono, element.x + 12, element.y);
+                                if (!dataset.data[index].bono) return;
+                                let y = element.y; const x = element.x + 12;
+                                for (let k = 0; k < 8 && used.some(function (u) { return Math.abs(u[0] - x) < 52 && Math.abs(u[1] - y) < 14; }); k++) y += 14;
+                                used.push([x, y]); ctx.fillText(dataset.data[index].bono, x, y);
                             });
                         }
                     });
@@ -1594,6 +1617,7 @@ window.fetchLive = async function() {
        let row = arr[i];
        if (!row.symbol || !row.symbol.endsWith(especie)) continue;
        const b = B.find(function(x) { return x.k === row.symbol.slice(0, -1); });
+       const bq = BOP.find(function(x) { return x.k === row.symbol.slice(0, -1); }); if (bq && row.c > 0) bq.px[especie] = row.c;
        
        if (b && row.c > 0) { 
            if (b.p !== row.c && b.p > 0) {
