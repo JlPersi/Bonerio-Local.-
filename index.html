@@ -203,6 +203,12 @@ h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.5px; }
 
 .card { background: var(--card); border: 1px solid var(--bd); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; transition: background-color 0.3s, border-color 0.3s; }
 .ctl { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end }
+/* Curva Pesos: los controles de cada tarjeta en una grilla pareja (al sumar los supuestos no se desarma la fila) */
+#pesos .card > .ctl { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px 16px; align-items: end }
+#pesos .card > .ctl > label { min-width: 0 }
+#pesos .card > .ctl select, #pesos .card > .ctl input:not([type=checkbox]) { width: 100%; min-width: 0; max-width: none; height: 40px; box-sizing: border-box }
+#pesos .card > .ctl > button.act { height: 40px; padding-top: 0; padding-bottom: 0; justify-self: start }
+@media (max-width: 640px) { #pesos .card > .ctl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px } }
 .sx{position:relative}
 .sx .sxh{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .sx .qh{margin:0 0 4px;font-size:18px;font-weight:700;color:var(--tx)}
@@ -2497,7 +2503,7 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
 
   /* ---------- esqueleto ---------- */
   var root = document.getElementById('pesos');
-  var MIRn = function (n) { return '<label>Inflación mensual esperada (%)<input type="number" id="psPi' + n + '" step="0.1"></label><label>TAMAR esperada (TNA, %)<input type="number" id="psTam' + n + '" step="0.5"></label><label>Devaluación mensual esperada (%)<input type="number" id="psDev' + n + '" step="0.1"></label><label>Comparar con REM<select id="psRem' + n + '"><option value="1">Sí</option><option value="0">No</option></select></label>'; };
+  var MIRn = function (n) { return '<label title="Inflación mensual esperada">Inflación mensual (%)<input type="number" id="psPi' + n + '" step="0.1"></label><label title="TAMAR esperada">TAMAR (TNA, %)<input type="number" id="psTam' + n + '" step="0.5"></label><label title="Devaluación mensual esperada">Devaluación mensual (%)<input type="number" id="psDev' + n + '" step="0.1"></label><label>Comparar con REM<select id="psRem' + n + '"><option value="1">Sí</option><option value="0">No</option></select></label>'; };
   var RSTBn = function (n) { return '<button class="act psRst" data-n="' + n + '" title="Vuelve los supuestos de esta tarjeta y la curva a sus valores por defecto" data-html2canvas-ignore="true">Restablecer</button>'; };
   var MIRT = '<label>Mostrar tasa<select class="psMir" data-for="psMet"><option value="tnas">TNA simple (365/días)</option><option value="tna30">TNA 30/365 (TEM×365/30)</option><option value="tea">TEA</option><option value="tem">TEM</option></select></label>';
   var RSTB = '<button class="act psRst" title="Vuelve inflación, TAMAR, devaluación, trayectorias por mes y opciones a sus valores por defecto" data-html2canvas-ignore="true">Restablecer</button>';
