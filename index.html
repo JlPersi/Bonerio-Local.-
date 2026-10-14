@@ -2897,12 +2897,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     }
     var tx = css('--tx'), bd = css('--bd'), C1 = '#2563eb', C0 = '#7dd3fc', CI = '#f59e0b';
     var line = function (pts, c, lbl, dash) { if (pts.length < 3) return null; var q = fairFit(pts.map(function (p) { return { x: p.x, y: p.y, k: p.k }; }), pts === P1 || pts === P0 ? (g('psK1') ? g('psK1').value : 'auto') : 'log'); if (!q) return null; var a = Math.min.apply(null, pts.map(function (p) { return p.x; })), b = Math.max.apply(null, pts.map(function (p) { return p.x; }));
-      return { type: 'line', label: lbl, data: Array.from({ length: 61 }, function (_, i) { var x = a + (b - a) * i / 60; return { x: x, y: q.f(x) }; }), borderColor: c, borderWidth: 2, borderDash: dash || [], pointRadius: 0, fill: false, order: 3 }; };
+      var seg = function (u, v, d) { return { type: 'line', label: lbl, data: Array.from({ length: 61 }, function (_, i) { var x = u + (v - u) * i / 60; return { x: x, y: q.f(x) }; }), borderColor: c, borderWidth: 2, borderDash: d, pointRadius: 0, fill: false, order: 3 }; };
+      var out = [seg(a, b, dash || [])], z = Math.max.apply(null, PI.map(function (p) { return p.x; }).concat([b])); // más allá de la última Lecap/Boncap: extrapolada y punteada, para comparar los indexados más largos
+      if (z > b + 5) out.push(seg(b, z, [5, 5])); return out; };
     var sets = [], l1 = line(P1, C1, 'Curva tasa fija ' + lab(t1)), l0 = line(P0, C0, 'Curva tasa fija ' + lab(tp));
     sets.push({ type: 'scatter', label: 'Lecaps y Boncaps ' + lab(t1), data: P1, backgroundColor: C1, borderColor: C1, pointRadius: 6, hoverRadius: 8, order: 0 });
     if (P0.length) sets.push({ type: 'scatter', label: 'Lecaps y Boncaps ' + lab(tp), data: P0, noLabel: true, backgroundColor: C0, borderColor: C0, pointRadius: 5, hoverRadius: 7, order: 1, tp: tp });
     if (PI.length) sets.push({ type: 'scatter', label: 'CER, TAMAR y duales (▲) con supuestos', data: PI, backgroundColor: CI, borderColor: CI, pointRadius: 6, hoverRadius: 8, pointStyle: PI.map(function (p) { return p.dual ? 'triangle' : 'circle'; }), order: 2 });
-    [l1, l0].forEach(function (l) { if (l) sets.push(l); });
+    [l1, l0].forEach(function (l) { if (l) l.forEach(function (d) { sets.push(d); }); });
     var unit = mt === 'tem' ? 'TEM' : 'TEA';
     mkChart('psCI', 'ci', { type: 'scatter', data: { datasets: sets }, plugins: [LABELS], options: { responsive: true, maintainAspectRatio: false, layout: { padding: { right: 28, top: 6 } },
       plugins: { legend: { labels: { color: tx, usePointStyle: true, filter: function (it) { return !/^Curva tasa fija/.test(it.text); } } },
@@ -2910,7 +2912,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       scales: { x: { type: 'linear', min: 0, title: { display: true, text: 'Días al vencimiento', color: tx }, ticks: { color: tx }, grid: { color: bd } },
         y: { title: { display: true, text: unit + ' (%)', color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 2) + '%'; } }, grid: { color: bd } } } } });
     var pi = parseFloat(cardV(2, 'psPi')), ta = parseFloat(cardV(3, 'psTam'));
-    g('psIKn').textContent = 'Supuestos de los indexados: inflación ' + (isFinite(pi) ? fm(pi, 1) + '% mensual (tarjeta CER)' : 'de la tarjeta CER') + ' y TAMAR ' + (isFinite(ta) ? fm(ta, 1) + '% TNA (tarjeta TAMAR)' : 'de la tarjeta TAMAR') + '; si cargaste el escenario por mes, rige ese. Tasa fija: precio de mercado, sin comisiones. ' + (N > 0 ? (P0.length ? 'Celeste: cierre de ' + lab(tp) + ' (' + N + (N === 1 ? ' rueda' : ' ruedas') + ' atrás).' : 'Sin precios guardados para ' + lab(tp) + '.') : '');
+    g('psIKn').textContent = 'Supuestos de los indexados: inflación ' + (isFinite(pi) ? fm(pi, 1) + '% mensual (tarjeta CER)' : 'de la tarjeta CER') + ' y TAMAR ' + (isFinite(ta) ? fm(ta, 1) + '% TNA (tarjeta TAMAR)' : 'de la tarjeta TAMAR') + '; si cargaste el escenario por mes, rige ese. Tasa fija: precio de mercado, sin comisiones; la curva punteada es extrapolada más allá de la última Lecap o Boncap del gráfico. ' + (N > 0 ? (P0.length ? 'Celeste: cierre de ' + lab(tp) + ' (' + N + (N === 1 ? ' rueda' : ' ruedas') + ' atrás).' : 'Sin precios guardados para ' + lab(tp) + '.') : '');
   }
   function renderCharts(PER) { // PER[n] = { S, S0, SC }: cada gráfico se calcula con los supuestos de su tarjeta
     var met = METN(), mid = document.getElementById('psMet').value, S = PER[1].S, by;
