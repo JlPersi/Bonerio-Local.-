@@ -327,8 +327,19 @@ function mktNow(){if(MKT)return MKT;try{const X=parent!==window&&parent.PSX;if(!
 const REFX={fija:"c1",cer:"c2",tamar:"c3",dl:"c4",dual:"c5"};
 function views(){try{return parent!==window&&parent.PSX&&parent.PSX.views?parent.PSX.views():null}catch(e){console.error(e);return null}}
 // el mismo gráfico de Curva Pesos (métrica, curva, eje y plazo elegidos allá), con el instrumento del llamado resaltado
-function proxSVG(x,V,M,W){
-  const fit=V.fit,yrs=V.yrs,lg=V.useLog,P=V.P;
+// corte de la licitación en la métrica del gráfico: tasa oficial (TIREA o margen) llevada a TEA, TEM, TNA, etc.; en duales, la pata TAMAR calculada al cargar el resultado
+function cutIn(x,V,c){
+  const R=RES[c],A=LD.AUC.find(a=>a.c===c),r=R&&R.instrumentos.find(i=>i.t===x.t),z=A&&A.cuts.find(q=>q.t===x.t);if(!r&&!z)return null;
+  const lab=V.spec&&V.spec.label||V.yl||"",d=Math.max(1,Math.round((parseVe(x.ve)-P(CAL.find(k=>k[1]===c)[2]))/864e5));
+  if(x.f==="dual")return /^Margen sobre TAMAR/.test(lab)&&z&&z.y!=null?{y:z.y}:{na:1};
+  if(!r||r.tasa==null)return {na:1};
+  if(x.f==="tamar")return /^Margen sobre TAMAR/.test(lab)?{y:r.tasa}:{na:1};
+  let T=r.tasa/100;if(/TNA/.test(r.u||""))T=Math.pow(1+T*d/365,365/d)-1;
+  const tem=Math.pow(1+T,30/365)-1,v=/^TNA simple/.test(lab)?(Math.pow(1+T,d/365)-1)*365/d:/^TEM/.test(lab)?tem:/^TEA|^TIR real \(TEA, %\)$/.test(lab)?T:/^TNA (real |en USD )?30\/365/.test(lab)?tem*365/30:null;
+  return v==null?{na:1}:{y:v*100};
+}
+function proxSVG(x,V,M,W,cut){
+  const fit=V.fit,yrs=V.yrs,lg=V.useLog,P=V.P;cut=cut&&cut.y!=null?cut:null;
   let me=P.find(p=>p.k===x.t),src=me?"in":null,o=null;
   if(!me&&(o=V.data.find(q=>q.k===x.t)||M.S.find(q=>q.k===x.t))){const v=V.spec.val(o),xv=V.xOf(o);if(v!=null&&isFinite(v)&&xv>0){me={x:xv,y:v*100,k:x.t};src="out"}}
   const isNew=!o&&!me;
@@ -337,7 +348,7 @@ function proxSVG(x,V,M,W){
     me={x:xv,y:fit.f(Math.min(Math.max(xv,V.fx0),V.fx1)),k:x.t,nw:1};src="new"}
   const H=Math.round(Math.max(290,Math.min(360,W*.72))),m={l:60,r:16,t:14,b:44},iw=W-m.l-m.r,ih=H-m.t-m.b;
   let a0=V.ax0,a1=V.ax1,y0=V.ylo,y1=V.yhi;
-  if(me){if(me.x<a0)a0=lg?me.x*.85:me.x-(a1-a0)*.04;if(me.x>a1)a1=lg?me.x*1.12:me.x+(a1-a0)*.04;const q=(y1-y0)*.08;if(me.y-q<y0)y0=me.y-q;if(me.y+q>y1)y1=me.y+q}
+  if(me){if(me.x<a0)a0=lg?me.x*.85:me.x-(a1-a0)*.04;if(me.x>a1)a1=lg?me.x*1.12:me.x+(a1-a0)*.04;const q=(y1-y0)*.08;if(me.y-q<y0)y0=me.y-q;if(me.y+q>y1)y1=me.y+q;if(cut){if(cut.y-q<y0)y0=cut.y-q;if(cut.y+q>y1)y1=cut.y+q}}
   const X=v=>m.l+(lg?Math.log(v/a0)/Math.log(a1/a0):(v-a0)/(a1-a0))*iw,Y=v=>m.t+(1-(v-y0)/(y1-y0))*ih;
   const nice=sp=>{const r=sp/6,e=Math.pow(10,Math.floor(Math.log10(r))),f=r/e;return (f<1.5?1:f<3?2:f<7?5:10)*e};
   const ys=nice(y1-y0),xs=nice(a1-a0),dec=v=>v<1?(v<.1?2:1):0;
@@ -356,14 +367,18 @@ function proxSVG(x,V,M,W){
     s+=p.dual?`<path d="${tri(cx,cy,5)}" fill="${cl(p)}">${tip}</path>`:`<circle cx="${cx}" cy="${cy}" r="5" fill="${cl(p)}">${tip}</circle>`});
   let box=null;
   if(me){const cx=X(me.x),cy=Y(me.y),inR=fit&&me.x>=V.fx0-1e-9&&me.x<=V.fx1+1e-9,fy=src!=="new"&&inR?fit.f(me.x):null,pb=fy!=null?(me.y-fy)*100:null,du=x.f==="dual";
-    const l2=src==="new"?"Nuevo · sobre la curva":"Reapertura"+(pb!=null?` · ${pb>0?"+":""}${nf(pb,0)} pb vs curva`:src==="out"?" · fuera del plazo elegido":"");
+    const sg=v=>(v>0?"+":"")+nf(v,0)+" pb";let l2=src==="new"?"Nuevo · sobre la curva":"Reapertura"+(pb!=null?` · ${sg(pb)} vs curva`:src==="out"?" · fuera del plazo elegido":""),t1=`${x.t} ${nf(me.y,2)}%`,ky=cy;
+    if(cut){const fc=inR?fit.f(me.x):null,pm=src!=="new"?(cut.y-me.y)*100:null,pc=fc!=null?(cut.y-fc)*100:null;ky=Y(cut.y);t1=`${x.t} corte ${nf(cut.y,2)}%`;
+      l2=[pm!=null?`${sg(pm)} vs mercado (${nf(me.y,2)}%)`:null,pc!=null?`${sg(pc)} vs curva`:null].filter(Boolean).join(" · ")||"sin comparación en este plazo";
+      if(Math.abs(ky-cy)>2)s+=`<line x1="${cx}" x2="${cx}" y1="${cy}" y2="${ky}" stroke="var(--ac)" stroke-width="2"/>`}
     if(fy!=null&&Math.abs(Y(fy)-cy)>2)s+=`<line x1="${cx}" x2="${cx}" y1="${cy}" y2="${Y(fy)}" stroke="var(--ac)" stroke-width="1.5" stroke-dasharray="3 3"/>`;
     const fill=src==="new"?"var(--soft)":(V.col||{})[x.t]||"var(--ac)",dash=src==="new"?' stroke-dasharray="3 2"':"";
     s+=du?`<path d="${tri(cx,cy,8)}" fill="${fill}" stroke="var(--ac)" stroke-width="2.5"${dash}/>`:`<circle cx="${cx}" cy="${cy}" r="8" fill="${fill}" stroke="var(--ac)" stroke-width="2.5"${dash}/>`;
-    const lw=Math.max((x.t.length+8)*7,l2.length*6.6),fr=cx+14+lw<=W-m.r,fl=cx-14-lw>=m.l,right=fr&&(cx<m.l+iw*.62||!fl),an=right?"start":fl?"end":"middle",tx=right?cx+14:fl?cx-14:Math.min(Math.max(cx,m.l+lw/2),W-m.r-lw/2);
-    const up=cy>m.t+ih*.45,ty=Math.min(Math.max(up?cy-30:cy+24,m.t+12),m.t+ih-16);
+    if(cut)s+=`<circle cx="${cx}" cy="${ky}" r="6" fill="var(--ac)" stroke="var(--card)" stroke-width="2"><title>Corte de la licitación: ${nf(cut.y,2)}%</title></circle>`;
+    const lw=Math.max(t1.length*7.1,l2.length*6.6),fr=cx+14+lw<=W-m.r,fl=cx-14-lw>=m.l,right=fr&&(cx<m.l+iw*.62||!fl),an=right?"start":fl?"end":"middle",tx=right?cx+14:fl?cx-14:Math.min(Math.max(cx,m.l+lw/2),W-m.r-lw/2);
+    const up=ky>m.t+ih*.45,ty=Math.min(Math.max(up?Math.min(cy,ky)-30:Math.max(cy,ky)+24,m.t+12),m.t+ih-16);
     box={x1:an==="start"?tx-4:an==="middle"?tx-lw/2-4:tx-lw-4,x2:an==="start"?tx+lw+4:an==="middle"?tx+lw/2+4:tx+4,y1:ty-13,y2:ty+18};
-    s+=`<text class="lb" x="${tx}" y="${ty}" text-anchor="${an}">${x.t} ${nf(me.y,2)}%</text><text class="pbx" x="${tx}" y="${ty+14}" text-anchor="${an}" style="fill:var(--ac)">${l2}</text>`;
+    s+=`<text class="lb" x="${tx}" y="${ty}" text-anchor="${an}">${t1}</text><text class="pbx" x="${tx}" y="${ty+14}" text-anchor="${an}" style="fill:var(--ac)">${l2}</text>`;
   }else s+=`<text x="${m.l+iw/2}" y="${m.t+16}" text-anchor="middle" style="fill:var(--mu)">Sin datos para ubicarlo en esta métrica</text>`;
   P.forEach(p=>{if(p.k===x.t)return;const cx=X(p.x),cy=Y(p.y)-9,hw=p.k.length*2.9;if(box&&cx+hw>box.x1&&cx-hw<box.x2&&cy>box.y1&&cy-9<box.y2)return;s+=`<text x="${cx}" y="${cy}" text-anchor="middle" style="font-size:9.5px;fill:var(--mu)">${p.k}</text>`});
   return s+"</svg>";
@@ -384,10 +399,10 @@ function renderProx(){
   if(ll&&llamadoHecho){
     const M=mktNow();
     h+=`<div class="inst"><span class="mut" style="font-size:13px">A licitar:</span>${ll.map(x=>{const st=M?(M.S.some(o=>o.k===x.t&&!o.miss)?"reapertura":"nuevo"):"";return `<span class="chip">${x.t}<i>${x.k}${st?" · "+st:""}</i></span>`}).join("")}</div>`;
-    const VS=M&&views();
+    const VS=M&&views(),hayR=dias(c)<=0&&!!(r||LD.AUC.find(a=>a.c===c));
     if(VS){const W=Math.max(260,Math.floor(($("#prox").clientWidth-40-(innerWidth>900?14:0))/(innerWidth>900?2:1)-26));
-      h+=`<div class="sw" style="margin-top:16px"><span><i style="background:#34d399"></i>Rinde más que la curva (barato)</span><span><i style="background:#fb7185"></i>Rinde menos (caro)</span><span><i style="background:none;border:2.5px solid var(--ac)"></i>Instrumento del llamado</span><span>▲ Dual</span></div><p class="note" style="margin:6px 0 10px">Cada gráfico es el de Curva Pesos con lo que tengas elegido allá (métrica, curva, eje X, plazo máximo y duales).</p><div class="cg">`;
-      ll.forEach(x=>{const V=VS[REFX[x.f]];h+=`<div class="cc"><h3>${x.t} · ${x.k}</h3><div class="u">Vence ${x.ve}${V?" · "+V.yl+(V.fit?" · curva "+V.fit.name.toLowerCase():""):""}</div>${V?proxSVG(x,V,M,W):'<div class="empty">Sin gráfico en Curva Pesos para esta familia.</div>'}</div>`});
+      h+=`<div class="sw" style="margin-top:16px"><span><i style="background:#34d399"></i>Rinde más que la curva (barato)</span><span><i style="background:#fb7185"></i>Rinde menos (caro)</span><span><i style="background:none;border:2.5px solid var(--ac)"></i>Instrumento del llamado${hayR?", hoy":""}</span>${hayR?'<span><i style="background:var(--ac)"></i>Corte de la licitación</span>':""}<span>▲ Dual</span></div><p class="note" style="margin:6px 0 10px">Cada gráfico es el de Curva Pesos con lo que tengas elegido allá (métrica, curva, eje X, plazo máximo y duales).${hayR?" Con el resultado cargado, el corte se compara con el precio de hoy del mismo bono y con la curva de hoy; se mueve con el mercado.":""}</p><div class="cg">`;
+      ll.forEach(x=>{const V=VS[REFX[x.f]],cu=hayR&&V?cutIn(x,V,c):null;h+=`<div class="cc"><h3>${x.t} · ${x.k}</h3><div class="u">Vence ${x.ve}${V?" · "+V.yl+(V.fit?" · curva "+V.fit.name.toLowerCase():""):""}${cu&&cu.na?" · el corte se muestra con TEA, TEM, TNA o margen sobre TAMAR":""}</div>${V?proxSVG(x,V,M,W,cu):'<div class="empty">Sin gráfico en Curva Pesos para esta familia.</div>'}</div>`});
       h+=`</div>`;
     }else h+=`<div class="empty">Los gráficos de cada instrumento son los de Curva Pesos: abrí esta sección desde la pestaña Licitaciones del sitio.</div>`;
   }else if(r&&llamadoHecho){
