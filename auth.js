@@ -67,7 +67,10 @@
     '@media(max-width:900px){#blIntro .mn,#blIntro .cg{grid-template-columns:1fr;gap:28px}#blIntro .mn{padding-top:30px}#blIntro .ac,#blIntro .pv{position:static}#blIntro .pv{order:-1}#blIntro .w{padding:0 16px}#blIntro .st{display:none}#blIntro .t b{font-size:20px}#blIntro .t svg{width:38%;height:34px}#blIntro .cat{padding-top:50px}#blIntro .ld{font-size:15px}}' +
     '#blUser{position:relative}#blUser>button{width:40px;height:40px;border-radius:50%;border:1px solid var(--bd);background:var(--card);color:var(--tx);font:700 15px Inter,system-ui,sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0}#blUser>button img{width:100%;height:100%;object-fit:cover}' +
     '#blUser .mn{display:none;position:absolute;right:0;top:48px;z-index:100;min-width:220px;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px;box-shadow:0 10px 30px rgba(0,0,0,.35)}#blUser.on .mn{display:block}' +
-    '#blUser .mn div{padding:8px 10px;font-size:13px;color:var(--mu);word-break:break-all}#blUser .mn button{width:100%;text-align:left;background:none;border:0;border-radius:6px;padding:9px 10px;color:var(--tx);font:500 14px Inter,system-ui,sans-serif;cursor:pointer}#blUser .mn button:hover{background:var(--bd)}';
+    '#blUser .mn div{padding:8px 10px;font-size:13px;color:var(--mu);word-break:break-all}#blUser .mn button{width:100%;text-align:left;background:none;border:0;border-radius:6px;padding:9px 10px;color:var(--tx);font:500 14px Inter,system-ui,sans-serif;cursor:pointer}#blUser .mn button:hover{background:var(--bd)}' +
+    '#blLive{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;padding:70px 16px 16px;overflow:auto}#blLive .bx{width:100%;max-width:760px;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:18px 20px;color:var(--tx);font:14px Inter,system-ui,sans-serif;box-shadow:0 20px 50px rgba(0,0,0,.4)}' +
+    '#blLive h3{margin:0;font-size:18px}#blLive h4{margin:18px 0 8px;font-size:13px;color:var(--mu);text-transform:uppercase;letter-spacing:.04em}#blLive .hd{display:flex;justify-content:space-between;align-items:center;gap:12px}#blLive .x{background:none;border:1px solid var(--bd);border-radius:8px;color:var(--tx);width:34px;height:34px;cursor:pointer;font-size:18px}' +
+    '#blLive .tw{overflow-x:auto}#blLive table{width:100%;border-collapse:collapse}#blLive td,#blLive th{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:left;font-size:13px}#blLive th{color:var(--mu);font-weight:600;font-size:11px;text-transform:uppercase}#blLive .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;margin-right:6px}#blLive .mu{color:var(--mu);font-size:12px;margin:10px 0 0}';
 
   var EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
   var G = '<svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
@@ -140,7 +143,7 @@
   function unlock() {
     if (ov) ov.style.display = 'none'; document.documentElement.classList.remove('blg');
     try { window.dispatchEvent(new Event('resize')); } catch (e) { }
-    chip();
+    chip(); live();
   }
   function er(t) { // errores de Supabase en castellano
     if (/email logins are disabled|provider is not enabled|unsupported provider/i.test(t)) return 'Este modo de ingreso todavía no está habilitado. Probá con el otro o escribinos.';
@@ -286,10 +289,55 @@
     d.firstChild.onclick = function (e) { e.stopPropagation(); d.classList.toggle('on'); };
     d.querySelector('[data-out]').onclick = function () { d.classList.remove('on'); logout(); };
     document.addEventListener('click', function (e) { if (!d.contains(e.target)) d.classList.remove('on'); });
+    if (LV.adm) lvBtn();
+  }
+  // presencia: mientras la página está a la vista, cada sesión avisa cada minuto qué pestaña mira (tabla public.presencia en Supabase).
+  // La lectura la limita la base (RLS): cada uno ve solo su fila y el administrador ve todas; a él se le suma «Conectados ahora» en el menú de la cuenta.
+  var LV = { t: null, since: new Date().toISOString(), ok: true, adm: false, rt: null };
+  function lvTab() { var b = document.querySelector('.tab-btn.active'); return b ? b.textContent.trim() : ''; }
+  function ping() {
+    if (!sb || !user || !LV.ok || document.visibilityState !== 'visible') return;
+    var m = user.user_metadata || {};
+    sb.from('presencia').upsert({ user_id: user.id, email: user.email || null, nombre: m.full_name || m.name || null, pestana: lvTab(), dispositivo: /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent) ? 'Celular' : 'Compu', desde: LV.since, visto: new Date().toISOString() }, { onConflict: 'user_id' })
+      .then(function (r) { if (r.error) { LV.ok = false; clearInterval(LV.t); LV.t = null; return; } if (!LV.adm) admin(); }, function () { }); // sin la tabla (o sin permiso) deja de intentar hasta recargar
+  }
+  function live() {
+    if (!sb || !user || LV.t) return; ping(); LV.t = setInterval(ping, 60000);
+    if (!LV.on) { LV.on = 1; document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') ping(); });
+      document.addEventListener('click', function (e) { if (e.target && e.target.closest && e.target.closest('.tab-btn')) setTimeout(ping, 100); }); }
+  }
+  function admin() { // si la base le deja ver filas de otros, es el administrador
+    sb.from('presencia').select('user_id').neq('user_id', user.id).limit(1).then(function (r) { if (!r.error && r.data && r.data.length) { LV.adm = true; lvBtn(); } }, function () { });
+  }
+  function lvBtn() {
+    var d = document.getElementById('blUser'); if (!d || d.querySelector('[data-live]')) return;
+    var b = document.createElement('button'); b.setAttribute('data-live', ''); b.textContent = 'Conectados ahora'; d.querySelector('.mn').insertBefore(b, d.querySelector('[data-out]'));
+    b.onclick = function () { d.classList.remove('on'); lvOpen(); };
+  }
+  function ago(t) { var m = Math.round((Date.now() - new Date(t).getTime()) / 60000); return m < 1 ? 'recién' : m < 60 ? 'hace ' + m + ' min' : m < 1440 ? 'hace ' + Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : new Date(t).toLocaleDateString('es-AR'); }
+  function hm(t) { return new Date(t).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }); }
+  function lvOpen() {
+    var w = document.getElementById('blLive'); if (!w) { w = document.createElement('div'); w.id = 'blLive'; w.setAttribute('data-html2canvas-ignore', 'true'); document.body.appendChild(w);
+      w.addEventListener('click', function (e) { if (e.target === w || (e.target.closest && e.target.closest('.x'))) { w.remove(); clearInterval(LV.rt); } }); }
+    w.innerHTML = '<div class="bx"><div class="hd"><h3>Conectados ahora</h3><button class="x" title="Cerrar">×</button></div><div data-b><p class="mu">Cargando…</p></div></div>';
+    var load = function () {
+      sb.from('presencia').select('email,nombre,pestana,dispositivo,desde,visto').order('visto', { ascending: false }).limit(300).then(function (r) {
+        var b = w.querySelector('[data-b]'); if (!b) return; if (r.error) { b.innerHTML = '<p class="mu">No se pudo leer: ' + esc(r.error.message) + '</p>'; return; }
+        var now = Date.now(), on = [], day = [];
+        (r.data || []).forEach(function (x) { var age = now - new Date(x.visto).getTime(); if (age < 150000) on.push(x); else if (age < 864e5) day.push(x); });
+        var who = function (x) { return '<b>' + esc(x.nombre || x.email || '—') + '</b>' + (x.nombre && x.email ? '<div class="mu" style="margin:2px 0 0">' + esc(x.email) + '</div>' : ''); };
+        b.innerHTML = '<h4>En este momento: ' + on.length + '</h4>' + (on.length ? '<div class="tw"><table><tr><th>Usuario</th><th>Pestaña</th><th>Equipo</th><th>Entró</th></tr>' + on.map(function (x) { return '<tr><td><span class="dot"></span>' + who(x) + '</td><td>' + esc(x.pestana || '—') + '</td><td>' + esc(x.dispositivo || '') + '</td><td>' + ago(x.desde) + '</td></tr>'; }).join('') + '</table></div>' : '<p class="mu">Nadie más que vos.</p>') +
+          '<h4>Últimas 24 horas: ' + day.length + '</h4>' + (day.length ? '<div class="tw"><table><tr><th>Usuario</th><th>Última pestaña</th><th>Equipo</th><th>Visto</th></tr>' + day.map(function (x) { return '<tr><td>' + who(x) + '</td><td>' + esc(x.pestana || '—') + '</td><td>' + esc(x.dispositivo || '') + '</td><td>' + hm(x.visto) + '<div class="mu" style="margin:2px 0 0">' + ago(x.visto) + '</div></td></tr>'; }).join('') + '</table></div>' : '<p class="mu">Nadie.</p>') +
+          '<p class="mu">Cuenta como conectado quien tiene la página a la vista (avisa cada minuto). Se actualiza solo cada 20 segundos.</p>';
+      }, function () { });
+    };
+    load(); clearInterval(LV.rt); LV.rt = setInterval(function () { if (!document.getElementById('blLive')) { clearInterval(LV.rt); return; } load(); }, 20000);
   }
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function logout() {
-    var c = document.getElementById('blUser'); if (c) c.remove(); user = null;
+    var c = document.getElementById('blUser'); if (c) c.remove();
+    if (sb && user && LV.ok) { try { sb.from('presencia').delete().eq('user_id', user.id).then(function () { }, function () { }); } catch (e) { } }
+    user = null; clearInterval(LV.t); LV.t = null;
     if (sb) sb.auth.signOut().then(function () { lock(); }); else lock();
   }
 
