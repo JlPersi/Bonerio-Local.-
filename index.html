@@ -535,7 +535,7 @@ window.curveFitUSD = function (pts, model, minN) {
     <div class="sxh"><div style="min-width:0"><p class="qh">Flujo de Caja Proyectado</p></div><div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD('cfChartContainer', 'Soberanos_CashFlow')" title="Descargar Flujo en HD"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>
     <div class="ctl sxc"><label>Elegir Bono a Inspeccionar<select id="cfBondSelect" onchange="if(window.updateCFChart) window.updateCFChart()"></select></label>
       <label>Nominales (VN)<input type="number" id="cfNominal" value="100" min="1" step="100" style="width: 140px;" oninput="if(window.updateCFChart) window.updateCFChart()"></label>
-      <label>Precio de compra (USD c/100 VN)<input type="number" id="cfPrice" step="0.01" style="width: 190px;" oninput="if(window.updateCFChart) window.updateCFChart()"></label>
+      <label><span id="cfPriceL">Precio de compra (USD c/100 VN)</span><input type="number" id="cfPrice" step="0.01" style="width: 190px;" oninput="if(window.updateCFChart) window.updateCFChart()"></label>
       <label>Escala
           <select id="cfScale" onchange="if(window.updateCFChart) window.updateCFChart()">
               <option value="auto" selected>Automática</option>
@@ -556,14 +556,14 @@ window.curveFitUSD = function (pts, model, minN) {
 <hr style="border: 0; border-top: 1px solid var(--bd); margin: 36px 0;">
 
   <div class="card sx" id="breakdownContainer">
-    <div class="sxh"><div style="min-width:0"><p class="qh">Atribución del Total Return Global</p><p class="qs">Comparativa de ganancia entre efecto capital (pull to par) y cobro de flujos para toda la curva.</p></div><div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD('breakdownContainer', 'Soberanos_Desglose_TR')" title="Descargar Desglose en HD"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>
+    <div class="sxh"><div style="min-width:0"><p class="qh">Atribución del Total Return Global</p><p class="qs">Comparativa de ganancia entre efecto capital (pull to par) y cobro de flujos para toda la curva.</p></div><div class="sxb"><label data-html2canvas-ignore="true" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu)">Bonos<select id="bdCcy" style="width:auto" onchange="if(window.bdRender) window.bdRender()"><option value="usd" selected>Dólares</option><option value="ars">Pesos con cupones (CER y tasa fija)</option></select></label><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD('breakdownContainer', 'Soberanos_Desglose_TR')" title="Descargar Desglose en HD"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>
       <div class="chart-wrap" style="height: 450px; margin-top: 0;">
         <canvas id="breakdownChart"></canvas>
       </div>
       <div class="wrap" style="margin-top: 24px;">
           <table id="breakdownTable"></table>
       </div>
-      <p class="note xp" style="margin-top: 14px;">Efecto capital = cambio del valor residual del bono entre la compra y la fecha de corte, con la TIR de hoy constante (converge a la par: pull to par). En los bonos que amortizan es negativo porque el capital devuelto se cuenta en el efecto flujo.</p>
+      <p class="note xp" style="margin-top: 14px;">Efecto capital = cambio del valor residual del bono entre la compra y la fecha de corte, con la TIR de hoy constante (converge a la par: pull to par). En los bonos que amortizan es negativo porque el capital devuelto se cuenta en el efecto flujo. En pesos: precio y flujos en pesos, con la TIR nominal de hoy (los CER con la inflación de la tarjeta CER de Curva Pesos) y sin reinvertir los cobros.</p>
   </div>
 </div>
 
@@ -1062,7 +1062,7 @@ function draw() {
   (bestM ? card(3, 'Más margen contra reinvertir', '<em>' + bestM.k + '</em> · ' + pc(bestM.r.beu), 'Le gana a reinvertir al ' + pc(u) + ' mientras su TIR de salida no pase de ' + pc(bestM.r.beu) + ': puede subir ' + pb(bestM.mreinv) + ' pb desde hoy.') : '') +
   card(4, 'Si ninguna TIR cambia', pc(avgCst, 1), 'Retorno promedio de los ' + rows.length + ' bonos hasta el ' + fc + ': el promedio de la columna Ret. TIR constante.');
  
- updateBreakdownChart(rows);
+ window.bdUsd = rows; if (window.bdRender) window.bdRender(); else updateBreakdownChart(rows, false);
  if(window.updateCFChart) window.updateCFChart();
 
  if ($('curva') && $('curva').classList.contains('active')) {
@@ -1071,7 +1071,18 @@ function draw() {
  }
 }
 
-function updateBreakdownChart(rows) {
+window.bdRender = function() { // atribución: los bonos en dólares de la tabla o los bonos en pesos con cupones (con la TIR de hoy constante, sin reinvertir)
+    const ars = $('bdCcy') && $('bdCcy').value === 'ars', PS = window.PSX;
+    if (!ars || !PS || !PS.cfList) { updateBreakdownChart(window.bdUsd || [], false); return; }
+    const d1 = day($('d1').value);
+    updateBreakdownChart(PS.cfList().map(function(k) {
+        const c = PS.bondCF(k); if (!c || c.tea == null) return null;
+        const cash = c.fl.reduce(function(a, x) { return a + (x[0] <= d1 ? x[1] : 0); }, 0), post = c.fl.filter(function(x) { return x[0] > d1; });
+        return { k: k, r: { tir: c.tea, entry_p: c.P, cash_out: cash, mtm_exit: post.length ? PS.pvAt(post, d1, c.tea) : 0 } };
+    }).filter(Boolean), true);
+};
+
+function updateBreakdownChart(rows, ars) {
     const canvas = $('breakdownChart');
     if (!canvas) return;
 
@@ -1097,7 +1108,7 @@ function updateBreakdownChart(rows) {
         capitalPnlPct.push(capPct);
         couponPnlPct.push(cupPct);
         
-        const usd = function(v) { return '$' + v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+        const usd = function(v) { return (ars ? '$ ' : 'US$ ') + v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
         let flashCls = item.flash ? ' class="' + item.flash + '"' : '';
 
         tableHtml += '<tr>' +
@@ -1166,24 +1177,33 @@ function updateBreakdownChart(rows) {
 window.updateCFChart = function() {
     const canvas = $('cfChart');
     if (!canvas || typeof Chart === 'undefined') return;
-    const b = B.find(function(x) { return x.k === $('cfBondSelect').value; });
-    if (!b) return;
+    const sel = $('cfBondSelect'), PS = window.PSX;
+    if (PS && PS.cfList && !sel.querySelector('optgroup')) { // los bonos en pesos que pagan cupones o amortizan, debajo de los de dólares
+        const cur = sel.value, pl = PS.cfList();
+        sel.innerHTML = '<optgroup label="Dólares">' + B.map(function(b) { return '<option value="' + b.k + '">' + b.k + '</option>'; }).join('') + '</optgroup>' +
+            (pl.length ? '<optgroup label="Pesos (cupones y amortizaciones)">' + pl.map(function(k) { return '<option value="' + k + '">' + k + ' · ' + (PS.INST[k].k === 'cerc' ? 'CER' : 'tasa fija') + '</option>'; }).join('') + '</optgroup>' : '');
+        sel.value = cur;
+    }
+    const b = B.find(function(x) { return x.k === sel.value; }), pb = b ? null : (PS && PS.bondCF ? PS.bondCF(sel.value) : null);
+    if (!b && !pb) return;
+    const ars = !!pb, cur$ = ars ? '$ ' : 'USD ', mkt = ars ? pb.P : b.mkt_p;
+    if (sel.dataset.k !== sel.value) { sel.dataset.k = sel.value; $('cfPrice').value = ''; } // al cambiar de bono vuelve al precio de mercado (pesos y dólares no se mezclan)
+    $('cfPriceL').textContent = 'Precio de compra (' + (ars ? '$' : 'USD') + ' c/100 VN)';
 
     const d0 = day($('d0').value), d1 = day($('d1').value);
     let VN = parseFloat($('cfNominal').value); if (!isFinite(VN) || VN <= 0) VN = 100;
     const f = VN / 100;
-    let P = parseFloat($('cfPrice').value); if (!isFinite(P) || P <= 0) P = b.mkt_p;
-    $('cfPrice').placeholder = b.mkt_p.toFixed(2) + ' (mercado)';
+    let P = parseFloat($('cfPrice').value); if (!isFinite(P) || P <= 0) P = mkt;
+    $('cfPrice').placeholder = mkt.toFixed(2) + ' (mercado)';
 
-    const flows = b.f.filter(function(x) { return x[0] > d0; });
-    const rows = flows.map(function(x) {
+    const rows = ars ? pb.rows.map(function(r) { return { t: r.t, renta: r.renta * f, amort: r.amort * f, total: r.total * f, res: r.res * f }; }) : b.f.filter(function(x) { return x[0] > d0; }).map(function(x) {
         const cap = Math.min(bxCapAt(b.k, x[0]), x[1]);
         const res = bxResAfter(b.k, x[0]);
         return { t: x[0], renta: (x[1] - cap) * f, amort: cap * f, total: x[1] * f, res: res == null ? null : res * f };
     });
     let acc = 0; rows.forEach(function(r) { acc += r.total; r.acum = acc; });
 
-    const usd = function(v) { return 'USD ' + v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+    const usd = function(v) { return cur$ + v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
     const fd = function(t) { return new Date(t * 864e5).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: '2-digit', timeZone: 'UTC' }); };
     const sum = function(arr, key, upTo) { return arr.reduce(function(s, r) { return s + (r.t <= upTo ? r[key] : 0); }, 0); };
     const inv = VN * P / 100;
@@ -1191,7 +1211,7 @@ window.updateCFChart = function() {
     const rCut = sum(rows, 'renta', d1), aCut = sum(rows, 'amort', d1), cCut = rCut + aCut;
     const card = function(t, v, s, c) { return '<div class="spread-box"><div class="spread-title">' + (c ? '<i class="dot" style="background:' + c + '"></i>' : '') + '<span>' + t + '</span></div><div class="spread-val">' + v + '</div><div class="note">' + s + '</div></div>'; }; // el cuadradito de color es el de la serie del gráfico
     $('cfStats').innerHTML =
-        card('Inversión', usd(inv), 'VN ' + VN.toLocaleString('es-AR') + ' a USD ' + P.toFixed(2) + ' c/100', '') +
+        card('Inversión', usd(inv), 'VN ' + VN.toLocaleString('es-AR') + ' a ' + cur$ + P.toFixed(2) + ' c/100', '') +
         card('Renta cobrada', usd(rCut), 'Al corte (' + fd(d1) + ') · hasta vto.: ' + usd(rTot), 'var(--c-cup)') +
         card('Amortización cobrada', usd(aCut), 'Al corte · hasta vto.: ' + usd(aTot), 'var(--c-cap)') +
         card('Total cobrado al corte', usd(cCut), (inv > 0 ? (cCut / inv * 100).toFixed(1).replace('.', ',') + '% de la inversión · ' : '') + 'hasta vto.: ' + usd(cTot), '');
@@ -1224,7 +1244,7 @@ window.updateCFChart = function() {
     ];
     const scales = {
         x: { stacked: true, grid: { display: false }, ticks: { font: { size: 13 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 16 } },
-        y: { stacked: true, position: 'left', max: yMax, beginAtZero: true, grid: { color: colorBd, drawBorder: false }, border: { display: false }, title: { display: true, text: 'Cobro en la fecha (USD)', color: colorMu }, ticks: { font: { size: 13 }, color: colorMu, callback: function(v) { return 'US$ ' + v.toLocaleString('es-AR'); } } }
+        y: { stacked: true, position: 'left', max: yMax, beginAtZero: true, grid: { color: colorBd, drawBorder: false }, border: { display: false }, title: { display: true, text: 'Cobro en la fecha (' + (ars ? '$' : 'USD') + ')', color: colorMu }, ticks: { font: { size: 13 }, color: colorMu, callback: function(v) { return (ars ? '$ ' : 'US$ ') + v.toLocaleString('es-AR'); } } }
     };
     const plug = { id: 'cfClipLabels', afterDatasetsDraw: function(ch) {
         if (!ch.$clip || !ch.isDatasetVisible(0)) return; const ctx = ch.ctx, a = ch.chartArea;
@@ -1259,6 +1279,7 @@ window.updateCFChart = function() {
         window.cfChartObj.update('none');
     }
     $('cfNote').innerHTML = 'Cobros calculados sobre VN ' + VN.toLocaleString('es-AR') + ' (flujos de cada 100 VN × ' + f.toLocaleString('es-AR') + '). ' +
+        (ars ? (pb.cer ? 'En pesos: cada pago ajusta por CER, proyectado con la inflación de la tarjeta CER (' + (isFinite(pb.pi) ? pb.pi.toLocaleString('es-AR') + '% mensual' : 'Curva Pesos') + '); la renta es el cupón y la amortización devuelve capital ajustado. ' : 'En pesos, sin ajuste. ') + (pb.tea != null ? 'TIR al precio de mercado: ' + (pb.tea * 100).toFixed(2).replace('.', ',') + '% TEA. ' : '') : '') +
         '<span class="xp">Las barras apagadas son flujos posteriores a la fecha de corte.</span>' + (clip ? ' Escala ampliada para ver la renta: la barra marcada con ▲ se corta<span class="xp"> (cambiá "Escala" a Completa para verla entera)</span>.' : '');
 }
 
@@ -1303,6 +1324,7 @@ window.switchTab = function(tabId) {
  document.querySelectorAll('.tab-btn').forEach(function(btn) { btn.classList.toggle('active', btn.getAttribute('onclick').includes("'" + tabId + "'")); });
  document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.toggle('active', c.id === tabId); });
  if (tabId === 'tabla') setTimeout(window.updateChart, 0); 
+ if (tabId === 'desglose') setTimeout(function() { if (window.updateCFChart) window.updateCFChart(); if (window.bdRender) window.bdRender(); }, 0); // los bonos en pesos (Curva Pesos) ya están cargados
  if (tabId === 'curva') {
      setTimeout(function() {
          window.updateCurveChart();
@@ -3248,7 +3270,15 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     Object.keys(dd).map(Number).sort(function (a, b) { return a - b; }).forEach(function (t) { rows.push([{ v: bxDayStr(t) }].concat(ks.map(function (k) { return m[t][k] == null ? { v: '' } : { v: m[t][k], z: '0.00' }; }))); });
     return rows;
   };
-  window.PSX = { snap: function (n) { var s0 = day($('d0').value), sc0 = n === 1 ? scen() : scenFor(n); return { s: s0, sc: sc0, S: snapshot(s0, sc0) }; }, INST: INST, ptsOf: ptsOf, yieldAt: yieldAt, durAt: durAt, yieldLab: yieldLab, famOf: famOf, FAM: FAM, paidFlows: paidFlows, LABELS: LABELS, fairFit: fairFit, css: css, fm: fm, sg: sg, rgba: rgba, bdBack: bdBack, mdOf: mdOf, flowsOf: flowsOf, mkSc: mkSc, fxAt: fxAt, ZERO: function () { return ZERO; }, views: function () { if (!window.PSV || !window.PSV.c1) window.renderPesos(); return window.PSV; }, hasPts: function (k) { return !!HIST[k]; } };
+  function bondCF(k) { // flujo de un bono en pesos con cupones o amortizaciones, por 100 VN originales: renta y amortización de cada pago (CER proyectado con los supuestos de la tarjeta CER)
+    var ins = INST[k]; if (!ins || ins.r.length < 2 || (ins.k !== 'cerc' && ins.k !== 'cpn')) return null;
+    var s = day($('d0').value), cer = ins.k === 'cerc', sc = cer ? scenFor(2) : scen(), fl = flowsOf(ins, s, sc); if (!fl || !fl.length) return null;
+    var fut = ins.r.filter(function (r) { return r[0] > s; }), am = 0, P = PRICE[k], rows = [];
+    ins.r.forEach(function (r) { if (r[0] <= s) am += r[2]; });
+    fut.forEach(function (r, i) { var f = fl[i] ? fl[i][1] / r[1] : 1; am += r[2]; rows.push({ t: r[0], renta: r[4] * f, amort: (r[1] - r[4]) * f, total: r[1] * f, res: Math.max(0, 100 - am) }); }); // r = [fecha, pago, amortización (% del VN), tasa, renta, …]
+    return { s: s, P: P, rows: rows, fl: fl, tea: P > 0 ? tirOf(fl, s, P) : null, cer: cer, pi: cer ? parseFloat(cardV(2, 'psPi')) : null, mat: ins.r[ins.r.length - 1][0], name: cer ? 'CER con cupones' : 'Tasa fija con cupones' };
+  }
+  window.PSX = { bondCF: bondCF, pvAt: bxPvPS, cfList: function () { var s = day($('d0').value); return Object.keys(INST).filter(function (k) { var ins = INST[k]; return ins.r.length > 1 && (ins.k === 'cerc' || ins.k === 'cpn') && ins.r[ins.r.length - 1][0] > s && PRICE[k] > 0; }).sort(function (a, b) { return INST[a].r[INST[a].r.length - 1][0] - INST[b].r[INST[b].r.length - 1][0]; }); }, snap: function (n) { var s0 = day($('d0').value), sc0 = n === 1 ? scen() : scenFor(n); return { s: s0, sc: sc0, S: snapshot(s0, sc0) }; }, INST: INST, ptsOf: ptsOf, yieldAt: yieldAt, durAt: durAt, yieldLab: yieldLab, famOf: famOf, FAM: FAM, paidFlows: paidFlows, LABELS: LABELS, fairFit: fairFit, css: css, fm: fm, sg: sg, rgba: rgba, bdBack: bdBack, mdOf: mdOf, flowsOf: flowsOf, mkSc: mkSc, fxAt: fxAt, ZERO: function () { return ZERO; }, views: function () { if (!window.PSV || !window.PSV.c1) window.renderPesos(); return window.PSV; }, hasPts: function (k) { return !!HIST[k]; } };
   window.addEventListener('load', function () {
     window.psLive = live; live(); setInterval(live, 90000); window.loadClosesARS();
     setInterval(function () { if (root.classList.contains('active')) window.renderPesos(); }, 60000);
