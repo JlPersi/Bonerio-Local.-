@@ -1232,7 +1232,7 @@ window.updateCFChart = function() {
 
     if (window.cfChartObj instanceof Chart) {
         const ch = window.cfChartObj;
-        ch.data.labels = labels; ch.data.datasets = datasets; ch.options.scales = scales;
+        ch.data.labels = labels; ch.data.datasets = datasets; ch.options.scales = scales; ch.$rows = rows;
         ch.$clip = clip ? rows.map(function(r, i) { return { i: i, v: r.total }; }).filter(function(c) { return c.v > yMax; }) : [];
         ch.update('none');
     } else {
@@ -1243,13 +1243,14 @@ window.updateCFChart = function() {
                 responsive: true, maintainAspectRatio: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2.5),
                 interaction: { mode: 'index', intersect: false }, layout: { padding: { top: 18 } },
                 plugins: {
-                    tooltip: { filter: function(c) { return c.parsed.y > 0; }, callbacks: { title: function(its) { const r = rows[its[0].dataIndex]; return r ? fd(r.t) : ''; }, label: function(c) { return c.dataset.label + ': ' + usd(c.parsed.y); }, footer: function(its) { const r = its.length ? rows[its[0].dataIndex] : null; return r ? 'Total ' + usd(r.total) + ' · acumulado ' + usd(r.acum) : ''; } } },
+                    tooltip: { filter: function(c) { return c.parsed.y > 0; }, callbacks: { title: function(its) { const r = its[0].chart.$rows[its[0].dataIndex]; return r ? fd(r.t) : ''; }, label: function(c) { return c.dataset.label + ': ' + usd(c.parsed.y); }, footer: function(its) { const r = its.length ? its[0].chart.$rows[its[0].dataIndex] : null;  return r ? 'Total ' + usd(r.total) + ' · acumulado ' + usd(r.acum) : ''; } } },
                     legend: { labels: { usePointStyle: true, pointStyle: 'rectRounded', padding: 20, color: colorTx } }
                 },
                 scales: scales
             },
             plugins: [plug]
         });
+        window.cfChartObj.$rows = rows; // el tooltip lee las filas del bono actual (el gráfico se reutiliza al cambiar de bono)
         window.cfChartObj.$clip = clip ? rows.map(function(r, i) { return { i: i, v: r.total }; }).filter(function(c) { return c.v > yMax; }) : [];
         window.cfChartObj.update('none');
     }
