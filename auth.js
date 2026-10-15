@@ -233,16 +233,19 @@
   function last(o, n) { var k = Object.keys(o || {}).sort(); return k.slice(-n).map(function (d) { return [d, o[d]]; }); }
   function market() {
     var q = function (u) { return fetch(u, { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
-    var RPA = 'https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais';
-    Promise.all([q('/data/closes.json'), q('/data/closes_ars.json'), q('/data/indices.json'), q('/data/dolar.json'), q('/data/riesgo_pais.json'), q(RPA), q(RPA + '/ultimo')]).then(function (R) {
+    var RPA = 'https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais', AMB = 'https://mercados.ambito.com//riesgopais/', iso = function (t) { return t.toISOString().slice(0, 10); }, t0 = new Date(Date.now() - 3 * 3600e3);
+    Promise.all([q('/data/closes.json'), q('/data/closes_ars.json'), q('/data/indices.json'), q('/data/dolar.json'), q('/data/riesgo_pais.json'), q(RPA), q(RPA + '/ultimo'), q(AMB + 'historico-general/' + iso(new Date(t0 - 20 * 864e5)) + '/' + iso(t0)), q(AMB + 'variacion')]).then(function (R) {
       var cl = R[0], ar = R[1], ix = R[2], dl = R[3], $ = function (k) { return ov.querySelector('[data-k="' + k + '"]'); }, day = '';
       try { // tablero
         var dd = dl && dl.d && last(dl.d, 1)[0], mp = dd && dd[1].mep && dd[1].mep.AL30, pD = cl && cl.D && cl.D[dd && dd[0]], pC = cl && cl.C && cl.C[dd && dd[0]];
         if (mp) { $('mep').textContent = '$ ' + nf(mp.close, 2); day = dd[0]; if (pD && pC && pD.AL30 > 0 && pC.AL30 > 0) $('ccl').textContent = 'Cable $ ' + nf(mp.close * pD.AL30 / pC.AL30, 2) + ' (AL30C)'; } // el cable sale del mismo AL30 en pesos sobre su precio en cable
         var of = last(dl && dl.A3500, 60); if (of.length) { var a = of[of.length - 1][1], b = of.length > 1 ? of[of.length - 2][1] : null; $('ofi').textContent = '$ ' + nf(a, 2); $('ofid').innerHTML = chg(a, b, 2); spark($('ofis'), of.map(function (x) { return x[1]; }), '#75aadb'); }
         var tm = last(ix && ix.TAMAR, 40); if (tm.length) { var t1 = tm[tm.length - 1][1], t0 = tm.length > 1 ? tm[tm.length - 2][1] : null; $('tam').textContent = nf(t1, 2) + '%'; $('tamd').innerHTML = chg(t1, t0, 0, 'pb'); spark($('tams'), tm.map(function (x) { return x[1]; }), '#f6b40e'); }
-        var rm = {}; if (R[4] && R[4].d) Object.keys(R[4].d).forEach(function (f) { rm[f] = R[4].d[f]; }); // riesgo país: lo guardado cada noche más lo último de ArgentinaDatos
+        var rm = {}; if (R[4] && R[4].d) Object.keys(R[4].d).forEach(function (f) { rm[f] = R[4].d[f]; }); // riesgo país: lo guardado cada noche más lo último de ArgentinaDatos y de Ámbito
+        var ad = function (f) { var p = String(f || '').split('-'); return p.length === 3 && p[2].length === 4 ? p[2] + '-' + p[1] + '-' + p[0] : ''; }, an = function (v) { return parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); }; // Ámbito: las ruedas que ArgentinaDatos todavía no publicó y el dato del día en vivo (ArgentinaDatos lo carga al día siguiente)
         [R[5], R[6]].forEach(function (x) { if (x) (Array.isArray(x) ? x : [x]).forEach(function (r) { var f = String(r && r.fecha || '').slice(0, 10); if (f.length === 10 && r.valor > 0) rm[f] = r.valor; }); });
+        if (Array.isArray(R[7])) R[7].forEach(function (r) { var f = ad(r && r[0]), v = an(r && r[1]); if (f && v > 0 && rm[f] == null) rm[f] = v; });
+        if (R[8]) { var lf = ad(R[8].fecha), lv = an(R[8].ultimo), wd = lf && new Date(lf + 'T12:00:00Z').getUTCDay(); if (lf && lv > 0 && wd > 0 && wd < 6 && !Object.keys(rm).some(function (f) { return f >= lf; })) rm[lf] = lv; }
         var rp = last(rm, 90); if (rp.length) { var r1 = rp[rp.length - 1][1], r0 = rp.length > 1 ? rp[rp.length - 2][1] : null; $('rp').textContent = nf(r1, 0) + ' pb'; $('rpd').innerHTML = rpc(r1, r0); spark($('rps'), rp.map(function (x) { return x[1]; }), '#fb7185'); RP = [r1, r0]; }
         var lc = last(cl && cl.D, 1)[0]; if (lc && lc[0] > day) day = lc[0];
         if (day) $('src').textContent = 'Cierre del ' + day.slice(8, 10) + '/' + day.slice(5, 7) + '/' + day.slice(0, 4) + ' · cierres propios e índices del BCRA';
