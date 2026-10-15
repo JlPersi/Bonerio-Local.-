@@ -377,6 +377,7 @@ html{zoom:.9}
   .qgrid .qbox .v { font-size: 18px !important; }
 }
 @media (max-width: 380px) { #topbar .seg button { padding: 0 9px !important; font-size: 13px !important; } #topbar #topLive #st2 { max-width: 64px; } }
+  #pesos td.pssk { cursor: pointer; } #pesos td.pssk:hover { text-decoration: underline dotted; } #pesos td.pssk.on { color: var(--ac); }
 </style>
 
 
@@ -2295,7 +2296,7 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
    (cada flujo se filtra por fecha de liquidación).
    ===================================================================== */
 ;(function () {
-  var IDX = PSD.IDX, INST = PSD.INST, HIST = {}, PRICE = {}, LOGARS = {}, Q = {};
+  var IDX = PSD.IDX, INST = PSD.INST, HIST = {}, PRICE = {}, LOGARS = {}, Q = {}, SUP = {}, SUPON = false; // SUP: precios supuestos que cargás tocando un ticker (solo en Curva Pesos, no se guardan)
   var fm = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : v.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
   var pcs = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : fm(v * 100, d == null ? 2 : d) + '%'; };
   var sg = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : (v > 0 ? '+' : '') + fm(v, d); };
@@ -2475,7 +2476,7 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
   }
   function snapshot(s, sc) {
     var out = [];
-    Object.keys(INST).forEach(function (k) { var ins = INST[k], mat = ins.r[ins.r.length - 1][0]; if (mat <= s) return; out.push(metrics(k, s, sc, PRICE[k])); });
+    Object.keys(INST).forEach(function (k) { var ins = INST[k], mat = ins.r[ins.r.length - 1][0]; if (mat <= s) return; var sp = SUPON && SUP[k] > 0, o = metrics(k, s, sc, sp ? SUP[k] : PRICE[k]); if (sp) { o.sup = SUP[k]; o.mkt = metrics(k, s, sc, PRICE[k]); } out.push(o); }); // con precio supuesto: el bono rinde con tu precio y guarda cómo rendía a mercado
     return out;
   }
   function curveFija(S) {
@@ -2613,7 +2614,7 @@ const PSD = {"INST":{"CUAP":{"k":"cerc","f":"cer","iss":12417,"r":[[16251,1.655,
   var MET = function (o) { var m = document.getElementById('psMet').value; return m === 'tea' ? o.tea : m === 'tem' ? o.tem : o.tna30; }; // en bonos de varios años la TNA simple (365/días) no es comparable: se usa TNA 30/365
   var METN = function () { return { tea: 'TEA', tem: 'TEM', tna30: 'TNA 30/365', tnas: 'TNA 30/365' }[document.getElementById('psMet').value]; };
   var dstr = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
-  var tkcell = function (o, star) { return '<td class="k">' + o.k + (star ? ' *' : '') + '</td>'; };
+  var tkcell = function (o, star) { return '<td class="k pssk' + (o.sup ? ' on' : '') + '" data-k="' + o.k + '" title="' + (o.sup ? 'Precio supuesto ' + fm(o.sup, 2) + ' (mercado ' + fm(PRICE[o.k], 2) + '). Tocá para cambiarlo o volver al de mercado' : 'Tocá para suponer un precio y ver cómo rinde y cómo cambia la curva') + '">' + o.k + (star ? ' *' : '') + (o.sup ? ' ✎' : '') + '</td>'; };
   var BE = 'background:rgba(245,158,11,.18)', AC = 'color:var(--ac);font-weight:700';
   function mkChart(id, ref, cfg) { var cv = document.getElementById(id); if (Q[ref]) Q[ref].destroy(); Q[ref] = new Chart(cv.getContext('2d'), cfg); return Q[ref]; }
   var LABELS = { id: 'psLabels', afterDatasetsDraw: function (ch) { // un rótulo por instrumento (ticker + diferencia en pb si hay escenario), sin superponerse
@@ -2850,7 +2851,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var fitX = function (pts, m) { var u = yrs ? 365 : 1, q = fairFit(pts.map(function (p) { return { x: p.x * u, y: p.y, k: p.k }; }), m); return !q || u === 1 ? q : { f: function (x) { return q.f(x * u); }, sigma: q.sigma, res: q.res, name: q.name }; }; // las formas de la curva están pensadas en días
     // spec: {label, val(o)->fracción o null, inv: true si un valor menor es más barato, sfx}
     var tx = css('--tx'), bd = css('--bd'), pcol = css('--ac');
-    var P = S.filter(function (o) { return !o.miss && o.d <= cap; }).map(function (o) { var v = spec.val(o), xv = xOf(o); return v == null || !isFinite(v) || !(xv > 0) ? null : { x: xv, y: v * 100, k: o.k, dual: o.fam === 'dual' && ref !== 'c5', fd: o.fairD, fp: o.fairP }; }).filter(Boolean);
+    var P = S.filter(function (o) { return !o.miss && o.d <= cap; }).map(function (o) { var v = spec.val(o), xv = xOf(o); var mk = o.mkt ? spec.val(o.mkt) : null; return v == null || !isFinite(v) || !(xv > 0) ? null : { x: xv, y: v * 100, k: o.k, dual: o.fam === 'dual' && ref !== 'c5', fd: o.fairD, fp: o.fairP, sup: !!o.sup, mk: mk != null && isFinite(mk) ? mk * 100 : null }; }).filter(Boolean);
     var cvEl = document.getElementById(id), qc = cvEl && cvEl.parentNode, old = qc && qc.querySelector('.bemsg'); if (old) old.remove(); if (cvEl) { cvEl.style.display = ''; qc.style.height = ''; }
     if (/breakeven/.test(spec.label) && P.length < 3 && cvEl) { // con menos de 3 bonos no hay curva que ajustar: aviso en lugar de un gráfico con puntos sueltos
       if (Q[ref]) { Q[ref].destroy(); delete Q[ref]; } CMAP[ref] = {}; cvEl.style.display = 'none'; qc.style.height = 'auto';
@@ -2859,7 +2860,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       msg.textContent = nm + ': ' + (P.length ? 'solo ' + P.length + ' bono' + (P.length > 1 ? 's vencen' : ' vence') : 'ningún bono vence') + ' dentro de la curva Lecap' + (lm ? ' (hasta ' + lm + ' días)' : '') + '; hacen falta al menos 3 para graficar.' + (P.length ? (P.length > 1 ? ' Los valores están' : ' El valor está') + ' en la tabla.' : '');
       qc.appendChild(msg); var kn0 = document.getElementById(id.replace('psC', 'psKn')); if (kn0) kn0.textContent = ''; return;
     }
-    var xs_ = P.map(function (p) { return p.x; }).sort(function (a, b) { return a - b; }), useLog = !yrs && xs_.length > 3 && (xs_[xs_.length - 1] > 1500 || (xs_[xs_.length - 1] > 600 && xs_[Math.ceil(xs_.length * 0.85) - 1] < xs_[xs_.length - 1] / 3)), fx0 = 0, fx1 = 0, fit = spec.zero ? null : fitX(P.filter(function (p) { return !p.dual || dualMode === 2; }), model), sets = [], cheapSign = spec.inv ? -1 : 1;
+    var xs_ = P.map(function (p) { return p.x; }).sort(function (a, b) { return a - b; }), useLog = !yrs && xs_.length > 3 && (xs_[xs_.length - 1] > 1500 || (xs_[xs_.length - 1] > 600 && xs_[Math.ceil(xs_.length * 0.85) - 1] < xs_[xs_.length - 1] / 3)), fx0 = 0, fx1 = 0, fit = spec.zero ? null : fitX(P.filter(function (p) { return !p.dual || dualMode === 2; }), model), sets = [], cheapSign = spec.inv ? -1 : 1, PS_ = P.filter(function (p) { return p.sup && p.mk != null; });
     if (spec.zero && P.length) { var zx0 = Math.max(yrs ? 0 : 1, Math.min.apply(null, P.map(function (p) { return p.x; })) - (yrs ? 0.03 : 10)), zx1 = Math.max.apply(null, P.map(function (p) { return p.x; })) + (yrs ? 0.03 : 10); sets.push({ type: 'line', label: 'Curva Lecap (mercado)', data: [{ x: zx0, y: 0 }, { x: zx1, y: 0 }], borderColor: css('--c-s1'), borderWidth: 2.5, pointRadius: 0, fill: false, order: 4 }); }
     if (fit) {
       var PF = P.filter(function (p) { return !p.dual || dualMode === 2; }), x0 = Math.min.apply(null, PF.map(function (p) { return p.x; })), x1 = Math.max.apply(null, PF.map(function (p) { return p.x; })), N = 90, cu = [], up = [], lo = [];
@@ -2879,7 +2880,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var beOut = /breakeven/.test(spec.label) ? S.filter(function (o) { return o.beOut && !o.miss && o.d <= cap; }).sort(function (a, b) { return a.d - b.d; }) : []; // sin breakeven: vencen después de la Lecap más larga
     if (kn && beOut.length) kn.textContent += (kn.textContent ? ' · ' : '') + 'Sin graficar: ' + beOut.map(function (o) { return o.k; }).join(', ') + ' (su duración pasa la Lecap más larga, ' + beOut[0].beLmax + ' días; no hay tasa Lecap con la que comparar)';
     var G = []; if (gmap) P.forEach(function (p) { var gv = gmap[p.k]; if (gv == null || !isFinite(gv)) return; var y1 = gv * 100; if (Math.abs(y1 - p.y) < 0.005) return; var g = { x: p.x, y: y1, k: p.k, y0: p.y, gh: true, dual: p.dual, byDiff: !!spec.gsc }; if (fit) { if (p.out) g.out = true; else { g.fy = p.fy; g.res = y1 - p.fy; } } G.push(g); });
-    sets.push({ type: 'scatter', label: 'Instrumentos', data: P, fairPts: !!fit, backgroundColor: P.map(col), borderColor: P.map(col), pointRadius: 7, hoverRadius: 9, pointStyle: P.map(function (p) { return p.dual ? 'triangle' : 'circle'; }), order: 1 });
+    if (PS_.length) { // precio supuesto: la curva y el punto a precio de mercado quedan de referencia, en gris
+      var mf = fit ? fitX(P.filter(function (p) { return !p.dual || dualMode === 2; }).map(function (p) { return { x: p.x, y: p.sup && p.mk != null ? p.mk : p.y, k: p.k }; }), model) : null;
+      if (mf) sets.push({ type: 'line', label: 'Curva a precio de mercado', data: Array.from({ length: 61 }, function (_, i) { var xx = fx0 + (fx1 - fx0) * Math.pow(i / 60, 1.5); return { x: xx, y: mf.f(xx) }; }), borderColor: 'rgba(148,163,184,.85)', borderDash: [6, 5], borderWidth: 1.8, pointRadius: 0, fill: false, order: 4 });
+      sets.push({ type: 'scatter', label: 'A precio de mercado', data: PS_.map(function (p) { return { x: p.x, y: p.mk, k: p.k }; }), noLabel: true, backgroundColor: 'transparent', borderColor: 'rgba(148,163,184,.95)', borderWidth: 2, pointRadius: 6, hoverRadius: 7, order: 2 });
+    }
+    sets.push({ type: 'scatter', label: 'Instrumentos', data: P, fairPts: !!fit, backgroundColor: P.map(col), borderColor: P.map(function (p) { return p.sup ? css('--ac') : col(p); }), borderWidth: P.map(function (p) { return p.sup ? 3 : 1; }), pointRadius: 7, hoverRadius: 9, pointStyle: P.map(function (p) { return p.dual ? 'triangle' : 'circle'; }), order: 1 });
     var sf = spec.sfx == null ? '%' : spec.sfx;
     if (G.length) { var gc = G.map(col); sets.push({ type: 'scatter', label: 'Con tu escenario', data: G, fairPts: false, noLabel: true, ghostPts: true, unitPb: sf === '%', unit: sf, glow: gc.map(function (c) { return rgba(c, 0.55); }), backgroundColor: gc.map(function (c) { return rgba(c, 0.38); }), borderColor: gc.map(function (c) { return rgba(c, 0.75); }), borderWidth: 1, pointRadius: 7, hoverRadius: 9, pointStyle: G.map(function (p) { return p.dual ? 'triangle' : 'circle'; }), order: 2 }); }
     var bek = /breakeven/.test(spec.label) ? { psC2: 'psPi2', psC3: 'psTam3', psC4: 'psDev4' }[id] : null, uvv = bek ? parseFloat((document.getElementById(bek) || {}).value) : NaN;
@@ -2890,7 +2896,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var yv = P.map(function (p) { return p.y; }); sets.forEach(function (d) { if (d.type === 'line') d.data.forEach(function (p) { yv.push(p.y); }); });
     var ylo, yhi; if (yv.length) { ylo = Math.min.apply(null, yv); yhi = Math.max.apply(null, yv); var yp = Math.max(yhi - ylo, 0.5) * 0.08; ylo -= yp; yhi += yp; G.forEach(function (g) { var q = Math.max(yhi - ylo, 0.5) * 0.06; if (g.y - q < ylo) ylo = g.y - q; if (g.y + q > yhi) yhi = g.y + q; }); }
     var cfg = { type: 'scatter', data: { datasets: sets }, plugins: [LABELS, VERT, GHOST], options: { responsive: true, maintainAspectRatio: false, layout: { padding: { right: 28, top: 6 } }, interaction: { mode: 'psNear', intersect: false },
-      plugins: { legend: { labels: { color: tx, usePointStyle: true, generateLabels: function (ch) { var base = Chart.defaults.plugins.legend.labels.generateLabels(ch).filter(function (it) { return it.text === 'Curva Lecap (mercado)' || /^(Tu escenario|Curva con tu escenario)/.test(it.text); }); var gry = 'rgba(148,163,184,.95)', LN = { c1: 'Lecaps y bonos a tasa fija', c2: 'Bonos CER', c3: 'Bonos TAMAR', c4: 'Dólar linked', c5: 'Duales' }; base.push({ text: LN[ref] || 'Bonos', fillStyle: gry, strokeStyle: gry, pointStyle: 'circle', fontColor: tx, lineWidth: 0 }); if (P.some(function (p) { return p.dual; })) base.push({ text: 'Duales', fillStyle: gry, strokeStyle: gry, pointStyle: 'triangle', fontColor: tx, lineWidth: 0 }); if (scOff && spec.scen) base.unshift({ text: 'Curva con tu escenario', fillStyle: 'transparent', strokeStyle: css('--ac'), pointStyle: 'circle', fontColor: tx, lineWidth: 2, hidden: true });
+      plugins: { legend: { labels: { color: tx, usePointStyle: true, generateLabels: function (ch) { var base = Chart.defaults.plugins.legend.labels.generateLabels(ch).filter(function (it) { return it.text === 'Curva Lecap (mercado)' || /^(Tu escenario|Curva con tu escenario|Curva a precio de mercado|A precio de mercado)/.test(it.text); }); var gry = 'rgba(148,163,184,.95)', LN = { c1: 'Lecaps y bonos a tasa fija', c2: 'Bonos CER', c3: 'Bonos TAMAR', c4: 'Dólar linked', c5: 'Duales' }; base.push({ text: LN[ref] || 'Bonos', fillStyle: gry, strokeStyle: gry, pointStyle: 'circle', fontColor: tx, lineWidth: 0 }); if (P.some(function (p) { return p.dual; })) base.push({ text: 'Duales', fillStyle: gry, strokeStyle: gry, pointStyle: 'triangle', fontColor: tx, lineWidth: 0 }); if (scOff && spec.scen) base.unshift({ text: 'Curva con tu escenario', fillStyle: 'transparent', strokeStyle: css('--ac'), pointStyle: 'circle', fontColor: tx, lineWidth: 2, hidden: true });
           if (scOff && isFinite(uvv)) base.unshift({ text: 'Tu escenario: ' + fm(uvv, 2) + '%', fillStyle: 'transparent', strokeStyle: css('--ac'), pointStyle: 'circle', fontColor: tx, lineWidth: 2, hidden: true });
           if (G.length || (scOff && hasSc)) base.push({ text: 'Difuminado: con tu escenario', fillStyle: 'rgba(148,163,184,.4)', strokeStyle: 'rgba(148,163,184,.9)', pointStyle: 'circle', fontColor: tx, lineWidth: 1, hidden: scOff }); return base; }, },
         onClick: function (e, it) { if (!it || !/^(Tu escenario|Curva con tu escenario|Difuminado)/.test(it.text)) return; SCOFF[ref] = !scOff; setTimeout(function () { fairChart.apply(null, args); }, 0); }, // tocar "Tu escenario" o "Difuminado" oculta o muestra la capa
@@ -3217,7 +3223,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
   window.renderPesos = function () {
     if (typeof Chart === 'undefined') return;
-    syncMir(); scenVis();
+    syncMir(); scenVis(); SUPON = true;
     try {
       var s = day($('d0').value), sc = scen(), S = snapshot(s, sc), fc = curveFija(S);
       var PER = {}, base0 = null;
@@ -3231,8 +3237,32 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       renderHist(); renderSummary(PER);
       var lc = lastOf(IDX.CER), lt = lastOf(IDX.TAMAR), lf = lastOf(IDX.FX);
       document.getElementById('psInfo').textContent = 'Liquidación ' + dstr(s) + ' · CER hasta ' + dstr(lc) + ' · TAMAR hasta ' + dstr(lt) + ' (' + fm(T0() * 100, 2) + '%) · A3500 ' + fm(IDX.FX.v[IDX.FX.v.length - 1], 2) + ' (' + dstr(lf) + ') · ' + S.length + ' instrumentos vigentes';
+      supBar();
     } catch (e) { console.error('pesos', e); document.getElementById('psInfo').textContent = 'Error: ' + e.message; }
+    SUPON = false;
   };
+  /* ---------- precio supuesto: tocar un ticker de las tablas, cargar un precio y ver cómo rinde y cómo cambia la curva ---------- */
+  function supBar() {
+    var inf = document.getElementById('psInfo'); if (!inf) return; var bar = document.getElementById('psSupBar');
+    if (!bar) { bar = document.createElement('div'); bar.id = 'psSupBar'; bar.setAttribute('data-html2canvas-ignore', 'true'); bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 0;font-size:13px'; inf.parentNode.insertBefore(bar, inf.nextSibling); }
+    var ks = Object.keys(SUP).filter(function (k) { return SUP[k] > 0 && INST[k]; });
+    bar.innerHTML = ks.length ? '<span style="color:var(--mu)">Precios supuestos:</span>' + ks.map(function (k) { return '<button class="act pssx" data-k="' + k + '" title="Volver al precio de mercado">' + k + ' ' + fm(SUP[k], 2) + ' <span style="color:var(--mu)">(mercado ' + fm(PRICE[k], 2) + ')</span> ✕</button>'; }).join('') + (ks.length > 1 ? '<button class="act pssx" data-k="*">Todos a mercado</button>' : '') : '<span style="color:var(--mu)">Tocá un ticker de las tablas para suponer un precio y ver cómo rinde y cómo cambia la curva.</span>';
+  }
+  function supPop(td) {
+    var k = td.getAttribute('data-k'), pop = document.getElementById('psSupPop');
+    if (!pop) { pop = document.createElement('div'); pop.id = 'psSupPop'; pop.setAttribute('data-html2canvas-ignore', 'true'); pop.style.cssText = 'position:absolute;z-index:60;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;box-shadow:0 8px 28px rgba(0,0,0,.35);font-size:13px;color:var(--tx);max-width:300px'; document.body.appendChild(pop); }
+    var r = td.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - 316)) + 'px'; pop.style.top = (window.scrollY + r.bottom + 6) + 'px'; pop.style.display = 'block';
+    pop.innerHTML = '<div style="margin-bottom:8px"><b>' + k + '</b>: precio supuesto (mercado ' + fm(PRICE[k], 2) + ')</div><div style="display:flex;gap:6px"><input id="psSupIn" inputmode="decimal" style="width:120px" value="' + (SUP[k] > 0 ? String(SUP[k]).replace('.', ',') : '') + '" placeholder="' + fm(PRICE[k], 2) + '"><button class="act" data-a="ok">Aplicar</button>' + (SUP[k] > 0 ? '<button class="act" data-a="rm">Mercado</button>' : '') + '</div><div class="note" style="margin-top:8px">Se recalculan las tasas y las curvas con tu precio; la curva punteada gris es la de mercado. No se guarda.</div>';
+    var inp = pop.querySelector('#psSupIn'); inp.focus(); inp.select();
+    var go = function (a) { if (a === 'rm') delete SUP[k]; else { var v = parseFloat(String(inp.value).replace(/\./g, '').replace(',', '.')); if (!(v > 0)) return; SUP[k] = v; } pop.style.display = 'none'; window.renderPesos(); };
+    pop.onclick = function (e) { var b = e.target.closest('button[data-a]'); if (b) go(b.getAttribute('data-a')); };
+    inp.onkeydown = function (e) { if (e.key === 'Enter') go('ok'); if (e.key === 'Escape') pop.style.display = 'none'; };
+  }
+  document.addEventListener('click', function (e) {
+    var td = e.target.closest && e.target.closest('#pesos td.pssk'); if (td) { supPop(td); return; }
+    var x = e.target.closest && e.target.closest('#psSupBar .pssx'); if (x) { var k = x.getAttribute('data-k'); if (k === '*') SUP = {}; else delete SUP[k]; window.renderPesos(); return; }
+    var pop = document.getElementById('psSupPop'); if (pop && pop.style.display !== 'none' && !e.target.closest('#psSupPop')) pop.style.display = 'none';
+  });
 
   /* ---------- precios en vivo, cierres guardados e índices ---------- */
   function live() {
