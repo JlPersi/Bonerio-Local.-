@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta name="robots" content="noindex, nofollow"><!-- vista previa sin publicar: pestaña Tasas históricas (no está enlazada desde el sitio) -->
 <meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow"><!-- vista previa sin publicar: portada con menú lateral y pestaña Tasas históricas (no está enlazada desde el sitio) -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bonerío Local: Terminal Analítica</title>
 <meta name="description" content="Terminal analítica de bonos soberanos argentinos: curvas hard dollar y en pesos, retornos, rotación entre bonos, volumen y variación diaria.">
@@ -223,6 +223,12 @@ input:focus, select:focus { border-color: var(--ac); outline: none; }
 input[type=number]::-webkit-inner-spin-button, 
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input[type=number] { -moz-appearance: textfield; }
+/* fechas: fondo difuminado en el color de acento y el ícono del calendario visible en los dos temas */
+input[type=date] { color-scheme: dark; background: linear-gradient(135deg, color-mix(in srgb, var(--ac) 22%, var(--bg)), color-mix(in srgb, var(--ac) 6%, var(--bg))); border-color: color-mix(in srgb, var(--ac) 45%, var(--bd)); box-shadow: 0 0 14px -4px color-mix(in srgb, var(--ac) 55%, transparent); font-weight: 600; cursor: pointer }
+[data-theme="light"] input[type=date] { color-scheme: light }
+input[type=date]:disabled { opacity: .75; cursor: default; box-shadow: none }
+input[type=date]::-webkit-calendar-picker-indicator { cursor: pointer; width: 18px; height: 18px; padding: 2px; border-radius: 5px; background: var(--ac); opacity: .95; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='16.5' rx='2.5'/%3E%3Cpath d='M3 9.5h18M8 2.5v4M16 2.5v4'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='16.5' rx='2.5'/%3E%3Cpath d='M3 9.5h18M8 2.5v4M16 2.5v4'/%3E%3C/svg%3E") center / contain no-repeat }
+input[type=date]::-webkit-calendar-picker-indicator:hover { opacity: 1; filter: brightness(1.2) }
 
 .slider-group { display: flex; gap: 12px; align-items: center; }
 input[type=range] { padding: 0; cursor: ew-resize; height: 6px; appearance: none; background: var(--bd); border-radius: 3px; width: 170px; }
@@ -398,6 +404,84 @@ html{zoom:.9}
 *::-webkit-scrollbar-corner{background:transparent}
 *::-webkit-scrollbar-button{display:none;width:0;height:0}
 </style>
+<style>
+/* ---------- PORTADA (Inicio) y menú lateral ---------- */
+:root { --snw: 236px }
+body.sn-mini { --snw: 70px }
+@media (min-width: 901px) { body { padding-left: var(--snw); transition: padding-left .2s } }
+#topbar .tabs { display: none }
+#topbar { justify-content: flex-end !important }
+#sideNav { position: fixed; top: 0; left: 0; bottom: 0; width: var(--snw); z-index: 150; background: var(--card); border-right: 1px solid var(--bd); display: flex; flex-direction: column; transition: width .2s, transform .25s; overflow: hidden }
+#sideNav .sn-h { display: flex; align-items: center; gap: 10px; padding: 18px 16px 14px; border-bottom: 1px solid var(--bd); min-height: 64px; box-sizing: border-box }
+#sideNav .sn-h img { width: 30px; height: 30px; flex: none }
+#sideNav .sn-h b { font-size: 15px; letter-spacing: .06em; white-space: nowrap; color: var(--tx) }
+#sideNav nav { flex: 1; overflow-y: auto; padding: 10px 10px }
+#sideNav .sn-it { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: 0; border-radius: 9px; padding: 10px 12px; margin: 2px 0; color: var(--mu); font: 600 14.5px/1.2 inherit; font-family: inherit; text-align: left; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s }
+#sideNav .sn-it svg { width: 20px; height: 20px; flex: none }
+#sideNav .sn-it:hover { background: var(--bd); color: var(--tx) }
+#sideNav .sn-it.on { background: var(--ac); color: var(--acx) }
+#sideNav .sn-sep { height: 1px; background: var(--bd); margin: 8px 6px }
+#sideNav .sn-f { border-top: 1px solid var(--bd); padding: 10px }
+body.sn-mini #sideNav .sn-it span, body.sn-mini #sideNav .sn-h b { display: none }
+body.sn-mini #sideNav .sn-it { justify-content: center; padding: 10px 0 }
+body.sn-mini #sideNav .sn-col svg { transform: rotate(180deg) }
+#snBtn { display: none; width: 40px; height: 40px; flex: none; border-radius: 10px; border: 1px solid var(--bd); background: var(--card); color: var(--tx); align-items: center; justify-content: center; cursor: pointer; padding: 0 }
+#snBtn svg { width: 22px; height: 22px }
+main > h1.hm-h1 { display: flex; align-items: center; gap: 12px }
+#snShade { position: fixed; inset: 0; z-index: 140; background: rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity .25s }
+@media (max-width: 900px) {
+  #sideNav { width: 270px; transform: translateX(-102%); box-shadow: 0 0 40px rgba(0,0,0,.45) }
+  body.sn-open #sideNav { transform: none }
+  body.sn-open #snShade { opacity: 1; pointer-events: auto }
+  body.sn-mini #sideNav .sn-it span, body.sn-mini #sideNav .sn-h b { display: inline }
+  body.sn-mini #sideNav .sn-it { justify-content: flex-start; padding: 10px 12px }
+  #sideNav .sn-col, #sideNav .sn-f { display: none }
+  #snBtn { display: inline-flex }
+}
+/* portada */
+#home .hm-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin: 0 0 18px }
+#home .hm-hero h2 { margin: 0; font-size: 24px; letter-spacing: -.3px }
+#home .hm-hero p { margin: 4px 0 0; color: var(--mu); font-size: 14px }
+#home .hm-k { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px }
+#home .hm-t { background: var(--card); border: 1px solid var(--bd); border-radius: 12px; padding: 14px 16px 10px; position: relative; overflow: hidden; cursor: pointer; transition: border-color .15s, transform .15s }
+#home .hm-t:hover { border-color: var(--ac); transform: translateY(-1px) }
+#home .hm-t small { display: block; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--mu) }
+#home .hm-t b { display: block; font-size: 26px; margin: 6px 0 2px; font-variant-numeric: tabular-nums; color: var(--tx) }
+#home .hm-t .d { font-size: 13px; font-weight: 600; min-height: 18px }
+#home .hm-t .s { font-size: 12px; color: var(--mu); margin-top: 2px }
+#home .hm-t svg { display: block; width: 100%; height: 34px; margin-top: 6px }
+#home .up { color: var(--ok) } #home .dn { color: var(--bad) } #home .eq { color: var(--mu) }
+#home .hm-g { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px }
+#home .hm-g3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px }
+#home .card { margin: 0 }
+#home .hm-c h3 { margin: 0; font-size: 16px; display: flex; justify-content: space-between; align-items: baseline; gap: 10px }
+#home .hm-c h3 a { font-size: 13px; font-weight: 600; color: var(--ac); cursor: pointer; white-space: nowrap; text-decoration: none }
+#home .hm-c .qs { margin: 4px 0 10px; color: var(--mu); font-size: 13px }
+#home .hm-ch { position: relative; height: 290px }
+#home .hm-ch.s { height: 230px }
+#home .hm-per { display: inline-flex; gap: 4px; margin: 0 0 8px }
+#home .hm-per button { background: var(--bg); border: 1px solid var(--bd); color: var(--mu); border-radius: 7px; padding: 4px 10px; font: 600 12px inherit; font-family: inherit; cursor: pointer }
+#home .hm-per button.on { background: var(--ac); color: var(--acx); border-color: var(--ac) }
+#home table.hm-tb { width: 100%; border-collapse: collapse; font-size: 13.5px }
+#home .hm-tb td { padding: 7px 4px; border-bottom: 1px solid var(--bd); font-variant-numeric: tabular-nums }
+#home .hm-tb td:first-child { font-weight: 700 } #home .hm-tb td:not(:first-child) { text-align: right }
+#home .hm-tb tr:last-child td { border-bottom: 0 }
+#home .hm-tb .f { color: var(--mu); font-weight: 500; font-size: 12px }
+#home .hm-st { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 4px }
+#home .hm-st div { border: 1px solid var(--bd); border-radius: 10px; padding: 10px 12px; border-left: 3px solid var(--mu) }
+#home .hm-st div.n { border-color: var(--ac); border-left-color: var(--ac); background: color-mix(in srgb, var(--ac) 8%, transparent) }
+#home .hm-st small { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--mu) }
+#home .hm-st b { display: block; font-size: 17px; margin: 4px 0 2px }
+#home .hm-st span { font-size: 12px; color: var(--mu) }
+#home .hm-q { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px }
+#home .hm-q button { text-align: left; background: var(--card); border: 1px solid var(--bd); border-radius: 12px; padding: 14px 16px; color: var(--tx); cursor: pointer; font-family: inherit; transition: border-color .15s }
+#home .hm-q button:hover { border-color: var(--ac) }
+#home .hm-q b { display: flex; align-items: center; gap: 8px; font-size: 14.5px } #home .hm-q b svg { width: 18px; height: 18px; color: var(--ac) }
+#home .hm-q span { display: block; margin-top: 6px; color: var(--mu); font-size: 12.5px; line-height: 1.45 }
+#home .hm-note { color: var(--mu); font-size: 12px; margin: 8px 2px 0 }
+@media (max-width: 1250px) { #home .hm-k { grid-template-columns: repeat(3, minmax(0, 1fr)) } #home .hm-g3 { grid-template-columns: 1fr 1fr } }
+@media (max-width: 900px) { #home .hm-g, #home .hm-g3 { grid-template-columns: 1fr } #home .hm-k { grid-template-columns: repeat(2, minmax(0, 1fr)) } #home .hm-k .hm-t:last-child { grid-column: span 2 } #home .hm-t b { font-size: 22px } }
+</style>
 </head>
 <body>
 <script src="/auth.js?v=11"></script>
@@ -469,6 +553,8 @@ window.curveFitUSD = function (pts, model, minN) {
 </div>
 
 <!-- PESTAÑA 1: Tabla -->
+<div id="home" class="tab-content"></div>
+<div id="thist" class="tab-content"></div>
 <div id="tabla" class="tab-content active">
   <div class="card">
    <div class="status" style="justify-content: space-between; width: 100%;">
@@ -578,7 +664,6 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="rot" class="tab-content"></div>
 <div id="vol" class="tab-content"></div>
 <div id="dol" class="tab-content"></div>
-<div id="thist" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
 
 <div id="curva" class="tab-content">
@@ -1016,7 +1101,8 @@ $('pr').innerHTML = B.map(function(b) { return '<label>' + b.k + '<input type="n
 $('spreadPairSelect').innerHTML = Object.keys(SPREADS).map(function(k) { return '<option value="' + k + '">' + SPREADS[k].loc + ' vs ' + SPREADS[k].ny + '</option>'; }).join('');
 
 window.settleDate = function (mode) { // CI: hoy (o el próximo día hábil); T+1: el día hábil siguiente a la liquidación CI. Respeta fines de semana y feriados
-  var t = bxToday(); while (!bxIsBiz(t)) t++; if (mode !== 'CI') return bxSettleT1(t); while (!bxIsSet(t)) t++; return t;
+  var t = bxToday(); // antes de la rueda (o en feriados y fines de semana) los precios son el cierre de la rueda anterior: se liquidan desde ese día, así un bono corto no rinde de más por contar días que ya no le quedan
+  if (typeof mktStarted === 'function' && !mktStarted()) { t--; while (!bxIsBiz(t)) t--; } else while (!bxIsBiz(t)) t++; if (mode !== 'CI') return bxSettleT1(t); while (!bxIsSet(t)) t++; return t;
 };
 window.applySettle = function (mode, redraw) {
   window.settleMode = mode; if (redraw) { try { localStorage.setItem('settle3', mode); } catch (e) {} }
@@ -1254,13 +1340,13 @@ window.updateCFChart = function() {
         if (!ch.$clip || !ch.isDatasetVisible(0)) return; const ctx = ch.ctx, a = ch.chartArea;
         ctx.save(); ctx.font = '600 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = colorTx;
         const meta = ch.getDatasetMeta(0);
-        ch.$clip.forEach(function(c) { const el = meta.data[c.i]; if (el) ctx.fillText('▲ ' + usd(c.v), el.x, a.top - 6); });
+        ch.$clip.forEach(function(c) { const el = meta.data[c.i]; if (el) ctx.fillText('▲ ' + ch.$fmt(c.v), el.x, a.top - 6); });
         ctx.restore();
     } };
 
     if (window.cfChartObj instanceof Chart) {
         const ch = window.cfChartObj;
-        ch.data.labels = labels; ch.data.datasets = datasets; ch.options.scales = scales; ch.$rows = rows;
+        ch.data.labels = labels; ch.data.datasets = datasets; ch.options.scales = scales; ch.$rows = rows; ch.$fmt = usd; // los formatos del tooltip siguen a la moneda del bono elegido
         ch.$clip = clip ? rows.map(function(r, i) { return { i: i, v: r.total }; }).filter(function(c) { return c.v > yMax; }) : [];
         ch.update('none');
     } else {
@@ -1271,14 +1357,14 @@ window.updateCFChart = function() {
                 responsive: true, maintainAspectRatio: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2.5),
                 interaction: { mode: 'index', intersect: false }, layout: { padding: { top: 18 } },
                 plugins: {
-                    tooltip: { filter: function(c) { return c.parsed.y > 0; }, callbacks: { title: function(its) { const r = its[0].chart.$rows[its[0].dataIndex]; return r ? fd(r.t) : ''; }, label: function(c) { return c.dataset.label + ': ' + usd(c.parsed.y); }, footer: function(its) { const r = its.length ? its[0].chart.$rows[its[0].dataIndex] : null;  return r ? 'Total ' + usd(r.total) + ' · acumulado ' + usd(r.acum) : ''; } } },
+                    tooltip: { filter: function(c) { return c.parsed.y > 0; }, callbacks: { title: function(its) { const r = its[0].chart.$rows[its[0].dataIndex]; return r ? fd(r.t) : ''; }, label: function(c) { return c.dataset.label + ': ' + c.chart.$fmt(c.parsed.y); }, footer: function(its) { const r = its.length ? its[0].chart.$rows[its[0].dataIndex] : null;  return r ? 'Total ' + its[0].chart.$fmt(r.total) + ' · acumulado ' + its[0].chart.$fmt(r.acum) : ''; } } },
                     legend: { labels: { usePointStyle: true, pointStyle: 'rectRounded', padding: 20, color: colorTx } }
                 },
                 scales: scales
             },
             plugins: [plug]
         });
-        window.cfChartObj.$rows = rows; // el tooltip lee las filas del bono actual (el gráfico se reutiliza al cambiar de bono)
+        window.cfChartObj.$fmt = usd; window.cfChartObj.$rows = rows; // el tooltip lee las filas del bono actual (el gráfico se reutiliza al cambiar de bono)
         window.cfChartObj.$clip = clip ? rows.map(function(r, i) { return { i: i, v: r.total }; }).filter(function(c) { return c.v > yMax; }) : [];
         window.cfChartObj.update('none');
     }
@@ -3287,6 +3373,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         if (today > PSD.last && mktStarted()) { (LOGARS[ds_] = LOGARS[ds_] || {})[r.symbol] = r.c; }
       }); });
       if (n && root.classList.contains('active')) window.renderPesos();
+      if (n) document.dispatchEvent(new Event('psdata')); // avisa a quien muestre precios de pesos (la portada)
     });
   }
   function extendIdx(nm, dict) { // agrega días nuevos a una serie diaria (rellena fines de semana con el último valor)
@@ -3305,7 +3392,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var b = fetch('data/indices.json?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (o) {
       extendIdx('CER', o.CER); extendIdx('TAMAR', o.TAMAR); extendIdx('FX', o.FX); cerFix();
     }).catch(function () {});
-    return Promise.all([a, b]).then(function () { if (root.classList.contains('active')) window.renderPesos(); });
+    return Promise.all([a, b]).then(function () { if (root.classList.contains('active')) window.renderPesos(); document.dispatchEvent(new Event('psdata')); });
   };
   window.psDataSheet = function () {
     var ks = Object.keys(INST).sort(), m = {}, dd = {};
@@ -5908,5 +5995,213 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var _sw = window.switchTab; window.switchTab = function (id) { _sw(id); if (id === 'thist') { later(); if (!VJ && window.VOLX && window.VOLX.raw) window.VOLX.raw(function (d) { if (d) { VJ = d; CACHE = {}; if (isAct()) later(); } }); } };
 })();
 </script>
+<script>
+/* =====================================================================
+   PORTADA (Inicio) y MENÚ LATERAL
+   - el menú se arma con las mismas pestañas de la barra (que queda oculta); en el celu es un cajón que se abre
+     con el botón ☰ o deslizando desde el borde izquierdo
+   - la portada junta lo más mirado: riesgo país, dólar, TAMAR, la curva de Globales y Bonares, Lecaps y CER,
+     los que más se movieron en la última rueda y la próxima licitación; cada tarjeta lleva a su pestaña
+   ===================================================================== */
+;(function () {
+  var home = document.getElementById('home'); if (!home) return;
+  var $ = function (id) { return document.getElementById(id); };
+  var css = function (n) { return getComputedStyle(document.body).getPropertyValue(n).trim(); };
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : v.toLocaleString('es-AR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); };
+  var dmy = function (s) { return s.slice(8, 10) + '/' + s.slice(5, 7); };
+  var get = function (u) { return fetch(u, { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
+  var lastN = function (o, n) { var k = Object.keys(o || {}).sort(); return k.slice(-n).map(function (d) { return [d, o[d]]; }); };
+
+  /* ---------- íconos ---------- */
+  var P = function (d) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>'; };
+  var IC = {
+    home: P('<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>'),
+    tabla: P('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10M15 10v10"/>'),
+    desglose: P('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
+    curva: P('<path d="M3 20c4-1 6-5 9-9s6-6 9-7"/><circle cx="7" cy="17" r="1.3"/><circle cx="13" cy="10" r="1.3"/><circle cx="18" cy="6" r="1.3"/>'),
+    pesos: P('<path d="M12 3v18M17 7.5c-1-1.5-2.8-2.3-5-2.3-2.8 0-4.5 1.4-4.5 3.4 0 4.6 10 2.3 10 7 0 2-2 3.4-5 3.4-2.4 0-4.4-.9-5.5-2.5"/>'),
+    port: P('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>'),
+    vard: P('<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>'),
+    rot: P('<path d="M4 9h13l-3-3M20 15H7l3 3"/>'),
+    vol: P('<path d="M5 20v-6M10 20V8M15 20v-9M20 20V5"/>'),
+    dol: P('<circle cx="12" cy="12" r="9"/><path d="M15 9.2c-.6-1-1.7-1.5-3-1.5-1.7 0-2.8.9-2.8 2.1 0 2.9 6 1.5 6 4.4 0 1.3-1.2 2.2-3 2.2-1.5 0-2.7-.6-3.3-1.6M12 6v1.7M12 16.4V18"/>'),
+    thist: P('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>'),
+    lic: P('<path d="M14 3 21 10M11 6l7 7M4 21l7-7M8 10l6 6M12.5 4.5l7 7-3 3-7-7z"/>'),
+    menu: P('<path d="M4 6h16M4 12h16M4 18h16"/>'),
+    col: P('<path d="m15 18-6-6 6-6"/>')
+  };
+  var DESC = {
+    tabla: 'Cuánto rinde cada bono hasta tu fecha de corte según la TIR a la que lo vendas.',
+    desglose: 'Renta y amortización de cada bono, en dólares o en pesos, y cuánto cobrás al corte.',
+    curva: 'La curva hard dollar por TIR y duración, ley NY contra ley local, y el riesgo país.',
+    pesos: 'Lecaps, CER, TAMAR, dólar linked y duales contra su curva, con breakevens.',
+    port: 'Tu cartera: valor, flujos, riesgo y escenarios.',
+    vard: 'Qué subió y qué bajó contra el cierre anterior, en precio y en tasa.',
+    rot: 'Los pares que conviene rotar después de costos.',
+    vol: 'Cada rueda desde 2023 por bono, familia y plazo, con la de hoy en vivo.',
+    dol: 'MEP, cable y oficial, la brecha y el canje.',
+    thist: 'La tasa de cada bono día por día y las forwards entre pares.',
+    lic: 'El resultado de cada licitación del Tesoro y el próximo llamado.'
+  };
+
+  /* ---------- menú lateral ---------- */
+  var TB = [].slice.call(document.querySelectorAll('#topbar .tabs .tab-btn')).map(function (b) { var m = /switchTab\('([^']+)'\)/.exec(b.getAttribute('onclick') || ''); return m ? [m[1], b.textContent.trim()] : null; }).filter(Boolean);
+  var ITEMS = [['home', 'Inicio']].concat(TB);
+  var sn = document.createElement('aside'); sn.id = 'sideNav'; sn.setAttribute('data-html2canvas-ignore', 'true');
+  sn.innerHTML = '<div class="sn-h"><img src="/favicon.svg?v=2" alt=""><b>BONERÍO LOCAL</b></div><nav>' +
+    ITEMS.map(function (t, i) { return (i === 1 ? '<div class="sn-sep"></div>' : '') + '<button class="sn-it" data-t="' + t[0] + '" title="' + t[1] + '">' + (IC[t[0]] || IC.tabla) + '<span>' + t[1] + '</span></button>'; }).join('') +
+    '</nav><div class="sn-f"><button class="sn-it sn-col" data-col title="Achicar o agrandar el menú">' + IC.col + '<span>Achicar menú</span></button></div>';
+  document.body.appendChild(sn);
+  var sh = document.createElement('div'); sh.id = 'snShade'; document.body.appendChild(sh);
+  var bt = document.createElement('button'); bt.id = 'snBtn'; bt.type = 'button'; bt.title = 'Menú'; bt.setAttribute('aria-label', 'Abrir el menú'); bt.innerHTML = IC.menu;
+  var h1 = document.querySelector('main > h1'); if (h1) { h1.classList.add('hm-h1'); h1.insertBefore(bt, h1.firstChild); } // en el celu el botón del menú va al lado del título
+  try { if (localStorage.getItem('snMini') === '1') document.body.classList.add('sn-mini'); } catch (e) {}
+  var open = function (v) { document.body.classList.toggle('sn-open', v); };
+  bt.onclick = function () { open(true); }; sh.onclick = function () { open(false); };
+  sn.addEventListener('click', function (e) {
+    var c = e.target.closest('[data-col]'); if (c) { var m = document.body.classList.toggle('sn-mini'); try { localStorage.setItem('snMini', m ? '1' : '0'); } catch (x) {} setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 220); return; }
+    var b = e.target.closest('[data-t]'); if (b) { window.switchTab(b.getAttribute('data-t')); open(false); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (x) {} }
+  });
+  var tx0 = null, ty0 = 0; // deslizar: desde el borde izquierdo abre; hacia la izquierda cierra
+  document.addEventListener('touchstart', function (e) { var t = e.touches[0]; tx0 = (t.clientX < 26 || document.body.classList.contains('sn-open')) ? t.clientX : null; ty0 = t.clientY; }, { passive: true });
+  document.addEventListener('touchend', function (e) { if (tx0 == null) return; var t = e.changedTouches[0], dx = t.clientX - tx0, dy = Math.abs(t.clientY - ty0); if (dy < 60) { if (dx > 60) open(true); else if (dx < -60) open(false); } tx0 = null; }, { passive: true });
+
+  var _sw = window.switchTab;
+  window.switchTab = function (id) {
+    if (id === 'home') { document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); }); document.querySelectorAll('.tab-content').forEach(function (c) { c.classList.toggle('active', c.id === 'home'); }); }
+    else _sw.apply(this, arguments);
+    [].forEach.call(sn.querySelectorAll('[data-t]'), function (b) { b.classList.toggle('on', b.getAttribute('data-t') === id); });
+    var gc = $('globalControls'); if (gc && id === 'home') gc.style.display = 'none'; else if (gc && /^(tabla|desglose)$/.test(id)) gc.style.display = '';
+    if (id === 'home') setTimeout(render, 0);
+  };
+
+  /* ---------- portada ---------- */
+  var MK = function (id, t, go) { return '<div class="hm-t" data-go="' + go + '" id="hk_' + id + '"><small>' + t + '</small><b>—</b><div class="d">&nbsp;</div><div class="s">&nbsp;</div><svg viewBox="0 0 100 34" preserveAspectRatio="none"></svg></div>'; };
+  var card = function (id, t, go, sub, body) { return '<div class="card hm-c" data-norf id="' + id + '"><h3>' + t + (go ? '<a data-go="' + go + '">Ver más →</a>' : '') + '</h3>' + (sub ? '<p class="qs">' + sub + '</p>' : '') + body + '</div>'; };
+  home.innerHTML =
+    '<div class="hm-hero"><div><h2>El mercado de hoy</h2><p id="hmSub">Lo más importante de la renta fija argentina en una pantalla. Tocá cualquier tarjeta para ver el detalle.</p></div></div>' +
+    '<div class="hm-k">' + MK('rp', 'Riesgo país', 'curva:rpCard') + MK('mep', 'Dólar MEP · AL30', 'dol') + MK('ccl', 'Contado con liqui', 'dol') + MK('ofi', 'Oficial · A3500', 'dol') + MK('tam', 'TAMAR · TNA', 'pesos') + '</div>' +
+    '<div class="hm-g">' +
+      card('hmRP', 'Riesgo país', 'curva:rpCard', '', '<div class="hm-per" id="hmRPp"><button data-n="21">1M</button><button data-n="63">3M</button><button data-n="126" class="on">6M</button><button data-n="252">1A</button></div><div class="hm-ch"><canvas id="hmRPc"></canvas></div>') +
+      card('hmUSD', 'Curva Globales y Bonares', 'curva', 'TIR contra duración modificada, al precio de la especie elegida arriba (MEP o cable).', '<div class="hm-ch"><canvas id="hmUSDc"></canvas></div>') +
+    '</div>' +
+    '<div class="hm-g3">' +
+      card('hmFIX', 'Lecaps y Boncaps', 'pesos', 'TNA simple contra días al vencimiento.', '<div class="hm-ch s"><canvas id="hmFIXc"></canvas></div>') +
+      card('hmCER', 'Bonos CER', 'pesos', 'TIR real (sobre CER) contra días al vencimiento.', '<div class="hm-ch s"><canvas id="hmCERc"></canvas></div>') +
+      card('hmMOV', 'Los que más se movieron', 'vard', '', '<div id="hmMOVb"></div>') +
+    '</div>' +
+    card('hmLIC', 'Próxima licitación del Tesoro', 'lic', '', '<div class="hm-st" id="hmLICb"></div>') +
+    '<div style="height:16px"></div>' +
+    '<div class="hm-q">' + TB.map(function (t) { return '<button data-go="' + t[0] + '"><b>' + (IC[t[0]] || '') + t[1] + '</b><span>' + (DESC[t[0]] || '') + '</span></button>'; }).join('') + '</div>' +
+    '<p class="hm-note" id="hmNote"></p>';
+  home.addEventListener('click', function (e) {
+    var g = e.target.closest('[data-go]'); if (!g) return; var p = g.getAttribute('data-go').split(':');
+    window.switchTab(p[0]); setTimeout(function () { var el = p[1] && $(p[1]); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); else window.scrollTo({ top: 0, behavior: 'smooth' }); }, 120);
+  });
+  $('hmRPp').addEventListener('click', function (e) { var b = e.target.closest('[data-n]'); if (!b) return; RPN = +b.getAttribute('data-n'); [].forEach.call(this.children, function (x) { x.classList.toggle('on', x === b); }); drawRP(); });
+
+  var CH = {}, RPN = 126, DATA = null;
+  function chart(id, cfg) { if (CH[id]) CH[id].destroy(); var c = $(id); if (!c || !window.Chart) return null; CH[id] = new Chart(c.getContext('2d'), cfg); return CH[id]; }
+  function spark(svg, ys, col) {
+    ys = ys.filter(function (y) { return y > 0; }); if (!svg || ys.length < 2) return;
+    var lo = Math.min.apply(null, ys), hi = Math.max.apply(null, ys), r = hi - lo || 1, pts = ys.map(function (y, i) { return (i / (ys.length - 1) * 100).toFixed(1) + ',' + (31 - (y - lo) / r * 28).toFixed(1); });
+    svg.innerHTML = '<defs><linearGradient id="g' + svg.parentNode.id + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + col + '" stop-opacity=".28"/><stop offset="1" stop-color="' + col + '" stop-opacity="0"/></linearGradient></defs>' +
+      '<polygon points="0,34 ' + pts.join(' ') + ' 100,34" fill="url(#g' + svg.parentNode.id + ')"/><polyline points="' + pts.join(' ') + '" fill="none" stroke="' + col + '" stroke-width="1.7" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>';
+  }
+  function tile(id, val, d, s, ys, col) { var e = $('hk_' + id); if (!e) return; e.querySelector('b').textContent = val; e.querySelector('.d').innerHTML = d || '&nbsp;'; e.querySelector('.s').innerHTML = s || '&nbsp;'; if (ys) spark(e.querySelector('svg'), ys, col); }
+  var chg = function (a, b, d, bad) { if (!(a > 0) || !(b > 0)) return ''; var x = (a / b - 1) * 100, c = Math.abs(x) < 0.005 ? 'eq' : (x > 0) !== !!bad ? 'up' : 'dn'; return '<span class="' + c + '">' + (x > 0 ? '▲ +' : x < 0 ? '▼ ' : '') + nf(x, d == null ? 2 : d) + '%</span>'; };
+  var chgPb = function (a, b, bad) { if (a == null || b == null) return ''; var x = a - b, c = Math.abs(x) < 0.5 ? 'eq' : (x > 0) !== !!bad ? 'up' : 'dn'; return '<span class="' + c + '">' + (x > 0 ? '▲ +' : x < 0 ? '▼ ' : '') + nf(x, 0) + ' pb</span>'; };
+
+  function tiles() {
+    var D = DATA || {}, dl = D.dl, ix = D.ix;
+    var rp = window.RIESGO_PAIS; if (rp && rp.length) { var a = rp[rp.length - 1], b = rp[rp.length - 2]; tile('rp', nf(a[1]) + ' pb', b ? chgPb(a[1], b[1], true) + ' <span class="eq">vs ' + dmy(b[0]) + '</span>' : '', 'Dato del ' + dmy(a[0]), rp.slice(-90).map(function (x) { return x[1]; }), '#fb7185'); }
+    if (dl && dl.d) {
+      var dd = lastN(dl.d, 90), L = dd[dd.length - 1], Pv = dd[dd.length - 2], mp = function (x) { return x && x[1].mep && x[1].mep.AL30 && x[1].mep.AL30.close; }, cc = function (x) { return x && x[1].ccl && (x[1].ccl.vw || x[1].ccl.med); };
+      var of = lastN(dl.A3500, 90), o1 = of.length ? of[of.length - 1][1] : null, o0 = of.length > 1 ? of[of.length - 2][1] : null;
+      if (mp(L)) tile('mep', '$ ' + nf(mp(L), 2), chg(mp(L), mp(Pv)), o1 ? 'Brecha con el oficial: ' + nf((mp(L) / o1 - 1) * 100, 1) + '%' : '', dd.map(mp), '#4b8fe2');
+      if (cc(L)) tile('ccl', '$ ' + nf(cc(L), 2), chg(cc(L), cc(Pv)), mp(L) ? 'Canje con el MEP: ' + nf((cc(L) / mp(L) - 1) * 100, 1) + '%' : '', dd.map(cc), '#1fa58a');
+      if (o1) tile('ofi', '$ ' + nf(o1, 2), chg(o1, o0), 'Comunicación A3500 · ' + dmy(of[of.length - 1][0]), of.map(function (x) { return x[1]; }), '#75aadb');
+      if (L) $('hmSub').textContent = 'Cierre del ' + L[0].split('-').reverse().join('/') + ' (y lo que ya se mueva hoy). Tocá cualquier tarjeta para ver el detalle.';
+    }
+    if (ix && ix.TAMAR) { var tm = lastN(ix.TAMAR, 60), t1 = tm[tm.length - 1], t0 = tm[tm.length - 2]; tile('tam', nf(t1[1], 2) + '%', t0 ? chgPb(t1[1] * 100, t0[1] * 100) : '', 'Bancos privados · ' + dmy(t1[0]), tm.map(function (x) { return x[1]; }), '#f6b40e'); }
+  }
+
+  function drawRP() {
+    var rp = window.RIESGO_PAIS; if (!rp || !rp.length) return; var a = rp.slice(-RPN), ac = css('--ac') || '#f59e0b', mu = css('--mu'), bd = css('--bd');
+    chart('hmRPc', { type: 'line', data: { labels: a.map(function (x) { return dmy(x[0]); }), datasets: [{ data: a.map(function (x) { return x[1]; }), borderColor: ac, backgroundColor: function (c) { var ch = c.chart, ar = ch.chartArea; if (!ar) return ac + '22'; var g = ch.ctx.createLinearGradient(0, ar.top, 0, ar.bottom); g.addColorStop(0, ac + '55'); g.addColorStop(1, ac + '00'); return g; }, fill: true, borderWidth: 2.2, pointRadius: 0, pointHoverRadius: 4, tension: 0.2 }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return 'Riesgo país: ' + nf(c.parsed.y) + ' pb'; } } } },
+        scales: { x: { ticks: { color: mu, maxTicksLimit: 7, maxRotation: 0 }, grid: { display: false } }, y: { ticks: { color: mu, callback: function (v) { return nf(v); } }, grid: { color: bd } } } } });
+  }
+
+  var labelPlug = { id: 'hmLab', afterDatasetsDraw: function (ch) { var ctx = ch.ctx; ctx.save(); ctx.font = '600 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = css('--mu');
+    ch.data.datasets.forEach(function (ds, i) { if (ds.type === 'line' || !ch.isDatasetVisible(i)) return; ch.getDatasetMeta(i).data.forEach(function (el, j) { var p = ds.data[j]; if (p && p.k) ctx.fillText(p.k, el.x, el.y - 9); }); }); ctx.restore(); } };
+  function scatterCfg(sets, xl, yl, yfmt) {
+    var mu = css('--mu'), bd = css('--bd');
+    return { type: 'scatter', data: { datasets: sets }, plugins: [labelPlug],
+      options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { top: 14 } }, plugins: { legend: { display: sets.filter(function (s) { return s.label; }).length > 1, labels: { color: css('--tx'), usePointStyle: true, filter: function (it) { return !!it.text; } } }, tooltip: { filter: function (c) { return !!c.raw.k; }, callbacks: { label: function (c) { return c.raw.k + ': ' + yfmt(c.raw.y) + ' · ' + xl + ' ' + nf(c.raw.x, xl === 'días' ? 0 : 2); } } } },
+        scales: { x: { title: { display: true, text: xl === 'días' ? 'Días al vencimiento' : 'Duración modificada (años)', color: mu }, ticks: { color: mu }, grid: { color: bd } }, y: { title: { display: true, text: yl, color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } };
+  }
+  function fitLine(pts, fitf, col, xmax) { if (!fitf) return null; var x0 = Math.min.apply(null, pts.map(function (p) { return p.x; })), x1 = xmax || Math.max.apply(null, pts.map(function (p) { return p.x; })), L = []; for (var i = 0; i <= 60; i++) { var x = x0 + (x1 - x0) * i / 60; L.push({ x: x, y: fitf(x) }); } return { type: 'line', data: L, borderColor: col, borderWidth: 2, pointRadius: 0, tension: 0.3, fill: false, borderDash: [], order: 2 }; }
+
+  function drawUSD() {
+    try {
+      if (typeof B === 'undefined' || typeof calc !== 'function') return; var d0 = day($('d0').value), d1 = day($('d1').value), u = parseFloat($('ust').value) / 100, ny = [], lo = [];
+      B.forEach(function (b) { var r = calc(b, d0, d1, u); if (r.tir != null && r.modD != null && r.modD > 0.2) (b.k.indexOf('GD') === 0 ? ny : lo).push({ x: r.modD, y: r.tir * 100, k: b.k }); });
+      var c1 = css('--c-s1') || '#4b8fe2', c2 = css('--c-s2') || '#c47d0c', fit = function (a) { var r = window.curveFitUSD && window.curveFitUSD(a.filter(function (p) { return p.x >= 1.1; }), window.USD_MODEL, 2); return r ? r.f : null; };
+      var sets = [{ label: 'Globales (ley NY)', data: ny, backgroundColor: c1, borderColor: c1, pointRadius: 5, pointHoverRadius: 7, order: 1 }, { label: 'Bonares (ley local)', data: lo, backgroundColor: c2, borderColor: c2, pointRadius: 5, pointHoverRadius: 7, order: 1 }];
+      var l1 = fitLine(ny, fit(ny), c1 + 'aa'), l2 = fitLine(lo, fit(lo), c2 + 'aa'); if (l1) sets.push(l1); if (l2) sets.push(l2);
+      chart('hmUSDc', scatterCfg(sets, 'MD', 'TIR (%)', function (v) { return nf(v, 2) + '%'; }));
+    } catch (e) { console.error(e); }
+  }
+  function drawPesos() {
+    try {
+      var X = window.PSX; if (!X || !X.snap) return; var S = X.snap(1).S, fx = [], cr = [];
+      S.forEach(function (o) { if (o.miss || !(o.d >= 7)) return; var f = X.famOf(o.ins); if (f === 'fija' && o.tnas != null && o.d <= 800) fx.push({ x: o.d, y: o.tnas * 100, k: o.k }); else if (f === 'cer' && o.realTea != null && o.d >= 20 && o.d <= 1500) cr.push({ x: o.d, y: o.realTea * 100, k: o.k }); });
+      var ff = function (a) { var r = a.length >= 3 && X.fairFit(a.map(function (p) { return { x: p.x, y: p.y, k: p.k }; }), 'auto'); return r ? r.f : null; };
+      var cf = css('--c-s2') || '#c47d0c', cc = '#84cc16';
+      var s1 = [{ label: '', data: fx, backgroundColor: cf, borderColor: cf, pointRadius: 4.5, order: 1 }], s2 = [{ label: '', data: cr, backgroundColor: cc, borderColor: cc, pointRadius: 4.5, order: 1 }];
+      var l1 = fitLine(fx, ff(fx), css('--c-s1') || '#4b8fe2'), l2 = fitLine(cr, ff(cr), css('--c-s1') || '#4b8fe2'); if (l1) s1.push(l1); if (l2) s2.push(l2);
+      chart('hmFIXc', scatterCfg(s1, 'días', 'TNA (%)', function (v) { return nf(v, 2) + '%'; }));
+      chart('hmCERc', scatterCfg(s2, 'días', 'TIR real (%)', function (v) { return nf(v, 2) + '%'; }));
+    } catch (e) { console.error(e); }
+  }
+
+  function movers() {
+    var D = DATA || {}, two = function (o) { var k = Object.keys(o || {}).sort(); return k.length > 1 ? [o[k[k.length - 1]], o[k[k.length - 2]], k[k.length - 1]] : null; }, out = [];
+    var hd = two(D.cl && D.cl.D), pe = two(D.ar);
+    if (hd) Object.keys(hd[0]).forEach(function (t) { var a = hd[0][t], b = hd[1][t]; if (a > 0 && b > 0) out.push({ t: t, f: 'Dólares', v: (a / b - 1) * 100, p: a, c: 'US$ ' }); });
+    if (pe) Object.keys(pe[0]).forEach(function (t) { var a = pe[0][t], b = pe[1][t]; if (a > 0 && b > 0 && window.PSX && window.PSX.INST[t]) out.push({ t: t, f: window.PSX.FAM[window.PSX.famOf(window.PSX.INST[t])].n, v: (a / b - 1) * 100, p: a, c: '$ ' }); });
+    out = out.filter(function (x) { return Math.abs(x.v) < 15; }).sort(function (a, b) { return b.v - a.v; });
+    if (!out.length) { $('hmMOVb').innerHTML = '<p class="qs">Sin cierres para comparar.</p>'; return; }
+    var row = function (x) { return '<tr><td>' + x.t + ' <span class="f">' + x.f + '</span></td><td>' + x.c + nf(x.p, 2) + '</td><td class="' + (x.v > 0 ? 'up' : x.v < 0 ? 'dn' : 'eq') + '">' + (x.v > 0 ? '+' : '') + nf(x.v, 2) + '%</td></tr>'; };
+    var up = out.slice(0, 4), dn = out.slice(-4).reverse();
+    $('hmMOVb').innerHTML = '<p class="qs" style="margin-top:0">Precio de cierre contra la rueda anterior' + (hd ? ' (' + dmy(hd[2]) + ')' : '') + '.</p><table class="hm-tb"><tbody>' + up.map(row).join('') + '<tr><td colspan="3" style="padding:2px"></td></tr>' + dn.map(row).join('') + '</tbody></table>';
+  }
+
+  function licit() {
+    var C = DATA && DATA.cal; if (!C) { $('hmLICb').innerHTML = '<p class="qs">Abrí la pestaña Licitaciones para ver el cronograma.</p>'; return; }
+    var hoy = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10), i = C.findIndex(function (x) { return x[1] >= hoy; }); if (i < 0) i = C.length - 1;
+    var DN = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'], fd = function (s) { var d = new Date(s + 'T12:00:00Z'); return DN[d.getUTCDay()] + ' ' + dmy(s); };
+    var dt = function (s) { var n = Math.round((Date.parse(s + 'T12:00:00Z') - Date.parse(hoy + 'T12:00:00Z')) / 864e5); return n === 0 ? 'hoy' : n === 1 ? 'mañana' : n > 1 ? 'en ' + n + ' días' : 'realizado'; };
+    var nx = [0, 1, 2].filter(function (j) { return C[i][j] >= hoy; })[0];
+    $('hmLICb').innerHTML = ['Llamado', 'Licitación', 'Liquidación'].map(function (t, j) { return '<div class="' + (j === nx ? 'n' : '') + '"><small>' + t + '</small><b>' + fd(C[i][j]) + '</b><span>' + dt(C[i][j]) + '</span></div>'; }).join('');
+  }
+
+  function render() {
+    if (!home.classList.contains('active')) return;
+    tiles(); drawRP(); drawUSD(); drawPesos(); movers(); licit();
+  }
+  Promise.all([get('data/dolar.json'), get('data/indices.json'), get('data/closes.json'), get('data/closes_ars.json'), fetch('licitaciones.html', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.text() : ''; }).catch(function () { return ''; })]).then(function (R) {
+    var cal = null; try { var m = /const CAL=(\[[\s\S]*?\]);/.exec(R[4] || ''); if (m) cal = JSON.parse(m[1]); } catch (e) {}
+    DATA = { dl: R[0], ix: R[1], cl: R[2], ar: R[3], cal: cal }; render();
+  });
+  var n = 0, iv = setInterval(function () { if (window.RIESGO_PAIS || ++n > 40) { clearInterval(iv); render(); } }, 500); // el riesgo país lo carga la tarjeta de Globales / Bonares
+  var tt = window.toggleTheme; if (typeof tt === 'function') window.toggleTheme = function () { var r = tt.apply(this, arguments); setTimeout(render, 0); return r; };
+  ['bmep', 'bccl'].forEach(function (id) { var b = $(id); if (b) b.addEventListener('click', function () { setTimeout(drawUSD, 50); }); });
+  document.addEventListener('psdata', function () { if (home.classList.contains('active')) { drawPesos(); movers(); } }); // llegaron cierres o precios en vivo de los bonos en pesos
+  window.switchTab('home');
+})();
+</script>
+
 </body>
 </html>

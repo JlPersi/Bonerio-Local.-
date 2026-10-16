@@ -59,6 +59,7 @@ h1{font-size:30px;margin:0 0 6px;letter-spacing:-.5px}
 .inst{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
 .chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--bd);background:var(--soft);border-radius:8px;padding:5px 10px;font-size:13px;font-weight:600}
 .chip i{font-style:normal;font-size:11px;color:var(--mu);font-weight:500}
+.prevn{margin:0 0 12px;font-size:13.5px;color:var(--mu);border-left:3px solid var(--ac);padding:6px 10px;background:color-mix(in srgb,var(--ac) 8%,transparent);border-radius:0 8px 8px 0}.prevn a{color:var(--ac);font-weight:600;text-decoration:none;white-space:nowrap}
 .empty{font-size:13px;color:var(--mu);border:1px dashed var(--bd);border-radius:10px;padding:12px 14px;margin-top:14px;width:100%}
 /* tabla */
 .tw{overflow-x:auto;border:1px solid var(--bd);border-radius:10px}
@@ -298,7 +299,8 @@ function estado(i){ // 0 pasada, 1 próxima/en curso, 2 futura
   if(dias(q)<0) return 0;
   return 1;
 }
-function idxProx(){const i=CAL.findIndex(x=>dias(x[2])>=0);return i<0?CAL.length-1:i}
+const licHecha=x=>dias(x[1])<0||dias(x[1])===0&&!!(RES[x[1]]||LD.AUC.find(a=>a.c===x[1])); // pasó la licitación (o ya está cargado su resultado)
+function idxProx(){const i=CAL.findIndex(x=>!licHecha(x));return i<0?CAL.length-1:i} // apenas pasa la licitación, la tarjeta muestra el próximo llamado; el resultado y sus gráficos quedan abajo
 function idxUlt(){let r=-1;CAL.forEach((x,i)=>{if(dias(x[1])<=0)r=i});return r}
 
 function data(key){const r=RES[key];return r?r.instrumentos:null}
@@ -383,13 +385,18 @@ function proxSVG(x,V,M,W,cut){
   P.forEach(p=>{if(p.k===x.t)return;const cx=X(p.x),cy=Y(p.y)-9,hw=p.k.length*2.9;if(box&&cx+hw>box.x1&&cx-hw<box.x2&&cy>box.y1&&cy-9<box.y2)return;s+=`<text x="${cx}" y="${cy}" text-anchor="middle" style="font-size:9.5px;fill:var(--mu)">${p.k}</text>`});
   return s+"</svg>";
 }
+window.goUlt=()=>{$("#ult").scrollIntoView({behavior:"smooth"});return false}; // dentro del iframe del sitio también baja la página
+function prevNote(i){ // la licitación anterior ya pasó: un renglón que lleva al resultado (y avisa si todavía no liquidó)
+  const p=CAL[i-1];if(!p||dias(p[2])<0)return"";const n=dias(p[2]),hay=!!LD.AUC.find(a=>a.c===p[1]);
+  return `<p class="prevn">La licitación del ${fd(p[1])} ya se hizo${n>=0?` y liquida ${dayText(n)==="hoy"?"hoy":dayText(n)} (${fd(p[2])})`:""}. ${hay?'<a href="#ult" onclick="return goUlt()">Resultado y gráficos, abajo ↓</a>':"El resultado se carga apenas lo publique Finanzas."}</p>`;
+}
 function renderProx(){
   const i=idxProx(),[l,c,q]=CAL[i],key=c,r=RES[key];
   const stepList=[["l","Llamado",l],["c","Licitación",c],["q","Liquidación",q]];
   const llamadoHecho=dias(l)<=0;
   const next=stepList.find(s=>dias(s[2])>=0);
   let h=`<div class="sxh"><div><h2 class="qh">Próxima licitación <span class="cd">${dayText(dias(next[2]))==="hoy"?"hoy":dayText(dias(next[2]))}: ${next[1].toLowerCase()}</span></h2>
-  <p class="qs">Licitación del ${fdl(c)}. Con el llamado se publican los instrumentos y se cargan acá; con el resultado, los montos y las tasas de corte.</p></div></div><div class="steps">`;
+  <p class="qs">Licitación del ${fdl(c)}. Con el llamado se publican los instrumentos y se cargan acá; con el resultado, los montos y las tasas de corte.</p></div></div>${prevNote(i)}<div class="steps">`;
   stepList.forEach(s=>{
     const n=dias(s[2]);
     h+=`<div class="st ${s[0]} ${n<0?"done":""} ${next===s?"now":""}"><div class="t">${s[1]}</div><div class="d">${fd(s[2])}</div><div class="r">${n<0?"realizado":dayText(n)}</div></div>`;

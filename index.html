@@ -222,6 +222,12 @@ input:focus, select:focus { border-color: var(--ac); outline: none; }
 input[type=number]::-webkit-inner-spin-button, 
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input[type=number] { -moz-appearance: textfield; }
+/* fechas: fondo difuminado en el color de acento y el ícono del calendario visible en los dos temas */
+input[type=date] { color-scheme: dark; background: linear-gradient(135deg, color-mix(in srgb, var(--ac) 22%, var(--bg)), color-mix(in srgb, var(--ac) 6%, var(--bg))); border-color: color-mix(in srgb, var(--ac) 45%, var(--bd)); box-shadow: 0 0 14px -4px color-mix(in srgb, var(--ac) 55%, transparent); font-weight: 600; cursor: pointer }
+[data-theme="light"] input[type=date] { color-scheme: light }
+input[type=date]:disabled { opacity: .75; cursor: default; box-shadow: none }
+input[type=date]::-webkit-calendar-picker-indicator { cursor: pointer; width: 18px; height: 18px; padding: 2px; border-radius: 5px; background: var(--ac); opacity: .95; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='16.5' rx='2.5'/%3E%3Cpath d='M3 9.5h18M8 2.5v4M16 2.5v4'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='16.5' rx='2.5'/%3E%3Cpath d='M3 9.5h18M8 2.5v4M16 2.5v4'/%3E%3C/svg%3E") center / contain no-repeat }
+input[type=date]::-webkit-calendar-picker-indicator:hover { opacity: 1; filter: brightness(1.2) }
 
 .slider-group { display: flex; gap: 12px; align-items: center; }
 input[type=range] { padding: 0; cursor: ew-resize; height: 6px; appearance: none; background: var(--bd); border-radius: 3px; width: 170px; }
@@ -1013,7 +1019,8 @@ $('pr').innerHTML = B.map(function(b) { return '<label>' + b.k + '<input type="n
 $('spreadPairSelect').innerHTML = Object.keys(SPREADS).map(function(k) { return '<option value="' + k + '">' + SPREADS[k].loc + ' vs ' + SPREADS[k].ny + '</option>'; }).join('');
 
 window.settleDate = function (mode) { // CI: hoy (o el próximo día hábil); T+1: el día hábil siguiente a la liquidación CI. Respeta fines de semana y feriados
-  var t = bxToday(); while (!bxIsBiz(t)) t++; if (mode !== 'CI') return bxSettleT1(t); while (!bxIsSet(t)) t++; return t;
+  var t = bxToday(); // antes de la rueda (o en feriados y fines de semana) los precios son el cierre de la rueda anterior: se liquidan desde ese día, así un bono corto no rinde de más por contar días que ya no le quedan
+  if (typeof mktStarted === 'function' && !mktStarted()) { t--; while (!bxIsBiz(t)) t--; } else while (!bxIsBiz(t)) t++; if (mode !== 'CI') return bxSettleT1(t); while (!bxIsSet(t)) t++; return t;
 };
 window.applySettle = function (mode, redraw) {
   window.settleMode = mode; if (redraw) { try { localStorage.setItem('settle3', mode); } catch (e) {} }
@@ -1251,13 +1258,13 @@ window.updateCFChart = function() {
         if (!ch.$clip || !ch.isDatasetVisible(0)) return; const ctx = ch.ctx, a = ch.chartArea;
         ctx.save(); ctx.font = '600 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = colorTx;
         const meta = ch.getDatasetMeta(0);
-        ch.$clip.forEach(function(c) { const el = meta.data[c.i]; if (el) ctx.fillText('▲ ' + usd(c.v), el.x, a.top - 6); });
+        ch.$clip.forEach(function(c) { const el = meta.data[c.i]; if (el) ctx.fillText('▲ ' + ch.$fmt(c.v), el.x, a.top - 6); });
         ctx.restore();
     } };
 
     if (window.cfChartObj instanceof Chart) {
         const ch = window.cfChartObj;
-        ch.data.labels = labels; ch.data.datasets = datasets; ch.options.scales = scales; ch.$rows = rows;
+        ch.data.labels = labels; ch.data.datasets = datasets; ch.options.scales = scales; ch.$rows = rows; ch.$fmt = usd; // los formatos del tooltip siguen a la moneda del bono elegido
         ch.$clip = clip ? rows.map(function(r, i) { return { i: i, v: r.total }; }).filter(function(c) { return c.v > yMax; }) : [];
         ch.update('none');
     } else {
@@ -1268,14 +1275,14 @@ window.updateCFChart = function() {
                 responsive: true, maintainAspectRatio: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2.5),
                 interaction: { mode: 'index', intersect: false }, layout: { padding: { top: 18 } },
                 plugins: {
-                    tooltip: { filter: function(c) { return c.parsed.y > 0; }, callbacks: { title: function(its) { const r = its[0].chart.$rows[its[0].dataIndex]; return r ? fd(r.t) : ''; }, label: function(c) { return c.dataset.label + ': ' + usd(c.parsed.y); }, footer: function(its) { const r = its.length ? its[0].chart.$rows[its[0].dataIndex] : null;  return r ? 'Total ' + usd(r.total) + ' · acumulado ' + usd(r.acum) : ''; } } },
+                    tooltip: { filter: function(c) { return c.parsed.y > 0; }, callbacks: { title: function(its) { const r = its[0].chart.$rows[its[0].dataIndex]; return r ? fd(r.t) : ''; }, label: function(c) { return c.dataset.label + ': ' + c.chart.$fmt(c.parsed.y); }, footer: function(its) { const r = its.length ? its[0].chart.$rows[its[0].dataIndex] : null;  return r ? 'Total ' + its[0].chart.$fmt(r.total) + ' · acumulado ' + its[0].chart.$fmt(r.acum) : ''; } } },
                     legend: { labels: { usePointStyle: true, pointStyle: 'rectRounded', padding: 20, color: colorTx } }
                 },
                 scales: scales
             },
             plugins: [plug]
         });
-        window.cfChartObj.$rows = rows; // el tooltip lee las filas del bono actual (el gráfico se reutiliza al cambiar de bono)
+        window.cfChartObj.$fmt = usd; window.cfChartObj.$rows = rows; // el tooltip lee las filas del bono actual (el gráfico se reutiliza al cambiar de bono)
         window.cfChartObj.$clip = clip ? rows.map(function(r, i) { return { i: i, v: r.total }; }).filter(function(c) { return c.v > yMax; }) : [];
         window.cfChartObj.update('none');
     }
@@ -3284,6 +3291,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         if (today > PSD.last && mktStarted()) { (LOGARS[ds_] = LOGARS[ds_] || {})[r.symbol] = r.c; }
       }); });
       if (n && root.classList.contains('active')) window.renderPesos();
+      if (n) document.dispatchEvent(new Event('psdata')); // avisa a quien muestre precios de pesos (la portada)
     });
   }
   function extendIdx(nm, dict) { // agrega días nuevos a una serie diaria (rellena fines de semana con el último valor)
@@ -3302,7 +3310,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var b = fetch('data/indices.json?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (o) {
       extendIdx('CER', o.CER); extendIdx('TAMAR', o.TAMAR); extendIdx('FX', o.FX); cerFix();
     }).catch(function () {});
-    return Promise.all([a, b]).then(function () { if (root.classList.contains('active')) window.renderPesos(); });
+    return Promise.all([a, b]).then(function () { if (root.classList.contains('active')) window.renderPesos(); document.dispatchEvent(new Event('psdata')); });
   };
   window.psDataSheet = function () {
     var ks = Object.keys(INST).sort(), m = {}, dd = {};
