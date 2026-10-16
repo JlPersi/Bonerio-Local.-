@@ -1,0 +1,12 @@
+name: tmp riesgo pais (debug)
+on:
+  push:
+    branches: [claude/portfolio-r4pdl1]
+jobs:
+  dbg:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          H=$(TZ=America/Argentina/Buenos_Aires date +%F); D=$(TZ=America/Argentina/Buenos_Aires date -d '-20 days' +%F); M=$(TZ=America/Argentina/Buenos_Aires date -d '+1 day' +%F)
+          for u in "https://mercados.ambito.com//riesgopais/variacion" "https://mercados.ambito.com//riesgopais/historico-general/$D/$H" "https://mercados.ambito.com//riesgopais/historico-general/$D/$M" "https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais/ultimo"; do
+            echo "== $u"; curl -sS -m 30 -D - -A "Mozilla/5.0" -H "Origin: https://boneriolocal.com.ar" "$u" | head -c 1500; echo; done
