@@ -5855,11 +5855,13 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 <script>
 /* =====================================================================
    PESTAÑA TASAS HISTÓRICAS: rendimiento diario de los bonos que elijas (dólares, CER, TAMAR, tasa fija, duales, dólar linked)
-   y tasas forward entre pares de bonos de la misma familia, desde la fecha que elijas.
+   y tasas forward entre pares de bonos (de la misma familia o de familias distintas), desde la fecha que elijas.
    - dólares: precio sucio de cada día (base Excel + cierres guardados + data/volumen.json), TIR con los flujos de PX.S
    - pesos: los precios de Curva Pesos (PSX.ptsOf) y las mismas tasas (PSX.yieldAt / PSX.durAt)
    - forward entre A (corto) y B (largo): ((1 + yB)^DB / (1 + yA)^DA)^(1 / (DB − DA)) − 1, con D la duración de Macaulay
      (en los cupón cero, el plazo). En TAMAR y duales, sobre el margen: (mB·DB − mA·DA) / (DB − DA).
+   - cada par se ordena solo (el corto es el que vence antes); con familias distintas cada bono va en su propia unidad
+   - promedio y ±1 desvío estándar de la forward en el período, y dónde está hoy medida en desvíos (z)
    ===================================================================== */
 ;(function () {
   var tab = document.getElementById('thist'); if (!tab || !window.PSX) return;
@@ -5880,6 +5882,10 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var famK = function (k) { if (isUsd(k)) return 'usd'; var ins = INST[k]; return ins ? X.famOf(ins) : null; };
   var FN = { usd: 'Bonares y Globales', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dual: 'Duales', dl: 'Dólar linked' }, FORD = ['usd', 'cer', 'tamar', 'fija', 'dual', 'dl'];
   var margin = function (k) { var ins = INST[k]; return !!ins && (ins.k === 'tamar' || ins.k === 'dual'); };
+  var matOf = function (k) { var r = isUsd(k) ? PX.S[k].r : INST[k] ? INST[k].r : null; return r ? r[r.length - 1][0] : 0; };
+  var ord = function (a, b) { return matOf(b) < matOf(a) ? [b, a] : [a, b]; }; // el corto primero
+  var pkey = function (p) { return p[0] + '|' + p[1]; };
+  (function () { var seen = {}; ST.pairs = (ST.pairs || []).map(function (p) { return ord(p[0], p[1]); }).filter(function (p) { var k = pkey(p); if (seen[k] || p[0] === p[1] || !matOf(p[0]) || !matOf(p[1])) return false; seen[k] = 1; return true; }); })();
   function universe(from) { // los bonos con precios después de la fecha elegida, por familia y por vencimiento
     var G = {}; FORD.forEach(function (f) { G[f] = []; });
     USD.forEach(function (k) { G.usd.push({ k: k, mat: PX.S[k].r[PX.S[k].r.length - 1][0] }); });
@@ -5928,10 +5934,10 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     '<div class="card sx" id="thY">' + head('thY', 'Rendimiento histórico por bono', 'La tasa de cada día de los bonos que elijas, cada uno en su unidad: dólares y dólar linked en TIR en dólares, CER en TIR real, tasa fija en TIR nominal y TAMAR y duales en margen sobre TAMAR.') +
     '<div class="ctl sxc" style="margin-bottom:12px"><label>Desde<input type="date" id="thFrom"></label><label>Precio de los bonos en dólares<select id="thSp" style="min-width:190px">' + SPO(ST.sp) + '</select></label><label>Expresar la tasa en<select id="thConv" style="min-width:190px">' + CONVO + '</select></label><label>Agregar bono<select id="thAdd" style="min-width:190px"></select></label></div>' +
     '<div id="thChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div><div class="chart-wrap" style="height:440px"><canvas id="thYC"></canvas></div><p class="note" id="thYN" style="margin-top:10px"></p></div>' +
-    '<div class="card sx" id="thF" style="margin-top:24px">' + head('thF', 'Tasas forward entre pares de bonos', 'La tasa implícita entre el vencimiento de un bono corto y uno largo de la misma familia, día por día: lo que el mercado cobra por estirar del primero al segundo.') +
+    '<div class="card sx" id="thF" style="margin-top:24px">' + head('thF', 'Tasas forward entre pares de bonos', 'La tasa implícita entre el vencimiento de un bono corto y uno largo, día por día: lo que el mercado cobra por estirar del primero al segundo. Se pueden cruzar familias. Las líneas punteadas son el promedio y ±1 desvío estándar del período.') +
     '<div class="ctl sxc" style="margin-bottom:12px"><label>Bono corto<select id="thFA" style="min-width:190px"></select></label><label>Bono largo<select id="thFB" style="min-width:190px"></select></label><button class="act" id="thFAdd">Agregar par</button><label>Precio de los bonos en dólares<select id="thFSp" style="min-width:190px">' + SPO(ST.fsp) + '</select></label></div>' +
     '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;align-items:center"><span class="note" style="margin:0">Pares armados:</span><span id="thPre"></span></div>' +
-    '<div id="thPairs" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div><div class="chart-wrap" style="height:440px"><canvas id="thFC"></canvas></div><p class="note" id="thFN" style="margin-top:10px"></p></div>';
+    '<div id="thPairs" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div><div class="chart-wrap" style="height:440px"><canvas id="thFC"></canvas></div><div id="thFS" style="overflow-x:auto;margin-top:14px"></div><p class="note" id="thFN" style="margin-top:10px"></p></div>';
   var $ = function (id) { return document.getElementById(id); };
   $('thFrom').value = ST.from; $('thConv').value = ST.conv;
   var PRE = [['CER 27/28', 'TZX27', 'TZX28'], ['Bonar 27/28', 'AO27', 'AO28'], ['TAMAR 27/28', 'TMG27', 'TMG28'], ['Global 29/30', 'GD29', 'GD30'], ['Bonar 29/30', 'AL29', 'AL30'], ['Global 30/35', 'GD30', 'GD35'], ['CER 26/27', 'TZXD6', 'TZXD7']];
@@ -5946,7 +5952,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   function mk(id, sets, ylab, tipf) {
     kill(id); var tx = css('--tx'), bd = css('--bd'), mu = css('--mu');
     CH[id] = new Chart($(id).getContext('2d'), { type: 'line', data: { datasets: sets }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'nearest', axis: 'x', intersect: false },
-      plugins: { legend: { labels: { color: tx, usePointStyle: true, pointStyle: 'line' } }, tooltip: { callbacks: { title: function (its) { return its.length ? dfull(its[0].parsed.x) : ''; }, label: tipf } } },
+      plugins: { legend: { labels: { color: tx, usePointStyle: true, pointStyle: 'line', filter: function (it, d) { return !d.datasets[it.datasetIndex].$aux; } }, onClick: function (e, it, lg) { var ch = lg.chart, i = it.datasetIndex, v = !ch.isDatasetVisible(i); ch.data.datasets.forEach(function (ds, j) { if (j === i || ds.$of === i) ch.setDatasetVisibility(j, v); }); ch.update(); } }, tooltip: { filter: function (it) { return !it.dataset.$aux; }, callbacks: { title: function (its) { return its.length ? dfull(its[0].parsed.x) : ''; }, label: tipf } } },
       scales: { x: { type: 'linear', ticks: { color: mu, maxRotation: 0, autoSkip: true, maxTicksLimit: 12, callback: function (v) { return dlab(Math.round(v)); } }, grid: { color: bd } },
         y: { title: { display: true, text: ylab, color: mu }, ticks: { color: mu, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd } } } } });
   }
@@ -5964,18 +5970,32 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     $('thYN').textContent = miss.length ? 'Sin precios desde esa fecha: ' + miss.join(', ') + '.' : '';
   }
   function renderF() {
-    var from = bxDayNum(ST.from), sets = [], bad = [];
+    var from = bxDayNum(ST.from), sets = [], bad = [], rows = [], spn = function (k) { return isUsd(k) ? ST.fsp : ''; };
     ST.pairs.forEach(function (p, i) {
-      var a = p[0], b = p[1], sp = isUsd(a) ? ST.fsp : '', A = series(a, sp, from), B = series(b, sp, from), mb = {}, m = margin(a);
+      var a = p[0], b = p[1], A = series(a, spn(a), from), B = series(b, spn(b), from), mb = {}, ma = margin(a), mbm = margin(b), lin = ma && mbm, fa = famK(a), fb = famK(b), mix = fa !== fb || ma !== mbm;
       B.forEach(function (r) { mb[r.t] = r; });
+      var ya = function (r, m) { return m ? r.m : r.y; };
       var d = []; A.forEach(function (ra) { var rb = mb[ra.t]; if (!rb) return; var da = ra.D / 365, db = rb.D / 365; if (!(db - da > 0.08)) return; // menos de un mes entre duraciones: la forward es puro ruido
-        var v = m ? (rb.m * db - ra.m * da) / (db - da) * 100 : conv(Math.pow(Math.pow(1 + rb.y, db) / Math.pow(1 + ra.y, da), 1 / (db - da)) - 1);
+        var v = lin ? (rb.m * db - ra.m * da) / (db - da) * 100 : conv(Math.pow(Math.pow(1 + ya(rb, mbm), db) / Math.pow(1 + ya(ra, ma), da), 1 / (db - da)) - 1);
         if (v != null && isFinite(v) && Math.abs(v) < 200) d.push({ x: ra.t, y: v }); });
-      if (!d.length) { bad.push(a + '/' + b); return; }
-      sets.push(line('Forward ' + b + '–' + a + (sp ? ' (' + (sp === 'C' ? 'Cable' : 'MEP') + ')' : '') + (m ? ' · margen' : famK(a) === 'cer' ? ' · real' : ''), d, PAL[i % PAL.length]));
+      var sp = spn(a) || spn(b), c = PAL[i % PAL.length];
+      if (!d.length) { bad.push(a + ' → ' + b + (matOf(a) === matOf(b) ? ' (vencen el mismo día)' : ' (duraciones casi iguales o sin precios en común)')); return; }
+      var tag = mix ? ' · mixto ' + unitOf(a) + ' / ' + unitOf(b) : lin ? ' · margen' : fa === 'cer' ? ' · real' : '';
+      var main = sets.length; sets.push(line('Forward ' + a + ' → ' + b + (sp ? ' (' + (sp === 'C' ? 'Cable' : 'MEP') + ')' : '') + tag, d, c));
+      var n = d.length, mu = d.reduce(function (s, q) { return s + q.y; }, 0) / n, sd = Math.sqrt(d.reduce(function (s, q) { return s + (q.y - mu) * (q.y - mu); }, 0) / Math.max(1, n - 1));
+      var x0 = d[0].x, x1 = d[n - 1].x, hl = function (y, dash, w, al) { return { label: '', data: [{ x: x0, y: y }, { x: x1, y: y }], borderColor: c + al, backgroundColor: c, borderWidth: w, borderDash: dash, pointRadius: 0, pointHoverRadius: 0, tension: 0, $aux: 1, $of: main }; };
+      if (n >= 5) { sets.push(hl(mu, [6, 4], 1.5, 'e6')); sets.push(hl(mu + sd, [2, 4], 1.2, '99')); sets.push(hl(mu - sd, [2, 4], 1.2, '99')); }
+      var last = d[n - 1].y, z = sd > 0 ? (last - mu) / sd : 0;
+      rows.push({ c: c, a: a, b: b, last: last, mu: mu, sd: sd, z: z, n: n, t: x1, mix: mix });
     });
     mk('thFC', sets, (ST.conv === 'tea' ? 'TEA' : 'TNA 180/360') + ' o margen (%)', function (c) { return c.dataset.label + ': ' + fm(c.parsed.y, 2) + '%'; });
-    $('thFN').textContent = bad.length ? 'Sin datos en común: ' + bad.join(', ') + '.' : '';
+    var th = 'style="text-align:right;padding:6px 10px;color:var(--mu);font-weight:600;font-size:12px;white-space:nowrap"', td = 'style="text-align:right;padding:7px 10px;border-top:1px solid var(--bd);white-space:nowrap;font-variant-numeric:tabular-nums"';
+    $('thFS').innerHTML = rows.length ? '<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr><th ' + th.replace('right', 'left') + '>Par</th><th ' + th + '>Hoy</th><th ' + th + '>Promedio</th><th ' + th + '>Desvío</th><th ' + th + '>Banda ±1σ</th><th ' + th + '>Hoy vs promedio</th><th ' + th.replace('right', 'left') + '>Lectura</th></tr></thead><tbody>' + rows.map(function (r) {
+      var zc = r.z >= 1 ? 'var(--ok)' : r.z <= -1 ? 'var(--bad)' : 'var(--mu)';
+      var lec = r.n < 5 ? 'Pocos días para medir.' : r.z >= 1 ? 'Forward alta: ' + r.b + ' rinde más de lo habitual contra ' + r.a + '. Conviene estirar.' : r.z <= -1 ? 'Forward baja: ' + r.b + ' está caro contra ' + r.a + '. Conviene acortar.' : 'Dentro de lo normal.';
+      return '<tr><td style="text-align:left;padding:7px 10px;border-top:1px solid var(--bd);white-space:nowrap;font-weight:700"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;background:' + r.c + '"></i>' + r.a + ' → ' + r.b + '</td><td ' + td + '><b>' + fm(r.last, 2) + '%</b><br><span style="color:var(--mu);font-size:11.5px">' + dfull(r.t) + '</span></td><td ' + td + '>' + fm(r.mu, 2) + '%</td><td ' + td + '>' + fm(r.sd * 100, 0) + ' pb</td><td ' + td + '>' + fm(r.mu - r.sd, 2) + '% a ' + fm(r.mu + r.sd, 2) + '%</td><td ' + td.replace('">', ';color:' + zc + ';font-weight:700">') + '>' + (r.z >= 0 ? '+' : '') + fm(r.z, 1) + 'σ</td><td style="text-align:left;padding:7px 10px;border-top:1px solid var(--bd);font-size:12.5px;color:var(--mu);min-width:220px">' + lec + (r.mix ? ' Unidades distintas: tomalo como referencia relativa.' : '') + '</td></tr>';
+    }).join('') + '</tbody></table>' : '';
+    $('thFN').textContent = (bad.length ? 'Sin forward para: ' + bad.join(', ') + '. ' : '') + 'Promedio y desvío desde el ' + dfull(from) + '. El desvío se mide en puntos básicos (pb) de la tasa forward.';
   }
   function render() {
     if (typeof Chart === 'undefined') return;
@@ -5992,11 +6012,11 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   $('thFSp').onchange = function () { ST.fsp = this.value; save(); later(); };
   $('thConv').onchange = function () { ST.conv = this.value; save(); later(); };
   $('thAdd').onchange = function () { var k = this.value; if (k && ST.sel.indexOf(k) < 0) { ST.sel.push(k); save(); later(); } this.value = ''; };
-  $('thFAdd').onclick = function () { var a = $('thFA').value, b = $('thFB').value; if (!a || !b || a === b) return; if (famK(a) !== famK(b)) { $('thFN').textContent = 'Los dos bonos tienen que ser de la misma familia (' + a + ': ' + FN[famK(a)] + ', ' + b + ': ' + FN[famK(b)] + ').'; return; } ST.pairs.push([a, b]); save(); later(); };
+  $('thFAdd').onclick = function () { var a = $('thFA').value, b = $('thFB').value; if (!a || !b || a === b) return; var p = ord(a, b); if (matOf(p[0]) === matOf(p[1])) { $('thFN').textContent = a + ' y ' + b + ' vencen el mismo día: no hay forward entre ellos.'; return; } if (!ST.pairs.some(function (x) { return pkey(x) === pkey(p); })) ST.pairs.push(p); $('thFA').value = p[0]; $('thFB').value = p[1]; save(); later(); };
   tab.addEventListener('click', function (e) {
     var c = e.target.closest('.thx'); if (c) { ST.sel = ST.sel.filter(function (k) { return k !== c.getAttribute('data-k'); }); save(); later(); return; }
     var p = e.target.closest('.thpx'); if (p) { ST.pairs.splice(+p.getAttribute('data-i'), 1); save(); later(); return; }
-    var q = e.target.closest('.thpre'); if (q) { var a = q.getAttribute('data-a'), b = q.getAttribute('data-b'); if (!ST.pairs.some(function (x) { return x[0] === a && x[1] === b; })) { ST.pairs.push([a, b]); save(); later(); } }
+    var q = e.target.closest('.thpre'); if (q) { var pp = ord(q.getAttribute('data-a'), q.getAttribute('data-b')); if (!ST.pairs.some(function (x) { return pkey(x) === pkey(pp); })) { ST.pairs.push(pp); save(); later(); } }
   });
   var isAct = function () { return tab.classList.contains('active'); };
   var _sw = window.switchTab; window.switchTab = function (id) { _sw(id); if (id === 'thist') { later(); if (!VJ && window.VOLX && window.VOLX.raw) window.VOLX.raw(function (d) { if (d) { VJ = d; CACHE = {}; if (isAct()) later(); } }); } };
