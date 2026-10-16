@@ -43,7 +43,8 @@ for name, url in (("historico", BASE), ("ultimo", BASE + "/ultimo")):
         print(name, "no disponible:", e)
 try:  # Ámbito: [["Fecha","Puntos"],["14-10-2026","611,00"],...]; solo completa las fechas que faltan
     hoy = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=3)
-    for r in get("ambito", AMB % ((hoy - datetime.timedelta(days=20)).strftime("%Y-%m-%d"), hoy.strftime("%Y-%m-%d"))):
+    # la fecha "hasta" de Ámbito no se incluye: se pide hasta mañana para que entre la rueda de hoy
+    for r in get("ambito", AMB % ((hoy - datetime.timedelta(days=20)).strftime("%Y-%m-%d"), (hoy + datetime.timedelta(days=1)).strftime("%Y-%m-%d"))):
         p = str(r[0]).split("-")
         if len(p) != 3 or len(p[2]) != 4:
             continue
