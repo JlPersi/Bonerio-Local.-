@@ -3011,7 +3011,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     sets.push({ type: 'scatter', label: 'Instrumentos', data: P, fairPts: !!fit, backgroundColor: P.map(col), borderColor: P.map(function (p) { return p.sup ? css('--ac') : col(p); }), borderWidth: P.map(function (p) { return p.sup ? 3 : 1; }), pointRadius: 7, hoverRadius: 9, pointStyle: P.map(function (p) { return p.dual ? 'triangle' : 'circle'; }), order: 1 });
     var sf = spec.sfx == null ? '%' : spec.sfx;
     if (G.length) { var gc = G.map(col); sets.push({ type: 'scatter', label: 'Con tu escenario', data: G, fairPts: false, noLabel: true, ghostPts: true, unitPb: sf === '%', unit: sf, glow: gc.map(function (c) { return rgba(c, 0.55); }), backgroundColor: gc.map(function (c) { return rgba(c, 0.38); }), borderColor: gc.map(function (c) { return rgba(c, 0.75); }), borderWidth: 1, pointRadius: 7, hoverRadius: 9, pointStyle: G.map(function (p) { return p.dual ? 'triangle' : 'circle'; }), order: 2 }); }
-    var bek = /breakeven/.test(spec.label) ? { psC2: 'psPi2', psC3: 'psTam3', psC4: 'psDev4' }[id] : null, uvv = bek ? parseFloat((document.getElementById(bek) || {}).value) : NaN;
+    var bek = /breakeven/.test(spec.label) ? { psC2: 'psPi2', psC3: 'psTam3', psC4: 'psDev4', psCB2: 'psPi2', psCB4: 'psDev4' }[id] : null, uvv = bek ? parseFloat((document.getElementById(bek) || {}).value) : NaN;
     if (isFinite(uvv)) hasSc = true;
     if (!scOff && isFinite(uvv) && P.length && ax0 != null) sets.push({ type: 'line', label: 'Tu escenario: ' + fm(uvv, 2) + '%', data: [{ x: ax0, y: uvv }, { x: ax1, y: uvv }], borderColor: css('--ac'), borderDash: [7, 5], borderWidth: 2, pointRadius: 0, fill: false, order: 3 });
     var gf = spec.scen && G.length >= 3 ? fitX(G.map(function (g) { return { x: g.x, y: g.y }; }), model) : null, gx0 = gf ? Math.min.apply(null, G.map(function (g) { return g.x; })) : 0, gx1 = gf ? Math.max.apply(null, G.map(function (g) { return g.x; })) : 0; // curva suave por los puntos de tu escenario, con el mismo modelo que la del mercado
@@ -3111,6 +3111,24 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       else if (sp.scen) { gm = {}; data.forEach(function (o) { var v = sp.scen(o); if (v != null && isFinite(v)) gm[o.k] = v; }); } // TIR real con tu escenario: el difuminado es la TIR real al precio que iguala a la Lecap con tu inflación
       else if (S0 && !sp.gsc) { var b0 = {}; S0.forEach(function (o0) { b0[o0.k] = o0; }); gm = {}; data.forEach(function (o) { var v = sp.val(o); if (v != null && isFinite(v)) gm[o.k] = v; }); data = data.map(function (o) { return b0[o.k]; }).filter(Boolean); }
       fairChart(c[0], c[1], data, ch.spec, ch.cap, dm, gm, ch.model, ch.ax);
+    });
+    LASTBE = function () { renderBE(PER, sel); }; LASTBE();
+  }
+  var LASTBE = null; window.PSBE = function () { if (LASTBE) LASTBE(); };
+  function renderBE(PER, sel) { // Expectativas: el gráfico de breakeven de la tarjeta (CER y dólar linked), fijo en breakeven, con su tabla
+    [[2, 'cer', 'c2', 'psPi'], [4, 'dl', 'c4', 'psDev']].forEach(function (c) {
+      var id = 'psCB' + c[0], cv = document.getElementById(id); if (!cv || !PER[c[0]]) return;
+      var sp = sel[c[2]].filter(function (x) { return /breakeven/.test(x.label); })[0]; if (!sp) return;
+      var data = PER[c[0]].S.filter(function (o) { return o.fam === c[1] && !o.miss; }).sort(function (a, b) { return a.d - b.d; }), gm = null, uval = parseFloat(cardV(c[0], c[3]));
+      if (isFinite(uval)) { gm = {}; data.forEach(function (o) { if (o.be != null && isFinite(o.be)) gm[o.k] = uval / 100; }); }
+      try { fairChart(id, 'b' + c[0], data, sp, 1e9, 0, gm, 'auto', 'plazo'); } catch (e) { console.error('breakeven', e); }
+      var T = document.getElementById('psCBT' + c[0]); if (!T) return;
+      var th = 'style="text-align:right;padding:6px 10px;color:var(--mu);font-weight:600;font-size:12px;white-space:nowrap"', td = 'style="text-align:right;padding:7px 10px;border-top:1px solid var(--bd);white-space:nowrap;font-variant-numeric:tabular-nums"', tl = td.replace('right', 'left').replace('">', ';font-weight:700">');
+      var pc = function (v) { return v == null || !isFinite(v) ? '—' : fm(v * 100, 2) + '%'; };
+      T.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr><th ' + th.replace('right', 'left') + '>Bono</th><th ' + th + '>Vence</th><th ' + th + '>Días</th><th ' + th + '>' + (c[1] === 'cer' ? 'TIR real (TEA)' : 'TIR en dólares (TEA)') + '</th><th ' + th + '>Breakeven mensual</th><th ' + th + '>REM</th><th ' + th + '>Breakeven − REM</th></tr></thead><tbody>' + data.filter(function (o) { return o.be != null && isFinite(o.be); }).map(function (o) {
+        var be = o.be != null && isFinite(o.be) ? o.be : null, rem = sp.gsc ? sp.gsc(o) : null, d = be != null && rem != null && isFinite(rem) ? (be - rem) * 1e4 : null;
+        return '<tr><td ' + tl + '>' + o.k + '</td><td ' + td + '>' + bxDayStr(o.mat).split('-').reverse().join('/') + '</td><td ' + td + '>' + o.d + '</td><td ' + td + '>' + pc(c[1] === 'cer' ? o.realTea : o.usdTea) + '</td><td ' + td + '><b>' + pc(be) + '</b></td><td ' + td + '>' + pc(rem) + '</td><td ' + td.replace('">', ';font-weight:700;color:' + (d == null ? 'var(--mu)' : d > 0 ? 'var(--ok)' : 'var(--bad)') + '">') + '>' + (d == null ? '—' : (d >= 0 ? '+' : '') + fm(d, 0) + ' pb') + '</td></tr>';
+      }).join('') + '</tbody></table>';
     });
   }
   /* ---------- historial / comparación ---------- */
@@ -5953,7 +5971,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 
   /* ---------- esqueleto ---------- */
   var ICON = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>';
-  var head = function (id, t, sub) { return '<div class="sxh"><div style="min-width:0"><p class="qh">' + t + '</p><p class="qs">' + sub + '</p></div><div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'' + id + '\', \'Tasas_' + id + '\')" title="Descargar en HD">' + ICON + '</button></div></div>'; };
+  var head = function (id, t, sub) { return '<div class="sxh" style="flex-wrap:nowrap;align-items:center;margin-bottom:6px"><div style="min-width:0"><p class="qh" style="margin:0">' + t + '</p></div><div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'' + id + '\', \'Tasas_' + id + '\')" title="Descargar en HD">' + ICON + '</button></div></div><p class="qs" style="margin:0 0 16px">' + sub + '</p>'; };
   var CONVO = '<option value="tna2">TNA 180/360 (semestral)</option><option value="tea">TEA</option>', SPO = function (v) { return '<option value="D"' + (v === 'D' ? ' selected' : '') + '>MEP (especie D)</option><option value="C"' + (v === 'C' ? ' selected' : '') + '>Cable (especie C)</option>'; };
   tab.innerHTML =
     '<div class="card sx" id="thY">' + head('thY', 'Rendimiento histórico por bono', 'La tasa de cada día de los bonos que elijas, cada uno en su unidad: dólares y dólar linked en TIR en dólares, CER en TIR real, tasa fija en TIR nominal y TAMAR y duales en margen sobre TAMAR.') +
@@ -5968,14 +5986,14 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     '<div class="chart-wrap" style="height:420px"><canvas id="thRCC"></canvas></div><div id="thRCS" style="overflow-x:auto;margin-top:14px"></div><p class="note" id="thRCN" style="margin-top:10px"></p></div>';
   var $ = function (id) { return document.getElementById(id); };
   var UNO = '<option value="m">Mensual (%)</option><option value="a">Anual (TEA, %)</option>';
-  var bbCard = function (sx) { var i = sx === 'i'; return '<div class="card sx" id="thBB' + sx + '">' + head('thBB' + sx, (i ? 'Inflación' : 'Devaluación') + ' breakeven de cada bono', i ? 'La inflación que iguala lo que rinde cada bono CER con la tasa fija al mismo plazo, con los últimos precios. Arriba de la línea del REM el mercado espera más inflación que los analistas: si se cumple el REM, gana la tasa fija; abajo, gana el CER.' : 'La devaluación que iguala lo que rinde cada dólar linked con la tasa fija al mismo plazo, con los últimos precios. Arriba de la línea del REM el mercado espera más devaluación que los analistas: si se cumple el REM, gana la tasa fija; abajo, gana el dólar linked.') +
-    '<div class="ctl sxc" style="margin-bottom:12px"><label>Desde (para el histórico)<input type="date" id="thFrom' + sx + '"></label><label>Expresar en<select id="thBEu' + sx + '" style="min-width:170px">' + UNO + '</select></label></div>' +
-    '<div class="chart-wrap" style="height:420px"><canvas id="thBBC' + sx + '"></canvas></div><div id="thBBS' + sx + '" style="overflow-x:auto;margin-top:14px"></div><p class="note" id="thBBN' + sx + '" style="margin-top:10px"></p></div>'; };
+  var bbCard = function (sx) { var i = sx === 'i', n = i ? 2 : 4; return '<div class="card sx" id="thBB' + sx + '">' + head('thBB' + sx, (i ? 'Inflación' : 'Devaluación') + ' breakeven de cada bono', i ? 'La inflación mensual que iguala lo que rinde cada bono CER con la Lecap del mismo plazo, con los últimos precios: el mismo gráfico de Curva Pesos. Verde: descuenta más inflación que la curva; rojo, menos. La línea naranja es la inflación que pusiste en la tarjeta CER de Curva Pesos.' : 'La devaluación mensual que iguala lo que rinde cada dólar linked con la Lecap del mismo plazo, con los últimos precios: el mismo gráfico de Curva Pesos. La línea naranja es la devaluación que pusiste en la tarjeta Dólar linked de Curva Pesos.') +
+    '<div class="bec"><canvas id="psCB' + n + '"></canvas></div><p class="note" id="psKnB' + n + '" style="margin-top:10px"></p><div id="psCBT' + n + '" style="overflow-x:auto;margin-top:14px"></div></div>'; };
   var beCard = function (sx) { var i = sx === 'i'; return '<div class="card sx" id="thBE' + sx + '" style="margin-top:24px">' + head('thBE' + sx, (i ? 'Inflación' : 'Devaluación') + ' implícita en el tiempo', 'Lo que descuenta el mercado a plazo constante (de 1 a 12 meses), día por día: tasa fija contra ' + (i ? 'CER' : 'dólar linked') + '. Las punteadas son el promedio y ±1 desvío del período; en la tabla, la comparación con el REM de hoy.') +
-    '<div id="thBEt' + sx + '" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center"></div><div class="chart-wrap" style="height:420px"><canvas id="thBEC' + sx + '"></canvas></div><div id="thBES' + sx + '" style="overflow-x:auto;margin-top:14px"></div><p class="note" id="thBEN' + sx + '" style="margin-top:10px"></p></div>'; };
+    '<div class="ctl sxc" style="margin-bottom:12px"><label>Desde<input type="date" id="thFrom' + sx + '"></label><label>Expresar en<select id="thBEu' + sx + '" style="min-width:170px">' + UNO + '</select></label></div><div id="thBEt' + sx + '" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center"></div><div class="chart-wrap" style="height:420px"><canvas id="thBEC' + sx + '"></canvas></div><div id="thBES' + sx + '" style="overflow-x:auto;margin-top:14px"></div><p class="note" id="thBEN' + sx + '" style="margin-top:10px"></p></div>'; };
+  var bst = document.createElement('style'); bst.textContent = '.bec{position:relative;height:520px}@media (max-width:700px){.bec{height:400px}}'; document.head.appendChild(bst);
   if ($('expi')) $('expi').innerHTML = bbCard('i') + beCard('i');
   if ($('expd')) $('expd').innerHTML = bbCard('d') + beCard('d');
-  if ($('expf')) { $('expf').innerHTML = '<div id="expfP"></div>'; $('expf').appendChild($('thF')); }
+  if ($('expf')) { $('expf').innerHTML = '<div id="expfP" style="margin-top:24px"></div>'; $('expf').insertBefore($('thF'), $('expfP')); $('thF').style.marginTop = '0'; }
   $('thFrom').value = ST.from; $('thConv').value = ST.conv;
   var PRE = [['CER 27/28', 'TZX27', 'TZX28'], ['Bonar 27/28', 'AO27', 'AO28'], ['TAMAR 27/28', 'TMG27', 'TMG28'], ['Global 29/30', 'GD29', 'GD30'], ['Bonar 29/30', 'AL29', 'AL30'], ['Global 30/35', 'GD30', 'GD35'], ['CER 26/27', 'TZXD6', 'TZXD7']];
 
@@ -6103,33 +6121,6 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var lo = rows[rows.length - 1], hi = rows[0];
     $('thRCN').textContent = rows.length < 2 ? 'Pocos bonos con historia desde esa fecha.' : (hi.st.z >= 1 && lo.st.z <= -1 ? 'Rotación más marcada: de ' + lo.k + ' (' + fm(lo.st.z, 1) + 'σ, caro) a ' + hi.k + ' (+' + fm(hi.st.z, 1) + 'σ, barato). ' : 'Ningún par de la familia está a más de un desvío para los dos lados. ') + (isU2(f) ? 'La curva se ajusta cada día con el mismo método que Curva Pesos (automático por plazo), con el precio ' + (ST.fsp === 'C' ? 'cable' : 'MEP') + ' de cierre (el que elegiste en las forwards).' : 'La curva es la misma de Curva Pesos (ajuste automático por plazo), recalculada cada día con los precios de cierre.');
   }
-  /* ---------- breakeven de cada bono (hoy) ---------- */
-  function renderBB(sx) { // la tasa de cada bono CER o dólar linked contra la curva de tasa fija al mismo plazo, el último día con las dos curvas
-    var k2 = sx === 'd' ? 'dl' : 'cer', from = bxDayNum(ST.from), A = dayFits('fija', from), B = dayFits(k2, from), mo = ST.beu === 'm', R = window.PSREM, ma = {}, a = null, b = null;
-    A.forEach(function (o) { ma[o.t] = o; }); for (var i = B.length - 1; i >= 0; i--) if (ma[B[i].t]) { b = B[i]; a = ma[b.t]; break; }
-    if (!b) { kill('thBBC' + sx); $('thBBS' + sx).innerHTML = ''; $('thBBN' + sx).textContent = 'Sin precios en común de las dos curvas desde esa fecha.'; return; }
-    var arr = R && (k2 === 'cer' ? R.pi : R.dev), cvt = function (g) { return ((mo ? Math.pow(g, 30.4375 / 365) : g) - 1) * 100; }, remOf = function (m) { var q = remAvg(arr, m); return q == null ? null : ((mo ? Math.pow(q, 1 / m) : Math.pow(q, 12 / m)) - 1) * 100; };
-    var rows = b.P.slice().sort(function (p, q) { return p.x - q.x; }).map(function (p) {
-      var n = p.x >= a.x0 && p.x <= a.x1 ? a.f(p.x) : null, be = n == null ? null : cvt((1 + n / 100) / (1 + p.y / 100));
-      return { k: p.k, x: p.x, y: p.y, n: n, be: be, rem: remOf(Math.max(1, Math.round(p.x / 30.4375))) };
-    });
-    var tx = css('--tx'), bd = css('--bd'), mu = css('--mu'), AC = css('--ac') || '#f59e0b', pts = rows.filter(function (r) { return r.be != null; }).map(function (r) { return { x: r.x, y: r.be, k: r.k }; }), remL = [];
-    var xm = Math.max.apply(null, pts.map(function (q) { return q.x; }).concat([60])); if (arr) for (var m = 1; m * 30.4375 <= xm + 31; m++) remL.push({ x: m * 30.4375, y: remOf(m) });
-    kill('thBBC' + sx);
-    var lab = { id: 'bbLab', afterDatasetsDraw: function (c) { var x = c.ctx; x.save(); x.font = '600 11px system-ui,-apple-system,sans-serif'; x.fillStyle = tx; c.getDatasetMeta(0).data.forEach(function (el, j) { x.fillText(pts[j].k, el.x + 7, el.y - 6); }); x.restore(); } };
-    CH['thBBC' + sx] = new Chart($('thBBC' + sx).getContext('2d'), { type: 'scatter', plugins: [lab], data: { datasets: [
-        { label: 'Breakeven de cada bono', data: pts, backgroundColor: AC, borderColor: AC, pointRadius: 5, pointHoverRadius: 7 },
-        { label: 'REM de hoy', data: remL, showLine: true, borderColor: mu, backgroundColor: mu, borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0, tension: 0.3 }] },
-      options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { labels: { color: tx, usePointStyle: true } }, tooltip: { callbacks: { label: function (c) { return (c.datasetIndex ? 'REM' : c.raw.k) + ': ' + fm(c.parsed.y, 2) + '% a ' + Math.round(c.parsed.x) + ' días'; } } } },
-        scales: { x: { type: 'linear', title: { display: true, text: 'Plazo (días)', color: mu }, ticks: { color: mu }, grid: { color: bd } }, y: { title: { display: true, text: (k2 === 'cer' ? 'Inflación' : 'Devaluación') + ' breakeven ' + (mo ? 'mensual' : 'anual') + ' (%)', color: mu }, ticks: { color: mu, callback: function (v) { return fm(v, mo ? 1 : 0) + '%'; } }, grid: { color: bd } } } } });
-    var pb = function (v) { return v == null ? '—' : (v >= 0 ? '+' : '') + fm(v * 100, 0) + ' pb'; }, pc = function (v, d) { return v == null ? '—' : fm(v, d == null ? 2 : d) + '%'; };
-    $('thBBS' + sx).innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr><th ' + thL + '>Bono</th><th ' + TH + '>Vence</th><th ' + TH + '>Plazo (días)</th><th ' + TH + '>' + (k2 === 'cer' ? 'Tasa real (TEA)' : 'Tasa en dólares (TEA)') + '</th><th ' + TH + '>Tasa fija al mismo plazo (TEA)</th><th ' + TH + '>Breakeven</th><th ' + TH + '>REM</th><th ' + TH + '>Breakeven − REM</th></tr></thead><tbody>' + rows.map(function (r) {
-      var d = r.be == null || r.rem == null ? null : r.be - r.rem, c = d == null ? 'var(--mu)' : d > 0 ? 'var(--ok)' : 'var(--bad)';
-      return '<tr><td ' + tdL.replace('">', ';font-weight:700">') + '>' + r.k + '</td><td ' + TD + '>' + dfull(matOf(r.k)) + '</td><td ' + TD + '>' + Math.round(r.x) + '</td><td ' + TD + '>' + pc(r.y) + '</td><td ' + TD + '>' + pc(r.n) + '</td><td ' + TD + '><b>' + pc(r.be) + '</b></td><td ' + TD + '>' + pc(r.rem) + '</td><td ' + TD.replace('">', ';color:' + c + ';font-weight:700">') + '>' + pb(d) + '</td></tr>';
-    }).join('') + '</tbody></table>';
-    var out = rows.filter(function (r) { return r.be == null; }).map(function (r) { return r.k; });
-    $('thBBN' + sx).textContent = 'Precios del ' + dfull(b.t) + '. La tasa fija sale de la curva de Lecaps y Boncaps ajustada ese día (la misma de Curva Pesos)' + (out.length ? '; ' + out.join(', ') + ' quedan sin breakeven porque vencen después de la tasa fija más larga' : '') + '. En verde, el mercado descuenta más ' + (k2 === 'cer' ? 'inflación' : 'devaluación') + ' que el REM.';
-  }
   /* ---------- forwards de cada familia (salen de Curva Pesos) ---------- */
   var FWT = { 1: ['Tasa fija', 'Lo que paga quedarse del vencimiento de una Lecap o Boncap al de la siguiente (TEA), con los últimos precios.'], 2: ['CER', 'La tasa real (TEA sobre CER) de cada tramo entre vencimientos de los Boncer cero, con los últimos precios.'], 3: ['TAMAR', 'El margen sobre TAMAR que paga cada tramo entre vencimientos, con los últimos precios.'], 4: ['Dólar linked', 'La tasa en dólares (TEA sobre el A3500) de cada tramo entre vencimientos, con los últimos precios.'] };
   var GO = { 1: [['expf', 'expfW1', 'Ver las forwards']], 2: [['expi', 'thBBi', 'Ver la inflación implícita'], ['expf', 'expfW2', 'Ver las forwards']], 3: [['expf', 'expfW3', 'Ver las forwards']], 4: [['expd', 'thBBd', 'Ver la devaluación implícita'], ['expf', 'expfW4', 'Ver las forwards']] };
@@ -6156,7 +6147,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     try { renderY(); } catch (e) { console.error('tasas históricas', e); }
     try { renderF(); } catch (e) { console.error('forwards', e); }
     $('thRCf').value = ST.rcf; ['thFrom', 'thFromi', 'thFromd', 'thFromF'].forEach(function (id) { if ($(id)) $(id).value = ST.from; });
-    ['i', 'd'].forEach(function (sx) { $('thBEu' + sx).value = ST.beu; chipsBE(sx); try { renderBB(sx); } catch (e) { console.error('breakevens', e); } try { renderBE(sx); } catch (e) { console.error('implícitas', e); } });
+    ['i', 'd'].forEach(function (sx) { $('thBEu' + sx).value = ST.beu; chipsBE(sx); try { renderBE(sx); } catch (e) { console.error('implícitas', e); } });
     try { renderRC(); } catch (e) { console.error('precio relativo', e); }
   }
   var later = function () { setTimeout(render, 0); };
@@ -6177,7 +6168,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var q = e.target.closest('.thpre'); if (q) { var pp = ord(q.getAttribute('data-a'), q.getAttribute('data-b')); if (!ST.pairs.some(function (x) { return pkey(x) === pkey(pp); })) { ST.pairs.push(pp); save(); later(); } }
   });
   var isAct = function () { return ['thist', 'expi', 'expd', 'expf'].some(function (i) { var el = document.getElementById(i); return el && el.classList.contains('active'); }); };
-  var _sw = window.switchTab; window.switchTab = function (id) { _sw(id); if (id === 'pesos' || id === 'expf') setTimeout(function () { moveFw(id === 'expf'); }, 80); if (/^(thist|expi|expd|expf)$/.test(id)) { later(); if (!VJ && window.VOLX && window.VOLX.raw) window.VOLX.raw(function (d) { if (d) { VJ = d; CACHE = {}; FIT = {}; if (isAct()) later(); } }); } };
+  var _sw = window.switchTab; window.switchTab = function (id) { _sw(id); if (id === 'pesos' || id === 'expf') setTimeout(function () { moveFw(id === 'expf'); }, 80); if ((id === 'expi' || id === 'expd') && X.views) setTimeout(function () { try { X.views(); if (window.PSBE) window.PSBE(); } catch (e) { console.error('breakevens', e); } }, 40); if (/^(thist|expi|expd|expf)$/.test(id)) { later(); if (!VJ && window.VOLX && window.VOLX.raw) window.VOLX.raw(function (d) { if (d) { VJ = d; CACHE = {}; FIT = {}; if (isAct()) later(); } }); } };
 })();
 </script>
 <script>
@@ -6285,7 +6276,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     if (id === 'home') { document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); }); document.querySelectorAll('.tab-content').forEach(function (c) { c.classList.toggle('active', c.id === 'home'); }); }
     else _sw.apply(this, arguments);
     mark(id); if (id === 'desglose') setTimeout(applyDesg, 30);
-    var gc = $('globalControls'); if (gc && id === 'home') gc.style.display = 'none'; else if (gc && /^(tabla|desglose)$/.test(id)) gc.style.display = '';
+    var gc = $('globalControls'); if (gc && /^(home|thist|expi|expd|expf)$/.test(id)) gc.style.display = 'none'; else if (gc && /^(tabla|desglose)$/.test(id)) gc.style.display = '';
     if (id === 'home') setTimeout(render, 0);
   };
 
