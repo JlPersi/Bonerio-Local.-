@@ -297,7 +297,7 @@
   // presencia: mientras la página está a la vista, cada sesión avisa cada minuto qué pestaña mira (tabla public.presencia en Supabase).
   // La lectura la limita la base (RLS): cada uno ve solo su fila y el administrador ve todas; a él se le suma «Conectados ahora» en el menú de la cuenta.
   var LV = { t: null, since: new Date().toISOString(), ok: true, adm: false, rt: null };
-  function lvTab() { var b = document.querySelector('.tab-btn.active'); return b ? b.textContent.trim() : ''; }
+  function lvTab() { var b = document.querySelector('.tab-btn.active') || document.querySelector('#sideNav .sn-it.on'); return b ? b.textContent.trim() : ''; } // la portada (Inicio) solo está en el menú lateral
   function ping() {
     if (!sb || !user || !LV.ok || document.visibilityState !== 'visible') return;
     var m = user.user_metadata || {};
