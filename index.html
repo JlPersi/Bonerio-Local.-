@@ -3581,7 +3581,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<div class="vdchips" id="vdChips" style="margin-bottom:16px"></div>' +
       '<div id="vdCurveCard"><div class="vdleg" id="vdLeg"></div><div class="chart-wrap" style="height:560px;margin-top:0"><canvas id="vdChart"></canvas></div>' +
       '<details class="vddet" id="vdDet"><summary><span id="vdDetS">Desplazamiento de la curva y detalle por bono</span></summary><div class="vdshift" id="vdShift"></div><div class="wrap" id="vdTblCard" style="margin-top:14px"><table class="vdt" id="vdTable"></table></div></details>' +
-      '<div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--bd)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;margin-bottom:6px"><div style="font-weight:600;color:var(--tx)" id="vdVolT">Volumen de la rueda</div><label id="vdVolML" style="display:none;flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--mu);margin:0">Comparar<select id="vdVolM" style="min-width:0;width:auto;max-width:100%"><option value="acum"></option><option value="hoy"></option></select></label></div><p class="note" id="vdVolS" style="margin:0 0 10px;color:var(--tx)"></p><div class="chart-wrap" style="height:320px;margin-top:0"><canvas id="vdVolCh"></canvas></div></div></div></div>';
+      '<div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--bd)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;margin-bottom:6px"><div style="font-weight:600;color:var(--tx)" id="vdVolT" data-dlh>Volumen de la rueda</div><label id="vdVolML" style="display:none;flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--mu);margin:0">Comparar<select id="vdVolM" style="min-width:0;width:auto;max-width:100%"><option value="acum"></option><option value="hoy"></option></select></label></div><p class="note" id="vdVolS" style="margin:0 0 10px;color:var(--tx)"></p><div class="chart-wrap" style="height:320px;margin-top:0"><canvas id="vdVolCh"></canvas></div></div></div></div>';
     var g = document.getElementById('vdG');
     g.innerHTML = ORDER.map(function (k) { return '<option value="' + k + '">' + GN[k] + '</option>'; }).join('');
     g.value = ST.grp;
@@ -5703,20 +5703,29 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   }
   function climb(el, card, other) { var n = el; while (n.parentElement && n.parentElement !== card && !n.parentElement.querySelector(other)) n = n.parentElement; return n === card ? null : n; }
   function charts(card) { return [].filter.call(card.querySelectorAll('canvas'), function (c) { return window.Chart && Chart.getChart(c) && c.offsetParent !== null; }); } // los gráficos visibles de la sección
-  function cname(cv, i) { // nombre corto del gráfico, de su título
+  function cname(cv, i, card) { // nombre corto del gráfico, de su título
     var c = Chart.getChart(cv), t = c && c.options.plugins && c.options.plugins.title, s = t && t.display ? t.text : ''; if (Array.isArray(s)) s = s.join(' ');
-    s = String(s || '').split(' · ')[0].replace(/\s*\([^)]*\)\s*$/, '').trim(); return s || 'Gráfico ' + (i + 1);
+    s = String(s || '').split(' · ')[0].replace(/\s*\([^)]*\)\s*$/, '').trim(); if (s) return s;
+    card = card || cv.closest('.card') || document.body; var sel = 'h3, h4, .qh, summary, [data-dlh]';
+    for (var n = cv; n && n !== card; n = n.parentElement) for (var sb = n.previousElementSibling; sb; sb = sb.previousElementSibling) { // el título más cercano antes del gráfico
+      if (sb.tagName === 'DETAILS' || sb.querySelector('canvas')) continue; var h = sb.matches(sel) ? sb : sb.querySelector(sel); if (!h) continue;
+      var tx = h.textContent.trim().split(' · ')[0].replace(/^\d+\s*/, '').trim(); if (!tx) continue;
+      var main = h.matches('.qh') && card.querySelector(sel) === h; // el título de la sección: es su gráfico principal
+      return main ? (c && c.config.type === 'scatter' ? 'Curva' : 'Gráfico principal') : tx;
+    }
+    return 'Gráfico ' + (i + 1);
   }
   var slug = function (s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, ' ').trim().split(' ').slice(0, 4).join('_'); };
   var esc = function (s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
   function hideSet(card, mode) {
     var out = [];
     if (/^c\d+$/.test(mode)) { // un solo gráfico: se ocultan los demás (con lo que los envuelve, si no comparten contenedor con otro gráfico)
-      charts(card).forEach(function (c, i) { if (i === +mode.slice(1)) return; var n = c.parentElement; while (n.parentElement && n.parentElement !== card && n.parentElement.querySelectorAll('canvas').length < 2) n = n.parentElement; if (n !== card && out.indexOf(n) < 0) out.push(n); });
+      var me = charts(card)[+mode.slice(1)]; if (!me) return out;
+      [].forEach.call(card.querySelectorAll('canvas, table'), function (x) { if (x === me) return; var n = x; while (n.parentElement && n.parentElement !== card && !n.parentElement.contains(me)) n = n.parentElement; if (n !== card && !n.contains(me) && out.indexOf(n) < 0) { out.push(n); var nx = n.nextElementSibling; if (x.tagName === 'CANVAS' && nx && nx.matches('p.note') && out.indexOf(nx) < 0) out.push(nx); } }); // los otros gráficos (con su nota) y las tablas, con lo que los envuelve
       return out;
     }
     if (mode === 'chart') card.querySelectorAll('table').forEach(function (t) { var n = climb(t, card, 'canvas'); if (n && out.indexOf(n) < 0) out.push(n); });
-    if (mode === 'table') card.querySelectorAll('canvas').forEach(function (c) { var n = climb(c, card, 'table'); if (n && out.indexOf(n) < 0) out.push(n); });
+    if (mode === 'table') card.querySelectorAll('canvas').forEach(function (c) { var n = climb(c, card, 'table'); if (n && out.indexOf(n) < 0) { out.push(n); var nx = n.nextElementSibling; if (nx && nx.matches('p.note') && out.indexOf(nx) < 0) out.push(nx); } });
     return out;
   }
   function sections(card) { // las secciones de la pestaña con imagen propia, en el orden de la página (sin las que agrupan a otras, como la pestaña completa)
@@ -5753,7 +5762,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       var card = document.getElementById(id), hid = [];
       if (mode !== 'both') hid = hideSet(card, mode);
       var k = /^c\d+$/.test(mode) ? +mode.slice(1) : -1, cs = k >= 0 ? charts(card) : [];
-      job = { id: id, hid: hid, fname: name + (k >= 0 && cs[k] ? '_' + slug(cname(cs[k], k)) : mode === 'chart' ? '_grafico' : mode === 'table' ? '_tabla' : (card.querySelector('canvas') && card.querySelector('table') ? '_completo' : '')) };
+      job = { id: id, hid: hid, fname: name + (k >= 0 && cs[k] ? '_' + slug(cname(cs[k], k, card)) : mode === 'chart' ? '_grafico' : mode === 'table' ? '_tabla' : (card.querySelector('canvas') && card.querySelector('table') ? '_completo' : '')) };
     }
     var fname = job.fname, end = function () { if (job.tmp) job.tmp.removeAttribute('id'); if (job.p1) job.p1.removeAttribute('data-dlpad1'); };
     if (act === 'png') { Promise.resolve(orig(job.id, fname, scale, job.hid, job.cl)).then(end, end); return; }
@@ -5785,7 +5794,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     closeMenu(); var r = last.getBoundingClientRect(), z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
     menu = document.createElement('div'); menu.className = 'dlmenu'; menu.setAttribute('data-html2canvas-ignore', 'true');
     menu.innerHTML = '<div class="hd">Imagen HD</div><div class="mode">' +
-      (multi ? '<div class="pick">' + [['both', 'Toda la sección']].concat(cvs.map(function (c, i) { return ['c' + i, 'Solo: ' + cname(c, i)]; }), card.querySelector('table') ? [['table', 'Solo la tabla']] : []).map(function (m) { return '<button data-m="' + m[0] + '"' + (m[0] === mode ? ' class="on"' : '') + '>' + esc(m[1]) + '</button>'; }).join('') + '</div><div class="sep"></div>' : '') +
+      (multi ? '<div class="pick">' + [['both', 'Toda la sección']].concat(cvs.map(function (c, i) { return ['c' + i, 'Solo: ' + cname(c, i, card)]; }), card.querySelector('table') ? [['table', 'Solo la tabla']] : []).map(function (m) { return '<button data-m="' + m[0] + '"' + (m[0] === mode ? ' class="on"' : '') + '>' + esc(m[1]) + '</button>'; }).join('') + '</div><div class="sep"></div>' : '') +
       (both ? '<div class="seg">' + [['chart', 'Gráfico'], ['table', 'Tabla'], ['both', 'Ambos']].map(function (m) { return '<button data-m="' + m[0] + '"' + (m[0] === mode ? ' class="on"' : '') + '>' + m[1] + '</button>'; }).join('') + '</div><div class="sep"></div>' : '') + '</div>' +
       (canJoin ? '<div class="join"><button data-x="open">Juntar con otras secciones<small>varias en una sola imagen</small></button></div><div class="sep"></div>' : '') +
       '<button data-a="png">Descargar PNG<small>guarda el archivo</small></button>' +
