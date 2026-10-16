@@ -468,7 +468,8 @@ main > h1.hm-h1 { display: flex; align-items: center; gap: 12px }
 #home .hm-tb .f { color: var(--mu); font-weight: 500; font-size: 12px }
 #home .hm-st { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 4px }
 #home .hm-st div { border: 1px solid var(--bd); border-radius: 10px; padding: 10px 12px; border-left: 3px solid var(--mu) }
-#home .hm-st div.n { border-color: var(--ac); border-left-color: var(--ac); background: color-mix(in srgb, var(--ac) 8%, transparent) }
+#home .hm-st div.n { border-color: var(--ac); border-left-color: var(--ac); background: rgba(245,158,11,.08) } /* sin color-mix: la imagen HD (html2canvas) no lo entiende */
+[data-theme="light"] #home .hm-st div.n { background: rgba(134,96,63,.08) }
 #home .hm-st small { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--mu) }
 #home .hm-st b { display: block; font-size: 17px; margin: 4px 0 2px }
 #home .hm-st span { font-size: 12px; color: var(--mu) }
@@ -6078,7 +6079,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var MK = function (id, t, go) { return '<div class="hm-t" data-go="' + go + '" id="hk_' + id + '"><small>' + t + '</small><b>—</b><div class="d">&nbsp;</div><div class="s">&nbsp;</div><svg viewBox="0 0 100 34" preserveAspectRatio="none"></svg></div>'; };
   var card = function (id, t, go, sub, body) { return '<div class="card hm-c" data-norf id="' + id + '"><h3>' + t + (go ? '<a data-go="' + go + '">Ver más →</a>' : '') + '</h3>' + (sub ? '<p class="qs">' + sub + '</p>' : '') + body + '</div>'; };
   home.innerHTML =
-    '<div class="hm-hero"><div><h2>El mercado de hoy</h2><p id="hmSub">Lo más importante de la renta fija argentina en una pantalla. Tocá cualquier tarjeta para ver el detalle.</p></div></div>' +
+    '<div class="hm-hero"><div><h2>El mercado de hoy</h2><p id="hmSub">Lo más importante de la renta fija argentina en una pantalla. Tocá cualquier tarjeta para ver el detalle.</p></div><button class="icon-btn" id="hmDl" data-html2canvas-ignore="true" title="Descargar el Inicio completo en HD (para compartir)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div>' +
     '<div class="hm-k">' + MK('rp', 'Riesgo país', 'curva:rpCard') + MK('mep', 'Dólar MEP · AL30', 'dol') + MK('ccl', 'CCL', 'dol') + MK('ofi', 'Oficial · A3500', 'dol') + MK('tam', 'TAMAR · TNA', 'pesos') + '</div>' +
     '<div class="hm-g">' +
       card('hmRP', 'Riesgo país', 'curva:rpCard', '', '<div class="hm-per" id="hmRPp"><button data-n="21">1M</button><button data-n="63">3M</button><button data-n="126" class="on">6M</button><button data-n="252">1A</button></div><div class="hm-ch"><canvas id="hmRPc"></canvas></div>') +
@@ -6093,6 +6094,28 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     '<div style="height:16px"></div>' +
     '<div class="hm-q">' + TB.map(function (t) { return '<button data-go="' + t[0] + '"><b>' + (IC[t[0]] || '') + t[1] + '</b><span>' + (DESC[t[0]] || '') + '</span></button>'; }).join('') + '</div>' +
     '<p class="hm-note" id="hmNote"></p>';
+  $('hmDl').onclick = function () { // la portada entera en una imagen, con el menú lateral a la izquierda (la captura del navegador lo deja pegado arriba)
+    var btn = this; if (btn.disabled || !window.snapshotCanvas) return; btn.disabled = true; btn.style.opacity = '.5';
+    var fin = function () { btn.disabled = false; btn.style.opacity = ''; };
+    window.snapshotCanvas('home', undefined, [home.querySelector('.hm-q'), $('hmNote')]).then(function (hc) { // sin los accesos a cada pestaña: la imagen es para compartir
+      var k = hc.width / Math.max(1, home.scrollWidth), brand = window.addBrandMark; window.addBrandMark = function () {}; // el menú va sin marca: la marca ya está en la portada
+      var items = sn.querySelectorAll('nav .sn-it'), cut = items.length ? items[items.length - 1].getBoundingClientRect().bottom - sn.getBoundingClientRect().top + 16 : sn.offsetHeight;
+      var zz = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+      sn.removeAttribute('data-html2canvas-ignore'); // el menú no sale en las otras imágenes; acá sí
+      var back = function () { window.addBrandMark = brand; sn.setAttribute('data-html2canvas-ignore', 'true'); };
+      return window.snapshotCanvas('sideNav', k).then(function (sc) {
+        back();
+        var m = Math.round(28 * k), sw = sc.width, ch = Math.min(sc.height, Math.round(cut / zz * (sc.width / Math.max(1, sn.offsetWidth)))), W = sw + hc.width + 2 * m, H = hc.height + 2 * m;
+        var cv = document.createElement('canvas'); cv.width = W; cv.height = Math.max(H, ch); var x = cv.getContext('2d');
+        x.fillStyle = css('--bg') || '#1c1917'; x.fillRect(0, 0, cv.width, cv.height);
+        x.fillStyle = css('--card') || '#292524'; x.fillRect(0, 0, sw, cv.height);
+        x.drawImage(sc, 0, 0, sw, ch, 0, 0, sw, ch);
+        x.fillStyle = css('--bd') || '#44403c'; x.fillRect(sw - Math.max(1, Math.round(k)), 0, Math.max(1, Math.round(k)), cv.height);
+        x.drawImage(hc, sw + m, m);
+        window.saveCanvasPng(cv, 'Bonerio_Inicio'); fin();
+      }, function (e) { back(); throw e; });
+    }).catch(function (e) { console.error(e); fin(); alert('No se pudo generar la imagen: ' + e.message); });
+  };
   home.addEventListener('click', function (e) {
     var g = e.target.closest('[data-go]'); if (!g) return; var p = g.getAttribute('data-go').split(':');
     window.switchTab(p[0]); setTimeout(function () { var el = p[1] && $(p[1]); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); else window.scrollTo({ top: 0, behavior: 'smooth' }); }, 120);
