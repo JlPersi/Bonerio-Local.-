@@ -6188,16 +6188,22 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     } catch (e) { console.error(e); }
   }
 
-  function movers() {
-    var D = DATA || {}, two = function (o) { var k = Object.keys(o || {}).sort(); return k.length > 1 ? [o[k[k.length - 1]], o[k[k.length - 2]], k[k.length - 1]] : null; }, out = [];
-    var hd = two(D.cl && D.cl.D), pe = two(D.ar);
-    if (hd) Object.keys(hd[0]).forEach(function (t) { var a = hd[0][t], b = hd[1][t]; if (a > 0 && b > 0) out.push({ t: t, f: 'Dólares', v: (a / b - 1) * 100, p: a, c: 'US$ ' }); });
-    if (pe) Object.keys(pe[0]).forEach(function (t) { var a = pe[0][t], b = pe[1][t]; if (a > 0 && b > 0 && window.PSX && window.PSX.INST[t]) out.push({ t: t, f: window.PSX.FAM[window.PSX.famOf(window.PSX.INST[t])].n, v: (a / b - 1) * 100, p: a, c: '$ ' }); });
+  function movers() { // los bonos líquidos (monto promedio de 20 ruedas ≥ $300 M) que más se movieron: en rueda, precio de ahora contra el cierre anterior; fuera de rueda, la última rueda contra la anterior
+    var D = DATA || {}, X = window.PSX, q = window.PXQ || {}, A = window.VOLX && window.VOLX.adtv, MIN = 300e6;
+    if (!A && window.VOLX && window.VOLX.ensure && !movers.ask) { movers.ask = 1; window.VOLX.ensure(function () { if (home.classList.contains('active')) movers(); }); }
+    var td = bxDayStr(bxToday()), live = typeof mktStarted === 'function' && mktStarted() && Object.keys(q).length > 0;
+    var ks = function (o) { var k = Object.keys(o || {}).filter(function (d) { return !live || d < td; }).sort(); return k.length ? [k[k.length - 1], k.length > 1 ? k[k.length - 2] : null] : null; };
+    var out = [], pair = function (o, ds, t, sym) { var a, b; if (live) { a = q[sym] && q[sym].c; b = o[ds[0]][t]; } else { a = o[ds[0]][t]; b = ds[1] && o[ds[1]][t]; } return a > 0 && b > 0 ? [a, b] : null; };
+    var cD = D.cl && D.cl.D, pu = ks(cD), ar = D.ar, pp = ks(ar);
+    if (pu) Object.keys(cD[pu[0]]).forEach(function (t) { var z = pair(cD, pu, t, t + 'D'); if (z) out.push({ t: t, f: 'Dólares', v: (z[0] / z[1] - 1) * 100, p: z[0], c: 'US$ ' }); });
+    if (pp && X) Object.keys(ar[pp[0]]).forEach(function (t) { if (!X.INST[t]) return; var z = pair(ar, pp, t, t); if (z) out.push({ t: t, f: X.FAM[X.famOf(X.INST[t])].n, v: (z[0] / z[1] - 1) * 100, p: z[0], c: '$ ' }); });
+    if (A) out = out.filter(function (x) { return (A[x.t] || 0) >= MIN; });
     out = out.filter(function (x) { return Math.abs(x.v) < 15; }).sort(function (a, b) { return b.v - a.v; });
-    if (!out.length) { $('hmMOVb').innerHTML = '<p class="qs">Sin cierres para comparar.</p>'; return; }
+    if (!out.length) { $('hmMOVb').innerHTML = '<p class="qs">' + (A ? 'Sin precios para comparar.' : 'Cargando el volumen…') + '</p>'; return; }
     var row = function (x) { return '<tr><td>' + x.t + ' <span class="f">' + x.f + '</span></td><td>' + x.c + nf(x.p, 2) + '</td><td class="' + (x.v > 0 ? 'up' : x.v < 0 ? 'dn' : 'eq') + '">' + (x.v > 0 ? '+' : '') + nf(x.v, 2) + '%</td></tr>'; };
-    var up = out.slice(0, 4), dn = out.slice(-4).reverse();
-    $('hmMOVb').innerHTML = '<p class="qs" style="margin-top:0">Precio de cierre contra la rueda anterior' + (hd ? ' (' + dmy(hd[2]) + ')' : '') + '.</p><table class="hm-tb"><tbody>' + up.map(row).join('') + '<tr><td colspan="3" style="padding:2px"></td></tr>' + dn.map(row).join('') + '</tbody></table>';
+    var up = out.filter(function (x) { return x.v > 0; }).slice(0, 4), dn = out.filter(function (x) { return x.v < 0; }).slice(-4).reverse(), d0 = (pp || pu || [''])[0];
+    var sub = live ? 'Precio de ahora contra el cierre del ' + dmy(d0) + '.' : 'Rueda del ' + dmy(d0) + ' contra la anterior.';
+    $('hmMOVb').innerHTML = '<p class="qs" style="margin-top:0">' + sub + ' Solo bonos con más de $300 M operados por día.</p><table class="hm-tb"><tbody>' + (up.length ? up.map(row).join('') : '<tr><td colspan="3" class="f">Ninguno sube</td></tr>') + '<tr><td colspan="3" style="padding:2px"></td></tr>' + (dn.length ? dn.map(row).join('') : '<tr><td colspan="3" class="f">Ninguno baja</td></tr>') + '</tbody></table>';
   }
 
   function licit() {
@@ -6220,7 +6226,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var n = 0, iv = setInterval(function () { if (window.RIESGO_PAIS || ++n > 40) { clearInterval(iv); render(); } }, 500); // el riesgo país lo carga la tarjeta de Globales / Bonares
   var tt = window.toggleTheme; if (typeof tt === 'function') window.toggleTheme = function () { var r = tt.apply(this, arguments); setTimeout(render, 0); return r; };
   ['bmep', 'bccl'].forEach(function (id) { var b = $(id); if (b) b.addEventListener('click', function () { setTimeout(drawUSD, 50); }); });
-  document.addEventListener('psdata', function () { if (home.classList.contains('active')) { drawPesos(); movers(); } }); // llegaron cierres o precios en vivo de los bonos en pesos
+  document.addEventListener('psdata', function () { if (home.classList.contains('active')) { drawPesos(); setTimeout(movers, 400); } }); // movers: después de que la pestaña Variación diaria guarde las cotizaciones (PXQ) // llegaron cierres o precios en vivo de los bonos en pesos
   window.switchTab('home');
 })();
 </script>
