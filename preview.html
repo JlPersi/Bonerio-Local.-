@@ -5867,7 +5867,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       sets.push(line(k + (isUsd(k) ? ' contra ' + (ST.sp === 'C' ? 'Cable' : 'MEP') : '') + ' (' + unitOf(k) + ')', d, PAL[i % PAL.length]));
     });
     mk('thYC', sets, (ST.conv === 'tea' ? 'TEA' : 'TNA 180/360') + ' o margen (%)', function (c) { return c.dataset.label + ': ' + fm(c.parsed.y, 2) + '%'; });
-    $('thYN').textContent = 'Tasas con el precio de cierre de cada rueda (los bonos en dólares, con el precio sucio en ' + (ST.sp === 'C' ? 'Cable' : 'MEP') + '). ' + (ST.conv === 'tea' ? 'TEA: tasa efectiva anual.' : 'TNA 180/360: la TEA pasada a capitalización semestral, como en los informes de 1816.') + ' TAMAR y duales: margen sobre TAMAR, sin convertir. CER: tasa real (sobre el CER).' + (miss.length ? ' Sin precios desde esa fecha: ' + miss.join(', ') + '.' : '');
+    $('thYN').textContent = miss.length ? 'Sin precios desde esa fecha: ' + miss.join(', ') + '.' : '';
   }
   function renderF() {
     var from = bxDayNum(ST.from), sets = [], bad = [];
@@ -5881,7 +5881,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       sets.push(line('Forward ' + b + '–' + a + (sp ? ' (' + (sp === 'C' ? 'Cable' : 'MEP') + ')' : '') + (m ? ' · margen' : famK(a) === 'cer' ? ' · real' : ''), d, PAL[i % PAL.length]));
     });
     mk('thFC', sets, (ST.conv === 'tea' ? 'TEA' : 'TNA 180/360') + ' o margen (%)', function (c) { return c.dataset.label + ': ' + fm(c.parsed.y, 2) + '%'; });
-    $('thFN').textContent = 'Forward entre las duraciones de los dos bonos: ((1 + TIR largo)^D largo / (1 + TIR corto)^D corto)^(1 / (D largo − D corto)) − 1, con la duración de Macaulay de cada día (en los cupón cero, el plazo). Expresada en ' + (ST.conv === 'tea' ? 'TEA' : 'TNA 180/360') + '; en TAMAR y duales es el margen forward. CER: forward real. Los dos bonos tienen que ser de la misma familia.' + (bad.length ? ' Sin datos en común: ' + bad.join(', ') + '.' : '');
+    $('thFN').textContent = bad.length ? 'Sin datos en común: ' + bad.join(', ') + '.' : '';
   }
   function render() {
     if (typeof Chart === 'undefined') return;
