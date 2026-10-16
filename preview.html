@@ -6078,16 +6078,22 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 
   /* ---------- inflación y devaluación implícitas ---------- */
   var TEN = [1, 3, 6, 9, 12], TCOL = { 1: '#a3a3a3', 3: '#3b82f6', 6: '#ef4444', 9: '#22c55e', 12: '#f59e0b' };
-  function chipsBE(sx) { $('thBEt' + sx).innerHTML = '<span class="note" style="margin:0">Plazos:</span>' + TEN.map(function (m) { var on = ST.beT.indexOf(m) >= 0; return '<button class="act thbet" data-m="' + m + '" style="padding:5px 12px;display:inline-flex;gap:8px;align-items:center;' + (on ? '' : 'opacity:.45') + '"><i style="width:10px;height:10px;border-radius:50%;background:' + TCOL[m] + '"></i>' + m + (m === 1 ? ' mes' : ' meses') + '</button>'; }).join(''); }
+  function fijaLim(from) { // plazo de la Lecap/Boncap más larga y el bono a tasa fija más largo (más allá, la curva se apoya solo en él)
+    var A = dayFits('fija', from), a = A[A.length - 1], cap = 0, lg = null; if (!a) return null;
+    a.P.forEach(function (p) { var ins = INST[p.k]; if (ins && ins.k === 'cap' && p.x > cap) cap = p.x; if (!lg || p.x > lg.x) lg = p; });
+    return { cap: cap, lg: lg ? lg.k : '' };
+  }
+  var tl = function (m, L) { return m + (m === 1 ? ' mes' : ' meses') + (L && L.cap && m * 30.4375 > L.cap ? ' (extrapolada con ' + L.lg + ')' : ''); };
+  function chipsBE(sx) { var L = fijaLim(bxDayNum(ST.from)); $('thBEt' + sx).innerHTML = '<span class="note" style="margin:0">Plazos:</span>' + TEN.map(function (m) { var on = ST.beT.indexOf(m) >= 0; return '<button class="act thbet" data-m="' + m + '" style="padding:5px 12px;display:inline-flex;gap:8px;align-items:center;' + (on ? '' : 'opacity:.45') + '"><i style="width:10px;height:10px;border-radius:50%;background:' + TCOL[m] + '"></i>' + tl(m, L) + '</button>'; }).join(''); }
   function remAvg(arr, m) { var R = window.PSREM; if (!R || !arr) return null; var now = new Date(bxToday() * 864e5), i0 = now.getUTCFullYear() * 12 + now.getUTCMonth() - R.m0, q = 1; for (var i = 0; i < m; i++) q *= 1 + arr[Math.max(0, Math.min(arr.length - 1, i0 + i))]; return q; }
   function renderBE(sx) {
-    var from = bxDayNum(ST.from), k2 = sx === 'd' ? 'dl' : 'cer', A = dayFits('fija', from), B = dayFits(k2, from), mb = {}, sets = [], rows = [], mo = ST.beu === 'm', R = window.PSREM, miss = [];
+    var from = bxDayNum(ST.from), k2 = sx === 'd' ? 'dl' : 'cer', A = dayFits('fija', from), B = dayFits(k2, from), mb = {}, sets = [], rows = [], mo = ST.beu === 'm', R = window.PSREM, miss = [], L = fijaLim(from);
     B.forEach(function (r) { mb[r.t] = r; });
     ST.beT.slice().sort(function (a, b) { return a - b; }).forEach(function (m) {
       var T = m * 30.4375, d = [], c = TCOL[m];
       A.forEach(function (a) { var b = mb[a.t]; if (!b || T < Math.max(a.x0, b.x0) || T > Math.min(a.x1, b.x1)) return; var g = (1 + a.f(T) / 100) / (1 + b.f(T) / 100); if (!(g > 0)) return; var v = (mo ? Math.pow(g, 30.4375 / 365) - 1 : g - 1) * 100; if (isFinite(v) && Math.abs(v) < 500) d.push({ x: a.t, y: v }); });
       if (d.length < 2) { miss.push(m + (m === 1 ? ' mes' : ' meses')); return; }
-      var st = stat(d), main = sets.length; sets.push(line(m + (m === 1 ? ' mes' : ' meses'), d, c)); bands(sets, d, c, main, st);
+      var st = stat(d), main = sets.length; sets.push(line(tl(m, L), d, c)); bands(sets, d, c, main, st);
       var q = remAvg(R && (k2 === 'cer' ? R.pi : R.dev), m), rv = q == null ? null : (mo ? Math.pow(q, 1 / m) - 1 : Math.pow(q, 12 / m) - 1) * 100;
       rows.push({ m: m, c: c, st: st, rem: rv });
     });
@@ -6096,7 +6102,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     $('thBES' + sx).innerHTML = rows.length ? '<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr><th ' + thL + '>Plazo</th><th ' + TH + '>Hoy</th><th ' + TH + '>Promedio</th><th ' + TH + '>Desvío</th><th ' + TH + '>Hoy vs promedio</th><th ' + TH + '>REM hoy</th><th ' + TH + '>Mercado − REM</th><th ' + thL + '>Lectura</th></tr></thead><tbody>' + rows.map(function (r) {
       var s = r.st, hi = k2 === 'cer' ? 'CER' : 'dólar linked', lec = s.n < 5 ? 'Pocos días para medir.' : s.z >= 1 ? 'El mercado descuenta más ' + what + ' que lo habitual: la tasa fija paga más; ' + hi + ' queda relativamente caro.' : s.z <= -1 ? 'Descuenta menos ' + what + ' que lo habitual: ' + hi + ' queda relativamente barato contra la tasa fija.' : 'Dentro de lo normal.';
       if (r.rem != null) lec += ' ' + (s.last > r.rem ? 'Por encima' : 'Por debajo') + ' del REM: si se cumple el REM, ' + (s.last > r.rem ? 'gana la tasa fija.' : 'gana ' + hi + '.');
-      return '<tr><td ' + tdL.replace('">', ';font-weight:700">') + '>' + dot(r.c) + r.m + (r.m === 1 ? ' mes' : ' meses') + '</td><td ' + TD + '><b>' + fm(s.last, 2) + '%</b><br><span style="color:var(--mu);font-size:11.5px">' + dfull(s.t) + '</span></td><td ' + TD + '>' + fm(s.mu, 2) + '%</td><td ' + TD + '>' + fm(s.sd * 100, 0) + ' pb</td>' + zTd(s.z) + '<td ' + TD + '>' + (r.rem == null ? '—' : fm(r.rem, 2) + '%') + '</td><td ' + TD + '>' + (r.rem == null ? '—' : (s.last >= r.rem ? '+' : '') + fm((s.last - r.rem) * 100, 0) + ' pb') + '</td><td ' + tdR + '>' + lec + '</td></tr>';
+      return '<tr><td ' + tdL.replace('">', ';font-weight:700">') + '>' + dot(r.c) + tl(r.m, L) + '</td><td ' + TD + '><b>' + fm(s.last, 2) + '%</b><br><span style="color:var(--mu);font-size:11.5px">' + dfull(s.t) + '</span></td><td ' + TD + '>' + fm(s.mu, 2) + '%</td><td ' + TD + '>' + fm(s.sd * 100, 0) + ' pb</td>' + zTd(s.z) + '<td ' + TD + '>' + (r.rem == null ? '—' : fm(r.rem, 2) + '%') + '</td><td ' + TD + '>' + (r.rem == null ? '—' : (s.last >= r.rem ? '+' : '') + fm((s.last - r.rem) * 100, 0) + ' pb') + '</td><td ' + tdR + '>' + lec + '</td></tr>';
     }).join('') + '</tbody></table>' : '';
     $('thBEN' + sx).textContent = (miss.length ? 'Sin datos para ' + miss.join(', ') + ': ' + (k2 === 'dl' ? 'la curva dólar linked' : 'las curvas') + ' no llega' + (k2 === 'dl' ? '' : 'n') + ' a ese plazo. ' : '') + 'Cada día se ajusta la curva de tasa fija y la de ' + (k2 === 'cer' ? 'CER (tasa real)' : 'dólar linked (tasa en dólares)') + ' y se compara la tasa de las dos al mismo plazo, sin extrapolar. ' + (k2 === 'cer' ? 'El CER tiene un rezago de 10 días hábiles, así que la inflación implícita va un poco atrasada.' : '');
   }
