@@ -2,7 +2,7 @@ name: tmp balances (debug)
 on:
   push:
     branches: [claude/project-thread-9wlmpw]
-    paths: [".github/workflows/tmp-bal.yml", "scripts/tmp/**"]
+    paths: [".github/workflows/tmp-bal.yml", "scripts/balances_cnv.py"]
 permissions:
   contents: write
 jobs:
@@ -10,9 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/tmp/probe_balances.py
+      - run: TICKERS=BYMA,COME,SUPV,TRAN,TXAR,VALO python3 scripts/balances_cnv.py
       - name: Commit
         if: always()
         run: |
           git config user.name "tmp-bot"; git config user.email "bot@users.noreply.github.com"
-          git add -A tmp_cnv && git commit -qm "tmp: salida del sondeo [skip ci]" && git push || true
+          mkdir -p tmp_cnv/nuevos && cp -r .cnv_tmp/* tmp_cnv/nuevos/ 2>/dev/null || true
+          git add -A tmp_cnv data/acciones/balances && git commit -qm "tmp: salida del sondeo [skip ci]" && git push || true
