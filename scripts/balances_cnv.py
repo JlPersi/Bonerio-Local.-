@@ -9,7 +9,8 @@ presentaciones de cada empresa en www.cnv.gov.ar/SitioWeb/Empresas/Empresa/<CUIT
 - Montos: tal como figuran (moneda de la fecha de cierre). La unidad (pesos, miles o millones) no viene en la planilla:
   se deduce del tamaño del activo total y se guarda en "escala" por período.
 - Acciones: capital social / valor nominal de cada acción (VN abajo).
-- EBITDA: el que informa la empresa en la planilla; resultado_operativo = EBIT y depreciaciones = EBITDA - EBIT.
+- Resultado operativo: el rubro "ganancia de actividades operativas". Depreciaciones: EBITDA - EBIT de la planilla (lo informa la
+  empresa); si da negativo (pasa en algunas), el rubro "depreciaciones y amortizaciones" del estado de resultados.
 - Bancos: sin ventas ni EBITDA (P/VL, P/E y ROE).
 Para pruebas: CNV_DIR=carpeta con index.json y <TICKER>/<presentacion>.xlsx (no baja nada).
 """
@@ -21,6 +22,7 @@ OUT = os.path.join(HERE, "..", "data", "acciones", "balances")
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36"}
 BASE = "https://www.cnv.gov.ar/SitioWeb"
 DESDE = "2023-09-30"
+VERSION = 2  # si cambia la forma de leer las planillas, se suben: los archivos de otra versión se rearman enteros
 
 # ticker: (CUIT, valor nominal por acción al cierre de los balances, mes de cierre del ejercicio, banco, moneda funcional)
 EMPRESAS = {
@@ -140,6 +142,10 @@ def periodo(v, p, vn, mes_cierre, banco):
     meses = (m - mes_cierre) % 12 or 12
     pn = g("2299999"); mino = g("2211300")
     ebit, ebitda = g("8000003"), g("8000004")
+    da = ebitda - ebit if ebit is not None and ebitda is not None and ebitda >= ebit else None
+    if da is None and g("3011600"):
+        da = abs(g("3011600"))
+    oper = g("3019999") if g("3019999") is not None else ebit
     r = {
         "cierre": p["cierre"],
         "publicado": fecha_pub(p["fecha"]),
@@ -149,8 +155,8 @@ def periodo(v, p, vn, mes_cierre, banco):
         "acciones": round(g("2210999") * esc / vn) if g("2210999") and esc else None,
         "resultados": {
             "ventas": None if banco else g("3000100"),
-            "resultado_operativo": None if banco else ebit,
-            "depreciaciones": None if banco or ebit is None or ebitda is None else ebitda - ebit,
+            "resultado_operativo": None if banco else oper,
+            "depreciaciones": None if banco else da,
             "resultado_neto": g("3049999"),
             "resultado_neto_controlante": None,
         },
@@ -184,9 +190,17 @@ def main():
             q = elegido.get(p["cierre"])
             if q is None or (q["tipo"] != "CONSOLIDADO" and p["tipo"] == "CONSOLIDADO"):
                 elegido[p["cierre"]] = p
+        try:  # períodos ya cargados de la misma presentación: no se vuelven a bajar
+            viejo = json.load(open(os.path.join(OUT, t + ".json")))
+            previos = {q["fuente"]: dict(q, escala=viejo["escala"]) for q in viejo["periodos"]} if viejo.get("v") == VERSION else {}
+        except Exception:
+            previos = {}
         periodos = []
         for c in sorted(elegido):
             p = elegido[c]
+            q = previos.get("CNV %s, presentación %s" % (p["tipo"].lower(), p["xls"][0]))
+            if q and not local:
+                periodos.append(q); continue
             fn = os.path.join(tmp, t, "%s.xlsx" % p["xls"][0])
             if not os.path.exists(fn):
                 if local:
@@ -211,7 +225,7 @@ def main():
             f = p.pop("escala") / esc
             for grupo in ("resultados", "situacion"):
                 p[grupo] = {k: (round(x * f, 2) if x is not None else None) for k, x in p[grupo].items()}
-        doc = {"t": t, "cuit": cuit, "fuente": "CNV - Estados contables (www.cnv.gov.ar)", "moneda_funcional": moneda,
+        doc = {"t": t, "v": VERSION, "cuit": cuit, "fuente": "CNV - Estados contables (www.cnv.gov.ar)", "moneda_funcional": moneda,
                "splits": SPLITS.get(t, []),
                "escala": esc, "acciones": periodos[-1]["acciones"], "periodos": periodos}
         json.dump(doc, open(os.path.join(OUT, t + ".json"), "w"), ensure_ascii=False, indent=1)

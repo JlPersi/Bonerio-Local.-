@@ -10,10 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: TICKERS=BYMA,COME,SUPV,TRAN,TXAR,VALO python3 scripts/balances_cnv.py
+      - name: Planillas ya bajadas
+        run: |
+          mkdir -p .cnv_tmp
+          for d in tmp_cnv/*/ tmp_cnv/nuevos/*/; do t=$(basename $d); [ "$t" = nuevos ] && continue; mkdir -p .cnv_tmp/$t; cp $d*.xlsx .cnv_tmp/$t/ 2>/dev/null || true; done
+      - run: python3 scripts/balances_cnv.py
+      - run: python3 scripts/ratios_acciones.py
       - name: Commit
         if: always()
         run: |
           git config user.name "tmp-bot"; git config user.email "bot@users.noreply.github.com"
-          mkdir -p tmp_cnv/nuevos && cp -r .cnv_tmp/* tmp_cnv/nuevos/ 2>/dev/null || true
-          git add -A tmp_cnv data/acciones/balances && git commit -qm "tmp: salida del sondeo [skip ci]" && git push || true
+          git add -A data/acciones && git commit -qm "tmp: salida del sondeo [skip ci]" && git push || true

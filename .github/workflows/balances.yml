@@ -1,0 +1,24 @@
+name: Balances CNV
+on:
+  schedule:
+    # lunes 9:00 hora Argentina: levanta los estados contables nuevos que se presentaron en la semana
+    - cron: "0 12 * * 1"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  balances:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/balances_cnv.py
+      - run: python3 scripts/ratios_acciones.py
+      - name: Commit
+        run: |
+          if [ -n "$(git status --porcelain data)" ]; then
+            git config user.name "cierre-bot"
+            git config user.email "bot@users.noreply.github.com"
+            git add data
+            git commit -m "balances $(date -u +%F)"
+            git pull --rebase -q origin main && git push
+          fi
