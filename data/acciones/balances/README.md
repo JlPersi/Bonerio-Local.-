@@ -42,3 +42,13 @@ y deja los ratios en `data/acciones/ratios.json`.
 - Montos en moneda de la fecha de cierre (NIC 29), tal como figuran en el balance. La reexpresión la hace el script con el CER.
 - Bancos: `ventas`, `resultado_operativo` y `depreciaciones` pueden ir en `null`; para ellos los ratios que importan son P/VL, P/E y ROE.
 - Lo que no figure en el balance va en `null` (no en 0).
+- `moneda_funcional`: "USD" para las que llevan la contabilidad en dólares (YPF, Pampa). Sus pesos son dólares convertidos al cierre,
+  así que el script las lleva a la fecha con el A3500 y no con el CER.
+- `splits`: lista de `{"fecha": "2026-08-03", "factor": 10}` (factor = acciones nuevas por cada vieja). Los precios guardados no se
+  ajustan, así que la capitalización usa las acciones del balance multiplicadas por los splits posteriores a su cierre.
+
+## Carga automática
+
+`scripts/balances_cnv.py` baja de la CNV la planilla estandarizada de cada estado contable presentado (consolidado, o individual si no
+hay) y reescribe estos archivos. Corre en el Action "Balances CNV" (semanal y a mano). Las empresas, su CUIT y el valor nominal de la
+acción están en la tabla `EMPRESAS` del script.
