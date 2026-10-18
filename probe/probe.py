@@ -1,38 +1,25 @@
-import json, os, re, urllib.request, urllib.parse
-OUT = "probe/out2"; os.makedirs(OUT, exist_ok=True)
-H = {"User-Agent": "Mozilla/5.0", "Accept": "*/*"}
-def get(url, data=None, h=None, t=40):
-    r = urllib.request.Request(url, data=data, headers=dict(H, **(h or {})))
-    with urllib.request.urlopen(r, timeout=t) as f:
-        return f.status, f.read()
+import json, os, urllib.request, urllib.parse
+OUT = "probe/out3"; os.makedirs(OUT, exist_ok=True)
+H = {"User-Agent": "Mozilla/5.0", "Accept": "application/json", "Origin": "https://marketdata.mae.com.ar", "Referer": "https://marketdata.mae.com.ar/"}
+def get(url, t=60):
+    with urllib.request.urlopen(urllib.request.Request(url, headers=H), timeout=t) as f:
+        return f.read()
 log = []
-def crawl(base, tag):
+for d in ["2015-03-02", "2018-03-01", "2020-03-02", "2021-03-01", "2022-03-01", "2023-03-01", "2024-03-01", "2024-09-02"]:
+    a = d; b = d[:8] + "%02d" % (int(d[8:]) + 6)
     try:
-        st, b = get(base); html = b.decode("utf8", "ignore"); log.append("%s %s %d" % (base, st, len(b)))
-        js = set(re.findall(r'(?:src|href)="([^"]+\.js[^"]*)"', html))
-        paths = set()
-        for src in js:
-            u = urllib.parse.urljoin(base, src)
-            try:
-                st, bb = get(u); t = bb.decode("utf8", "ignore")
-                paths |= set(re.findall(r'["\'`](/?(?:api|rest|vanoms|free)[^"\'`\s]{2,160})["\'`]', t))
-                paths |= set(re.findall(r'https?://[a-zA-Z0-9.-]+(?:/[^"\'`\s]{0,160})?', t))
-                for kw in ["imult", "pase", "Pase", "repo", "cauci"]:
-                    for m in list(re.finditer(kw, t))[:15]:
-                        paths.add("CTX " + kw + ": " + t[max(0, m.start() - 120):m.start() + 120].replace("\n", " "))
-            except Exception as e:
-                log.append("  %s ERR %s" % (u, e))
-        open(os.path.join(OUT, tag + "_paths.txt"), "w").write("\n".join(sorted(paths)))
+        q = urllib.parse.quote(json.dumps({"fechaDesde": a, "fechaHasta": b}))
+        j = json.loads(get("https://api.marketdata.mae.com.ar/api/mercado/titulo/historicocauciones?oTitulo=" + q))
+        n = sum(len(x.get("details") or []) for x in j); mon = sorted(set(r.get("moneda") for x in j for r in x.get("details") or []))
+        smp = [(r["descripcion"], r["tasaPP"], r["montoConcertado"]) for x in j[:1] for r in (x.get("details") or [])[:4]]
+        log.append("CAU %s: %d días, %d filas, monedas %s %s" % (d, len(j), n, mon, smp))
     except Exception as e:
-        log.append("%s ERR %s" % (base, e))
-crawl("https://marketdata.mae.com.ar/", "mae")
-crawl("https://open.bymadata.com.ar/", "byma")
-MH = {"Origin": "https://marketdata.mae.com.ar", "Referer": "https://marketdata.mae.com.ar/", "Accept": "application/json"}
-q = urllib.parse.quote(json.dumps({"fechaDesde": "2026-10-13", "fechaHasta": "2026-10-16"}))
-for ep in ["historicosimultaneas", "historicopases", "historicorepos", "simultaneas", "pases", "repos", "historicocauciones"]:
-    for pre in ["https://api.marketdata.mae.com.ar/api/mercado/titulo/", "https://api.marketdata.mae.com.ar/api/mercado/"]:
+        log.append("CAU %s ERR %s" % (d, e))
+    for prod in ["DLR", "Tasa de Caución"]:
         try:
-            st, b = get(pre + ep + "?oTitulo=" + q, h=MH); log.append("MAE %s%s %s %d %r" % (pre[-15:], ep, st, len(b), b[:200]))
+            q = urllib.parse.urlencode({"product": prod, "type": "FUT", "from": a, "to": b})
+            j = json.loads(get("https://apicem.matbarofex.com.ar/api/v2/closing-prices?" + q)).get("data", [])
+            log.append("  %s %s: %d filas %s" % (prod, d, len(j), sorted(set(r["symbol"] for r in j))[:8]))
         except Exception as e:
-            log.append("MAE %s%s ERR %s" % (pre[-15:], ep, e))
+            log.append("  %s %s ERR %s" % (prod, d, e))
 open(os.path.join(OUT, "log.txt"), "w").write("\n".join(log))
