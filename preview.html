@@ -5538,7 +5538,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       r + ' .rg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}@media(max-width:1000px){' + r + ' .rg{grid-template-columns:minmax(0,1fr)}}' +
       r + ' .rt{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}' + r + ' .rt th,' + r + ' .rt td{padding:6px 9px;white-space:nowrap;text-align:right}' + r + ' .rt th{font-size:12px;position:sticky;top:0;background:var(--card);color:var(--mu);border-bottom:1px solid var(--bd);z-index:1}' + r + ' .rt td.l,' + r + ' .rt th.l{text-align:left}' + r + ' .rt tr+tr td{border-top:1px solid rgba(148,163,184,.12)}' +
       r + ' .rt tr[data-qv]{cursor:pointer}' + r + ' .rt tr[data-qv]:hover td{background:rgba(148,163,184,.07)}' +
-      r + ' .rt .lc{background:rgba(245,158,11,.07);font-weight:700;color:var(--tx)}' + r + ' .rt .lc.up{color:#34d399}' + r + ' .rt .lc.dn{color:#fb7185}' + r + ' .rt th.lc{color:#f59e0b;background:color-mix(in srgb,var(--card) 92%,#f59e0b)}' + r + ' .rt tr[data-qv]:hover td.lc{background:rgba(245,158,11,.13)}' +
+      r + ' .rt .lc{background:rgba(245,158,11,.07);font-weight:700;color:var(--tx)}' + r + ' .rt .lc.up{color:#34d399}' + r + ' .rt .lc.dn{color:#fb7185}' + r + ' .rt th.lc{color:#f59e0b;background-color:var(--card);background-image:linear-gradient(rgba(245,158,11,.08),rgba(245,158,11,.08))}' + r + ' .rt tr[data-qv]:hover td.lc{background:rgba(245,158,11,.13)}' +
       r + ' .up{color:var(--ok)}' + r + ' .dn{color:var(--bad,#f87171)}' + r + ' .mu{color:var(--mu)}' +
       r + ' .rp{display:inline-flex;flex-wrap:wrap;gap:5px}' + r + ' .rp button{font:inherit;font-size:12px;font-weight:600;padding:5px 11px;border-radius:99px;border:1px solid var(--bd);background:transparent;color:var(--mu);cursor:pointer;white-space:nowrap}' +
       r + ' .rp button:hover{color:var(--tx);border-color:var(--mu)}' + r + ' .rp button.on{background:var(--ac);border-color:var(--ac);color:var(--bg)}' + r + ' .rp.sr button.on{background:transparent;color:var(--tx);border-color:var(--ac)}' + r + ' .rp.sr button i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0}' +
@@ -5986,6 +5986,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       return cline(smooth(function (x) { return q.f(x - O); }, pts[0].x, pts[pts.length - 1].x), col, fill);
     };
     var li = function (pts, x) { if (!pts.length) return null; if (x < pts[0][0] - 3) return null; if (x <= pts[0][0]) return pts[0][1]; if (x > pts[pts.length - 1][0] + 3) return null; if (x >= pts[pts.length - 1][0]) return pts[pts.length - 1][1]; for (var i = 1; i < pts.length; i++) if (x <= pts[i][0]) return pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * (x - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0]); return null; };
+    var tem = function (tea) { return tea == null ? null : (Math.pow(1 + tea / 100, 1 / 12) - 1) * 100; }; // TEM equivalente a la TEA (%)
     var bp = function (v) { return v == null || !isFinite(v) ? 'n/a' : sg(v * 100, 0); }, cls = function (v) { return v == null ? 'mu' : v > 0 ? 'up' : v < 0 ? 'dn' : 'mu'; };
     var dp = function (x) { return bxDayNum(String(x).slice(0, 10)); };
     var fc = function () { return S.futV && S.futV.length ? S.futV : S.fut; };
@@ -6007,19 +6008,22 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var by = function (f) { return all.filter(function (o) { return f(o) && !o.miss && o.P > 0; }).sort(function (a, b) { return a.d - b.d; }); };
       var fija = by(function (o) { return o.ins.k === 'cap' && o.tnas != null && o.d >= 7; }); if (!fija.length) return null;
       var c = fc(), Sp = c.length ? c[0].sp : null, base = c.length ? dp(c[0].base) : s0;
-      var D = { s0: s0, fija: fija, c: c, Sp: Sp, dls: by(function (o) { return o.ins.k === 'dl' && o.usdTnas != null && o.d >= 7; }) };
+      var D = { s0: s0, fija: fija, c: c, Sp: Sp, dls: by(function (o) { return o.ins.k === 'dl' && o.usdTea != null && o.d >= 7; }) };
+      D.fx = (D.dls[0] && D.dls[0].fx0) || at(S.fx, '9999')[1] || Sp; // el A3500: con el que el dollar linked da su tasa en dólares, así el sintético se compara igual
       D.fCurve = [[base, Sp]].concat(c.map(function (f) { return [dp(f.v), f.F]; })); // el futuro por fecha, desde el spot de la rueda
       D.Fat = function (day) { return li(D.fCurve, day); };
-      D.LR = lecRef(); D.lecT = function (d) { return D.LR ? D.LR.at(d) : null; }; // la TNA de la curva de Lecaps ajustada
+      var q = null; try { q = X.fairFit(fija.map(function (o) { return { x: o.d, y: o.tea * 100, k: o.k }; }), 'auto'); } catch (e) { q = null; }
+      var lx0 = fija[0].d, lx1 = fija[fija.length - 1].d; D.LR = q ? { f: q.f, x0: lx0, x1: lx1 } : null;
+      D.lecT = function (d) { return q && d >= lx0 - 3 && d <= lx1 + 3 ? q.f(Math.min(lx1, Math.max(lx0, d))) : null; }; // la TEA de la curva de Lecaps ajustada
       D.last = D.fCurve[D.fCurve.length - 1][0]; D.x1 = Math.max(D.last, s0 + 120) + 20;
       // dollar linked + venta de futuro: el futuro al A3500 que cobra el bono (3 días hábiles antes del vencimiento)
-      D.dlr = D.dls.map(function (o) { var Fm = D.Fat(X && X.bdBack ? X.bdBack(o.mat, 3) : o.mat), lf = D.lecT(o.d), be = lf == null ? null : o.P * (1 + lf / 100 * o.d / 365) / 100, hed = Fm ? (100 * Fm / o.P - 1) * 365 / o.d * 100 : null; return { o: o, Fm: Fm, lf: lf, be: be, hed: hed }; });
+      D.dlr = D.dls.map(function (o) { var Fm = D.Fat(X && X.bdBack ? X.bdBack(o.mat, 3) : o.mat), lf = D.lecT(o.d), be = lf == null ? null : o.P * Math.pow(1 + lf / 100, o.d / 365) / 100, hed = Fm ? (Math.pow(100 * Fm / o.P, 365 / o.d) - 1) * 100 : null; return { o: o, Fm: Fm, lf: lf, be: be, hed: hed }; }); // TEA
       // Lecap + compra de futuro: la tasa en dólares oficiales; contra el dollar linked del mismo plazo (interpolado)
-      var dlc = D.dls.map(function (o) { return [o.d, o.usdTnas * 100]; });
-      D.usd = fija.filter(function (o) { return o.mat <= D.last + 3; }).map(function (o) { var F = D.Fat(o.mat), u = F && Sp ? ((1 + o.tnas * o.d / 365) * Sp / F - 1) * 365 / o.d * 100 : null; return { o: o, F: F, u: u, dl: li(dlc, o.d) }; }).filter(function (r) { return r.u != null; });
+      var dlc = D.dls.map(function (o) { return [o.d, o.usdTea * 100]; });
+      D.usd = fija.filter(function (o) { return o.mat <= D.last + 3; }).map(function (o) { var F = D.Fat(o.mat), pay = o.P * (1 + o.tnas * o.d / 365), u0 = o.P / D.fx, u1 = F ? pay / F : null, u = u1 ? (Math.pow(u1 / u0, 365 / o.d) - 1) * 100 : null; return { o: o, F: F, pay: pay, u0: u0, u1: u1, u: u, dl: li(dlc, o.d) }; }).filter(function (r) { return r.u != null; }); // TEA en dólares
       return D;
     }
-    var dateTip = function (s0, u) { return function (cc) { return (u === '$' ? '$ ' + nf(cc.raw.y, 1) : 'TNA ' + nf(cc.raw.y, 2) + '%') + ' · vence el ' + fr(ds2(cc.raw.x)) + ' (' + dias(Math.round(cc.raw.x - s0)) + ')'; }; };
+    var dateTip = function (s0, u) { return function (cc) { return (u === '$' ? '$ ' + nf(cc.raw.y, 1) : 'TEA ' + nf(cc.raw.y, 2) + '%') + ' · vence el ' + fr(ds2(cc.raw.x)) + ' (' + dias(Math.round(cc.raw.x - s0)) + ')'; }; };
     var dateOpt = function (D, yt, yf, u) { var o = scatterOpt('', yt, yf, dateTip(D.s0, u), D.x1, mmyy); o.scales.x.min = D.s0; o.layout = { padding: { right: 30, top: 4 } }; o.scales.x.grid = { display: false }; return o; };
     var mk = function (id, cfg) { if (CH[id]) { CH[id].destroy(); CH[id] = null; } var el = document.getElementById(id); if (!el) return null; CH[id] = new Chart(el.getContext('2d'), cfg); return CH[id]; };
     function bars(id, rows, title, tipL) { // diferencia en pb, verde si conviene el sintético
@@ -6038,34 +6042,34 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         options: dateOpt(D, 'Tipo de cambio esperado ($ por dólar)', function (v) { return nf(v, 0); }, '$') });
     }
     function drawUsd(D) { // 1) dólar sintético: Lecap + compra de futuro, contra el dollar linked
-      var up = D.usd.map(function (r) { return { x: r.o.mat, y: r.u, s: r.o.k + ' + futuro', k: r.o.k }; }), dpts = D.dls.filter(function (o) { return o.mat <= D.x1; }).map(function (o) { return { x: o.mat, y: o.usdTnas * 100, s: o.k, k: o.k }; }), sets = [];
+      var up = D.usd.map(function (r) { return { x: r.o.mat, y: r.u, s: r.o.k + ' + futuro', k: r.o.k }; }), dpts = D.dls.filter(function (o) { return o.mat <= D.x1; }).map(function (o) { return { x: o.mat, y: o.usdTea * 100, s: o.k, k: o.k }; }), sets = [];
       var f1 = fitLine(up, '#38bdf8', true); if (f1) sets.push(f1);
       var f2 = fitLine(dpts, C_DL, false); if (f2) { f2.borderDash = [5, 4]; f2.borderWidth = 1.8; f2.glow = null; sets.push(f2); }
       sets.push(dots('Lecap + compra de futuro', up, '#38bdf8'), dots('Dollar linked', dpts, C_DL, { pointRadius: 6, pointStyle: 'rectRot' }));
-      mk('syA', { type: 'scatter', data: { datasets: sets }, plugins: [GLW].concat(LBL()), options: dateOpt(D, 'Tasa en dólares oficiales por vencimiento (TNA %)', function (v) { return nf(v, 1) + '%'; }, 'r') });
+      mk('syA', { type: 'scatter', data: { datasets: sets }, plugins: [GLW].concat(LBL()), options: dateOpt(D, 'Tasa en dólares oficiales por vencimiento (TEA %)', function (v) { return nf(v, 1) + '%'; }, 'r') });
       bars('syB', D.usd.filter(function (r) { return r.dl != null; }).map(function (r) { return { l: r.o.k, v: r.u - r.dl, r: r }; }), 'Sintético menos dollar linked del mismo plazo (pb)', function (x) { return 'Sintético ' + P(x.r.u) + ' · dollar linked ' + P(x.r.dl); });
       document.getElementById('syH').textContent = 'Cada Lecap con el futuro de su vencimiento';
-      var h = '<thead><tr><th class="l">Lecap</th><th>Vence</th><th>Días</th><th>TNA Lecap</th><th>Futuro al vencimiento</th><th class="lc">TNA en USD sintética</th><th>TNA USD dollar linked</th><th>Dif. (pb)</th><th class="l">Conviene</th></tr></thead><tbody>';
-      D.usd.forEach(function (r) { var df = r.dl == null ? null : r.u - r.dl; h += '<tr data-qv="' + r.o.k + '"><td class="l"><b>' + r.o.k + '</b></td><td>' + fr(bxDayStr(r.o.mat)) + '</td><td>' + r.o.d + '</td><td>' + P(r.o.tnas * 100) + '</td><td>$ ' + nf(r.F, 1) + '</td><td class="lc">' + P(r.u) + '</td><td>' + (r.dl == null ? '<span class="mu">sin dollar linked</span>' : P(r.dl)) + '</td><td class="' + cls(df) + '">' + bp(df) + '</td><td class="l">' + (df == null ? '—' : df > 0 ? 'Sintético' : 'Dollar linked') + '</td></tr>'; });
-      document.getElementById('syT').innerHTML = h + (D.usd.length ? '' : '<tr><td class="l mu" colspan="9">No hay Lecaps dentro de la curva de futuros.</td></tr>') + '</tbody>';
-      document.getElementById('syN').innerHTML = '<b>Long Lecap + long futuro</b>: comprás la Lecap y el futuro por el mismo monto; al vencimiento cobrás pesos y con el futuro los pasás a dólares oficiales. TNA en dólares = ((1 + TNA Lecap × días / 365) × spot / futuro − 1) × 365 / días. Se compara con el dollar linked del mismo plazo: si el sintético rinde más, conviene armarlo.';
+      var h = '<thead><tr><th class="l">Lecap</th><th>Precio</th><th>Pago</th><th>Futuro al venc.</th><th>Vence</th><th>Días</th><th>USD hoy</th><th>USD al venc.</th><th class="lc">TEA en USD</th><th>TEM</th><th>TEA dollar linked</th><th>Dif. (pb)</th><th class="l">Conviene</th></tr></thead><tbody>';
+      D.usd.forEach(function (r) { var df = r.dl == null ? null : r.u - r.dl; h += '<tr data-qv="' + r.o.k + '"><td class="l"><b>' + r.o.k + '</b></td><td>' + nf(r.o.P, 2) + '</td><td>' + nf(r.pay, 2) + '</td><td>' + nf(r.F, 1) + '</td><td>' + fr(bxDayStr(r.o.mat)) + '</td><td>' + r.o.d + '</td><td>' + nf(r.u0, 4) + '</td><td>' + nf(r.u1, 4) + '</td><td class="lc">' + P(r.u) + '</td><td>' + P(tem(r.u)) + '</td><td>' + (r.dl == null ? '<span class="mu">sin dollar linked</span>' : P(r.dl)) + '</td><td class="' + cls(df) + '">' + bp(df) + '</td><td class="l">' + (df == null ? '—' : df > 0 ? 'Sintético' : 'Dollar linked') + '</td></tr>'; });
+      document.getElementById('syT').innerHTML = h + (D.usd.length ? '' : '<tr><td class="l mu" colspan="13">No hay Lecaps dentro de la curva de futuros.</td></tr>') + '</tbody>';
+      document.getElementById('syN').innerHTML = '<b>Long Lecap + long futuro</b>: comprás la Lecap y el futuro por el mismo monto; al vencimiento cobrás pesos y con el futuro los pasás a dólares oficiales. <b>USD hoy</b> = precio / A3500 de hoy; <b>USD al vencimiento</b> = pago de la Lecap / futuro de su vencimiento; TEA = (USD al venc. / USD hoy)<sup>365/días</sup> − 1 y TEM = (1 + TEA)<sup>1/12</sup> − 1. Se compara con el dollar linked del mismo plazo, que también se mide con el A3500: si el sintético rinde más, conviene armarlo.';
     }
     function drawLec(D) { // 2) Lecap sintética: dollar linked + venta de futuro, contra la Lecap
-      var s0 = D.s0, sets = [], lp = D.fija.filter(function (o) { return o.mat <= D.x1; }).map(function (o) { return { x: o.mat, y: o.tnas * 100, s: o.k, k: o.k }; });
-      var fp = D.c.map(function (f) { return { x: dp(f.v), y: f.t, s: name(f.s) + ' (tasa implícita)', k: sh(f.s) }; });
+      var s0 = D.s0, sets = [], lp = D.fija.filter(function (o) { return o.mat <= D.x1; }).map(function (o) { return { x: o.mat, y: o.tea * 100, s: o.k, k: o.k }; });
+      var fp = D.c.filter(function (f) { return f.t != null; }).map(function (f) { return { x: dp(f.v), y: (Math.pow(1 + f.t / 100 * f.d / 365, 365 / f.d) - 1) * 100, s: name(f.s) + ' (tasa implícita)', k: sh(f.s) }; });
       var hp = D.dlr.filter(function (x) { return x.o.mat <= D.x1 && x.hed != null; }).map(function (x) { return { x: x.o.mat, y: x.hed, s: x.o.k + ' + venta de futuro', k: x.o.k }; });
       var fl = fitLine(fp, C_FUT, true, 'ns'); if (fl) sets.push(fl);
       if (D.LR) { var la = s0 + D.LR.x0, lb = Math.min(s0 + D.LR.x1, D.x1); if (lb > la) sets.push(cline(smooth(function (x) { return D.LR.f(x - s0); }, la, lb), '#60a5fa', false)); }
       sets.push(dots('Dollar linked + venta de futuro', hp, C_DL, { pointRadius: 6.5, pointStyle: 'rectRot', order: 0 }), dots('Lecaps y Boncaps', lp, '#60a5fa', { pointRadius: 4.5 }), dots('Tasa implícita del futuro', fp, C_FUT, { pointRadius: 4 }));
-      mk('syA', { type: 'scatter', data: { datasets: sets }, plugins: [GLW].concat(LBL()), options: dateOpt(D, 'Tasa fija en pesos por vencimiento (TNA %)', function (v) { return nf(v, 0) + '%'; }, 'r') });
+      mk('syA', { type: 'scatter', data: { datasets: sets }, plugins: [GLW].concat(LBL()), options: dateOpt(D, 'Tasa fija en pesos por vencimiento (TEA %)', function (v) { return nf(v, 0) + '%'; }, 'r') });
       bars('syB', D.dlr.filter(function (x) { return x.hed != null && x.lf != null; }).map(function (x) { return { l: x.o.k, v: x.hed - x.lf, x: x }; }), 'Sintética menos la Lecap del mismo plazo (pb)', function (q) { return 'Sintética ' + P(q.x.hed) + ' · Lecap ' + P(q.x.lf); });
       document.getElementById('syH').textContent = 'Cada dollar linked con el futuro de su vencimiento';
-      var h = '<thead><tr><th class="l">Bono</th><th>Vence</th><th>Días</th><th>Precio</th><th>TIR en USD</th><th>TC breakeven</th><th>Futuro al venc.</th><th>Futuro vs. breakeven</th><th class="lc">TNA sintética</th><th>TNA Lecap</th><th>Dif. (pb)</th><th class="l">Conviene</th></tr></thead><tbody>';
-      D.dlr.forEach(function (x) { var o = x.o, gap = x.Fm && x.be ? x.Fm / x.be - 1 : null, df = x.hed != null && x.lf != null ? x.hed - x.lf : null;
-        h += '<tr data-qv="' + o.k + '"><td class="l"><b>' + o.k + '</b></td><td>' + fr(bxDayStr(o.mat)) + '</td><td>' + o.d + '</td><td>' + nf(o.P, 2) + '</td><td>' + P(o.usdTea * 100) + '</td><td>' + (x.be ? '$ ' + nf(x.be, 1) : 'n/a') + '</td><td>' + (x.Fm ? '$ ' + nf(x.Fm, 1) : '<span class="mu">sin futuro</span>') + '</td>' +
-          '<td class="' + cls(gap) + '">' + (gap == null ? 'n/a' : sg(gap * 100, 2) + '%') + '</td><td class="lc">' + P(x.hed) + '</td><td>' + P(x.lf) + '</td><td class="' + cls(df) + '">' + bp(df) + '</td><td class="l">' + (df == null ? '—' : df > 0 ? 'Sintética' : 'Lecap') + '</td></tr>'; });
-      document.getElementById('syT').innerHTML = h + (D.dlr.length ? '' : '<tr><td class="l mu" colspan="12">No hay dollar linked con precio.</td></tr>') + '</tbody>';
-      document.getElementById('syN').innerHTML = '<b>Long dollar linked + short futuro</b>: comprás el bono y vendés futuro por el mismo monto; queda una tasa fija en pesos, (100 × futuro / precio − 1) × 365 / días, con el futuro al A3500 que cobra el bono (3 días hábiles antes del vencimiento). Se compara con la Lecap del mismo plazo (la curva ajustada). <b>TC breakeven</b>: el A3500 al vencimiento que iguala el bono con la Lecap. En naranja, la tasa implícita de cada futuro (comprar dólares al spot y venderlos a futuro).';
+      var h = '<thead><tr><th class="l">Bono</th><th>Precio</th><th>Futuro al venc.</th><th>Pago</th><th>Vence</th><th>Días</th><th class="lc">TEA sintética</th><th>TEM</th><th>TEA Lecap mismo plazo</th><th>TEM</th><th>Dif. (pb)</th><th class="l">Conviene</th><th>TC breakeven</th></tr></thead><tbody>';
+      D.dlr.forEach(function (x) { var o = x.o, df = x.hed != null && x.lf != null ? x.hed - x.lf : null;
+        h += '<tr data-qv="' + o.k + '"><td class="l"><b>' + o.k + '</b></td><td>' + nf(o.P, 2) + '</td><td>' + (x.Fm ? nf(x.Fm, 1) : '<span class="mu">sin futuro</span>') + '</td><td>' + (x.Fm ? nf(100 * x.Fm, 0) : 'n/a') + '</td><td>' + fr(bxDayStr(o.mat)) + '</td><td>' + o.d + '</td>' +
+          '<td class="lc">' + P(x.hed) + '</td><td>' + P(tem(x.hed)) + '</td><td>' + (x.lf == null ? '<span class="mu">fuera de la curva</span>' : P(x.lf)) + '</td><td>' + P(tem(x.lf)) + '</td><td class="' + cls(df) + '">' + bp(df) + '</td><td class="l">' + (df == null ? '—' : df > 0 ? 'Sintética' : 'Lecap') + '</td><td>' + (x.be ? '$ ' + nf(x.be, 1) : 'n/a') + '</td></tr>'; });
+      document.getElementById('syT').innerHTML = h + (D.dlr.length ? '' : '<tr><td class="l mu" colspan="13">No hay dollar linked con precio.</td></tr>') + '</tbody>';
+      document.getElementById('syN').innerHTML = '<b>Long dollar linked + short futuro</b>: comprás el bono y vendés futuro por el mismo monto; queda una tasa fija en pesos: TEA = (pago / precio)<sup>365/días</sup> − 1, con pago = 100 × futuro. El futuro es el del A3500 que cobra el bono (3 días hábiles antes del vencimiento), interpolado entre el spot y los contratos: un poco menor que el contrato del mes, porque esos 3 días de devaluación no los cobrás. Se compara con la Lecap del mismo plazo (la curva ajustada). <b>TC breakeven</b>: el A3500 al vencimiento que iguala el bono con la Lecap. En naranja, la tasa implícita de cada futuro (comprar dólares al spot y venderlos a futuro).';
     }
     function draw(D) {
       document.getElementById('syM').innerHTML = pills('data-sm', ST.m, MODES);
