@@ -5538,7 +5538,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       r + ' .rg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}@media(max-width:1000px){' + r + ' .rg{grid-template-columns:minmax(0,1fr)}}' +
       r + ' .rt{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}' + r + ' .rt th,' + r + ' .rt td{padding:6px 9px;white-space:nowrap;text-align:right}' + r + ' .rt th{font-size:12px;position:sticky;top:0;background:var(--card);color:var(--mu);border-bottom:1px solid var(--bd);z-index:1}' + r + ' .rt td.l,' + r + ' .rt th.l{text-align:left}' + r + ' .rt tr+tr td{border-top:1px solid rgba(148,163,184,.12)}' +
       r + ' .rt tr[data-qv]{cursor:pointer}' + r + ' .rt tr[data-qv]:hover td{background:rgba(148,163,184,.07)}' +
-      r + ' .rt .lc{background:rgba(245,158,11,.07);font-weight:700;color:var(--tx)}' + r + ' .rt th.lc{color:#f59e0b;background:color-mix(in srgb,var(--card) 92%,#f59e0b)}' + r + ' .rt tr[data-qv]:hover td.lc{background:rgba(245,158,11,.13)}' +
+      r + ' .rt .lc{background:rgba(245,158,11,.07);font-weight:700;color:var(--tx)}' + r + ' .rt .lc.up{color:#34d399}' + r + ' .rt .lc.dn{color:#fb7185}' + r + ' .rt th.lc{color:#f59e0b;background:color-mix(in srgb,var(--card) 92%,#f59e0b)}' + r + ' .rt tr[data-qv]:hover td.lc{background:rgba(245,158,11,.13)}' +
       r + ' .up{color:var(--ok)}' + r + ' .dn{color:var(--bad,#f87171)}' + r + ' .mu{color:var(--mu)}' +
       r + ' .rp{display:inline-flex;flex-wrap:wrap;gap:5px}' + r + ' .rp button{font:inherit;font-size:12px;font-weight:600;padding:5px 11px;border-radius:99px;border:1px solid var(--bd);background:transparent;color:var(--mu);cursor:pointer;white-space:nowrap}' +
       r + ' .rp button:hover{color:var(--tx);border-color:var(--mu)}' + r + ' .rp button.on{background:var(--ac);border-color:var(--ac);color:var(--bg)}' + r + ' .rp.sr button.on{background:transparent;color:var(--tx);border-color:var(--ac)}' + r + ' .rp.sr button i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0}' +
@@ -5972,7 +5972,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
      los futuros de A3 (con su spot) y el MEP de data912. Las curvas son las ajustadas de Curva Pesos (fairFit); nada se extrapola fuera del rango de cada curva. */
   (function () {
     var T = tab('sint', render); if (!T) return;
-    var root = T.root, CH = {}, S = null, bTry = 0, ST = { bx: 'mep' };
+    var root = T.root, CH = {}, S = null, bTry = 0, ST = { bx: 'mep', cc: 'cc' };
     var GLW = { id: 'syGlow', // las curvas con brillo
       beforeDatasetDraw: function (ch, a) { var d = ch.data.datasets[a.index]; if (!d.glow) return; ch.ctx.save(); ch.ctx.shadowColor = d.glow; ch.ctx.shadowBlur = 14; },
       afterDatasetDraw: function (ch, a) { if (ch.data.datasets[a.index].glow) ch.ctx.restore(); } };
@@ -6002,8 +6002,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
           'Comprás la Lecap y el futuro por el mismo monto: al vencimiento cobrás pesos y con el futuro los pasás a dólares oficiales. TNA en dólares = ((1 + TNA Lecap × días / 365) × spot / futuro − 1) × 365 / días. Conviene contra el dollar linked cuando rinde más en dólares que el bono del mismo plazo.') +
         sec('syS3', 'Lecap sintética · dollar linked + venta de futuro', cw('syCh3', 300) + '<div class="sc" style="margin-top:14px"><table class="rt" id="tfDL"></table></div>',
           'Comprás el dollar linked y vendés futuro: queda una tasa fija en pesos, (100 × futuro / precio − 1) × 365 / días, con el futuro al A3500 que cobra el bono (3 días hábiles antes del vencimiento). Se compara con la Lecap del mismo plazo. <b>TC breakeven</b>: el A3500 al vencimiento que iguala el bono con la Lecap.') +
-        sec('syS4', 'Cash &amp; carry corto · caución contra el futuro', '<div class="spr" id="syCC"></div>' + tb('syT4'),
-          'Tomás caución en pesos, comprás un activo en dólares (un dollar linked corto) y vendés el futuro: cobrás la tasa implícita y pagás la caución. Sirve mientras la implícita del contrato supere el costo de fondeo; el futuro de caución del mismo mes muestra el costo que espera el mercado si renovás la caución hasta el vencimiento.') +
+        sec('syS4', 'Cash &amp; carry y reverse · caución contra el futuro', '<div class="bar"><span id="syCCm"></span></div><div class="spr" id="syCC"></div>' + tb('syT4') + '<p class="ft" id="syCCn"></p>',
+          'El futuro de caución del mismo mes muestra la caución que espera el mercado si la renovás hasta el vencimiento. La caución es la de A3 a 1 día hábil: tomadora y colocadora operan a la misma tasa, sin contar aranceles.') +
         sec('syS5', 'Inflación implícita · Lecap contra CER', cw('syCh5') + tb('syT5'),
           'Comprás el CER y vendés (o te fondeás con) la Lecap de igual duración: cobrás inflación + tasa real y pagás tasa fija. Inflación breakeven = (1 + TEA Lecap) / (1 + TIR real CER) − 1, con la Lecap de la curva ajustada a la duración del bono. Si la inflación termina por encima, gana el CER.') +
         sec('syS6', 'Tipo de cambio real implícito · CER contra futuro', cw('syCh6', 340) + tb('syT6'),
@@ -6114,16 +6114,19 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
 
     /* 4. cash & carry corto */
     function carry(D) {
-      var cau = inst('CAUCION'), cv = cau ? cau.v : null, cfx = {}; S.cfut.forEach(function (r) { cfx[key(r[0])] = r; });
+      var rv = ST.cc === 'rev', sgn = rv ? -1 : 1, cau = inst('CAUCION'), cv = cau ? cau.v : null, cfx = {}; S.cfut.forEach(function (r) { cfx[key(r[0])] = r; });
+      document.getElementById('syCCm').innerHTML = pills('data-cc', ST.cc, [['cc', 'Cash &amp; carry'], ['rev', 'Reverse cash &amp; carry']]);
       var rows = D.c.filter(function (f) { return f.d >= 3; }).slice(0, 4).map(function (f) { var cf = cfx[key(f.s)]; return { f: f, cf: cf ? cf[2] : null }; });
       var dl0 = (D.dlr || []).filter(function (x) { return x.hed != null; })[0];
-      var h = '<thead><tr><th class="l">Contrato</th><th>Vence</th><th>Días</th><th class="lc">TNA implícita</th><th>Caución hoy</th><th>Carry contra hoy (pb)</th><th>Futuro de caución del mes</th><th>Carry contra la esperada (pb)</th></tr></thead><tbody>';
-      rows.forEach(function (r) { var a = cv != null ? r.f.t - cv : null, b = r.cf != null ? r.f.t - r.cf : null; h += '<tr data-qv="' + r.f.s + '"><td class="l"><b>' + name(r.f.s) + '</b></td><td>' + fr(r.f.v) + '</td><td>' + r.f.d + '</td><td class="lc">' + P(r.f.t) + '</td><td>' + P(cv) + '</td><td class="' + cls(a) + '">' + bp(a) + '</td><td>' + (r.cf == null ? '—' : P(r.cf)) + '</td><td class="' + cls(b) + '">' + (b == null ? '—' : bp(b)) + '</td></tr>'; });
+      var h = '<thead><tr><th class="l">Contrato</th><th>Vence</th><th>Días</th><th>TNA implícita</th><th>Caución ' + (rv ? 'colocadora' : 'tomadora') + '</th><th class="lc">Resultado contra la caución de hoy (pb)</th><th>Futuro de caución del mes</th><th>Resultado contra la esperada (pb)</th></tr></thead><tbody>';
+      rows.forEach(function (r) { var a = cv != null ? sgn * (r.f.t - cv) : null, b = r.cf != null ? sgn * (r.f.t - r.cf) : null; h += '<tr data-qv="' + r.f.s + '"><td class="l"><b>' + name(r.f.s) + '</b></td><td>' + fr(r.f.v) + '</td><td>' + r.f.d + '</td><td>' + P(r.f.t) + '</td><td>' + P(cv) + '</td><td class="lc ' + cls(a) + '">' + bp(a) + '</td><td>' + (r.cf == null ? '—' : P(r.cf)) + '</td><td class="' + cls(b) + '">' + (b == null ? '—' : bp(b)) + '</td></tr>'; });
       document.getElementById('syT4').innerHTML = h + '</tbody>';
       var r0 = rows[0], chip = function (t, v, sub, pb) { return '<div class="sp1"><small>' + t + '</small><b class="' + (pb ? cls(v) : '') + '">' + (v == null || !isFinite(v) ? 'n/a' : pb ? sg(v * 100, 0) + ' pb' : P(v)) + '</b><span>' + sub + '</span></div>'; };
-      document.getElementById('syCC').innerHTML = chip('Futuro 1.ª posición', r0 ? r0.f.t : null, r0 ? name(r0.f.s) + ' · ' + dias(r0.f.d) : '') + chip('Caución tomadora', cv, cau ? cau.vs : '') +
-        chip('Carry de la 1.ª posición', r0 && cv != null ? r0.f.t - cv : null, 'implícita menos caución', true) +
-        chip('Dollar linked corto cubierto', dl0 && cv != null ? dl0.hed - cv : null, dl0 ? dl0.o.k + ' cubierto ' + P(dl0.hed) + ' menos caución' : 'sin dollar linked', true);
+      document.getElementById('syCC').innerHTML = chip('Futuro 1.ª posición', r0 ? r0.f.t : null, r0 ? name(r0.f.s) + ' · ' + dias(r0.f.d) : '') + chip('Caución ' + (rv ? 'colocadora' : 'tomadora'), cv, cau ? cau.vs : '') +
+        chip((rv ? 'Reverse' : 'Cash & carry') + ' en la 1.ª posición', r0 && cv != null ? sgn * (r0.f.t - cv) : null, rv ? 'caución menos implícita' : 'implícita menos caución', true) +
+        chip(rv ? 'Con venta de dollar linked corto' : 'Con dollar linked corto', dl0 && cv != null ? sgn * (dl0.hed - cv) : null, dl0 ? (rv ? 'caución menos ' + dl0.o.k + ' cubierto (' + P(dl0.hed) + ')' : dl0.o.k + ' cubierto ' + P(dl0.hed) + ' menos caución') : 'sin dollar linked', true);
+      document.getElementById('syCCn').innerHTML = rv ? '<b>Reverse cash &amp; carry</b>: vendés el activo en dólares que tenés (o un dollar linked corto), colocás los pesos en caución y comprás el futuro para recomprar los dólares al vencimiento. Ganás la caución y pagás la tasa implícita: sirve cuando la caución supera la implícita del contrato.'
+        : '<b>Cash &amp; carry</b>: tomás caución en pesos, comprás un activo en dólares (un dollar linked corto) y vendés el futuro. Cobrás la tasa implícita y pagás la caución: sirve mientras la implícita supere el costo de fondeo.';
       D.cc = r0 && cv != null ? { t: r0.f.t, c: cv } : null;
     }
 
@@ -6218,7 +6221,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       try {
         if (typeof Chart === 'undefined') return;
         if (!document.getElementById('syT2')) html();
-        if (!bound) { bound = true; root.addEventListener('click', function (e) { var b = e.target.closest('[data-bx]'); if (!b || !root.contains(b)) return; ST.bx = b.getAttribute('data-bx'); if (S && LAST) brecha(LAST); }); }
+        if (!bound) { bound = true; root.addEventListener('click', function (e) { var b = e.target.closest('[data-bx],[data-cc]'); if (!b || !root.contains(b) || !S || !LAST) return; if (b.hasAttribute('data-cc')) { ST.cc = b.getAttribute('data-cc'); carry(LAST); } else { ST.bx = b.getAttribute('data-bx'); brecha(LAST); } }); }
         var sub = document.getElementById('sySub');
         if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
         if (!TJ) { sub.textContent = 'Cargando…'; load(render); return; }
