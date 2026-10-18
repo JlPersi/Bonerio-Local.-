@@ -138,7 +138,7 @@ for key, prod in (("fut", "DLR"), ("cfut", "Tasa de Caución")):
         print(prod, "A3 no disponible:", e)
 
 # --- BCRA: plazo fijo a 30 días y BADLAR ---
-for key, i, d0 in (("pf", 12, DESDE), ("badlar", 7, DESDE), ("a3500", 5, DESDE_F90)):
+for key, i, d0 in (("pf", 12, DESDE_F90), ("badlar", 7, DESDE_F90), ("a3500", 5, DESDE_F90)):
     try:
         rows = get(BCRA % (i, desde(key, d0).isoformat(), today.isoformat()))["results"][0]["detalle"]
         for r in rows:
