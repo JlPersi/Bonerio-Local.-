@@ -5380,6 +5380,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var tea = function (t, d) { return t == null ? null : (Math.pow(1 + t / 100 * d / 365, 365 / d) - 1) * 100; };
   var devm = function (v) { return v == null ? null : (Math.pow(1 + v / 100 * 90 / 365, 1 / 3) - 1) * 100; }; // devaluación mensual de la tasa a 3 meses
   var dias = function (n) { return n + (n === 1 ? ' día' : ' días'); };
+  var cauDias = function (ds) { if (!ds) return null; var t = bxDayNum(String(ds).slice(0, 10)), n = t + 1; if (!isFinite(t)) return null; while (!bxIsBiz(n) && n - t < 15) n++; return n - t; }; // plazo de la caución más corta según nuestro calendario: 1 día corrido, 3 un viernes, más si hay feriados
+  var cauT = function (k, t) { var o = inst(k); if (!o) return t; var hk = keys(o.h || {}), ds = o.i && o.i.d === todayBA() ? o.i.d : hk[hk.length - 1], n = cauDias(ds); return t + ' · ' + (n ? dias(n) : '1 día hábil'); };
   var hm = function (m) { m = Math.round(m); return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2); };
   var P = function (v) { return v == null || !isFinite(v) ? 'n/a' : nf(v, 2) + '%'; };
   var PS = function (v) { return v == null || !isFinite(v) ? 'n/a' : '$ ' + nf(v, v >= 1000 ? 1 : 2); };
@@ -5691,8 +5693,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       });
     }
     function cards(L) {
-      var cab = card('CAUCION CABLE', 'Caución en dólares · cable');
-      document.getElementById('tcCards').innerHTML = card('CAUCION', 'Caución en pesos · 1 día hábil') + card('CAUCION USD', 'Caución en dólares · MEP') + (cab || card('A3500', 'Dólar A3500')) + lcard(L) +
+      var cab = card('CAUCION CABLE', cauT('CAUCION CABLE', 'Caución en dólares cable'));
+      document.getElementById('tcCards').innerHTML = card('CAUCION', cauT('CAUCION', 'Caución en pesos')) + card('CAUCION USD', cauT('CAUCION USD', 'Caución en dólares MEP')) + (cab || card('A3500', 'Dólar A3500')) + lcard(L) +
         card('PLAZO FIJO', 'Plazo fijo 30 días') + card('TAMAR') + card('BADLAR') + card('TASA FUTURO 3M', 'Dólar futuro · tasa 3 meses');
     }
     var LF = null; // el ajuste de la curva de Lecaps (el mismo de Curva Pesos): {f, sigma, name}; el desvío de cada Lecap en pb
@@ -5854,7 +5856,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var fc = function () { return S.futV && S.futV.length ? S.futV : S.fut; };
     function cards() {
       var f = fc().filter(function (x) { return x.d >= 3; }).slice(0, 3), c0 = S.cfut.filter(function (r) { return r[1] && dn(r[1]) - dn(S.dcf) >= 10; })[0];
-      document.getElementById('tfCards').innerHTML = card('A3500', 'Dólar A3500') + card('TASA FUTURO 3M', 'Tasa implícita a 3 meses') + card('DEVALUACION', 'Devaluación mensual implícita') + card('CAUCION', 'Caución en pesos · 1 día hábil') +
+      document.getElementById('tfCards').innerHTML = card('A3500', 'Dólar A3500') + card('TASA FUTURO 3M', 'Tasa implícita a 3 meses') + card('DEVALUACION', 'Devaluación mensual implícita') + card('CAUCION', cauT('CAUCION', 'Caución en pesos')) +
         f.map(function (x) { return card(x.s, name(x.s) + ' · ' + dias(x.d)); }).join('') + (c0 ? card(psym(c0[0]), name(c0[0]) + ' · futuro de caución') : '');
     }
     var GLOW = { id: 'tfGlow', // la curva con brillo: sombra difusa del mismo color
