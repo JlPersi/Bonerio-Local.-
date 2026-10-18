@@ -3204,8 +3204,17 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (ch && pj && dd.length) { // la línea de tu proyección: el promedio mensual hasta cada plazo
         var x0 = Math.max(1, Math.min.apply(null, dd) - 10), x1 = Math.max.apply(null, dd) + 10, ln = [];
         for (var q = 0; q <= 40; q++) { var xx = x0 + (x1 - x0) * q / 40; ln.push({ x: xx, y: avg(xx) * 100 }); }
-        ch.data.datasets.push({ type: 'line', label: 'Tu escenario: tu proyección', data: ln, borderColor: css('--ac'), borderDash: [7, 5], borderWidth: 2, pointRadius: 0, fill: false, order: 3 });
+        ch.data.datasets.push({ type: 'line', label: 'Tu proyección', data: ln, borderColor: css('--ac'), borderDash: [7, 5], borderWidth: 2, pointRadius: 0, fill: false, order: 3 });
         var ys = ln.map(function (p) { return p.y; }), yo = ch.options.scales.y; if (yo.min != null) yo.min = Math.min(yo.min, Math.min.apply(null, ys) - 0.03); if (yo.max != null) yo.max = Math.max(yo.max, Math.max.apply(null, ys) + 0.03);
+        ch.update('none');
+      }
+      if (ch) { // leyenda propia: «Tu proyección» prende y apaga la línea y el difuminado (sin perder el ítem al apagarla)
+        var lg = ch.options.plugins.legend, gl = lg.labels.generateLabels, sx = c[0] === 2 ? 'i' : 'd', txc = css('--tx');
+        lg.labels.generateLabels = function (c2) { var b = gl(c2).filter(function (it) { return !/^(Tu escenario|Curva con tu escenario|Difuminado|Tu proyección)/.test(it.text); });
+          b.unshift({ text: 'Tu proyección' + (pj ? '' : ' (apagada)'), fillStyle: 'transparent', strokeStyle: css('--ac'), pointStyle: 'circle', fontColor: txc, lineWidth: 2, hidden: !pj });
+          if (pj) b.push({ text: 'Difuminado: con tu proyección', fillStyle: 'rgba(148,163,184,.4)', strokeStyle: 'rgba(148,163,184,.9)', pointStyle: 'circle', fontColor: txc, lineWidth: 1 }); return b; };
+        lg.onClick = function (e, it) { if (it && /^(Tu proyección|Difuminado)/.test(it.text) && window.BEPJT) window.BEPJT(sx); };
+        lg.onHover = function (e, it) { var t = e.native && e.native.target; if (t) t.style.cursor = it && /^(Tu proyección|Difuminado)/.test(it.text) ? 'pointer' : 'default'; };
         ch.update('none');
       }
       var T = document.getElementById('psCBT' + c[0]); if (!T) return;
@@ -6981,8 +6990,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     '<div class="chart-wrap" style="height:420px"><canvas id="thRCC"></canvas></div><div id="thRCS" style="overflow-x:auto;margin-top:14px"></div><p class="note" id="thRCN" style="margin-top:10px"></p></div>';
   var $ = function (id) { return document.getElementById(id); };
   var UNO = '<option value="m">Mensual (%)</option><option value="a">Anual (TEA, %)</option>';
-  var bbCard = function (sx) { var i = sx === 'i', n = i ? 2 : 4; return '<div class="card sx" id="thBB' + sx + '">' + head('thBB' + sx, (i ? 'Inflación' : 'Devaluación') + ' breakeven de cada bono', i ? 'La inflación mensual que iguala lo que rinde cada bono CER con la Lecap del mismo plazo, con los últimos precios: el mismo gráfico de Curva Pesos. Verde: descuenta más inflación que la curva; rojo, menos. La línea naranja punteada es tu proyección (el promedio mensual hasta cada plazo): cargala mes a mes en el desplegable de abajo.' : 'La devaluación mensual que iguala lo que rinde cada dólar linked con la Lecap del mismo plazo, con los últimos precios: el mismo gráfico de Curva Pesos. La línea naranja punteada es tu proyección (el promedio mensual hasta cada plazo): cargala mes a mes en el desplegable de abajo.') +
-    '<details class="bepj" id="bePj' + sx + '"><summary>Tu proyección de ' + (i ? 'inflación' : 'devaluación') + ' mes a mes (%)</summary><div class="bepjg" id="bePjG' + sx + '"></div><div class="bepjb"><button class="act" data-pjrem="' + sx + '">Usar el REM</button><label>Todos los meses igual<input type="number" step="0.1" id="bePjAll' + sx + '" placeholder="ej. 2,0"></label><button class="act" data-pjall="' + sx + '">Aplicar</button></div><p class="note" style="margin:8px 0 0">Arranca con el REM. Lo que cargues acá no cambia Curva Pesos ni los otros gráficos.</p></details>' +
+  var bbCard = function (sx) { var i = sx === 'i', n = i ? 2 : 4; return '<div class="card sx" id="thBB' + sx + '">' + head('thBB' + sx, (i ? 'Inflación' : 'Devaluación') + ' breakeven de cada bono', i ? 'La inflación mensual que iguala lo que rinde cada bono CER con la Lecap del mismo plazo, con los últimos precios: el mismo gráfico de Curva Pesos. Verde: descuenta más inflación que la curva; rojo, menos. Si cargás tu proyección en el desplegable de abajo (o usás el REM), aparece como una línea naranja punteada: el promedio mensual hasta cada plazo. Se prende y se apaga tocando «Tu proyección» en la leyenda.' : 'La devaluación mensual que iguala lo que rinde cada dólar linked con la Lecap del mismo plazo, con los últimos precios: el mismo gráfico de Curva Pesos. Si cargás tu proyección en el desplegable de abajo (o usás el REM), aparece como una línea naranja punteada: el promedio mensual hasta cada plazo. Se prende y se apaga tocando «Tu proyección» en la leyenda.') +
+    '<details class="bepj" id="bePj' + sx + '"><summary>Tu proyección de ' + (i ? 'inflación' : 'devaluación') + ' mes a mes (%)</summary><div class="bepjg" id="bePjG' + sx + '"></div><div class="bepjb"><button class="act" data-pjrem="' + sx + '">Usar el REM</button><label>Todos los meses igual<input type="number" step="0.1" id="bePjAll' + sx + '" placeholder="ej. 2,0"></label><button class="act" data-pjall="' + sx + '">Aplicar</button></div><p class="note" style="margin:8px 0 0">Arranca con el REM y apagada: al cargar un número o tocar un botón se muestra en el gráfico. Lo que cargues acá no cambia Curva Pesos ni los otros gráficos.</p></details>' +
     '<div class="bec"><canvas id="psCB' + n + '"></canvas></div><div id="psCBT' + n + '" style="overflow-x:auto;margin-top:14px"></div></div>'; };
   var beCard = function (sx) { var i = sx === 'i'; return '<div class="card sx" id="thBE' + sx + '" style="margin-top:24px">' + head('thBE' + sx, (i ? 'Inflación' : 'Devaluación') + ' implícita en el tiempo', 'Lo que descuenta el mercado a plazo constante (de 1 a 12 meses), día por día: tasa fija contra ' + (i ? 'CER' : 'dólar linked') + '. Las punteadas son el promedio y ±1 desvío del período.') +
     '<div class="ctl sxc" style="margin-bottom:12px"><label>Desde<input type="date" id="thFrom' + sx + '"></label><label>Expresar en<select id="thBEu' + sx + '" style="min-width:170px">' + UNO + '</select></label></div><div id="thBEt' + sx + '" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center"></div><div class="chart-wrap" style="height:420px"><canvas id="thBEC' + sx + '"></canvas></div><div id="thBES' + sx + '" style="overflow-x:auto;margin-top:14px"></div><p class="note" id="thBEN' + sx + '" style="margin-top:10px"></p></div>'; };
@@ -6991,16 +7000,19 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var PJK = 'beProj1', PJN = 12, PJ = {}; try { PJ = JSON.parse(localStorage.getItem(PJK) || '{}'); } catch (e) {}
   var pjRem = function (sx) { var R = window.PSREM, a = R && (sx === 'i' ? R.pi : R.dev); if (!a) return null; var now = new Date(bxToday() * 864e5), i0 = now.getUTCFullYear() * 12 + now.getUTCMonth() - R.m0, out = []; for (var j = 0; j < PJN; j++) out.push(+(a[Math.max(0, Math.min(a.length - 1, i0 + j))] * 100).toFixed(2)); return out; };
   var pjGet = function (sx) { var v = PJ[sx]; return v && v.length === PJN ? v : pjRem(sx); };
-  window.BEPJ = function (sx) { var v = pjGet(sx); return v ? v.map(function (x) { return x / 100; }) : null; }; // la proyección mes a mes (fracción), desde el mes en curso
+  var PJOK = 'beProjOn1', PJON = {}; try { PJON = JSON.parse(localStorage.getItem(PJOK) || '{}') || {}; } catch (e) {} // la proyección arranca apagada
+  var pjOn = function (sx, v) { PJON[sx] = v; try { localStorage.setItem(PJOK, JSON.stringify(PJON)); } catch (e) {} };
+  window.BEPJ = function (sx) { if (!PJON[sx]) return null; var v = pjGet(sx); return v ? v.map(function (x) { return x / 100; }) : null; }; // la proyección mes a mes (fracción), desde el mes en curso; null si está apagada
+  window.BEPJT = function (sx) { pjOn(sx, !PJON[sx]); if (window.PSBE) window.PSBE(); }; // prender o apagar desde la leyenda del gráfico
   function pjBuild(sx) {
     var g = $('bePjG' + sx), v = pjGet(sx); if (!g || !v) return; var now = new Date(bxToday() * 864e5), y = now.getUTCFullYear(), m = now.getUTCMonth();
     g.innerHTML = v.map(function (x, j) { var mm = (m + j) % 12, yy = y + Math.floor((m + j) / 12); return '<label>' + MN[mm] + '-' + String(yy).slice(2) + '<input type="number" step="0.05" data-pj="' + sx + '" data-j="' + j + '" value="' + x + '"></label>'; }).join('');
   }
   var pjSave = function () { try { localStorage.setItem(PJK, JSON.stringify(PJ)); } catch (e) {} if (window.PSBE) window.PSBE(); };
-  document.addEventListener('input', function (e) { var t = e.target; if (!t.getAttribute || !t.getAttribute('data-pj')) return; var sx = t.getAttribute('data-pj'), v = pjGet(sx).slice(), x = parseFloat(t.value); if (!isFinite(x)) return; v[+t.getAttribute('data-j')] = x; PJ[sx] = v; pjSave(); });
+  document.addEventListener('input', function (e) { var t = e.target; if (!t.getAttribute || !t.getAttribute('data-pj')) return; var sx = t.getAttribute('data-pj'), v = pjGet(sx).slice(), x = parseFloat(t.value); if (!isFinite(x)) return; v[+t.getAttribute('data-j')] = x; PJ[sx] = v; pjOn(sx, true); pjSave(); });
   document.addEventListener('click', function (e) {
-    var r = e.target.closest && e.target.closest('[data-pjrem]'); if (r) { var sx = r.getAttribute('data-pjrem'); delete PJ[sx]; pjBuild(sx); pjSave(); return; }
-    var a = e.target.closest && e.target.closest('[data-pjall]'); if (a) { var s2 = a.getAttribute('data-pjall'), x = parseFloat(String($('bePjAll' + s2).value).replace(',', '.')); if (!isFinite(x)) return; PJ[s2] = Array(PJN).fill(x); pjBuild(s2); pjSave(); }
+    var r = e.target.closest && e.target.closest('[data-pjrem]'); if (r) { var sx = r.getAttribute('data-pjrem'); delete PJ[sx]; pjOn(sx, true); pjBuild(sx); pjSave(); return; }
+    var a = e.target.closest && e.target.closest('[data-pjall]'); if (a) { var s2 = a.getAttribute('data-pjall'), x = parseFloat(String($('bePjAll' + s2).value).replace(',', '.')); if (!isFinite(x)) return; PJ[s2] = Array(PJN).fill(x); pjOn(s2, true); pjBuild(s2); pjSave(); }
   });
   if ($('expd')) $('expd').innerHTML = bbCard('d') + beCard('d');
   pjBuild('i'); pjBuild('d');
@@ -7015,14 +7027,33 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     $('thPre').innerHTML = PRE.filter(function (p) { return famK(p[1]) && famK(p[2]); }).map(function (p) { return '<button class="act thpre" data-a="' + p[1] + '" data-b="' + p[2] + '" style="padding:4px 10px;font-weight:500">' + p[0] + '</button>'; }).join(' ');
   }
   function kill(id) { if (CH[id]) { try { CH[id].destroy(); } catch (e) {} CH[id] = null; } }
-  function mk(id, sets, ylab, tipf) {
-    kill(id); var tx = css('--tx'), bd = css('--bd'), mu = css('--mu');
-    CH[id] = new Chart($(id).getContext('2d'), { type: 'line', data: { datasets: sets }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'nearest', axis: 'x', intersect: false },
-      plugins: { legend: { labels: { color: tx, usePointStyle: true, pointStyle: 'line', filter: function (it, d) { return !d.datasets[it.datasetIndex].$aux; } }, onClick: function (e, it, lg) { var ch = lg.chart, i = it.datasetIndex, v = !ch.isDatasetVisible(i); ch.data.datasets.forEach(function (ds, j) { if (j === i || ds.$of === i) ch.setDatasetVisibility(j, v); }); ch.update(); } }, tooltip: { filter: function (it) { return !it.dataset.$aux; }, callbacks: { title: function (its) { return its.length ? dfull(its[0].parsed.x) : ''; }, label: tipf } } },
-      scales: { x: { type: 'linear', ticks: { color: mu, maxRotation: 0, autoSkip: true, maxTicksLimit: 12, callback: function (v) { return dlab(Math.round(v)); } }, grid: { color: bd } },
-        y: { title: { display: true, text: ylab, color: mu }, ticks: { color: mu, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd } } } } });
+  var hexA = function (c, a) { var m = /^#([0-9a-f]{6})$/i.exec(c || ''); if (!m) return c; var n = parseInt(m[1], 16); return 'rgba(' + (n >> 16) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')'; };
+  var XH = { id: 'thXH', afterDatasetsDraw: function (ch) { // línea vertical que sigue al mouse
+    var a = ch.tooltip && ch.tooltip.getActiveElements ? ch.tooltip.getActiveElements() : []; if (!a.length) return;
+    var x = a[0].element.x, y0 = ch.chartArea.top, y1 = ch.chartArea.bottom, c = ch.ctx; c.save(); c.strokeStyle = hexA('#94a3b8', 0.55) ; c.setLineDash([3, 3]); c.lineWidth = 1; c.beginPath(); c.moveTo(x, y0); c.lineTo(x, y1); c.stroke(); c.restore(); } };
+  var END = { id: 'thEnd', afterDatasetsDraw: function (ch) { // el último valor de cada serie, en una etiqueta del color de la línea sobre el borde derecho
+    var f = ch.canvas.$vf; if (!f) return; // (no va en options: Chart.js trata las funciones de options como scriptables)
+    var c = ch.ctx, used = [], ca = ch.chartArea; c.save(); c.font = '600 11px Inter, system-ui, sans-serif'; c.textBaseline = 'middle';
+    ch.data.datasets.map(function (d, i) { return { d: d, i: i }; }).filter(function (o) { return !o.d.$aux && ch.isDatasetVisible(o.i) && o.d.data.length; }).map(function (o) {
+      var m = ch.getDatasetMeta(o.i), pt = m.data[m.data.length - 1]; return pt ? { y: pt.y, v: o.d.data[o.d.data.length - 1].y, col: o.d.borderColor } : null; }).filter(Boolean).sort(function (a, b) { return a.y - b.y; }).forEach(function (o) {
+      var y = Math.max(ca.top + 8, Math.min(ca.bottom - 8, o.y)); used.forEach(function (u) { if (Math.abs(u - y) < 17) y = u + 17; }); used.push(y);
+      var t = f(o.v), w = c.measureText(t).width + 10, x = ca.right + 4;
+      c.fillStyle = o.col; c.beginPath(); if (c.roundRect) c.roundRect(x, y - 8, w, 16, 4); else c.rect(x, y - 8, w, 16); c.fill();
+      var mm = /^#([0-9a-f]{6})$/i.exec(o.col || ''), n = mm ? parseInt(mm[1], 16) : 0, lum = mm ? (0.299 * (n >> 16) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) : 200; c.fillStyle = lum > 150 ? '#0c0a09' : '#fff'; c.fillText(t, x + 5, y + 0.5); });
+    c.restore(); } };
+  function mk(id, sets, ylab, tipf, vfmt) {
+    kill(id); var tx = css('--tx'), bd = css('--bd'), mu = css('--mu'), one = sets.filter(function (d) { return !d.$aux; }).length === 1;
+    var cv = $(id), ctx = cv.getContext('2d');
+    sets.forEach(function (d) { if (d.$aux) return; d.borderWidth = 1.8; d.tension = 0.2; d.cubicInterpolationMode = 'monotone'; d.pointHoverBorderColor = css('--card') || '#1c1917'; d.pointHoverBorderWidth = 2; d.pointHoverRadius = 5;
+      if (one) { d.fill = 'origin'; d.backgroundColor = function (c) { var a = c.chart.chartArea; if (!a) return hexA(d.borderColor, 0.12); var g = c.chart.ctx.createLinearGradient(0, a.top, 0, a.bottom); g.addColorStop(0, hexA(d.borderColor, 0.22)); g.addColorStop(1, hexA(d.borderColor, 0)); return g; }; } });
+    cv.$vf = vfmt || function (v) { return fm(v, 2) + '%'; };
+    CH[id] = new Chart(ctx, { type: 'line', data: { datasets: sets }, plugins: [XH, END], options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, layout: { padding: { right: 62, top: 4 } }, interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      plugins: { legend: { labels: { color: tx, usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 16, filter: function (it, d) { return !d.datasets[it.datasetIndex].$aux; } }, onClick: function (e, it, lg) { var ch = lg.chart, i = it.datasetIndex, v = !ch.isDatasetVisible(i); ch.data.datasets.forEach(function (ds, j) { if (j === i || ds.$of === i) ch.setDatasetVisibility(j, v); }); ch.update(); } },
+        tooltip: { filter: function (it) { return !it.dataset.$aux; }, padding: 10, boxPadding: 4, usePointStyle: true, callbacks: { title: function (its) { return its.length ? dfull(its[0].parsed.x) : ''; }, label: tipf } } },
+      scales: { x: { type: 'linear', ticks: { color: mu, maxRotation: 0, autoSkip: true, maxTicksLimit: 9, callback: function (v) { return dlab(Math.round(v)); } }, grid: { display: false }, border: { color: bd } },
+        y: { title: { display: true, text: ylab, color: mu }, ticks: { color: mu, maxTicksLimit: 7, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: function (c) { return c.tick && c.tick.value === 0 ? hexA('#94a3b8', 0.6) : hexA('#94a3b8', 0.12); }, lineWidth: function (c) { return c.tick && c.tick.value === 0 ? 1.2 : 1; } }, border: { display: false } } } } });
   }
-  var line = function (lbl, data, c) { return { label: lbl, data: data, borderColor: c, backgroundColor: c, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, spanGaps: true, tension: 0 }; };
+  var line = function (lbl, data, c) { return { label: lbl, data: data, borderColor: c, backgroundColor: c, borderWidth: 1.8, pointRadius: 0, pointHoverRadius: 5, spanGaps: true, tension: 0.2 }; };
 
   function renderY() {
     var from = bxDayNum(ST.from), sets = [], miss = [];
@@ -7128,7 +7159,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     ST.rcSel[f] = sel;
     var sets = [], col = {};
     sel.forEach(function (k, i) { var r = rows.filter(function (x) { return x.k === k; })[0], c = PAL[i % PAL.length], main = sets.length; col[k] = c; sets.push(line(k, r.d, c)); bands(sets, r.d, c, main, r.st); });
-    mk('thRCC', sets, 'Contra la curva (pb; + barato, − caro)', function (c) { return c.dataset.label + ': ' + (c.parsed.y >= 0 ? '+' : '') + fm(c.parsed.y, 0) + ' pb'; });
+    mk('thRCC', sets, 'Contra la curva (pb; + barato, − caro)', function (c) { return c.dataset.label + ': ' + (c.parsed.y >= 0 ? '+' : '') + fm(c.parsed.y, 0) + ' pb'; }, function (v) { return (v >= 0 ? '+' : '') + fm(v, 0) + ' pb'; });
     if (CH.thRCC) { CH.thRCC.options.scales.y.ticks.callback = function (v) { return fm(v, 0); }; CH.thRCC.update('none'); }
     $('thRCS').innerHTML = rows.length ? '<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr><th ' + thL + '>Bono</th><th ' + TH + '>Vence</th><th ' + TH + '>Hoy contra la curva</th><th ' + TH + '>Promedio</th><th ' + TH + '>Desvío</th><th ' + TH + '>Hoy vs su promedio</th><th ' + thL + '>Lectura</th></tr></thead><tbody>' + rows.map(function (r) {
       var s = r.st, on = col[r.k], pb = function (v) { return (v >= 0 ? '+' : '') + fm(v, 0) + ' pb'; };
