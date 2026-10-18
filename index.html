@@ -5822,7 +5822,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   (function () {
     var T = tab('tfut', render); if (!T) return;
     var root = T.root, ST = { s: ['f90'], w: '1a', cv: 'tna' }, CH = {}, S = null, bTry = 0;
-    var SER = { f90: ['Tasa implícita a 3 meses', C_FUT, 'r'], dev: ['Devaluación mensual implícita', C_DEV, 'm'], cf: ['Futuro de caución más cercano', C_CF, 'r'], cau: ['Caución 1 día hábil', C_CAU, 'r'], fx: ['Dólar A3500', C_FX, '$'] };
+    var SER = { f90: ['Tasa implícita a 3 meses', C_FUT, 'r'], dev: ['Devaluación mensual implícita', C_DEV, 'm'], fx: ['Dólar A3500', C_FX, '$'] };
     function html() {
       root.innerHTML = STYLE('#tfut') +
         '<div class="card" id="tfCap"><div class="status" style="justify-content:space-between;gap:12px;flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0;flex:1 1 0"><p style="margin:0;color:var(--tx);font-size:16px;font-weight:600">Futuros de dólar y de caución</p>' +
@@ -5959,7 +5959,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (CH.b) { CH.b.destroy(); CH.b = null; }
       document.getElementById('tfSer').innerHTML = pills('data-s', ST.s, Object.keys(SER).map(function (k) { return [k, SER[k][0], 0, SER[k][1]]; }), 'sr');
       document.getElementById('tfW').innerHTML = pills('data-w', ST.w, RGD);
-      var src = { f90: S.f90, dev: map(S.f90, devm), cf: S.cfHist, cau: map(S.corta, function (r) { return r[1]; }), fx: S.fx };
+      var src = { f90: S.f90, dev: map(S.f90, devm), fx: S.fx };
       var units = {}; ST.s.forEach(function (k) { units[SER[k][2]] = 1; }); var two = Object.keys(units).length > 1, u1 = SER[ST.s[0]][2], u2 = null;
       ST.s.forEach(function (k) { if (SER[k][2] !== u1) u2 = SER[k][2]; });
       var D2 = window_(ST.s.map(function (k) { return src[k]; }), '0', rgN(ST.w)), fm = function (u) { return u === '$' ? PS : P; }, ax = function (u) { return u === '$' ? function (v) { return '$ ' + nf(v, 0); } : u === 'm' ? function (v) { return nf(v, 1) + '%'; } : pct; };
@@ -6000,6 +6000,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var q = null; try { q = window.PSX.fairFit(pts.map(function (p) { return { x: p.x - O, y: p.y }; }), model || 'auto'); } catch (e) { q = null; } if (!q) return null;
       return cline(smooth(function (x) { return q.f(x - O); }, pts[0].x, pts[pts.length - 1].x), col, fill);
     };
+    var fitOf = function (R, pts, col, fill) { // dibuja la curva ajustada compartida (R: {f, x0, x1} en días) en el rango de los puntos que se ven
+      if (!R || !pts.length) return null; var a = Math.min.apply(null, pts.map(function (p) { return p.x; })), b = Math.max.apply(null, pts.map(function (p) { return p.x; }));
+      a = Math.max(a, O + R.x0); b = Math.min(b, O + R.x1); if (!(b > a)) return null; return cline(smooth(function (x) { return R.f(x - O); }, a, b), col, fill); };
     var li = function (pts, x) { if (!pts.length) return null; if (x < pts[0][0] - 3) return null; if (x <= pts[0][0]) return pts[0][1]; if (x > pts[pts.length - 1][0] + 3) return null; if (x >= pts[pts.length - 1][0]) return pts[pts.length - 1][1]; for (var i = 1; i < pts.length; i++) if (x <= pts[i][0]) return pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * (x - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0]); return null; };
     var ctd = function (c) { return c ? c.n + (c.ip ? ' <span class="mu" title="El bono vence antes del fin de mes: se usa este contrato desarmándolo al vencimiento; el precio es interpolado y queda riesgo de base">*</span>' : '') : '<span class="mu">—</span>'; };
     var ncl = function (n) { return n && Math.abs(n.g) <= 60 ? n.k + ' · ' + P(n.v) + (Math.abs(n.g) > 3 ? ' <span class="mu">(' + (n.g > 0 ? '+' : '−') + Math.abs(n.g) + ' d)</span>' : '') : '<span class="mu">—</span>'; };
@@ -6034,16 +6037,20 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         var ym = bxDayStr(day).slice(0, 7), f = c.filter(function (x) { return String(x.v).slice(0, 7) === ym; })[0];
         return f ? { n: sh(f.s), ip: Math.abs(dp(f.v) - day) > 1 } : null; };
       var near = function (L, d, val) { var b = null; L.forEach(function (o) { if (!b || Math.abs(o.d - d) < Math.abs(b.d - d)) b = o; }); return b ? { k: b.k, v: val(b), g: b.d - d } : null; }; // el bono más cercano en plazo
-      var q = null; try { q = X.fairFit(fija.map(function (o) { return { x: o.d, y: o.tea * 100, k: o.k }; }), 'auto'); } catch (e) { q = null; }
-      var lx0 = fija[0].d, lx1 = fija[fija.length - 1].d; D.LR = q ? { f: q.f, x0: lx0, x1: lx1 } : null;
+      D.ref = function (cur, n) { return n && Math.abs(n.g) <= REAL ? { v: n.v, k: n.k } : cur == null ? null : { v: cur, k: null }; }; // contra qué se decide: el bono real si vence a una semana o menos, si no la curva
+      // las curvas ajustadas: los mismos puntos en la tabla y en los gráficos (sin los de menos de 3 semanas, que la TEA distorsiona)
+      var fit = function (L, y) { var F = null; try { F = L.length >= 3 ? X.fairFit(L.map(function (o) { return { x: o.d, y: y(o), k: o.k }; }), 'auto') : null; } catch (e) { F = null; } return F; };
+      var fl = fija.filter(function (o) { return o.d >= MIN; }); if (fl.length < 3) fl = fija;
+      var q = fit(fl, function (o) { return o.tea * 100; });
+      var lx0 = fl[0].d, lx1 = fl[fl.length - 1].d; D.LR = q ? { f: q.f, x0: lx0, x1: lx1 } : null;
       D.lecT = function (d) { return q && d >= lx0 - 3 && d <= lx1 + 3 ? q.f(Math.min(lx1, Math.max(lx0, d))) : null; }; // la TEA de la curva de Lecaps ajustada
       D.last = D.fCurve[D.fCurve.length - 1][0]; D.x1 = Math.max(D.last, s0 + 120) + 20;
       // dollar linked + venta de futuro: el futuro al vencimiento del bono (el contrato del mes), como se opera; el bono cobra el A3500 de 3 días hábiles antes (base chica)
-      D.dlr = D.dls.map(function (o) { var Fm = D.Fat(o.mat), lf = D.lecT(o.d), be = lf == null ? null : o.P * Math.pow(1 + lf / 100, o.d / 365) / 100, hed = Fm ? (Math.pow(100 * Fm / o.P, 365 / o.d) - 1) * 100 : null, Fb = X && X.bdBack ? D.Fat(X.bdBack(o.mat, 3)) : null, hn = Fb ? (Math.pow(100 * Fb / o.P, 365 / o.d) - 1) * 100 : null; return { o: o, Fm: Fm, Fb: Fb, hn: hn, lf: lf, be: be, hed: hed, ct: D.ctr(o.mat), nl: near(fija, o.d, function (b) { return b.tea * 100; }) }; }); // TEA
+      D.dlr = D.dls.map(function (o) { var Fm = D.Fat(o.mat), lf = D.lecT(o.d), be = lf == null ? null : o.P * Math.pow(1 + lf / 100, o.d / 365) / 100, hed = Fm ? (Math.pow(100 * Fm / o.P, 365 / o.d) - 1) * 100 : null, Fb = X && X.bdBack ? D.Fat(X.bdBack(o.mat, 3)) : null, hn = Fb ? (Math.pow(100 * Fb / o.P, 365 / o.d) - 1) * 100 : null; var nl = near(fija, o.d, function (b) { return b.tea * 100; }), rf = D.ref(lf, nl), tn = hn != null ? hn : hed; return { o: o, Fm: Fm, Fb: Fb, hn: hn, tn: tn, lf: lf, be: be, hed: hed, ct: D.ctr(o.mat), nl: nl, rf: rf, df: tn != null && rf ? tn - rf.v : null, dc: tn != null && lf != null ? tn - lf : null }; }); // TEA; la decisión con la neta de base
       // Lecap + compra de futuro: la tasa en dólares oficiales; contra el dollar linked del mismo plazo (interpolado)
-      var qd = null; try { qd = D.dls.length >= 3 ? X.fairFit(D.dls.map(function (o) { return { x: o.d, y: o.usdTea * 100, k: o.k }; }), 'auto') : null; } catch (e) { qd = null; }
-      var dx0 = D.dls.length ? D.dls[0].d : 0, dx1 = D.dls.length ? D.dls[D.dls.length - 1].d : 0, dlT = function (d) { return qd && d >= dx0 - 3 && d <= dx1 + 3 ? qd.f(Math.min(dx1, Math.max(dx0, d))) : null; }; // la TEA en USD de la curva de dollar linked ajustada
-      D.usd = fija.filter(function (o) { return o.mat <= D.last + 3; }).map(function (o) { var F = D.Fat(o.mat), pay = o.P * (1 + o.tnas * o.d / 365), u0 = o.P / D.fx, u1 = F ? pay / F : null, u = u1 ? (Math.pow(u1 / u0, 365 / o.d) - 1) * 100 : null; return { o: o, F: F, pay: pay, u0: u0, u1: u1, u: u, dl: dlT(o.d), ct: D.ctr(o.mat), nd: near(D.dls, o.d, function (b) { return b.usdTea * 100; }) }; }).filter(function (r) { return r.u != null; }); // TEA en dólares
+      var dd = D.dls.filter(function (o) { return o.d >= MIN && o.mat <= D.x1; }), qd = fit(dd, function (o) { return o.usdTea * 100; });
+      var dx0 = dd.length ? dd[0].d : 0, dx1 = dd.length ? dd[dd.length - 1].d : 0; D.DR = qd ? { f: qd.f, x0: dx0, x1: dx1 } : null; var dlT = function (d) { return qd && d >= dx0 - 3 && d <= dx1 + 3 ? qd.f(Math.min(dx1, Math.max(dx0, d))) : null; }; // la TEA en USD de la curva de dollar linked ajustada
+      D.usd = fija.filter(function (o) { return o.mat <= D.last + 3; }).map(function (o) { var F = D.Fat(o.mat), pay = o.P * (1 + o.tnas * o.d / 365), u0 = o.P / D.fx, u1 = F ? pay / F : null, u = u1 ? (Math.pow(u1 / u0, 365 / o.d) - 1) * 100 : null; var dl = dlT(o.d), nd = near(D.dls, o.d, function (b) { return b.usdTea * 100; }), rf = D.ref(dl, nd); return { o: o, F: F, pay: pay, u0: u0, u1: u1, u: u, dl: dl, ct: D.ctr(o.mat), nd: nd, rf: rf, df: u != null && rf ? u - rf.v : null, dc: u != null && dl != null ? u - dl : null }; }).filter(function (r) { return r.u != null; }); // TEA en dólares
       return D;
     }
     var dateTip = function (s0, u) { return function (cc) { return (u === '$' ? '$ ' + nf(cc.raw.y, 1) : 'TEA ' + nf(cc.raw.y, 2) + '%') + ' · vence el ' + fr(ds2(cc.raw.x)) + ' (' + dias(Math.round(cc.raw.x - s0)) + ')'; }; };
@@ -6064,46 +6071,47 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         ds('REM (promedio del mes)', rem, '#a8a29e', { borderDash: [5, 4], borderWidth: 1.6, pointRadius: 2 })] }, plugins: [GLW].concat(LBL()),
         options: dateOpt(D, 'Tipo de cambio esperado ($ por dólar)', function (v) { return nf(v, 0); }, '$') });
     }
+    var REAL = 7; // un bono real que vence a una semana o menos del sintético es su comparación directa
     var MIN = 21; // a menos de 3 semanas la TEA anualiza cualquier diferencia chica: esos bonos van solo en la tabla
     var xEnd = function (o, pts) { var m = Math.max.apply(null, pts.map(function (p) { return p.x; })); if (isFinite(m)) o.scales.x.max = m + 40; return o; };
     function drawUsd(D) { // 1) dólar sintético: Lecap + compra de futuro, contra el dollar linked
       var up = D.usd.filter(function (r) { return r.o.d >= MIN; }).map(function (r) { return { x: r.o.mat, y: r.u, s: r.o.k + ' + futuro', k: r.o.k }; }), dpts = D.dls.filter(function (o) { return o.mat <= D.x1 && o.d >= MIN; }).map(function (o) { return { x: o.mat, y: o.usdTea * 100, s: o.k, k: o.k }; }), sets = [];
       var f1 = fitLine(up, '#38bdf8', true); if (f1) sets.push(f1);
-      var f2 = fitLine(dpts, C_DL, false); if (f2) { f2.borderDash = [5, 4]; f2.borderWidth = 1.8; f2.glow = null; sets.push(f2); }
+      var f2 = fitOf(D.DR, dpts, C_DL, false); if (f2) { f2.borderDash = [5, 4]; f2.borderWidth = 1.8; f2.glow = null; sets.push(f2); }
       sets.push(dots('Lecap + compra de futuro', up, '#38bdf8'), dots('Dollar linked', dpts, C_DL, { pointRadius: 6, pointStyle: 'rectRot' }));
       mk('syA', { type: 'scatter', data: { datasets: sets }, plugins: [GLW].concat(LBL()), options: xEnd(dateOpt(D, 'Tasa en dólares oficiales por vencimiento (TEA %)', function (v) { return nf(v, 1) + '%'; }, 'r'), up.concat(dpts)) });
-      bars('syB', D.usd.filter(function (r) { return r.dl != null && r.o.d >= MIN; }).map(function (r) { return { l: r.o.k, v: r.u - r.dl, r: r }; }), 'Sintético menos la curva de dollar linked (pb)', function (x) { return 'Sintético ' + P(x.r.u) + ' · dollar linked ' + P(x.r.dl); });
+      bars('syB', D.usd.filter(function (r) { return r.df != null && r.o.d >= MIN; }).map(function (r) { return { l: r.o.k, v: r.df, r: r }; }), 'Sintético menos el dollar linked del mismo plazo (pb)', function (x) { return 'Sintético ' + P(x.r.u) + ' · ' + (x.r.rf.k || 'curva de dollar linked') + ' ' + P(x.r.rf.v); });
       document.getElementById('syH').textContent = 'Cada Lecap con el futuro de su vencimiento';
-      var h = '<thead><tr><th class="l">Lecap</th><th>Precio</th><th>Pago</th><th>Contrato</th><th>Futuro al venc.</th><th>Vence</th><th>Días</th><th>USD hoy</th><th>USD al venc.</th><th class="lc">TEA en USD</th><th>TEM</th><th>Dollar linked (curva)</th><th>Dif. (pb)</th><th class="l">Conviene</th><th class="l">Dollar linked más cercano</th></tr></thead><tbody>';
-      D.usd.forEach(function (r) { var df = r.dl == null ? null : r.u - r.dl; h += '<tr data-qv="' + r.o.k + '"><td class="l"><b>' + r.o.k + '</b></td><td>' + nf(r.o.P, 2) + '</td><td>' + nf(r.pay, 2) + '</td><td>' + ctd(r.ct) + '</td><td>' + nf(r.F, 1) + '</td><td>' + fr(bxDayStr(r.o.mat)) + '</td><td>' + r.o.d + '</td><td>' + nf(r.u0, 4) + '</td><td>' + nf(r.u1, 4) + '</td><td class="lc">' + P(r.u) + '</td><td>' + P(tem(r.u)) + '</td><td>' + (r.dl == null ? '<span class="mu">sin dollar linked</span>' : P(r.dl)) + '</td><td class="' + cls(df) + '">' + bp(df) + '</td><td class="l">' + (df == null ? '—' : df > 0 ? 'Sintético' : 'Dollar linked') + '</td><td class="l">' + ncl(r.nd) + '</td></tr>'; });
+      var h = '<thead><tr><th class="l">Lecap</th><th>Precio</th><th>Pago</th><th>Contrato</th><th>Futuro al venc.</th><th>Vence</th><th>Días</th><th>USD hoy</th><th>USD al venc.</th><th class="lc">TEA en USD</th><th>TEM</th><th>Dollar linked (curva)</th><th>Dif. curva (pb)</th><th class="l">Dollar linked más cercano</th><th>Dif. (pb)</th><th class="l">Conviene</th></tr></thead><tbody>';
+      D.usd.forEach(function (r) { var df = r.df; h += '<tr data-qv="' + r.o.k + '"><td class="l"><b>' + r.o.k + '</b></td><td>' + nf(r.o.P, 2) + '</td><td>' + nf(r.pay, 2) + '</td><td>' + ctd(r.ct) + '</td><td>' + nf(r.F, 1) + '</td><td>' + fr(bxDayStr(r.o.mat)) + '</td><td>' + r.o.d + '</td><td>' + nf(r.u0, 4) + '</td><td>' + nf(r.u1, 4) + '</td><td class="lc">' + P(r.u) + '</td><td>' + P(tem(r.u)) + '</td><td>' + (r.dl == null ? '<span class="mu">sin dollar linked</span>' : P(r.dl)) + '</td><td class="' + cls(r.dc) + '">' + bp(r.dc) + '</td><td class="l">' + ncl(r.nd) + '</td><td class="' + cls(df) + '"><b>' + bp(df) + '</b></td><td class="l">' + (df == null ? '—' : (df > 0 ? 'Sintético' : 'Dollar linked') + (r.rf.k ? ' <span class="mu">vs. ' + r.rf.k + '</span>' : '')) + '</td></tr>'; });
       document.getElementById('syT').innerHTML = h + (D.usd.length ? '' : '<tr><td class="l mu" colspan="15">No hay Lecaps dentro de la curva de futuros.</td></tr>') + '</tbody>';
       document.getElementById('syN').innerHTML = '<p><b>Cómo se lee</b></p><ul>' +
         '<li><b>La estrategia</b>: comprás la Lecap y comprás futuro de dólar por el mismo monto. Al vencimiento cobrás pesos y con el futuro los pasás a dólares oficiales: queda una tasa en dólares.</li>' +
         '<li><b>USD hoy</b> = precio / A3500 de hoy. <b>USD al vencimiento</b> = pago de la Lecap / futuro de su vencimiento. TEA = (USD al venc. / USD hoy)<sup>365/días</sup> − 1 y TEM = (1 + TEA)<sup>1/12</sup> − 1.</li>' +
-        '<li><b>Contra qué se compara</b>: la curva ajustada de dollar linked al mismo plazo, que también se mide con el A3500. Al lado, el dollar linked real más cercano y cuántos días lo separan. Si el sintético rinde más, conviene armarlo.</li>' +
+        '<li><b>Contra qué se compara</b>: si hay un dollar linked que vence a una semana o menos, contra ese bono (es la alternativa real); si no, contra la curva ajustada de dollar linked al mismo plazo (la misma del gráfico, sin los de menos de 3 semanas). Las dos se miden con el A3500. <b>Dif. (pb)</b> y <b>Conviene</b> usan esa comparación; <b>Dif. curva</b> es siempre contra la curva.</li>' +
         '<li><b>Contrato</b>: el futuro del mes en que vence la Lecap. Con <b>*</b>, la Lecap vence antes de fin de mes: el precio del futuro se interpola a su fecha y, como el contrato se desarma ese día, queda riesgo de base.</li>' +
         '<li><b>Qué entra</b>: solo Lecaps y Boncaps (los CER con el índice ya fijado no). Los que vencen en menos de 3 semanas van solo en la tabla: a tan pocos días la TEA anualiza cualquier diferencia chica.</li></ul>';
     }
     function drawLec(D) { // 2) Lecap sintética: dollar linked + venta de futuro, contra la Lecap
-      var hp = D.dlr.filter(function (x) { return x.o.mat <= D.x1 && x.hed != null && x.o.d >= MIN; }).map(function (x) { return { x: x.o.mat, y: x.hed, s: x.o.k + ' + venta de futuro', k: x.o.k }; }), sets = [];
-      var lp = D.fija.filter(function (o) { return o.d >= MIN && o.mat <= Math.max.apply(null, hp.map(function (p) { return p.x; }).concat([D.s0])) + 45; }).map(function (o) { return { x: o.mat, y: o.tea * 100, s: o.k, k: o.k }; });
+      var hp = D.dlr.filter(function (x) { return x.o.mat <= D.x1 && x.tn != null; }).map(function (x) { return { x: x.o.mat, y: x.tn, s: x.o.k + ' + venta de futuro (neta de base)', k: x.o.k }; }), sets = []; // neta de base: sin la base, los cortos se inflan
+      var lp = D.fija.filter(function (o) { return o.mat <= Math.max.apply(null, hp.map(function (p) { return p.x; }).concat([D.s0])) + 45; }).map(function (o) { return { x: o.mat, y: o.tea * 100, s: o.k, k: o.k }; });
       var f1 = fitLine(hp, C_DL, true); if (f1) sets.push(f1);
-      var f2 = fitLine(lp, '#60a5fa', false); if (f2) { f2.borderDash = [5, 4]; f2.borderWidth = 1.8; f2.glow = null; sets.push(f2); }
+      var f2 = fitOf(D.LR, lp, '#60a5fa', false); if (f2) { f2.borderDash = [5, 4]; f2.borderWidth = 1.8; f2.glow = null; sets.push(f2); }
       sets.push(dots('Dollar linked + venta de futuro', hp, C_DL, { pointRadius: 6.5, pointStyle: 'rectRot' }), dots('Lecaps y Boncaps', lp, '#60a5fa', { pointRadius: 4.5 }));
-      mk('syA', { type: 'scatter', data: { datasets: sets }, plugins: [GLW].concat(LBL()), options: xEnd(dateOpt(D, 'Tasa fija en pesos por vencimiento (TEA %)', function (v) { return nf(v, 0) + '%'; }, 'r'), hp.concat(lp)) });
-      bars('syB', D.dlr.filter(function (x) { return x.hed != null && x.lf != null && x.o.d >= MIN; }).map(function (x) { return { l: x.o.k, v: x.hed - x.lf, x: x }; }), 'Sintética menos la curva de Lecaps (pb)', function (q) { return 'Sintética ' + P(q.x.hed) + ' · Lecap ' + P(q.x.lf); });
+      mk('syA', { type: 'scatter', data: { datasets: sets }, plugins: [GLW].concat(LBL()), options: xEnd(dateOpt(D, 'Tasa fija en pesos por vencimiento (TEA %)', function (v) { return nf(v, 1) + '%'; }, 'r'), hp.concat(lp)) });
+      bars('syB', D.dlr.filter(function (x) { return x.df != null; }).map(function (x) { return { l: x.o.k, v: x.df, x: x }; }), 'Sintética neta de base menos la Lecap del mismo plazo (pb)', function (q) { return 'Sintética neta ' + P(q.x.tn) + ' · ' + (q.x.rf.k || 'curva de Lecaps') + ' ' + P(q.x.rf.v); });
       document.getElementById('syH').textContent = 'Cada dollar linked con el futuro de su vencimiento';
-      var h = '<thead><tr><th class="l">Bono</th><th>Precio</th><th>Contrato</th><th>Futuro al venc.</th><th>Pago</th><th>Vence</th><th>Días</th><th class="lc">TEA sintética</th><th>TEM</th><th>TEA neta de base</th><th>Lecap (curva)</th><th>TEM</th><th>Dif. (pb)</th><th class="l">Conviene</th><th class="l">Lecap más cercana</th><th>TC breakeven</th></tr></thead><tbody>';
-      D.dlr.forEach(function (x) { var o = x.o, df = x.hed != null && x.lf != null ? x.hed - x.lf : null;
+      var h = '<thead><tr><th class="l">Bono</th><th>Precio</th><th>Contrato</th><th>Futuro al venc.</th><th>Pago</th><th>Vence</th><th>Días</th><th class="lc">TEA sintética</th><th>TEM</th><th class="lc">TEA neta de base</th><th>Lecap (curva)</th><th>TEM</th><th>Dif. curva (pb)</th><th class="l">Lecap más cercana</th><th>Dif. (pb)</th><th class="l">Conviene</th><th>TC breakeven</th></tr></thead><tbody>';
+      D.dlr.forEach(function (x) { var o = x.o, df = x.df;
         h += '<tr data-qv="' + o.k + '"><td class="l"><b>' + o.k + '</b></td><td>' + nf(o.P, 2) + '</td><td>' + ctd(x.ct) + '</td><td>' + (x.Fm ? nf(x.Fm, 1) : '<span class="mu">sin futuro</span>') + '</td><td>' + (x.Fm ? nf(100 * x.Fm, 0) : 'n/a') + '</td><td>' + fr(bxDayStr(o.mat)) + '</td><td>' + o.d + '</td>' +
-          '<td class="lc">' + P(x.hed) + '</td><td>' + P(tem(x.hed)) + '</td><td>' + (x.hn == null ? 'n/a' : P(x.hn)) + '</td><td>' + (x.lf == null ? '<span class="mu">fuera de la curva</span>' : P(x.lf)) + '</td><td>' + P(tem(x.lf)) + '</td><td class="' + cls(df) + '">' + bp(df) + '</td><td class="l">' + (df == null ? '—' : df > 0 ? 'Sintética' : 'Lecap') + '</td><td class="l">' + ncl(x.nl) + '</td><td>' + (x.be ? '$ ' + nf(x.be, 1) : 'n/a') + '</td></tr>'; });
+          '<td>' + P(x.hed) + '</td><td>' + P(tem(x.hed)) + '</td><td class="lc">' + (x.hn == null ? 'n/a' : P(x.hn)) + '</td><td>' + (x.lf == null ? '<span class="mu">fuera de la curva</span>' : P(x.lf)) + '</td><td>' + P(tem(x.lf)) + '</td><td class="' + cls(x.dc) + '">' + bp(x.dc) + '</td><td class="l">' + ncl(x.nl) + '</td><td class="' + cls(df) + '"><b>' + bp(df) + '</b></td><td class="l">' + (df == null ? '—' : (df > 0 ? 'Sintética' : 'Lecap') + (x.rf.k ? ' <span class="mu">vs. ' + x.rf.k + '</span>' : '')) + '</td><td>' + (x.be ? '$ ' + nf(x.be, 1) : 'n/a') + '</td></tr>'; });
       document.getElementById('syT').innerHTML = h + (D.dlr.length ? '' : '<tr><td class="l mu" colspan="16">No hay dollar linked con precio.</td></tr>') + '</tbody>';
       document.getElementById('syN').innerHTML = '<p><b>Cómo se lee</b></p><ul>' +
         '<li><b>La estrategia</b>: comprás el dollar linked y vendés futuro de dólar por el mismo monto. Lo que cobra el bono en pesos lo fijás hoy con el futuro: queda una tasa fija en pesos, como una Lecap.</li>' +
         '<li><b>Pago</b> = 100 × futuro del contrato del mes (el mismo que en el dólar sintético, así las dos son espejo). TEA = (pago / precio)<sup>365/días</sup> − 1 y TEM = (1 + TEA)<sup>1/12</sup> − 1.</li>' +
         '<li><b>Neta de base</b>: el bono cobra el A3500 de 3 días hábiles antes del vencimiento y el futuro el del último día hábil del mes. Esos días de devaluación no los cobrás: la TEA neta usa el futuro a la fecha del A3500 que paga el bono. En los bonos cortos la diferencia es grande porque se anualiza.</li>' +
-        '<li><b>Contra qué se compara</b>: la curva ajustada de Lecaps al mismo plazo; al lado, la Lecap real más cercana. Si la sintética rinde más, conviene armarla. <b>TC breakeven</b>: el A3500 al vencimiento que iguala el bono con la Lecap.</li>' +
-        '<li><b>Contrato</b>: con <b>*</b>, el bono vence antes de fin de mes y el futuro se interpola a su fecha, con riesgo de base. Los que vencen en menos de 3 semanas van solo en la tabla.</li></ul>';
+        '<li><b>Contra qué se compara</b>: la TEA neta de base (lo que de verdad cobrás). Si hay una Lecap que vence a una semana o menos, contra esa Lecap (es la alternativa real); si no, contra la curva ajustada de Lecaps al mismo plazo (la misma del gráfico). <b>Dif. (pb)</b>, <b>Conviene</b> y las barras usan esa comparación; <b>Dif. curva</b> es la neta contra la curva. <b>TC breakeven</b>: el A3500 al vencimiento que iguala el bono con la Lecap.</li>' +
+        '<li><b>Contrato</b>: con <b>*</b>, el bono vence antes de fin de mes y el futuro se interpola a su fecha, con riesgo de base. El gráfico muestra la TEA neta de base, así que entran también los bonos cortos.</li></ul>';
     }
     function draw(D) {
       document.getElementById('syM').innerHTML = pills('data-sm', ST.m, MODES);
