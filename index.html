@@ -4961,7 +4961,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function load() {
     if (TJ || loading) return; loading = true;
     var j = function (u) { return fetch(u + '?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(u + ' (' + r.status + ')'); return r.json(); }); };
-    Promise.all([j('data/tasas.json'), j('data/indices.json').catch(function () { return {}; })]).then(function (r) { loading = false; TJ = r[0]; IX = r[1] || {}; render(); },
+    Promise.all([j('data/tasas.json'), j('data/indices.json').catch(function () { return {}; }), j('data/dolar.json').catch(function () { return {}; })]).then(function (r) { loading = false; TJ = r[0]; IX = r[1] || {}; IX.A3500 = (r[2] || {}).A3500 || {}; render(); },
       function (e) { loading = false; err = e.message; render(); });
   }
   function todayBA() { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }); } catch (e) { return new Date().toISOString().slice(0, 10); } }
@@ -4975,13 +4975,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
 
   /* ---------- cuentas ---------- */
   function build() {
-    var fx = {}, k; keys(IX.FX).forEach(function (d) { fx[d] = IX.FX[d]; });
+    var fx = {}; [IX.A3500, IX.FX].forEach(function (o) { keys(o).forEach(function (d) { if (o[d] > 0) fx[d] = o[d]; }); }); // A3500 desde 2023 (data/dolar.json) y lo último del BCRA
     var spot = function (d) { return at(fx, d); };
     var cd = keys(TJ.cau), fd = keys(TJ.fut), dc = cd[cd.length - 1], df = fd[fd.length - 1];
     var V = TJ.vivo || null, vd = V && V.ts ? V.ts.slice(0, 10) : null;
     var hasLive = function (rows, i) { return (rows || []).some(function (r) { return r[i] != null && r[i] > 0; }); };
-    // la foto de Primary vale si es de una rueda posterior al último cierre y tiene operaciones o puntas
-    var vivoOk = V && vd > (df || '') && (hasLive(V.fut, 4) || hasLive(V.cau, 3) || hasLive(V.fut, 2));
+    // la foto de Primary vale si es de una rueda posterior al último cierre y ya hubo operaciones (fuera de la rueda solo quedan puntas sueltas)
+    var vivoOk = V && vd > (df || '') && (hasLive(V.fut, 4) || hasLive(V.cau, 3));
     // caución: el plazo más corto de cada rueda (1 día, o 3-4 días los viernes y antes de feriados)
     var corta = {}; cd.forEach(function (d) { var r = TJ.cau[d][0]; if (r && r[0] <= 5) corta[d] = r; });
     // futuros: tasa implícita de cada contrato con el A3500 de esa rueda y la de 30 días interpolada
@@ -4990,19 +4990,20 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       return (rows || []).map(function (r) {
         var F = live ? (r[4] || (r[2] && r[3] ? (r[2] + r[3]) / 2 : null) || r[5]) : r[2], dd = r[1] ? dn(r[1]) - dn(base) : null;
         if (!(dd > 0)) return null;
-        var t = tna(F, Sp, dd); if (!live && r[5] != null && dd > 3) t = r[5]; // en los cierres, la tasa que publica A3
+        var t = tna(F, Sp, dd);
         return { s: r[0], v: r[1], d: dd, F: F, t: t, dev: dev(F, Sp, dd), oi: live ? r[6] : r[3], vol: live ? r[7] : r[4], raw: r };
       }).filter(function (x) { return x && x.F > 0; }).sort(function (a, b) { return a.d - b.d; });
     };
-    var i30 = function (c) { // tasa implícita a 30 días: interpolada entre los dos contratos que la rodean
-      for (var i = 1; i < c.length; i++) if (c[i - 1].d <= 30 && c[i].d >= 30 && c[i - 1].t != null && c[i].t != null) return c[i - 1].t + (c[i].t - c[i - 1].t) * (30 - c[i - 1].d) / (c[i].d - c[i - 1].d);
-      return c.length && c[0].d > 30 ? c[0].t : null;
+    var i90 = function (c) { // tasa implícita a 3 meses, interpolada entre los dos contratos que la rodean: en los plazos cortos, la diferencia de horario
+      c = c.filter(function (x) { return x.d >= 30; }); // entre el ajuste y el A3500 mueve la tasa varios puntos de un día al otro
+      for (var i = 1; i < c.length; i++) if (c[i - 1].d <= 90 && c[i].d >= 90 && c[i - 1].t != null && c[i].t != null) return c[i - 1].t + (c[i].t - c[i - 1].t) * (90 - c[i - 1].d) / (c[i].d - c[i - 1].d);
+      return c.length && c[0].d > 90 ? c[0].t : null;
     };
-    var f30 = {}; fd.forEach(function (d) { var v = i30(curve(d, TJ.fut[d])); if (v != null) f30[d] = v; });
+    var f90 = {}; fd.forEach(function (d) { var v = i90(curve(d, TJ.fut[d])); if (v != null) f90[d] = v; });
     var fut = curve(df, TJ.fut[df]), futPrev = fd.length > 1 ? curve(fd[fd.length - 2], TJ.fut[fd[fd.length - 2]]) : [];
     var futV = vivoOk ? curve(vd, V.fut, true) : null;
     var cf = keys(TJ.cfut), dcf = cf[cf.length - 1];
-    return { cd: cd, dc: dc, df: df, dcf: dcf, corta: corta, f30: f30, fut: fut, futPrev: futPrev, futV: futV, vivoOk: vivoOk, V: V, vd: vd, spot: spot(df), spotNow: spot(todayBA()),
+    return { cd: cd, dc: dc, df: df, dcf: dcf, corta: corta, f90: f90, fut: fut, futPrev: futPrev, futV: futV, vivoOk: vivoOk, V: V, vd: vd, spot: spot(df), spotNow: spot(todayBA()),
       cau: TJ.cau[dc] || [], cauPrev: cd.length > 1 ? TJ.cau[cd[cd.length - 2]] : [], cfut: (TJ.cfut[dcf] || []), cfPrev: cf.length > 1 ? TJ.cfut[cf[cf.length - 2]] : [],
       pf: at(TJ.pf, '9999'), bad: at(TJ.badlar, '9999'), tam: at(IX.TAMAR, '9999') };
   }
@@ -5015,7 +5016,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '#tcor .rs{border-top:1px solid var(--bd);margin-top:18px;padding-top:18px}#tcor .rc{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}#tcor .rc select{width:160px}' +
       '#tcor .rchips{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}#tcor .rchip{flex:1 1 calc(25% - 9px);min-width:150px;box-sizing:border-box;border:1px solid var(--bd);border-radius:10px;padding:10px 14px;background:var(--bg)}' +
       '#tcor .rchip small{display:block;color:var(--mu);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}#tcor .rchip b{font-size:19px;font-variant-numeric:tabular-nums}#tcor .rchip span{display:block;color:var(--mu);font-size:12px;margin-top:2px}' +
-      '#tcor h4{margin:0;font-size:16px;color:var(--mu)}#tcor .sc{overflow:auto}#tcor .rg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}@media(max-width:1000px){#tcor .rg{grid-template-columns:minmax(0,1fr)}}' +
+      '#tcor h4{margin:0;font-size:16px;color:var(--mu)}#tcor .sc{overflow:auto}#tcor .rg{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:18px}@media(max-width:1000px){#tcor .rg{grid-template-columns:minmax(0,1fr)}}' +
       '#tcor .rt{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}#tcor .rt th,#tcor .rt td{padding:6px 9px;white-space:nowrap;text-align:right}#tcor .rt th{font-size:12px;position:sticky;top:0;background:var(--card);color:var(--mu);border-bottom:1px solid var(--bd);z-index:1}#tcor .rt td.l,#tcor .rt th.l{text-align:left}#tcor .rt tr+tr td{border-top:1px solid rgba(148,163,184,.12)}' +
       '#tcor .up{color:var(--ok)}#tcor .dn{color:var(--bad,#f87171)}#tcor .mu{color:var(--mu)}' +
       '#tcor .hl{color:var(--mu);font-size:14px;line-height:1.6;margin:10px 0 0}#tcor .hl p{margin:0 0 6px}#tcor .hl ul{margin:4px 0 0;padding-left:20px}#tcor .hl li{margin:3px 0}#tcor .hl b{color:var(--tx)}@media(max-width:700px){#tcor .hl{font-size:13px}}' +
@@ -5032,7 +5033,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<div><div style="' + HD + '"><h4 id="tcT5">Futuros de caución</h4></div><div class="sc"><table class="rt" id="tcCf"></table></div></div></div>' +
       '<div class="rs"><div class="hl" style="margin:0"><p><b>Cómo se lee</b></p><ul>' +
       '<li><b>Caución</b>: el préstamo de pesos con garantía a muy corto plazo. Es la tasa a la que se financia el mercado. La de A3 es el promedio ponderado por monto de cada plazo al cierre; la de BYMA, en vivo, es la última operada (o el punto medio entre compra y venta) por la API de Primary.</li>' +
-      '<li><b>Futuros de dólar</b>: el precio del dólar mayorista (A3500) al último día hábil de cada mes. <b>Tasa implícita</b>: cuánto rinde en pesos comprar dólares hoy y venderlos a futuro, en TNA: (futuro / A3500 − 1) × 365 / días. Es la tasa en pesos que paga el mercado por cubrirse. <b>Devaluación mensual implícita</b>: la suba del dólar por mes que descuenta el futuro.</li>' +
+      '<li><b>Futuros de dólar</b>: el precio del dólar mayorista (A3500) al último día hábil de cada mes. <b>Tasa implícita</b>: cuánto rinde en pesos comprar dólares hoy y venderlos a futuro, en TNA: (futuro / A3500 − 1) × 365 / días. Es la tasa en pesos que paga el mercado por cubrirse. <b>Devaluación mensual implícita</b>: la suba del dólar por mes que descuenta el futuro. En el tiempo se muestra la tasa a 3 meses, interpolada entre contratos: en los que vencen en pocos días, la diferencia de horario entre el ajuste del futuro y el A3500 mueve la tasa varios puntos de un día al otro.</li>' +
       '<li><b>Futuros de caución</b>: el precio es la tasa de caución a 1 día que el mercado espera para el vencimiento de cada contrato.</li>' +
       '<li><b>Plazo fijo a 30 días</b>: la tasa promedio que pagan los bancos por depósitos a 30 días (BCRA, serie 12). Es el benchmark del ahorrista. <b>TAMAR</b>: depósitos de más de $ 1.000 millones en bancos privados. <b>BADLAR</b>: depósitos de más de $ 1 millón a 30-35 días en bancos privados. Las tres son TNA.</li>' +
       '<li>Todas las tasas están en TNA para poder compararlas. La TEA de los futuros capitaliza la TNA al plazo de cada contrato.</li></ul></div></div></div>';
@@ -5040,18 +5041,18 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
 
   function chips() {
-    var c = S.cau[0], cp = (S.cauPrev || [])[0], f0 = S.fut[0], f30 = S.f30[S.df], ks = keys(S.f30), f30p = ks.length > 1 ? S.f30[ks[ks.length - 2]] : null;
+    var c = S.cau[0], cp = (S.cauPrev || [])[0], f0 = S.fut[0], f90 = S.f90[S.df], ks = keys(S.f90), f90p = ks.length > 1 ? S.f90[ks[ks.length - 2]] : null;
     var pp = function (a, b) { return a != null && b != null ? sg(a - b, 2) + ' pp vs. la rueda anterior' : ''; };
     var chip = function (t, v, s) { return '<div class="rchip"><small>' + t + '</small><b>' + v + '</b><span>' + s + '</span></div>'; };
     var P = function (v) { return v == null ? 'n/a' : nf(v, 2) + '%'; };
-    var dev30 = f30 != null ? (Math.pow(1 + f30 / 100 * 30 / 365, 1) - 1) * 100 : null;
+    var devm = f90 != null ? (Math.pow(1 + f90 / 100 * 90 / 365, 1 / 3) - 1) * 100 : null;
     document.getElementById('tcChips').innerHTML =
       (c ? chip('Caución ' + c[0] + (c[0] === 1 ? ' día' : ' días') + ' (A3)', P(c[1]), pp(c[1], cp && cp[0] === c[0] ? cp[1] : null) || 'cierre del ' + fr(S.dc)) : '') +
       (S.pf[0] ? chip('Plazo fijo 30 días', P(S.pf[1]), 'BCRA, dato del ' + fr(S.pf[0])) : '') +
       (S.tam[0] ? chip('TAMAR bancos privados', P(S.tam[1]), 'BCRA, dato del ' + fr(S.tam[0])) : '') +
       (S.bad[0] ? chip('BADLAR bancos privados', P(S.bad[1]), 'BCRA, dato del ' + fr(S.bad[0])) : '') +
-      (f30 != null ? chip('Dólar futuro, tasa a 30 días', P(f30), (f30p != null ? pp(f30, f30p) : 'interpolada') + '') : '') +
-      (dev30 != null ? chip('Devaluación implícita a 30 días', nf(dev30, 2) + '%', 'A3500 de $ ' + nf(S.spot[1], 2) + ' el ' + fr(S.spot[0])) : '') +
+      (f90 != null ? chip('Dólar futuro, tasa a 3 meses', P(f90), f90p != null ? pp(f90, f90p) : 'interpolada') : '') +
+      (devm != null ? chip('Devaluación mensual implícita', nf(devm, 2) + '%', 'a 3 meses, A3500 de $ ' + nf(S.spot[1], 2) + ' el ' + fr(S.spot[0])) : '') +
       (f0 ? chip(name(f0.s) + ' (' + f0.d + ' días)', '$ ' + nf(f0.F, 1), 'tasa implícita ' + P(f0.t)) : '') +
       (c && S.pf[0] ? chip('Caución vs. plazo fijo', sg(c[1] - S.pf[1], 2) + ' pp', c[1] > S.pf[1] ? 'la caución paga más' : 'el plazo fijo paga más') : '');
   }
@@ -5080,13 +5081,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var rd = document.getElementById('tcRead1');
     rd.textContent = 'Cada punto es una tasa en TNA según cuántos días faltan. ' + (c ? 'La caución a ' + c[0] + (c[0] === 1 ? ' día' : ' días') + ' cerró en ' + nf(c[1], 2) + '%' : '') + (S.pf[0] ? ', el plazo fijo a 30 días paga ' + nf(S.pf[1], 2) + '%' : '') + (f0 ? ' y el ' + name(f0.s) + ' descuenta ' + nf(f0.t, 2) + '% a ' + f0.d + ' días' : '') + '. Si la tasa implícita de los futuros está por encima de la caución, cubrirse con dólar futuro rinde más que prestar en caución.';
     // en el tiempo
-    var all = {}; [S.corta, S.f30, TJ.pf, IX.TAMAR || {}, TJ.badlar].forEach(function (o) { keys(o).forEach(function (d) { all[d] = 1; }); });
+    var all = {}; [S.corta, S.f90, TJ.pf, IX.TAMAR || {}, TJ.badlar].forEach(function (o) { keys(o).forEach(function (d) { all[d] = 1; }); });
     var D = keys(all).filter(function (d) { return d >= S.cd[0]; }), n = D.length, w = ST.w || n, D2 = D.slice(Math.max(0, n - w));
     var fill = function (o, f) { var last = null; return D2.map(function (d) { var v = o[d]; if (v != null) last = f ? f(v) : v; return o[d] != null ? (f ? f(v) : v) : null; }); };
     var lin = function (label, data, col, extra) { var o = { label: label, data: data, borderColor: col, backgroundColor: col, borderWidth: 2, pointRadius: 0, tension: 0.1, spanGaps: true }; for (var k in extra) o[k] = extra[k]; return o; };
     document.getElementById('tcT2').textContent = 'En el tiempo · ' + (ST.w === 0 ? 'todo el historial' : PER.filter(function (p) { return p[0] === ST.w; })[0][1]);
     CH.b = new Chart(document.getElementById('tcCh2').getContext('2d'), { type: 'line', data: { labels: D2.map(function (d) { return fr(d).slice(0, 5); }),
-      datasets: [lin('Caución más corta (A3)', fill(S.corta, function (r) { return r[1]; }), C_CAU, { borderWidth: 1.6 }), lin('Dólar futuro, tasa a 30 días', fill(S.f30), C_FUT),
+      datasets: [lin('Caución más corta (A3)', fill(S.corta, function (r) { return r[1]; }), C_CAU, { borderWidth: 1.6 }), lin('Dólar futuro, tasa a 3 meses', fill(S.f90), C_FUT),
         lin('Plazo fijo 30 días', fill(TJ.pf), C_PF), lin('TAMAR', fill(IX.TAMAR || {}), C_TAM, { borderWidth: 1.6 }), lin('BADLAR', fill(TJ.badlar), C_BAD, { borderDash: [5, 4], borderWidth: 1.4 })] },
       options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, title: { display: true, text: 'TNA (%) de cada rueda', color: tx, font: { size: 13, weight: '600' } },
         tooltip: { callbacks: { title: function (c) { return fr(D2[c[0].dataIndex]); }, label: function (c) { return c.dataset.label + ': ' + nf(c.parsed.y, 2) + '%'; } } } },
