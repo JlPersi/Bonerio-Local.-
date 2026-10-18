@@ -1,0 +1,21 @@
+name: probe
+on:
+  push:
+    branches: [claude/project-thread-9wlmpw]
+    paths: [probe/probe.py, .github/workflows/probe.yml]
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q pyRofex
+      - run: python3 probe/probe.py
+        env:
+          ROFEX_USER: ${{ secrets.ROFEX_USER }}
+          ROFEX_PASS: ${{ secrets.ROFEX_PASS }}
+          ROFEX_URL: ${{ secrets.ROFEX_URL }}
+      - run: |
+          git config user.name "cierre-bot"; git config user.email "bot@users.noreply.github.com"
+          git add probe/out && git commit -qm "probe out" && git push
