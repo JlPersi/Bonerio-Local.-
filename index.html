@@ -941,6 +941,11 @@ const BX_HOLS = {}; PX.HOL.forEach(function (d) { BX_HOLS[d] = 1; });
 function bxIsBiz(t) { var w = (t + 3) % 7; return w < 5 && !BX_HOLS[t]; }
 const BX_BANK = (function () { var o = {}; for (var y = 2015; y <= 2045; y++) o[Date.UTC(y, 10, 6) / 864e5] = 1; return o; })(); // Día del Bancario (6/11): hay negociación pero no liquidación en BYMA ni actividad bancaria
 function bxIsSet(t) { return bxIsBiz(t) && !BX_BANK[t]; } // día en que se puede liquidar
+// los CER con el índice de pago ya publicado (TZXO6, X30N6…): por defecto siguen como CER; con la opción, pasan a tasa fija en todo el sitio
+window.CFX = (function () { try { return localStorage.getItem('cerFix1') === '1'; } catch (e) { return false; } })();
+function cfxSet(on) { try { localStorage.setItem('cerFix1', on ? '1' : '0'); var a = document.querySelector('.tab-content.active'); if (a) sessionStorage.setItem('cerFixTab', a.id); } catch (e) { } location.reload(); } // se recalcula todo desde cero
+document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-cfx]'); if (b && (b.getAttribute('data-cfx') === '1') !== window.CFX) cfxSet(!window.CFX); });
+document.addEventListener('change', function (e) { if (e.target && e.target.id === 'psCfx') cfxSet(e.target.value === '1'); });
 window.settleMode = 'T1'; try { if (localStorage.getItem('settle3') === 'CI') window.settleMode = 'CI'; } catch (e) {} // por defecto T+1: los precios de data912 son de 24 hs (en CI, las tasas de las Lecaps cortas caen ~90 pb el día antes de cada fin de semana y suben al siguiente). La clave nueva (settle3) hace que también pase a T+1 quien había quedado en CI cuando era lo de fábrica
 function bxSettleT1(t) { var s = t + 1; while (!bxIsSet(s)) s++; return s; }
 function bxSettle(t) { if (window.settleMode === 'T1') return bxSettleT1(t); var s = t; while (!bxIsSet(s)) s++; return s; } // CI: el mismo día (o el próximo hábil); T+1: el día hábil siguiente
@@ -2588,6 +2593,7 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
   var TTD_M = 0; // margen de la rama TAMAR de TTD26 (supuesto: TAMAR sin margen; ajustar si el prospecto dice otra cosa)
   function cerBase(ins) { return cerAt(bdBack(ins.iss, 10), ZERO); }
   function cerFix() { // Lecer cupón cero cuyo CER de pago (vencimiento − 10 hábiles) ya está publicado: el flujo final queda fijo en pesos y opera como una Lecap
+    if (!window.CFX) return; // solo con la opción «CER fijados como tasa fija»
     Object.keys(INST).forEach(function (k) {
       var ins = INST[k], lc = lastOf(IDX.CER), b, c;
       if (ins.k === 'cerc') { // Boncer: si el CER de todos los pagos que faltan ya está publicado, sus flujos quedan fijos en pesos y opera como un bono a tasa fija
@@ -2766,7 +2772,7 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
     '</div>' +
     card('Escenario por mes (opcional)', 'Los tres supuestos (inflación, TAMAR y devaluación, que podés cambiar en cada gráfico) rigen en todos los meses. Acá podés fijar valores distintos por mes: cada celda que completes rige desde ese mes hasta la próxima celda completa (las vacías heredan). Inflación del mes: el CER la recoge con rezago (la de septiembre mueve el CER del 16/10 al 15/11). TAMAR en TNA %. Devaluación = variación mensual del A3500. «Cargar REM» completa todo con la expectativa del REM de septiembre 2026 (datos mensuales hasta marzo de 2027 y empalme con las cifras a 12 y 24 meses y a diciembre de 2027 y 2028; la devaluación desde 2028 iguala a la inflación); después podés editarla.', '<div class="ctl" style="margin-bottom:10px"><button class="act" id="psLoadRem" data-html2canvas-ignore="true">Cargar REM (sep-26)</button><button class="act" id="psClearPath" data-html2canvas-ignore="true">Limpiar trayectorias</button></div><details id="psPathBox"><summary style="cursor:pointer">Desplegar trayectorias por mes</summary><div class="wrap" style="max-height:440px;overflow:auto"><table class="qt" id="psPath"></table></div></details>') +
     '<div class="qgrid" id="psSummary"></div>' +
-    card('Letras y bonos a tasa fija', 'Lecaps, Boncaps y bonos a tasa fija. La curva es el valor justo estimado: en verde, los que rinden más que la curva (baratos); en rojo, los que rinden menos (caros).', '<div class="ctl" style="margin-bottom:10px"><label>Métrica<select id="psM1"></select></label><label>Curva<select id="psK1">'+CURVEOPT+'</select></label><label>Eje X<select id="psA1">' + xaxOpts('plazo') + '</select></label><label>Plazo máximo<select id="psX1"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000" selected>1.000 días</option><option value="1500">1.500 días</option><option value="99999">Todos</option></select></label>' + RSTB + '</div><div class="qc mid"><canvas id="psC1"></canvas></div><p class="note" id="psKn1" style="margin:6px 0 0"></p><div class="wrap" style="margin-top:14px"><table class="qt" id="psFija"></table></div><p class="note xp" style="margin:8px 0 0">En los bonos con cupones (TY30P) el pago final muestra la suma de todos los flujos (Σ cupones + capital) y la TNA simple es (Σ flujos ÷ precio − 1) × 365 ÷ días. La TEA, en cambio, descuenta cada cupón en su fecha.</p>') +
+    card('Letras y bonos a tasa fija', 'Lecaps, Boncaps y bonos a tasa fija. La curva es el valor justo estimado: en verde, los que rinden más que la curva (baratos); en rojo, los que rinden menos (caros).', '<div class="ctl" style="margin-bottom:10px"><label>Métrica<select id="psM1"></select></label><label>Curva<select id="psK1">'+CURVEOPT+'</select></label><label>Eje X<select id="psA1">' + xaxOpts('plazo') + '</select></label><label>CER fijados<select id="psCfx" title="Los CER cuyo índice de pago ya se publicó tienen el flujo fijo en pesos: se pueden mirar como CER o sumar a la tasa fija (en todo el sitio)"><option value="0">Como CER</option><option value="1"' + (window.CFX ? ' selected' : '') + '>Como tasa fija</option></select></label><label>Plazo máximo<select id="psX1"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000" selected>1.000 días</option><option value="1500">1.500 días</option><option value="99999">Todos</option></select></label>' + RSTB + '</div><div class="qc mid"><canvas id="psC1"></canvas></div><p class="note" id="psKn1" style="margin:6px 0 0"></p><div class="wrap" style="margin-top:14px"><table class="qt" id="psFija"></table></div><p class="note xp" style="margin:8px 0 0">En los bonos con cupones (TY30P) el pago final muestra la suma de todos los flujos (Σ cupones + capital) y la TNA simple es (Σ flujos ÷ precio − 1) × 365 ÷ días. La TEA, en cambio, descuenta cada cupón en su fecha.</p>') +
     card('Curva integrada: tasa fija, CER y TAMAR', 'Las Lecaps y Boncaps de hoy (y, si querés, las de unas ruedas atrás) junto con los bonos CER, TAMAR y duales pasados a la misma tasa nominal (TEM o TEA) con la inflación y la TAMAR que cargues acá. Un bono indexado arriba de la curva de tasa fija rinde más que una Lecap del mismo plazo si se cumplen esos supuestos.', '<div class="ctl" style="margin-bottom:10px"><label>Métrica<select id="psIM"><option value="tem">TEM (%)</option><option value="tea">TEA (%)</option></select></label><label>Comparar con<select id="psIN"><option value="1">La rueda anterior</option><option value="5">5 ruedas atrás</option><option value="10">10 ruedas atrás</option><option value="20">20 ruedas atrás</option><option value="0" selected>Sin comparar</option></select></label><label>Curvas<select id="psII"><option value="tamar">Lecaps + TAMAR</option><option value="cer">Lecaps + CER</option><option value="cer,tamar" selected>Lecaps + CER + TAMAR</option><option value="cer,dual">Lecaps + CER + duales</option><option value="">Solo Lecaps</option></select></label><label>Plazo máximo<select id="psIX"><option value="400" selected>400 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000">1.000 días</option><option value="99999">Todos</option></select></label><label>Inflación mensual (%)<input type="number" id="psIPi" step="0.1"></label><label>TAMAR (TNA, %)<input type="number" id="psITam" step="0.5"></label></div><div class="qc mid"><canvas id="psCI"></canvas></div><p class="note" id="psIKn" style="margin:6px 0 0"></p>') +
     card('CER', 'Rendimiento real de los bonos CER contra su plazo. Verde: rinde más que la curva (barato); rojo: rinde menos (caro). Se pueden sumar los duales CER/TAMAR a la curva. Los que vencen después del cambio de gobierno (10/12/2027) rinden un escalón más: con la curva «Nelson-Siegel con salto en dic-27» ese escalón no los hace parecer baratos (ni caros a los de antes).', '<div class="ctl" style="margin-bottom:10px"><label>Métrica<select id="psM2"></select></label><label>Curva<select id="psK2">'+CURVEOPT+'<option value="nsj">Nelson-Siegel con salto en dic-27</option></select></label><label>Eje X<select id="psA2">' + xaxOpts('plazo') + '</select></label><label>Plazo máximo<select id="psX2"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000" selected>1.000 días</option><option value="1500">1.500 días</option><option value="99999">Todos</option></select></label><label>Duales<select id="psD2"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' + MIRn(2) + RSTBn(2) + '</div><div class="qc mid"><canvas id="psC2"></canvas></div><p class="note" id="psKn2" style="margin:6px 0 0"></p><div class="wrap" style="margin-top:14px"><table class="qt" id="psCer"></table></div>') +
     card('TAMAR', 'Rendimiento de los bonos TAMAR contra su plazo. Verde: rinde más que la curva (barato); rojo: rinde menos (caro). Se pueden sumar los duales a la curva.', '<div class="ctl" style="margin-bottom:10px"><label>Métrica<select id="psM3"></select></label><label>Curva<select id="psK3">'+CURVEOPT+'</select></label><label>Eje X<select id="psA3">' + xaxOpts('plazo') + '</select></label><label>Plazo máximo<select id="psX3"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000" selected>1.000 días</option><option value="1500">1.500 días</option><option value="99999">Todos</option></select></label><label>Duales<select id="psD3"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' + MIRn(3) + RSTBn(3) + '</div><div class="qc mid"><canvas id="psC3"></canvas></div><p class="note" id="psKn3" style="margin:6px 0 0"></p><div class="wrap" style="margin-top:14px"><table class="qt" id="psTamar"></table></div>') +
@@ -5586,6 +5592,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     return '<button type="button" class="rcard" data-qv="' + l0.k + '" title="Ver el ticker de ' + l0.k + '">' + GO + '<small>' + (VM ? 'Lecap corta más operada · ' : 'Lecap más corta · ') + l0.k + '</small><span class="v"><b>' + P(l0.tnas * 100) + '</b>' + (Q.pct != null ? '<em class="' + (Q.pct > 0 ? 'up' : Q.pct < 0 ? 'dn' : 'mu') + '">' + sg(Q.pct, 2) + '% precio</em>' : '') + '</span>' +
       '<span class="s">TNA · ' + dias(l0.d) + ' · TEA ' + P(l0.tea * 100) + '</span>' + spark([]) + '</button>';
   }
+  var cfxP = function () { return '<span class="rp" data-html2canvas-ignore="true" title="Los CER cuyo índice de pago ya se publicó (flujo fijo en pesos), como tasa fija. Vale para todo el sitio">' + [['0', 'Sin CER fijados'], ['1', 'Con CER fijados']].map(function (p) { var on = (p[0] === '1') === window.CFX; return '<button type="button" data-cfx="' + p[0] + '" class="' + (on ? 'on' : '') + '" aria-pressed="' + on + '">' + p[1] + '</button>'; }).join('') + '</span>'; };
   var pills = function (attr, cur, list, cls) { return '<span class="rp' + (cls ? ' ' + cls : '') + '" data-html2canvas-ignore="true">' + list.map(function (p) { var on = Array.isArray(cur) ? cur.indexOf(p[0]) >= 0 : p[0] === cur; return '<button type="button" ' + attr + '="' + p[0] + '" class="' + (on ? 'on' : '') + '" aria-pressed="' + on + '">' + (p[3] ? '<i style="background:' + p[3] + '"></i>' : '') + p[1] + '</button>'; }).join('') + '</span>'; };
   var ds = function (label, data, col, extra) { var o = { type: 'line', label: label, data: data.filter(function (p) { return p.y != null && isFinite(p.y) && p.x != null; }), borderColor: col, backgroundColor: col, borderWidth: 2, pointRadius: 3.5, pointHoverRadius: 6, tension: 0.15, showLine: true }; for (var k in extra) o[k] = extra[k]; return o; };
   var lin = function (label, data, col, extra) { var o = { label: label, data: data, borderColor: col, backgroundColor: col, borderWidth: 2, pointRadius: 0, tension: 0.1, spanGaps: true }; for (var k in extra) o[k] = extra[k]; return o; };
@@ -5665,20 +5672,20 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         '<div class="card" id="tcCap"><div class="status" style="justify-content:space-between;gap:12px;flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0;flex:1 1 0"><p style="margin:0;color:var(--tx);font-size:16px;font-weight:600">Mercado de dinero</p>' +
         '<p class="note" style="margin-top:4px" id="tcSub"></p></div>' + dl('tcCap', 'Mercado_de_dinero', 'Descargar la pestaña en HD') + '</div>' +
         '<div class="rcards" id="tcCards"></div>' +
-        '<div class="rs" id="tcS1"><div style="' + HD + '"><h4>Curva de tasas en pesos (TNA)</h4><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="tcH"></span>' + dl('tcS1', 'Mercado_de_dinero_Curva', 'Descargar la curva en HD') + '</span></div>' +
+        '<div class="rs" id="tcS1"><div style="' + HD + '"><h4>Curva de tasas en pesos (TNA)</h4><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="tcCfx"></span><span id="tcH"></span>' + dl('tcS1', 'Mercado_de_dinero_Curva', 'Descargar la curva en HD') + '</span></div>' +
         '<div class="cw" style="height:420px"><canvas id="tcCh1"></canvas></div><p class="ft" id="tcKn"></p><div class="spr" id="tcSp"></div></div>' +
-        '<div class="rs" id="tcS5"><div style="' + HD + '"><h4>Lecaps y Boncaps hasta 6 meses</h4>' + dl('tcS5', 'Mercado_de_dinero_Lecaps', 'Descargar la tabla en HD') + '</div>' +
+        '<div class="rs" id="tcS5"><div style="' + HD + '"><h4 id="tcT5">Lecaps y Boncaps</h4>' + dl('tcS5', 'Mercado_de_dinero_Lecaps', 'Descargar la tabla en HD') + '</div>' +
         '<div class="sc"><table class="rt" id="tcLec"></table></div><p class="ft">Volumen diario: promedio de las últimas 20 ruedas (en naranja, menos de $ 100 M). Tocá una fila para ver su ticker.</p></div>' +
         '<div class="rs rg" id="tcS4"><div><div style="' + HD + '"><h4 id="tcT4">Caución en pesos</h4>' + dl('tcS4', 'Mercado_de_dinero_Caucion', 'Descargar la caución en HD') + '</div><div class="sc"><table class="rt" id="tcCau"></table></div>' +
-        '<div class="bar" style="margin-top:14px"><h5 style="margin:0" id="tcT7">1 día hábil (TNA)</h5><span id="tcRc"></span></div><div class="cw" style="height:250px"><canvas id="tcCh4"></canvas><div class="ce" id="tcE4"></div></div></div>' +
+        '<div class="bar" style="margin-top:14px"><h5 style="margin:0" id="tcT7">Plazo más corto de cada rueda, 1 día hábil (TNA)</h5><span id="tcRc"></span></div><div class="cw" style="height:250px"><canvas id="tcCh4"></canvas><div class="ce" id="tcE4"></div></div></div>' +
         '<div><div style="' + HD + '"><h4 id="tcT6">Caución en dólares</h4></div><div class="sc"><table class="rt" id="tcCauD"></table></div>' +
-        '<div class="bar" style="margin-top:14px"><h5 style="margin:0">1 día hábil (TNA)</h5><span id="tcRd"></span></div><div class="cw" style="height:250px"><canvas id="tcCh3"></canvas><div class="ce" id="tcE3"></div></div></div></div>' +
+        '<div class="bar" style="margin-top:14px"><h5 style="margin:0">Plazo más corto de cada rueda, 1 día hábil (TNA)</h5><span id="tcRd"></span></div><div class="cw" style="height:250px"><canvas id="tcCh3"></canvas><div class="ce" id="tcE3"></div></div></div></div>' +
         '<div class="rs" id="tcS2"><div style="' + HD + '"><h4 id="tcT2">Histórico de tasas</h4>' + dl('tcS2', 'Mercado_de_dinero_Historia', 'Descargar la historia en HD') + '</div>' +
         '<div class="bar"><span id="tcSer"></span><span id="tcW"></span></div><div class="cw" style="height:360px"><canvas id="tcCh2"></canvas></div></div>' +
         '<div class="rs"><div class="hl" style="margin:0"><p><b>Cómo se lee</b></p><ul>' +
         '<li><b>Caución</b>: el préstamo de corto plazo con garantía de títulos. El que coloca presta pesos (o dólares) y cobra la tasa; el que toma se financia. La de A3 es el promedio ponderado por monto de cada plazo al cierre; la de BYMA, la última operada en la rueda. El plazo más corto es <b>1 día hábil</b>: 1 día corrido de lunes a jueves, 3 los viernes y 4 si hay feriado.</li>' +
         '<li><b>Caución en dólares</b>: <b>MEP</b> se liquida en dólares en cuentas locales; <b>cable</b>, en dólares en el exterior.</li>' +
-        '<li><b>Lecaps y Boncaps</b>: se compran hoy y pagan un monto fijo al vencimiento; la TNA es (monto final / precio − 1) × 365 / días. La línea de la curva es un ajuste por los puntos.</li>' +
+        '<li><b>Lecaps y Boncaps</b>: se compran hoy y pagan un monto fijo al vencimiento; la TNA es (monto final / precio − 1) × 365 / días, la TEA (monto final / precio)<sup>365/días</sup> − 1 y la TEM (1 + TEA)<sup>30/365</sup> − 1. La línea de la curva es un ajuste por los puntos. Con «Con CER fijados» se suman los CER cuyo índice de pago ya se publicó (su flujo quedó fijo en pesos).</li>' +
         '<li><b>Plazo fijo a 30 días</b>: la tasa promedio que pagan los bancos por depósitos a 30 días (BCRA). <b>TAMAR</b>: depósitos de más de $ 1.000 millones en bancos privados. <b>BADLAR</b>: depósitos de más de $ 1 millón a 30-35 días en bancos privados.</li>' +
         '<li>Tocá cualquier tarjeta de arriba para ver ese instrumento con su gráfico intradiario y su historia. Todas las tasas están en TNA.</li></ul></div></div></div>';
       root.addEventListener('click', function (e) {
@@ -5706,13 +5713,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var ctx = ch.ctx; ctx.save(); ctx.setLineDash([3, 3]); ctx.lineWidth = 1; ctx.strokeStyle = css('--mu');
       ch.data.datasets.forEach(function (d, i) { if (!d.toFit || ch.getDatasetMeta(i).hidden) return; ch.getDatasetMeta(i).data.forEach(function (el, j) { var r = d.data[j]; if (r.fy == null) return; ctx.beginPath(); ctx.moveTo(el.x, el.y); ctx.lineTo(el.x, ch.scales.y.getPixelForValue(r.fy)); ctx.stroke(); }); });
       ctx.restore(); } };
-    function spreads(F, c) { // los diferenciales que importan, con la curva de Lecaps ajustada como referencia (no un bono suelto)
+    function spreads(F, c, cx) { // los diferenciales que importan, con la curva de Lecaps ajustada como referencia (no un bono suelto)
       var el = document.getElementById('tcSp'); if (!el) return;
       var fu = (S.futV && S.futV.length ? S.futV : S.fut).filter(function (f) { return f.t != null; }), fAt = function (d) { for (var i = 1; i < fu.length; i++) if (fu[i - 1].d <= d && fu[i].d >= d) return fu[i - 1].t + (fu[i].t - fu[i - 1].t) * (d - fu[i - 1].d) / (fu[i].d - fu[i - 1].d); return null; };
       var l30 = F ? F.at(30) : null, l90 = F ? F.at(90) : null, f30 = fAt(30), f90 = fAt(90), pb = function (v) { return v == null || !isFinite(v) ? 'n/a' : sg(v * 100, 0) + ' pb'; };
       var chip = function (t, v, sub, tt) { var cl = v == null ? 'mu' : v > 0 ? 'up' : v < 0 ? 'dn' : 'mu'; return '<div class="sp1" title="' + tt + '"><small>' + t + '</small><b class="' + cl + '">' + pb(v) + '</b><span>' + sub + '</span></div>'; };
       var cv = c && c.v != null ? c.v : null, pf = S.pf[1];
-      el.innerHTML = chip('Lecap 30 días vs. caución', l30 != null && cv != null ? l30 - cv : null, 'curva ' + P(l30) + ' · caución ' + P(cv), 'Lo que paga estirar de la caución de 1 día a una Lecap de 30 días (curva ajustada)') +
+      el.innerHTML = chip('Lecap 30 días vs. caución', l30 != null && cv != null ? l30 - cv : null, 'curva a 30 días ' + P(l30) + ' · caución a ' + dias(cx || 1) + ' ' + P(cv), 'Lo que paga estirar de la caución más corta (1 día hábil) a una Lecap de 30 días (curva ajustada)') +
         chip('Lecap 30 días vs. plazo fijo', l30 != null && pf != null ? l30 - pf : null, 'curva ' + P(l30) + ' · plazo fijo ' + P(pf), 'Positivo: la Lecap rinde más que el plazo fijo a 30 días') +
         chip('Lecap vs. dólar futuro, 1 mes', l30 != null && f30 != null ? l30 - f30 : null, 'Lecap ' + P(l30) + ' · futuro ' + P(f30), 'Carry trade: lo que rinde la Lecap por encima de la devaluación que descuenta el futuro. Positivo: conviene quedarse en pesos') +
         chip('Lecap vs. dólar futuro, 3 meses', l90 != null && f90 != null ? l90 - f90 : null, 'Lecap ' + P(l90) + ' · futuro ' + P(f90), 'Carry trade a 3 meses, con la curva de Lecaps y la de futuros interpoladas a 90 días');
@@ -5720,6 +5727,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     function curveChart(L) {
       if (CH.a) CH.a.destroy();
       document.getElementById('tcH').innerHTML = pills('data-h', ST.h, [[190, '6 meses'], [400, '1 año'], [0, 'Toda la curva']]);
+      document.getElementById('tcCfx').innerHTML = cfxP();
       var Lh = L.filter(function (o) { return !ST.h || o.d <= ST.h; }), F = LF, xe = Lh.length ? Math.min(F ? F.x1 : 0, Lh[Lh.length - 1].d + 10) : 0;
       var c = inst('CAUCION'), cd = S.cau[0] ? S.cau[0][0] : 1, set = [];
       if (F && xe > F.x0) { // la curva ajustada con su banda de ±1σ, solo en el rango de las Lecaps
@@ -5731,17 +5739,18 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       }
       var lp = Lh.map(function (o) { var r = F ? F.res[o.k] : null; return { x: o.d, y: o.tnas * 100, s: o.k, k: o.k, r: r, fy: r != null ? o.tnas * 100 - r / 100 : null }; });
       set.push(ds('Lecaps y Boncaps', lp, C_LEC, { type: 'scatter', showLine: false, pointRadius: 5.5, pointHoverRadius: 8, toFit: true, legCol: C_LEC, backgroundColor: lp.map(function (p) { return RESC(p.r); }), borderColor: lp.map(function (p) { return RESC(p.r); }), order: 1 }));
-      if (c) set.push(ds('Caución 1 día hábil', [{ x: (c.i && c.i.d === todayBA() && c.i.dias) || cd, y: c.v, s: 'Caución en pesos · ' + c.vs }], C_CAU, { pointRadius: 8, pointStyle: 'circle', showLine: false }));
-      if (S.pf[0]) set.push(ds('Plazo fijo 30 días', [{ x: 30, y: S.pf[1], s: 'Plazo fijo 30 días · BCRA ' + fr(S.pf[0]) }], C_PF, { pointRadius: 8, pointStyle: 'rectRot', showLine: false }));
-      if (S.bad[0]) set.push(ds('BADLAR', [{ x: 32, y: S.bad[1], s: 'BADLAR · BCRA ' + fr(S.bad[0]) }], C_BAD, { pointRadius: 7, pointStyle: 'rect', showLine: false }));
-      if (S.tam[0]) set.push(ds('TAMAR', [{ x: 34, y: S.tam[1], s: 'TAMAR · BCRA ' + fr(S.tam[0]) }], C_TAM, { pointRadius: 8, pointStyle: 'triangle', showLine: false }));
+      var cx = (c && c.i && c.i.d === todayBA() && c.i.dias) || cd; // el plazo de la caución más corta: 1 día hábil (3 días un viernes)
+      if (c) set.push(ds('Caución ' + dias(cx) + (cx > 1 ? ' (1 día hábil)' : ''), [{ x: cx, y: c.v, s: 'Caución en pesos · ' + c.vs }], C_CAU, { pointRadius: 8, pointStyle: 'circle', showLine: false }));
+      if (S.pf[0]) set.push(ds('Plazo fijo 30 días', [{ x: 30, y: S.pf[1], s: 'Plazo fijo 30 días · BCRA ' + fr(S.pf[0]), k: 'Plazo fijo' }], C_PF, { type: 'scatter', legCol: C_PF, pointRadius: 8, pointStyle: 'rectRot', showLine: false, order: 0, borderColor: css('--card') || '#1c1917', borderWidth: 1.5, backgroundColor: C_PF }));
+      if (S.bad[0]) set.push(ds('BADLAR', [{ x: 32, y: S.bad[1], s: 'BADLAR · BCRA ' + fr(S.bad[0]), k: 'BADLAR' }], C_BAD, { type: 'scatter', legCol: C_BAD, pointRadius: 8, pointStyle: 'rect', showLine: false, order: 0, borderColor: css('--card') || '#1c1917', borderWidth: 1.5, backgroundColor: C_BAD }));
+      if (S.tam[0]) set.push(ds('TAMAR', [{ x: 34, y: S.tam[1], s: 'TAMAR · BCRA ' + fr(S.tam[0]), k: 'TAMAR' }], C_TAM, { type: 'scatter', legCol: C_TAM, pointRadius: 8, pointStyle: 'triangle', showLine: false, order: 0, borderColor: css('--card') || '#1c1917', borderWidth: 1.5, backgroundColor: C_TAM }));
       var cfd = S.dcf ? dn(S.dcf) : 0, cfp = S.cfut.map(function (r) { return { x: r[1] ? dn(r[1]) - cfd : null, y: r[2], s: name(r[0]) + ' · caución a 1 día esperada', k: 'Cau. ' + name(r[0]).replace('Caución ', '') }; }).filter(function (p) { return p.x > 0 && p.y > 0 && (!ST.h || p.x <= ST.h); });
       if (cfp.length) set.push(ds('Futuros de caución', cfp, C_CF, { type: 'scatter', showLine: false, pointRadius: 5, pointHoverRadius: 8, pointStyle: 'rectRounded', borderColor: css('--card') || '#1c1917', borderWidth: 1.5, backgroundColor: C_CF, legCol: C_CF, order: 2 }));
       var mx = Math.ceil((Math.max.apply(null, Lh.map(function (o) { return o.d; }).concat([60])) + 15) / 30) * 30;
       var tip = function (cc) { var p = cc.raw, t = 'TNA ' + nf(p.y, 2) + '% · ' + dias(Math.round(p.x)); if (p.r != null) t += ' · desvío ' + sg(p.r, 0) + ' pb' + (F && Math.abs(p.r) >= 100 * F.sigma ? ' (fuera de la banda)' : ''); return t; };
       CH.a = new Chart(document.getElementById('tcCh1').getContext('2d'), { type: 'scatter', data: { datasets: set }, plugins: [VLN].concat(LBL()),
         options: scatterOpt('Días al vencimiento', '', function (v) { return nf(v, 0) + '%'; }, tip, mx) });
-      spreads(F, c);
+      spreads(F, c, cx);
       var kn = document.getElementById('tcKn');
       if (kn) kn.innerHTML = F ? 'Curva: ' + F.name + ' · dispersión ±1σ = ' + nf(F.sigma * 100, 0) + ' pb (banda sombreada). <span style="color:#34d399">Verde</span>: rinde más que la curva (barata); <span style="color:#fb7185">rojo</span>: rinde menos (cara). La línea punteada es el desvío.' + (S.cfut.length ? ' <span style="color:' + C_CF + '">Violeta</span>: futuros de caución, la caución a 1 día que espera el mercado para cada fecha (no es la tasa del plazo).' : '') : '';
     }
@@ -5750,8 +5759,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (!VREQ && window.VOLX) { VREQ = true; window.VOLX.ensure(function () { if (T.isAct()) render(); }); }
       var mm = function (v) { return v == null ? '…' : v >= 1e9 ? nf(v / 1e9, 1) + ' mil M' : v >= 1e6 ? nf(v / 1e6, 0) + ' M' : v > 0 ? '< 1 M' : '0'; };
       var h = '<thead><tr><th class="l">Lecap</th><th>Vence</th><th>Días</th><th>Precio</th><th>Var.</th><th>Compra</th><th>Venta</th><th>TNA</th><th>TEM</th><th>TEA</th><th title="TNA de la Lecap menos la curva ajustada. Positivo: rinde más que la curva (barata)">Desvío (pb)</th><th>Volumen diario ($)</th></tr></thead><tbody>';
-      L.filter(function (o) { return o.d <= 185; }).forEach(function (o) { var qq = q[o.k] || {}, v = VM ? VM[o.k] || 0 : null;
-        h += '<tr data-qv="' + o.k + '"><td class="l"><b>' + o.k + '</b></td><td>' + fr(bxDayStr(o.mat)) + '</td><td>' + o.d + '</td><td>' + nf(o.P, 3) + '</td><td class="' + (qq.pct > 0 ? 'up' : qq.pct < 0 ? 'dn' : 'mu') + '">' + (qq.pct == null ? '—' : sg(qq.pct, 2) + '%') + '</td><td>' + (qq.bid ? nf(qq.bid, 3) : '—') + '</td><td>' + (qq.ask ? nf(qq.ask, 3) : '—') + '</td><td><b>' + P(o.tnas * 100) + '</b></td><td>' + P(o.tem != null ? o.tem * 100 : null) + '</td><td>' + P(o.tea * 100) + '</td><td style="color:' + (LF && LF.res[o.k] != null && RESC(LF.res[o.k]) !== C_LEC ? RESC(LF.res[o.k]) : 'var(--tx)') + '">' + (LF && LF.res[o.k] != null ? sg(LF.res[o.k], 0) : '—') + '</td>' +
+      document.getElementById('tcT5').textContent = 'Lecaps y Boncaps' + (ST.h === 190 ? ' hasta 6 meses' : ST.h === 400 ? ' hasta 1 año' : ''); // el mismo plazo que el gráfico
+      L.filter(function (o) { return !ST.h || o.d <= ST.h; }).forEach(function (o) { var qq = q[o.k] || {}, v = VM ? VM[o.k] || 0 : null, tm = o.tea != null ? (Math.pow(1 + o.tea, 30 / 365) - 1) * 100 : null; // TEM compuesta: (1 + TEA)^(30/365) − 1
+        h += '<tr data-qv="' + o.k + '"><td class="l"><b>' + o.k + '</b>' + (o.ins && o.ins.cerFix ? ' <span class="mu" title="Bono CER con el índice de pago ya publicado: el flujo quedó fijo en pesos">CER fijado</span>' : '') + '</td><td>' + fr(bxDayStr(o.mat)) + '</td><td>' + o.d + '</td><td>' + nf(o.P, 3) + '</td><td class="' + (qq.pct > 0 ? 'up' : qq.pct < 0 ? 'dn' : 'mu') + '">' + (qq.pct == null ? '—' : sg(qq.pct, 2) + '%') + '</td><td>' + (qq.bid ? nf(qq.bid, 3) : '—') + '</td><td>' + (qq.ask ? nf(qq.ask, 3) : '—') + '</td><td><b>' + P(o.tnas * 100) + '</b></td><td>' + P(tm) + '</td><td>' + P(o.tea * 100) + '</td><td style="color:' + (LF && LF.res[o.k] != null && RESC(LF.res[o.k]) !== C_LEC ? RESC(LF.res[o.k]) : 'var(--tx)') + '">' + (LF && LF.res[o.k] != null ? sg(LF.res[o.k], 0) : '—') + '</td>' +
           '<td' + (v != null && v < 100e6 ? ' style="color:#f59e0b"' : '') + '>' + mm(v) + '</td></tr>'; });
       document.getElementById('tcLec').innerHTML = h + (L.length ? '' : '<tr><td class="l mu" colspan="12">Esperando los precios de Curva Pesos…</td></tr>') + '</tbody>';
     }
@@ -5797,7 +5807,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var units = {}; ST.s.forEach(function (k) { units[SER[k][2]] = 1; }); var two = Object.keys(units).length > 1, u1 = SER[ST.s[0]][2];
       var D2 = window_(ST.s.map(function (k) { return src[k]; }), '0', rgN(ST.w));
       document.getElementById('tcT2').textContent = 'Histórico de tasas · ' + rgName(ST.w);
-      CH.b = histChart('tcCh2', D2, ST.s.map(function (k) { return lin(SER[k][0] + (two && SER[k][2] !== u1 ? ' (eje derecho)' : ''), on(D2, src[k]), SER[k][1], { borderWidth: 1.8, yAxisID: two && SER[k][2] !== u1 ? 'y2' : 'y' }); }), 'TNA (%) de cada rueda', two ? 'TNA (%)' : null);
+      CH.b = histChart('tcCh2', D2, ST.s.map(function (k) { return lin(SER[k][0] + (two && SER[k][2] !== u1 ? ' (eje derecho)' : ''), on(D2, src[k]), SER[k][1], { borderWidth: 1.8, yAxisID: two && SER[k][2] !== u1 ? 'y2' : 'y' }); }), (ST.s.length === 1 ? SER[ST.s[0]][0] + (ST.s[0] === 'cau' || ST.s[0] === 'usd' ? ' a 1 día hábil' : '') + ' · ' : '') + 'TNA (%) de cada rueda', two ? 'TNA (%)' : null);
     }
     function render() {
       if (!T.isAct()) return;
@@ -5864,6 +5874,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var f = fc().filter(function (x) { return x.d >= 3; }).slice(0, 3), c0 = S.cfut.filter(function (r) { return r[1] && dn(r[1]) - dn(S.dcf) >= 10; })[0];
       document.getElementById('tfCards').innerHTML = card('A3500', 'Dólar A3500') + card('TASA FUTURO 3M', 'Tasa implícita a 3 meses') + card('DEVALUACION', 'Devaluación mensual implícita') + card('CAUCION', cauT('CAUCION', 'Caución en pesos')) +
         f.map(function (x) { return card(x.s, name(x.s) + ' · ' + dias(x.d)); }).join('') + (c0 ? card(psym(c0[0]), name(c0[0]) + ' · futuro de caución') : '');
+      if (ST.db === 't1') { // la tasa a 3 meses (y su devaluación) con los días desde la liquidación T+1, interpolada como en la historia
+        var g = fc().filter(function (x) { return x.d >= 30 && x.t != null; }), v = null;
+        for (var i = 1; i < g.length && v == null; i++) if (g[i - 1].d <= 90 && g[i].d >= 90) v = g[i - 1].t + (g[i].t - g[i - 1].t) * (90 - g[i - 1].d) / (g[i].d - g[i - 1].d);
+        if (v == null && g.length && g[0].d > 90) v = g[0].t;
+        [['TASA FUTURO 3M', v], ['DEVALUACION', devm(v)]].forEach(function (q) { var el = document.querySelector('#tfCards [data-qv="' + q[0] + '"]'); if (!el || q[1] == null) return;
+          var b = el.querySelector('.v b'), em = el.querySelector('.v em'), sm = el.querySelector('small'); if (b) b.textContent = P(q[1]); if (em) em.textContent = ''; if (sm) sm.textContent += ' · T+1'; });
+      }
     }
     var GLOW = { id: 'tfGlow', // la curva con brillo: sombra difusa del mismo color
       beforeDatasetDraw: function (ch, a) { var d = ch.data.datasets[a.index]; if (!d.glow) return; ch.ctx.save(); ch.ctx.shadowColor = d.glow; ch.ctx.shadowBlur = 16; },
@@ -5878,6 +5895,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var tip = function (x) { return function (cc) { return x + ': ' + nf(cc.raw.y, 2) + '% · ' + dias(Math.round(cc.raw.x)); }; };
       var sh = function (s) { return name(s).replace(/^(DLR|Caución) /, ''); }, card = css('--card') || '#1c1917';
       var fitL = function (pts, col, extra) { // curva Nelson-Siegel (con pocos puntos, la automática de Curva Pesos) entre el primer y el último punto; con menos de 3, une los puntos
+        var lg = pts.filter(function (p) { return p.x >= 21; }); if (lg.length >= 3) pts = lg; // sin el contrato de menos de 3 semanas: anualizado o mensualizado, cualquier diferencia chica lo dispara y tuerce la curva
         var F = null; try { F = window.PSX && window.PSX.fairFit && pts.length >= 3 ? window.PSX.fairFit(pts.map(function (p) { return { x: p.x, y: p.y }; }), 'ns') : null; } catch (e) { F = null; }
         var o = { pointRadius: 0, pointHoverRadius: 0, borderWidth: 2.6, tension: 0, noTip: true, noLeg: true, order: 4, glow: col + 'aa', fill: 'start', backgroundColor: fade(col) }; for (var k in extra) o[k] = extra[k];
         return ds('', F ? smooth(F.f, pts[0].x, pts[pts.length - 1].x) : pts, col, o);
@@ -5916,10 +5934,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var cpv = {}; (S.cfPrev || []).forEach(function (r) { cpv[r[0]] = r[2]; });
       var lc = {}; if (S.vivoOk) (S.V.cfut || []).forEach(function (r) { lc[key(r[0])] = r; }); var lcv = Object.keys(lc).length;
       var x2 = function (v) { return v ? nf(v, 2) + '%' : '—'; };
-      h = '<thead><tr><th class="l">Contrato</th><th>Vence</th>' + (lcv ? '<th>Compra</th><th>Venta</th><th class="lc">Último hoy</th>' : '') + '<th>Apertura</th><th>Mín.</th><th>Máx.</th><th' + (lcv ? '' : ' class="lc"') + '>Último</th><th>Tasa (ajuste)</th><th>Var.</th><th>Volumen</th><th>I.A.</th><th>Var. I.A.</th></tr></thead><tbody>';
+      h = '<thead><tr><th class="l">Contrato</th><th>Vence</th>' + (lcv ? '<th>Compra</th><th>Venta</th><th class="lc">Último hoy</th>' : '') + '<th>Apertura</th><th>Mín.</th><th>Máx.</th><th>Último</th><th' + (lcv ? '' : ' class="lc"') + '>Tasa (ajuste)</th><th>Var.</th><th>Volumen</th><th>I.A.</th><th>Var. I.A.</th></tr></thead><tbody>';
       S.cfut.forEach(function (r) { var p = cpv[r[0]], ch = p != null ? r[2] - p : null, L = lc[key(r[0])];
         h += '<tr data-qv="' + psym(r[0]) + '"><td class="l"><b>' + name(r[0]) + '</b></td><td>' + fr(r[1]) + '</td>' + (lcv ? '<td>' + x2(L && L[2]) + '</td><td>' + x2(L && L[3]) + '</td><td class="lc">' + x2(L && L[4]) + '</td>' : '') +
-          '<td>' + x2(r[6]) + '</td><td>' + x2(r[8]) + '</td><td>' + x2(r[7]) + '</td><td' + (lcv ? '' : ' class="lc"') + '>' + x2(r[9]) + '</td><td>' + nf(r[2], 2) + '%</td><td class="' + cls(ch) + '">' + (ch == null ? '—' : sg(ch, 2) + ' pp') + '</td>' +
+          '<td>' + x2(r[6]) + '</td><td>' + x2(r[8]) + '</td><td>' + x2(r[7]) + '</td><td>' + x2(r[9]) + '</td><td' + (lcv ? '' : ' class="lc"') + '>' + nf(r[2], 2) + '%</td><td class="' + cls(ch) + '">' + (ch == null ? '—' : sg(ch, 2) + ' pp') + '</td>' +
           '<td>' + cnt(r[4]) + '</td><td>' + cnt(r[3]) + '</td><td class="' + cls(r[10]) + '">' + (r[10] == null ? '—' : sg(r[10], 0)) + '</td></tr>'; });
       document.getElementById('tfCf').innerHTML = h + '</tbody>';
       document.getElementById('tfT4').textContent = 'Futuros de caución · cierre del ' + fr(S.dcf);
@@ -6026,7 +6044,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       root.innerHTML = STYLE('#sint') +
         '<div class="card" id="syCap"><div class="status" style="justify-content:space-between;gap:12px;flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0;flex:1 1 0"><p style="margin:0;color:var(--tx);font-size:16px;font-weight:600">Sintéticos</p>' +
         '<p class="note" style="margin-top:4px" id="sySub"></p></div>' + dl('syCap', 'Sinteticos', 'Descargar la pestaña en HD') + '</div>' +
-        '<div class="rs" id="syS"><div style="' + HD + '"><span id="syM"></span>' + dl('syS', 'Sinteticos_estrategia', 'Descargar en HD') + '</div>' +
+        '<div class="rs" id="syS"><div style="' + HD + '"><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="syM"></span><span id="syCfx"></span></span>' + dl('syS', 'Sinteticos_estrategia', 'Descargar en HD') + '</div>' +
         cw('syA', 400) + '<div class="rg" style="margin-top:22px">' + cw('syB', 320) + cw('syC', 320) + '</div>' +
         '<h5 style="margin:22px 0 8px" id="syH"></h5><div class="sc"><table class="rt" id="syT"></table></div><div class="hl" style="margin:18px 0 0" id="syN"></div></div></div>';
       root.addEventListener('click', function (e) { var b = e.target.closest('[data-sm]'); if (!b || !root.contains(b) || !LAST) return; ST.m = b.getAttribute('data-sm'); draw(LAST); });
@@ -6035,8 +6053,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var X = window.PSX, sn = null; try { sn = X && X.snap ? X.snap(1) : null; } catch (e) { sn = null; }
       var all = sn ? sn.S : [], s0 = sn ? sn.s : null; if (!all.length) return null;
       var by = function (f) { return all.filter(function (o) { return f(o) && !o.miss && o.P > 0; }).sort(function (a, b) { return a.d - b.d; }); };
-      var orig = function (k) { try { return PSD.INST[k] ? PSD.INST[k].k : null; } catch (e) { return null; } }; // Curva Pesos pasa a tasa fija los CER con el índice ya fijado (TZXO6, X30N6): acá no son Lecaps
-      var fija = by(function (o) { return o.ins.k === 'cap' && !o.ins.cerFix && orig(o.k) === 'cap' && o.tnas != null && o.d >= 7; }); if (!fija.length) return null;
+      var fija = by(function (o) { return o.ins.k === 'cap' && o.tnas != null && o.d >= 7; }); // los CER con el índice fijado entran solo con la opción «CER fijados como tasa fija» if (!fija.length) return null;
       var c = fc(), Sp = c.length ? c[0].sp : null, base = c.length ? dp(c[0].base) : s0;
       var D = { s0: s0, fija: fija, c: c, Sp: Sp, dls: by(function (o) { return o.ins.k === 'dl' && o.usdTea != null && o.d >= 7; }) };
       D.fx = (D.dls[0] && D.dls[0].fx0) || at(S.fx, '9999')[1] || Sp; // el A3500: con el que el dollar linked da su tasa en dólares, así el sintético se compara igual
@@ -6099,7 +6116,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         '<li><b>USD hoy</b> = precio / A3500 de hoy. <b>USD al vencimiento</b> = pago de la Lecap / futuro de su vencimiento. TEA = (USD al venc. / USD hoy)<sup>365/días</sup> − 1 y TEM = (1 + TEA)<sup>1/12</sup> − 1.</li>' +
         '<li><b>Contra qué se compara</b>: si hay un dollar linked que vence a una semana o menos, contra ese bono (es la alternativa real); si no, contra la curva ajustada de dollar linked al mismo plazo (la misma del gráfico, sin los de menos de 3 semanas). Las dos se miden con el A3500. <b>Dif. (pb)</b> y <b>Conviene</b> usan esa comparación; <b>Dif. curva</b> es siempre contra la curva.</li>' +
         '<li><b>Contrato</b>: el futuro del mes en que vence la Lecap. Con <b>*</b>, la Lecap vence antes de fin de mes: el precio del futuro se interpola a su fecha y, como el contrato se desarma ese día, queda riesgo de base.</li>' +
-        '<li><b>Qué entra</b>: solo Lecaps y Boncaps (los CER con el índice ya fijado no). Los que vencen en menos de 3 semanas van solo en la tabla: a tan pocos días la TEA anualiza cualquier diferencia chica.</li></ul>';
+        '<li><b>Qué entra</b>: Lecaps y Boncaps; los CER con el índice ya fijado, solo si elegís «Con CER fijados». Los que vencen en menos de 3 semanas van solo en la tabla: a tan pocos días la TEA anualiza cualquier diferencia chica.</li></ul>';
     }
     function drawLec(D) { // 2) Lecap sintética: dollar linked + venta de futuro, contra la Lecap
       var hp = D.dlr.filter(function (x) { return x.o.mat <= D.x1 && x.tn != null; }).map(function (x) { return { x: x.o.mat, y: x.tn, s: x.o.k + ' + venta de futuro (neta de base)', k: x.o.k }; }), sets = []; // neta de base: sin la base, los cortos se inflan
@@ -6124,6 +6141,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     }
     function draw(D) {
       document.getElementById('syM').innerHTML = pills('data-sm', ST.m, MODES);
+      document.getElementById('syCfx').innerHTML = cfxP();
       try { (ST.m === 'lec' ? drawLec : drawUsd)(D); } catch (e) { console.error('sint ' + ST.m, e); }
       try { fxChart(D); } catch (e) { console.error('sint tc', e); }
     }
@@ -7718,7 +7736,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   ['bmep', 'bccl'].forEach(function (id) { var b = $(id); if (b) b.addEventListener('click', function () { setTimeout(drawUSD, 50); }); });
   document.addEventListener('rpdata', function () { if (DATA) render(); });
   document.addEventListener('psdata', function () { if (home.classList.contains('active')) { drawPesos(); setTimeout(movers, 400); } }); // movers: después de que la pestaña Variación diaria guarde las cotizaciones (PXQ) // llegaron cierres o precios en vivo de los bonos en pesos
-  window.switchTab('home');
+  window.switchTab((function () { try { var t = sessionStorage.getItem('cerFixTab'); sessionStorage.removeItem('cerFixTab'); return t && document.getElementById(t) ? t : 'home'; } catch (e) { return 'home'; } })()); // tras cambiar la opción de CER fijados, vuelve a la misma pestaña
 })();
 </script>
 
