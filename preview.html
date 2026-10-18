@@ -5826,13 +5826,24 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       ['a', 'e'].forEach(function (k) { if (CH[k]) { CH[k].destroy(); CH[k] = null; } });
       var c = fc(), cfd = S.dcf ? dn(S.dcf) : 0, mx = Math.min(420, Math.ceil((Math.max.apply(null, c.map(function (f) { return f.d; }).concat([60])) + 10) / 30) * 30);
       var tip = function (x) { return function (cc) { return x + ': ' + nf(cc.raw.y, 2) + '% · ' + dias(Math.round(cc.raw.x)); }; };
-      CH.a = new Chart(document.getElementById('tfCh1').getContext('2d'), { type: 'scatter', data: { datasets: [
-        ds('Dólar futuro' + (S.futV ? ' (en vivo)' : ' (cierre ' + fr(S.df).slice(0, 5) + ')'), c.map(function (f) { return { x: f.d, y: f.t, s: name(f.s) }; }), C_FUT),
-        ds('Futuros de caución', S.cfut.map(function (r) { return { x: r[1] ? dn(r[1]) - cfd : null, y: r[2], s: name(r[0]) }; }).filter(function (p) { return p.x > 0; }), C_CF, { borderDash: [5, 4], borderWidth: 1.6 })] },
-        options: scatterOpt('Días al vencimiento', 'Tasa implícita (TNA %)', function (v) { return nf(v, 0) + '%'; }, tip('TNA'), mx) });
-      CH.e = new Chart(document.getElementById('tfCh5').getContext('2d'), { type: 'scatter', data: { datasets: [
-        ds('Devaluación mensual implícita', c.map(function (f) { return { x: f.d, y: f.dev, s: name(f.s) }; }), C_DEV)] },
-        options: scatterOpt('Días al vencimiento', 'Devaluación mensual implícita (%)', function (v) { return nf(v, 1) + '%'; }, tip('Devaluación mensual'), mx) });
+      var sh = function (s) { return name(s).replace(/^(DLR|Caución) /, ''); };
+      var fitL = function (pts, col, extra) { // curva ajustada (la de Curva Pesos) entre el primer y el último punto; con menos de 3, une los puntos
+        var F = null; try { F = window.PSX && window.PSX.fairFit && pts.length >= 3 ? window.PSX.fairFit(pts.map(function (p) { return { x: p.x, y: p.y }; }), 'auto') : null; } catch (e) { F = null; }
+        var o = { pointRadius: 0, pointHoverRadius: 0, borderWidth: 2, tension: 0, noTip: true, noLeg: true, backgroundColor: 'transparent', order: 4 }; for (var k in extra) o[k] = extra[k];
+        return ds('', F ? smooth(F.f, pts[0].x, pts[pts.length - 1].x) : pts, col, o);
+      };
+      var fp = c.filter(function (f) { return f.t != null; }).map(function (f) { return { x: f.d, y: f.t, s: name(f.s), k: sh(f.s) }; });
+      var cp2 = S.cfut.map(function (r) { return { x: r[1] ? dn(r[1]) - cfd : null, y: r[2], s: name(r[0]), k: 'Cau. ' + sh(r[0]) }; }).filter(function (p) { return p.x > 0; });
+      CH.a = new Chart(document.getElementById('tfCh1').getContext('2d'), { type: 'scatter', data: { datasets: [fitL(fp, C_FUT), fitL(cp2, C_CF, { borderDash: [5, 4], borderWidth: 1.6 }),
+        ds('Dólar futuro' + (S.futV ? ' (en vivo)' : ' (cierre ' + fr(S.df).slice(0, 5) + ')'), fp, C_FUT, { type: 'scatter', showLine: false, pointRadius: 4.5, order: 1 }),
+        ds('Futuros de caución', cp2, C_CF, { type: 'scatter', showLine: false, pointRadius: 4.5, order: 1 })] }, plugins: LBL(),
+        options: scatterOpt('Días al vencimiento', 'Tasa implícita (TNA %)', function (v) { return nf(v, 1) + '%'; }, tip('TNA'), mx) });
+      CH.a.options.layout = { padding: { right: 28, top: 4 } }; CH.a.update();
+      var dp2 = c.filter(function (f) { return f.dev != null; }).map(function (f) { return { x: f.d, y: f.dev, s: name(f.s), k: sh(f.s) }; });
+      CH.e = new Chart(document.getElementById('tfCh5').getContext('2d'), { type: 'scatter', data: { datasets: [fitL(dp2, C_DEV),
+        ds('Devaluación mensual implícita', dp2, C_DEV, { type: 'scatter', showLine: false, pointRadius: 4.5, order: 1 })] }, plugins: LBL(),
+        options: scatterOpt('Días al vencimiento', 'Devaluación mensual implícita (%)', function (v, i, t) { var st = t && t.length > 1 ? Math.abs(t[1].value - t[0].value) : 0.1; return nf(v, st < 0.1 ? 2 : 1) + '%'; }, tip('Devaluación mensual'), mx) });
+      CH.e.options.layout = { padding: { right: 28, top: 4 } };
       CH.e.options.plugins.legend.display = false; CH.e.update();
     }
     function tables() {
