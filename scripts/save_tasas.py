@@ -3,16 +3,20 @@
 - cau[fecha] y cauD[fecha]: cierre de la caución de A3 (api.marketdata.mae.com.ar, histórico de cauciones) en pesos y en dólares,
   una fila por plazo: [días, tasa promedio ponderada (TNA %), mínima, máxima, monto, fecha de liquidación]. Hay datos desde 2023.
 - fut[fecha]: cierres de los futuros de dólar de A3 (apicem.matbarofex.com.ar, closing-prices):
-  [contrato, vencimiento, ajuste, interés abierto, volumen, tasa implícita (TNA %) que publica A3].
-- cfut[fecha]: lo mismo para los futuros de tasa de caución (el precio es la tasa): [contrato, vencimiento, ajuste, interés abierto, volumen].
+  [contrato, vencimiento, ajuste, interés abierto, volumen, tasa implícita (TNA %) que publica A3,
+   apertura, máximo, mínimo, último operado, variación del interés abierto, cantidad de operaciones].
+- cfut[fecha]: lo mismo para los futuros de tasa de caución (el precio es la tasa), con la tasa implícita en null.
 - pf y badlar: tasa de plazo fijo a 30 días (serie 12 del BCRA) y BADLAR de bancos privados (serie 7), TNA %. a3500: serie 5 del BCRA.
 - f90[fecha]: tasa implícita a 3 meses de los futuros de dólar (TNA %), con el A3500 de esa rueda: (futuro / A3500 − 1) × 365 / días,
   interpolada a 90 días entre los contratos de 30 días o más. Se calcula desde 2020 con los cierres de A3 (en fut quedan solo los de DESDE en adelante).
 - bcau: caución de BYMA (open.bymadata.com.ar, sin credenciales) en pesos, dólar MEP y dólar cable. vivo.bcau = foto de la rueda por plazo
   [días, compra, venta, última, cierre, vwap, monto]; bcau[fecha] = cierre del plazo más corto de cada moneda [días, cierre, vwap, monto].
 - vivo: foto de la rueda por la API de Primary con la cuenta de Bull (secrets ROFEX_USER, ROFEX_PASS, ROFEX_URL; sin ellos no se toma):
-    fut y cfut: [contrato, vencimiento, compra, venta, último, ajuste, interés abierto, volumen]
+    fut y cfut: [contrato, vencimiento, compra, venta, último, ajuste, interés abierto, volumen, apertura, máximo, mínimo]
     cau: caución de BYMA en pesos por plazo, [días, compra, venta, última, volumen nominal]
+data/intra.json: el intradiario de las últimas ruedas, {fecha: {"cau": {"ARS"|"USD"|"EXT": [[minuto del día, tasa, monto]]}, "cd": {moneda: días},
+  "fut": {contrato: [[minuto, último, cantidad]]}}}. La caución es el plazo más corto de BYMA en cada corrida del Action (cada 20 minutos);
+  los futuros de dólar y de caución, todas las operaciones del día por Primary agrupadas cada 5 minutos.
 La primera vez trae la historia desde DESDE; después, las últimas dos semanas (A3 y el BCRA a veces corrigen el último dato).
 Si una fuente falla, no pisa lo que ya había. Para pruebas: FORCE_DATE (fecha de hoy) y SIN_VIVO=1.
 """
@@ -20,6 +24,7 @@ import json, os, re, time, urllib.parse, urllib.request, datetime as dt
 from zoneinfo import ZoneInfo
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "data", "tasas.json")
+OUTI = os.path.join(os.path.dirname(__file__), "..", "data", "intra.json")
 DESDE = dt.date(2025, 1, 2)
 DESDE_CAU = dt.date(2022, 6, 1)  # A3 tiene la caución desde 2023
 DESDE_F90 = dt.date(2020, 1, 2)  # y los cierres de futuros de dólar desde 2020
@@ -80,8 +85,10 @@ for k in KEYS:
     db.setdefault(k, {})
 
 
-def desde(key, d0=DESDE):  # toda la historia si falta el principio; si no, las últimas dos semanas
+def desde(key, d0=DESDE):  # toda la historia si falta el principio o el formato quedó viejo; si no, las últimas dos semanas
     if len(db[key]) < 20 or min(db[key]) > (d0 + dt.timedelta(days=200)).isoformat():
+        return d0
+    if key in ("fut", "cfut") and any(len(r) < 12 for v in db[key].values() for r in v):
         return d0
     return max(d0, today - dt.timedelta(days=14))
 
@@ -121,11 +128,10 @@ for key, prod in (("fut", "DLR"), ("cfut", "Tasa de Caución")):
                 f, s = r["dateTime"][:10], r["symbol"]
                 if not num(r.get("settlement")):
                     continue
-                row = [s, venc(s), r["settlement"], num(r.get("openInterest")), num(r.get("volume"))]
-                if key == "fut":
-                    if not re.fullmatch(r"DLR\d{6}", s):
-                        continue
-                    row.append(num(r.get("impliedRate")))
+                if key == "fut" and not re.fullmatch(r"DLR\d{6}", s):
+                    continue
+                row = [s, venc(s), r["settlement"], num(r.get("openInterest")), num(r.get("volume")), num(r.get("impliedRate")) if key == "fut" else None,
+                       num(r.get("open")), num(r.get("high")), num(r.get("low")), num(r.get("close")), num(r.get("openInterestChange")), num(r.get("tradeCount"))]
                 got.setdefault(f, []).append(row)
         for f, rows in got.items():
             if f < DESDE.isoformat():
@@ -174,6 +180,16 @@ for src in (OLD, db["fut"]):
             db["f90"][f] = v
 print("f90: %d ruedas desde %s" % (len(db["f90"]), min(db["f90"] or [""])))
 
+# --- intradiario (archivo aparte): las últimas ruedas ---
+try:
+    IN = json.load(open(OUTI))
+except Exception:
+    IN = {}
+IN_before = json.dumps(IN, sort_keys=True)
+NOW = dt.datetime.now(TZ)
+MIN = NOW.hour * 60 + NOW.minute
+RUEDA = not os.environ.get("FORCE_DATE") and NOW.weekday() < 5 and 10 * 60 + 25 <= MIN <= 17 * 60 + 10
+
 # --- caución de BYMA (datos abiertos): pesos, dólar MEP y dólar cable ---
 try:
     BY = "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/cauciones"
@@ -197,6 +213,16 @@ try:
         viv["bcau"] = fb
         viv["bts"] = dt.datetime.now(TZ).strftime("%Y-%m-%dT%H:%M")
         db["vivo"] = viv
+        if RUEDA:  # el intradiario: el plazo más corto de cada moneda, con la última tasa operada (o la promedio)
+            day = IN.setdefault(today.isoformat(), {})
+            for m in fb:
+                r = next((r for r in fb[m] if r[3] or r[5]), None)
+                if r:
+                    day.setdefault("cd", {})[m] = r[0]
+                    pts = day.setdefault("cau", {}).setdefault(m, [])
+                    pt = [MIN, r[3] or r[5], r[6]]
+                    if not pts or pts[-1][1:] != pt[1:]:
+                        pts.append(pt)
         if dt.datetime.now(TZ).hour >= 17:  # al cierre: el plazo más corto de cada moneda queda en la historia
             cl = {m: [r[0], r[4], r[5], r[6]] for m in fb for r in fb[m][:1] if r[4]}
             if cl:
@@ -218,7 +244,8 @@ if U and P and not os.environ.get("SIN_VIVO"):
         items = pyRofex.get_detailed_instruments(environment=env).get("instruments", [])
         by = {(i.get("instrumentId") or {}).get("symbol", ""): i for i in items}
         E = pyRofex.MarketDataEntry
-        ENTS = [E.BIDS, E.OFFERS, E.LAST, E.CLOSING_PRICE, E.SETTLEMENT_PRICE, E.OPEN_INTEREST, E.TRADE_VOLUME, E.NOMINAL_VOLUME]
+        ENTS = [E.BIDS, E.OFFERS, E.LAST, E.CLOSING_PRICE, E.SETTLEMENT_PRICE, E.OPEN_INTEREST, E.TRADE_VOLUME, E.NOMINAL_VOLUME,
+                E.OPENING_PRICE, E.HIGH_PRICE, E.LOW_PRICE]
 
         def md(s):
             for k in range(4):
@@ -245,7 +272,8 @@ if U and P and not os.environ.get("SIN_VIVO"):
                 if d is None:
                     continue
                 viv[key].append([s, mat(s), top(d.get("BI")), top(d.get("OF")), px(d.get("LA")), px(d.get("SE")) or px(d.get("CL")),
-                                 (d.get("OI") or {}).get("size") if isinstance(d.get("OI"), dict) else None, num(d.get("TV"))])
+                                 (d.get("OI") or {}).get("size") if isinstance(d.get("OI"), dict) else None, num(d.get("TV")),
+                                 px(d.get("OP")), px(d.get("HI")), px(d.get("LO"))])
         cau = sorted((s for s in by if re.fullmatch(r"MERV - XMEV - PESOS - \d+D", s)), key=lambda s: int(s.rsplit("-", 1)[1].strip()[:-1]))
         for s in cau:
             dias = int(s.rsplit("-", 1)[1].strip()[:-1])
@@ -258,6 +286,36 @@ if U and P and not os.environ.get("SIN_VIVO"):
             if any(v for v in row[1:]):
                 viv["cau"].append(row)
         print("vivo: %d futuros de dólar, %d de caución, %d plazos de caución" % (len(viv["fut"]), len(viv["cfut"]), len(viv["cau"])))
+        # intradiario de los futuros: las operaciones de hoy y de las ruedas anteriores que falten, cada 5 minutos
+        habiles = [today - dt.timedelta(days=i) for i in range(8) if (today - dt.timedelta(days=i)).weekday() < 5][:5]
+        nh = 0
+        for f in habiles:
+            k = f.isoformat()
+            if k != today.isoformat() and (IN.get(k) or {}).get("fut"):
+                continue
+            got = {}
+            for s in [r[0] for r in viv["fut"]] + [r[0] for r in viv["cfut"]]:
+                try:
+                    tr = pyRofex.get_trade_history(ticker=s, start_date=f, end_date=f, environment=env).get("trades") or []
+                except Exception:
+                    continue
+                b5 = {}
+                for t in sorted(tr, key=lambda t: t.get("servertime") or 0):
+                    if not num(t.get("price")) or not t.get("servertime"):
+                        continue
+                    h = dt.datetime.fromtimestamp(t["servertime"] / 1000, TZ)
+                    if h.date() != f:
+                        continue
+                    m5 = (h.hour * 60 + h.minute) // 5 * 5
+                    o = b5.setdefault(m5, [m5, t["price"], 0])
+                    o[1] = t["price"]
+                    o[2] += num(t.get("size")) or 0
+                if b5:
+                    got[s] = [b5[m] for m in sorted(b5)]
+            if got:
+                IN.setdefault(k, {})["fut"] = got
+                nh += 1
+        print("intradiario de futuros: %d ruedas" % nh)
         old = db.get("vivo") or {}
         for k in ("bcau", "bts"):  # la foto de BYMA se toma aparte
             if k in old:
@@ -271,6 +329,11 @@ if U and P and not os.environ.get("SIN_VIVO"):
             m = m.replace(x, "<x>")
         print("Primary no disponible:", m[:300])
 
+IN = {k: IN[k] for k in sorted(IN)[-6:]}  # las últimas seis ruedas
+if json.dumps(IN, sort_keys=True) != IN_before:
+    with open(OUTI, "w") as fh:
+        json.dump(IN, fh, separators=(",", ":"))
+    print("intra.json actualizado")
 for k in KEYS:
     db[k] = dict(sorted(db[k].items()))
 strip = lambda o: {k: ({a: b for a, b in v.items() if a != "bts"} if k == "vivo" and isinstance(v, dict) else v) for k, v in o.items() if k != "generado"}
