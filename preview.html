@@ -5514,6 +5514,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       r + ' .rg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}@media(max-width:1000px){' + r + ' .rg{grid-template-columns:minmax(0,1fr)}}' +
       r + ' .rt{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}' + r + ' .rt th,' + r + ' .rt td{padding:6px 9px;white-space:nowrap;text-align:right}' + r + ' .rt th{font-size:12px;position:sticky;top:0;background:var(--card);color:var(--mu);border-bottom:1px solid var(--bd);z-index:1}' + r + ' .rt td.l,' + r + ' .rt th.l{text-align:left}' + r + ' .rt tr+tr td{border-top:1px solid rgba(148,163,184,.12)}' +
       r + ' .rt tr[data-qv]{cursor:pointer}' + r + ' .rt tr[data-qv]:hover td{background:rgba(148,163,184,.07)}' +
+      r + ' .rt .lc{background:rgba(245,158,11,.07);font-weight:700;color:var(--tx)}' + r + ' .rt th.lc{color:#f59e0b;background:color-mix(in srgb,var(--card) 92%,#f59e0b)}' + r + ' .rt tr[data-qv]:hover td.lc{background:rgba(245,158,11,.13)}' +
       r + ' .up{color:var(--ok)}' + r + ' .dn{color:var(--bad,#f87171)}' + r + ' .mu{color:var(--mu)}' +
       r + ' .rp{display:inline-flex;flex-wrap:wrap;gap:5px}' + r + ' .rp button{font:inherit;font-size:12px;font-weight:600;padding:5px 11px;border-radius:99px;border:1px solid var(--bd);background:transparent;color:var(--mu);cursor:pointer;white-space:nowrap}' +
       r + ' .rp button:hover{color:var(--tx);border-color:var(--mu)}' + r + ' .rp button.on{background:var(--ac);border-color:var(--ac);color:var(--bg)}' + r + ' .rp.sr button.on{background:transparent;color:var(--tx);border-color:var(--ac)}' + r + ' .rp.sr button i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0}' +
@@ -5850,14 +5851,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var live = !!(S.futV && S.futV.length), lv = {}; if (live) S.futV.forEach(function (f) { lv[f.s] = f; });
       var prev = {}; S.futPrev.forEach(function (f) { prev[f.s] = f.F; });
       var x1 = function (v) { return v ? nf(v, 1) : '—'; }, cls = function (v) { return v > 0 ? 'up' : v < 0 ? 'dn' : 'mu'; };
-      var h = '<thead><tr><th class="l">Contrato</th><th>Vence</th><th>Días</th>' + (live ? '<th>Compra</th><th>Venta</th>' : '') + '<th>Apertura</th><th>Mín.</th><th>Máx.</th><th>Último</th><th>' + (live ? 'Ajuste anterior' : 'Ajuste') + '</th><th>Var. %</th><th>Volumen</th><th>I.A.</th><th>Var. I.A.</th><th>TNA</th><th>TEA</th><th>Dev. mensual</th></tr></thead><tbody>';
+      var h = '<thead><tr><th class="l">Contrato</th><th>Vence</th><th>Días</th>' + (live ? '<th>Compra</th><th>Venta</th>' : '') + '<th>Apertura</th><th>Mín.</th><th>Máx.</th><th class="lc">Último</th><th>' + (live ? 'Ajuste anterior' : 'Ajuste') + '</th><th>Var. %</th><th>Volumen</th><th>I.A.</th><th>Var. I.A.</th><th>TNA</th><th>TEA</th><th>Dev. mensual</th></tr></thead><tbody>';
       S.fut.forEach(function (f) {
         var r = f.raw, L = lv[f.s], q = L ? L.raw : null, t = L && L.t != null ? L.t : f.t, dv = L && L.dev != null ? L.dev : f.dev, d = L ? L.d : f.d;
         var op, lo, hi, la, aj, ch, vol, oi, doi;
         if (q) { op = q[8]; hi = q[9]; lo = q[10]; la = q[4]; aj = f.F; ch = la ? (la / f.F - 1) * 100 : null; vol = q[7]; oi = q[6]; doi = oi != null && f.oi != null ? oi - f.oi : null; }
         else { op = r[6]; hi = r[7]; lo = r[8]; la = r[9]; aj = f.F; ch = prev[f.s] ? (f.F / prev[f.s] - 1) * 100 : null; vol = r[4]; oi = r[3]; doi = r[10]; }
         h += '<tr data-qv="' + f.s + '"><td class="l"><b>' + name(f.s) + '</b></td><td>' + fr(f.v) + '</td><td>' + d + '</td>' + (live ? '<td>' + x1(q && q[2]) + '</td><td>' + x1(q && q[3]) + '</td>' : '') +
-          '<td>' + x1(op) + '</td><td>' + x1(lo) + '</td><td>' + x1(hi) + '</td><td>' + x1(la) + '</td><td><b>' + x1(aj) + '</b></td><td class="' + cls(ch) + '">' + (ch == null ? '—' : sg(ch, 2) + '%') + '</td>' +
+          '<td>' + x1(op) + '</td><td>' + x1(lo) + '</td><td>' + x1(hi) + '</td><td class="lc">' + x1(la) + '</td><td>' + x1(aj) + '</td><td class="' + cls(ch) + '">' + (ch == null ? '—' : sg(ch, 2) + '%') + '</td>' +
           '<td>' + cnt(vol) + '</td><td>' + cnt(oi) + '</td><td class="' + cls(doi) + '">' + (doi == null ? '—' : sg(doi, 0)) + '</td><td><b>' + P(t) + '</b></td><td>' + P(tea(t, d)) + '</td><td>' + P(dv) + '</td></tr>';
       });
       document.getElementById('tfFut').innerHTML = h + '</tbody>';
@@ -5865,10 +5866,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var cpv = {}; (S.cfPrev || []).forEach(function (r) { cpv[r[0]] = r[2]; });
       var lc = {}; if (S.vivoOk) (S.V.cfut || []).forEach(function (r) { lc[key(r[0])] = r; }); var lcv = Object.keys(lc).length;
       var x2 = function (v) { return v ? nf(v, 2) + '%' : '—'; };
-      h = '<thead><tr><th class="l">Contrato</th><th>Vence</th>' + (lcv ? '<th>Compra</th><th>Venta</th><th>Último hoy</th>' : '') + '<th>Apertura</th><th>Mín.</th><th>Máx.</th><th>Último</th><th>Tasa (ajuste)</th><th>Var.</th><th>Volumen</th><th>I.A.</th><th>Var. I.A.</th></tr></thead><tbody>';
+      h = '<thead><tr><th class="l">Contrato</th><th>Vence</th>' + (lcv ? '<th>Compra</th><th>Venta</th><th class="lc">Último hoy</th>' : '') + '<th>Apertura</th><th>Mín.</th><th>Máx.</th><th' + (lcv ? '' : ' class="lc"') + '>Último</th><th>Tasa (ajuste)</th><th>Var.</th><th>Volumen</th><th>I.A.</th><th>Var. I.A.</th></tr></thead><tbody>';
       S.cfut.forEach(function (r) { var p = cpv[r[0]], ch = p != null ? r[2] - p : null, L = lc[key(r[0])];
-        h += '<tr data-qv="' + psym(r[0]) + '"><td class="l"><b>' + name(r[0]) + '</b></td><td>' + fr(r[1]) + '</td>' + (lcv ? '<td>' + x2(L && L[2]) + '</td><td>' + x2(L && L[3]) + '</td><td>' + x2(L && L[4]) + '</td>' : '') +
-          '<td>' + x2(r[6]) + '</td><td>' + x2(r[8]) + '</td><td>' + x2(r[7]) + '</td><td>' + x2(r[9]) + '</td><td><b>' + nf(r[2], 2) + '%</b></td><td class="' + cls(ch) + '">' + (ch == null ? '—' : sg(ch, 2) + ' pp') + '</td>' +
+        h += '<tr data-qv="' + psym(r[0]) + '"><td class="l"><b>' + name(r[0]) + '</b></td><td>' + fr(r[1]) + '</td>' + (lcv ? '<td>' + x2(L && L[2]) + '</td><td>' + x2(L && L[3]) + '</td><td class="lc">' + x2(L && L[4]) + '</td>' : '') +
+          '<td>' + x2(r[6]) + '</td><td>' + x2(r[8]) + '</td><td>' + x2(r[7]) + '</td><td' + (lcv ? '' : ' class="lc"') + '>' + x2(r[9]) + '</td><td>' + nf(r[2], 2) + '%</td><td class="' + cls(ch) + '">' + (ch == null ? '—' : sg(ch, 2) + ' pp') + '</td>' +
           '<td>' + cnt(r[4]) + '</td><td>' + cnt(r[3]) + '</td><td class="' + cls(r[10]) + '">' + (r[10] == null ? '—' : sg(r[10], 0)) + '</td></tr>'; });
       document.getElementById('tfCf').innerHTML = h + '</tbody>';
       document.getElementById('tfT4').textContent = 'Futuros de caución · cierre del ' + fr(S.dcf);
