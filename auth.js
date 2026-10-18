@@ -11,6 +11,7 @@
   if (!ON && !PREVIEW) return;
 
   var REF = ON ? ((CFG.url.match(/^https:\/\/([^.]+)\./) || [])[1] || '') : '';
+  if (window.top !== window && /[?&]emb=/.test(location.search) && stored()) { document.documentElement.classList.remove('blg'); return; } // widget del Dashboard: la página que lo contiene ya entró (sin portada ni presencia)
   var sb = null, user = null, ov = null;
   function stored() { // sesión guardada por supabase-js (para no mostrar la portada a quien ya entró)
     if (!ON) return false;

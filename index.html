@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<script>if(/[?&]emb=/.test(location.search)&&window.top!==window)document.documentElement.classList.add('emb')</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bonerío Local: Terminal Analítica</title>
 <meta name="description" content="Terminal analítica de bonos soberanos argentinos: curvas hard dollar y en pesos, retornos, rotación entre bonos, volumen y variación diaria.">
@@ -547,6 +548,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('expf')">Forwards</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('lic')">Licitaciones</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cons')">Consultame</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('dash')">Dashboard</button>
     </div>
     
     <div style="display: flex; align-items: center; gap: 12px; flex-shrink: 0; padding-right: 4px;">
@@ -573,6 +575,7 @@ window.curveFitUSD = function (pts, model, minN) {
 
 <!-- PESTAÑA 1: Tabla -->
 <div id="home" class="tab-content"></div>
+<div id="dash" class="tab-content"></div>
 <div id="thist" class="tab-content"></div>
 <div id="expi" class="tab-content"></div>
 <div id="expd" class="tab-content"></div>
@@ -4753,7 +4756,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var ICO = {
     tk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 4 8-9"/><path d="M15 7h5v5"/></svg>',
     vol: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 20V12M12 20V5M19 20v-9"/></svg>',
-    ct: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
+    sec: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>'
   };
   var st = document.createElement('style');
   st.textContent = '#qvB{position:fixed;right:18px;bottom:18px;z-index:900;width:48px;height:48px;padding:0;border-radius:50%;border:1px solid var(--bd);background:var(--card);box-shadow:0 6px 18px rgba(0,0,0,.28);cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:.75;transition:opacity .15s,transform .15s,border-color .15s}' +
@@ -4780,6 +4783,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     '#qvP .ch{position:relative;height:170px;margin-bottom:6px}#qvP .ce{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;color:var(--mu);padding:0 20px}' +
     '#qvP .ft{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px 12px;border-top:1px solid var(--bd);font-size:11px;color:var(--mu)}#qvP .ft button{font:inherit;font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);cursor:pointer;white-space:nowrap}#qvP .ft button:hover{color:var(--ac);border-color:var(--ac)}' +
     '@media(max-width:640px){#qvB{right:12px;bottom:12px;width:44px;height:44px}#qvM{right:12px;bottom:66px}#qvOv{padding:0 8px 66px;justify-content:center}#qvP li{grid-template-columns:56px minmax(0,1fr) 94px 48px;gap:6px}}' +
+    '#qvP .ft .bt{display:flex;gap:6px}#qvP .ft button:disabled{opacity:.7;cursor:default}#qvP.wide{width:min(1120px,100%);max-height:calc(100% - 96px)}#qvP.wide .bd{padding:0 14px 10px}#qvP .h .tt{flex:1;min-width:0;display:flex;flex-direction:column}#qvP .h .tt b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#qvP .h .tt small{font-size:12px;color:var(--mu)}#qvP .h .tt+.sp{display:none}' +
+    '#qvOv.emb{position:static;inset:auto;display:block;padding:0;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;animation:none}#qvOv.emb #qvP{width:auto;max-height:none;box-shadow:none;animation:none}#qvOv.emb .h .x{display:none}' +
     '#qvP .ampb{display:none}#qvP .nt{margin:-2px 0 6px;font-size:11px;color:var(--mu)}@media print{#qvB,#qvM{display:none}}';
   document.head.appendChild(st);
   var b = document.createElement('button'); b.id = 'qvB'; b.type = 'button'; b.title = 'Ticker, volumen y contacto'; b.setAttribute('aria-label', 'Abrir accesos rápidos: ticker, volumen y contacto'); b.setAttribute('aria-expanded', 'false'); b.setAttribute('data-html2canvas-ignore', 'true');
@@ -4792,6 +4797,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   try { var o0 = JSON.parse(localStorage.getItem(IK) || 'null'); if (o0 && o0.d === nowBA().d) IN = o0; } catch (e) { }
   var dirty = false;
   function rec() { // cada 30 s: si cambió el último precio de una especie, se agrega un punto [minuto del día, precio]
+    if (document.documentElement.classList.contains('emb')) return; // los widgets del Dashboard no graban: ya lo hace la página
     if (typeof mktOpen === 'function' && !mktOpen()) return;
     var q = window.PXQ || {}, t = nowBA(); if (IN.d !== t.d) IN = { d: t.d, s: {} };
     Object.keys(q).forEach(function (k) { var c = q[k] && q[k].c; if (!(c > 0)) return; var a = IN.s[k] || (IN.s[k] = []), l = a[a.length - 1]; if (!l || l[1] !== c) { if (l && l[0] === t.m) l[1] = c; else a.push([t.m, c]); dirty = true; } });
@@ -4832,28 +4838,32 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function openMenu() {
     if (menu) { closeMenu(); return; } if (ov) { close(); return; }
     menu = document.createElement('div'); menu.id = 'qvM'; menu.setAttribute('data-html2canvas-ignore', 'true');
-    menu.innerHTML = '<button type="button" data-o="tk">' + ICO.tk + 'Ticker</button><button type="button" data-o="vol">' + ICO.vol + 'Volumen</button>' + (document.getElementById('ctDlg') ? '<button type="button" data-o="ct">' + ICO.ct + 'Escribime</button>' : '');
-    menu.addEventListener('click', function (e) { var x = e.target.closest('[data-o]'); if (!x) return; var o = x.getAttribute('data-o'); closeMenu(); if (o === 'ct') { if (window.ctOpen) window.ctOpen(); } else open(o); });
+    menu.innerHTML = '<button type="button" data-o="tk">' + ICO.tk + 'Ticker</button><button type="button" data-o="vol">' + ICO.vol + 'Volumen</button><button type="button" data-o="sec">' + ICO.sec + 'Traer una sección</button>';
+    menu.addEventListener('click', function (e) { var x = e.target.closest('[data-o]'); if (!x) return; var o = x.getAttribute('data-o'); closeMenu(); if (o === 'sec') { if (window.DBPICK) window.DBPICK({ title: 'Traer una sección' }, function (w) { open(w.k, w); }); } else open(o); });
     document.body.appendChild(menu); b.classList.add('on'); b.setAttribute('aria-expanded', 'true');
     setTimeout(function () { document.addEventListener('click', outside, true); }, 0);
   }
   b.addEventListener('click', openMenu);
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeMenu(); close(); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !EMBQ && !document.getElementById('dbPk')) { closeMenu(); close(); } });
 
   /* ---------- panel ---------- */
   function close() { if (CHT) { CHT.destroy(); CHT = null; } if (ov) { ov.remove(); ov = null; } }
-  function open(v) {
-    close(); VIEW = v; F = 'ctx';
-    ov = document.createElement('div'); ov.id = 'qvOv'; ov.setAttribute('data-html2canvas-ignore', 'true');
-    ov.innerHTML = '<div id="qvP" role="dialog" aria-label="Ticker y volumen"><div class="h"><div class="sw"><button type="button" data-v="tk">Ticker</button><button type="button" data-v="vol">Volumen</button></div><span class="sp"></span><button class="x" type="button" aria-label="Cerrar">&times;</button></div><div class="bd"></div><div class="ft"></div></div>';
+  var EMBQ = false, SEC = null; // EMBQ: el panel es un widget del Dashboard (va fijo, sin fondo ni cierre)
+  window.QV = { embed: function (v, o) { EMBQ = true; if (o.k) TK = o.k; SP = o.sp || ''; if (o.r) RNG = o.r; open(v); } };
+  function open(v, w) {
+    close(); VIEW = v; F = 'ctx'; SEC = v === 'sec' ? w : null;
+    ov = document.createElement('div'); ov.id = 'qvOv'; ov.setAttribute('data-html2canvas-ignore', 'true'); if (EMBQ) ov.className = 'emb';
+    ov.innerHTML = v === 'sec' ? '<div id="qvP" class="wide" role="dialog" aria-label="' + esc(w.t) + '"><div class="h"><span class="tt"><b>' + esc(w.t) + '</b><small>' + esc(w.id ? w.tt : 'Pestaña completa') + '</small></span><span class="sp"></span><button class="x" type="button" aria-label="Cerrar">&times;</button></div><div class="bd"></div><div class="ft"></div></div>' : '<div id="qvP" role="dialog" aria-label="Ticker y volumen"><div class="h"><div class="sw"><button type="button" data-v="tk">Ticker</button><button type="button" data-v="vol">Volumen</button></div><span class="sp"></span><button class="x" type="button" aria-label="Cerrar">&times;</button></div><div class="bd"></div><div class="ft"></div></div>';
     document.body.appendChild(ov);
     ov.addEventListener('click', function (e) {
-      if (e.target === ov || e.target.closest('.x')) { close(); return; }
+      if ((e.target === ov && !EMBQ) || e.target.closest('.x')) { close(); return; }
+      var ad = e.target.closest('[data-db]'); if (ad && window.DBADD) { var n = window.DBADD(VIEW === 'sec' ? SEC : { k: VIEW, t: VIEW === 'tk' ? 'Ticker' : 'Volumen del día', tk: pick(), sp: SP, r: RNG, s: 1 }); ad.textContent = 'Agregado a «' + n + '»'; ad.disabled = true; return; }
+      if (e.target.closest('[data-gs]')) { var sw0 = SEC; close(); if (window.DBGO) window.DBGO(sw0); return; }
       var sv = e.target.closest('[data-v]'); if (sv) { VIEW = sv.getAttribute('data-v'); draw(); return; }
       var fb = e.target.closest('[data-f]'); if (fb) { F = fb.getAttribute('data-f'); draw(); return; }
       var rg = e.target.closest('[data-r]'); if (rg) { RNG = rg.getAttribute('data-r'); draw(); return; }
       var li = e.target.closest('li[data-k]'); if (li) { TK = li.getAttribute('data-k'); SP = ''; VIEW = 'tk'; draw(); return; }
-      var go = e.target.closest('[data-go]'); if (go) { var t = go.getAttribute('data-go'); close(); if (window.switchTab) window.switchTab(t); window.scrollTo(0, 0); }
+      var go = e.target.closest('[data-go]'); if (go) { var t = go.getAttribute('data-go'); if (EMBQ) { if (window.DBPOST) window.DBPOST({ t: 'dbGo', tab: t }); return; } close(); if (window.switchTab) window.switchTab(t); window.scrollTo(0, 0); }
     });
     draw();
     if (!DAY) window.VOLX.day(function (d) { DAY = d || false; if (ov) draw(); });
@@ -4863,7 +4873,15 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     if (!ov) return;
     ov.querySelectorAll('[data-v]').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-v') === VIEW); });
     if (CHT) { CHT.destroy(); CHT = null; }
-    if (VIEW === 'vol') drawVol(); else drawTk();
+    if (VIEW === 'sec') drawSec(); else if (VIEW === 'vol') drawVol(); else drawTk();
+  }
+  var addB = function () { return EMBQ || !window.DBADD ? '' : '<button type="button" data-db>Al dashboard</button>'; };
+
+  /* ---------- cualquier sección de la página, en vivo (la misma página en modo «una sola sección») ---------- */
+  function drawSec() {
+    var P = ov.querySelector('#qvP'), bd = P.querySelector('.bd'); if (!window.DBFRAME) return;
+    if (!bd.querySelector('.dbF')) bd.appendChild(window.DBFRAME(SEC, {}));
+    P.querySelector('.ft').innerHTML = '<span>Se actualiza igual que en su pestaña</span><span class="bt">' + addB() + '<button type="button" data-gs>Ir a la pestaña</button></span>';
   }
 
   /* ---------- ticker ---------- */
@@ -4884,9 +4902,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         : '<p class="t">' + (Object.keys(window.PXQ || {}).length ? 'No hay precios en vivo de ' + esc(sym) + '.' : 'Cargando los precios en vivo…') + '</p>') +
       '<div class="f"><button type="button" data-r="in" class="' + (RNG === 'in' ? 'on' : '') + '">Intradiario</button><button type="button" data-r="1m" class="' + (RNG === '1m' ? 'on' : '') + '">1 mes</button><button type="button" data-r="6m" class="' + (RNG === '6m' ? 'on' : '') + '">6 meses</button></div>' +
       '<div class="ch"><canvas id="qvC"></canvas><div class="ce" id="qvE"></div></div>';
-    P.querySelector('.ft').innerHTML = '<span>Precios de data912, cada 90 s</span><button type="button" data-go="vol">Abrir Volumen</button>';
+    P.querySelector('.ft').innerHTML = '<span>Precios de data912, cada 90 s</span><span class="bt">' + addB() + '<button type="button" data-go="vol">Abrir Volumen</button></span>';
     var inp = bd.querySelector('#qvI');
-    inp.onchange = function () { var v = this.value.trim().toUpperCase(); if (!v) return; TK = /[DC]$/.test(v) && have.indexOf(v.slice(0, -1)) >= 0 ? v.slice(0, -1) : v; SP = TK !== v ? v.slice(-1) : ''; try { localStorage.setItem('qvTk', TK); } catch (e) { } draw(); };
+    if (EMBQ && window.DBPOST) window.DBPOST({ t: 'dbCfg', o: { k: k, sp: SP, r: RNG } });
+    inp.onchange = function () { var v = this.value.trim().toUpperCase(); if (!v) return; TK = /[DC]$/.test(v) && have.indexOf(v.slice(0, -1)) >= 0 ? v.slice(0, -1) : v; SP = TK !== v ? v.slice(-1) : ''; if (!EMBQ) try { localStorage.setItem('qvTk', TK); } catch (e) { } draw(); };
     inp.onfocus = function () { this.select(); };
     var ss = bd.querySelector('#qvS'); if (ss) ss.onchange = function () { SP = this.value; draw(); };
     // gráfico
@@ -4913,7 +4932,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   /* ---------- volumen ---------- */
   function drawVol() {
     var P = ov.querySelector('#qvP'), bd = P.querySelector('.bd');
-    P.querySelector('.ft').innerHTML = '<span>Monto en pesos (MEP y cable pasados a pesos) · variación del precio · tocá un bono para ver su ticker</span><button type="button" data-go="vol">Abrir Volumen</button>';
+    P.querySelector('.ft').innerHTML = '<span>Monto en pesos (MEP y cable pasados a pesos) · variación del precio · tocá un bono para ver su ticker</span><span class="bt">' + addB() + '<button type="button" data-go="vol">Abrir Volumen</button></span>';
     if (!DAY) { bd.innerHTML = '<p class="t">' + (DAY === null ? 'Cargando el volumen…' : 'No se pudo leer el volumen.') + '</p>'; return; }
     var id = active(), c = CTX[id], pf = id === 'port' && fav().length, ctxName = pf ? 'Tu portfolio' : c ? c[0] : null;
     if (!ctxName && F === 'ctx') F = 'all';
@@ -6546,6 +6565,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     curva: 'La curva hard dollar por TIR y duración, ley NY contra ley local, y el riesgo país.',
     pesos: 'Lecaps, CER, TAMAR, dólar linked y duales contra su curva, con breakevens.',
     port: 'Tu cartera: valor, flujos, riesgo y escenarios.',
+    dash: 'Tus propios monitores con cualquier sección de la página.',
     cons: '¿Un bono que falta, una TIR que no cierra o una idea? Escribime.',
     vard: 'Qué subió y qué bajó contra el cierre anterior, en precio y en tasa.',
     rot: 'Los pares que conviene rotar después de costos.',
@@ -6559,18 +6579,19 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var TB = [].slice.call(document.querySelectorAll('#topbar .tabs .tab-btn')).map(function (b) { var m = /switchTab\('([^']+)'\)/.exec(b.getAttribute('onclick') || ''); return m ? [m[1], b.textContent.trim()] : null; }).filter(Boolean);
   var ITEMS = [['home', 'Inicio']].concat(TB);
   var sn = document.createElement('aside'); sn.id = 'sideNav'; sn.setAttribute('data-html2canvas-ignore', 'true');
+  IC.dash = P('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>');
   IC.cons = P('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>');
   IC.exp = P('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'); IC.expi = IC.exp; IC.expd = IC.dol; IC.expf = IC.curva;
   DESC.expi = 'La inflación que descuentan los bonos CER contra la tasa fija, bono por bono y en el tiempo, contra el REM.'; DESC.expd = 'La devaluación que descuentan los dólar linked contra la tasa fija, bono por bono y en el tiempo, contra el REM.'; DESC.expf = 'La tasa de cada tramo entre vencimientos de cada familia y las forwards entre pares en el tiempo.'; DESC.thist = 'La tasa de cada bono día por día y su precio relativo contra la curva.';
   var CAR = P('<path d="m9 6 6 6-6 6"/>').replace('<svg ', '<svg class="sn-car" '), has = function (id) { return id === 'home' || TB.some(function (t) { return t[0] === id; }); };
-  var GR = [['home', 'Inicio'], { g: 'usd', t: 'Bonos en dólares', ic: 'curva', it: [['curva', 'Globales y Bonares'], ['tabla', 'Tabla de retornos'], ['desglose', 'Flujos y total return', 'usd']] },
+  var GR = [['home', 'Inicio'], ['dash', 'Dashboard'], { g: 'usd', t: 'Bonos en dólares', ic: 'curva', it: [['curva', 'Globales y Bonares'], ['tabla', 'Tabla de retornos'], ['desglose', 'Flujos y total return', 'usd']] },
     { g: 'ars', t: 'Bonos en pesos', ic: 'pesos', it: [['pesos', 'Curva Pesos'], ['desglose', 'Flujos y total return', 'ars'], ['lic', 'Licitaciones']] },
     { g: 'mkt', t: 'Mercado del día', ic: 'vard', it: [['vard', 'Variación diaria'], ['vol', 'Volumen'], ['rot', 'Rotación']] }, ['dol', 'Dólar'],
     { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards']] },
     { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, ['port', 'Portfolio'], ['cons', 'Consultame']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
   sn.innerHTML = '<div class="sn-h"><img src="/favicon.svg?v=2" alt=""><b>BONERÍO LOCAL</b></div><nav>' +
-    GR.map(function (g, i) { return (i === 1 ? '<div class="sn-sep"></div>' : '') + (Array.isArray(g) ? item(g) : '<div class="sn-g" data-gr="' + g.g + '"><button class="sn-it" data-g="' + g.g + '" title="' + g.t + '">' + IC[g.ic] + '<span>' + g.t + '</span>' + CAR + '</button><div class="sn-sub">' + g.it.map(function (t) { return item(t, 1); }).join('') + '</div></div>'); }).join('') +
+    GR.map(function (g, i) { return (i === 2 ? '<div class="sn-sep"></div>' : '') + (Array.isArray(g) ? item(g) : '<div class="sn-g" data-gr="' + g.g + '"><button class="sn-it" data-g="' + g.g + '" title="' + g.t + '">' + IC[g.ic] + '<span>' + g.t + '</span>' + CAR + '</button><div class="sn-sub">' + g.it.map(function (t) { return item(t, 1); }).join('') + '</div></div>'); }).join('') +
     '</nav><div class="sn-f"><button class="sn-it sn-col" data-col title="Achicar o agrandar el menú">' + IC.col + '<span>Achicar menú</span></button></div>';
   document.body.appendChild(sn);
   var sh = document.createElement('div'); sh.id = 'snShade'; document.body.appendChild(sh);
@@ -6773,5 +6794,291 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 })();
 </script>
 
+<script>
+/*@@DB_START@@*/
+/* =====================================================================
+   DASHBOARD: tableros propios con cualquier sección de la página (y el ticker o el volumen del botón flotante).
+   Cada widget es la misma página en un iframe en modo «una sola sección» (?emb=sec&tab=…&id=…): se ve y se actualiza igual que en su pestaña.
+   El catálogo de secciones se arma con un iframe oculto que recorre las pestañas (?emb=cat) y queda guardado medio día.
+   Los tableros se guardan en este navegador (localStorage dbBoards1), como el portfolio.
+   ===================================================================== */
+;(function () {
+  var H = document.documentElement, EMB = H.classList.contains('emb'), Q = new URLSearchParams(location.search);
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var css = function (t) { var s = document.createElement('style'); s.textContent = t; document.head.appendChild(s); return s; };
+  function goTab(tab, sec) { // como tocar el ítem del menú lateral (así Flujos sabe si es dólares o pesos)
+    var b = document.querySelector('#sideNav [data-t="' + tab + '"]' + (sec ? '[data-sec="' + sec + '"]' : ''));
+    if (b) b.click(); else if (window.switchTab) window.switchTab(tab);
+  }
+  function secsOf(tab) { // las secciones con imagen propia de la pestaña, sin las que agrupan a otras (igual que «Secciones de la imagen»)
+    var T = document.getElementById(tab), L = [], seen = {}; if (!T) return L;
+    T.querySelectorAll('button').forEach(function (b) {
+      var id = b.getAttribute('data-dl'), nm = b.getAttribute('data-dlname'); if (!id) { var m = (b.getAttribute('onclick') || '').match(/downloadSnapshotHD\(\s*'([^']+)'\s*,\s*'([^']+)'/); if (m) { id = m[1]; nm = m[2]; } }
+      var el = id && document.getElementById(id); if (!el || seen[id] || !T.contains(el) || el === T || !el.getClientRects().length) return; seen[id] = 1; L.push({ id: id, el: el, nm: nm || '' });
+    });
+    L = L.filter(function (x) { return !L.some(function (o) { return o !== x && x.el.contains(o.el); }); });
+    L.sort(function (a, b) { return a.el.compareDocumentPosition(b.el) & 4 ? -1 : 1; });
+    return L.map(function (x) { var h = x.el.querySelector('h4, .qh, h3, h2'), t = x.el.getAttribute('data-dltitle') || (h ? h.textContent.trim().split(' · ')[0].replace(/^\d+\s*/, '') : ''); return { id: x.id, t: t || x.nm.replace(/^Bonerio_|^Soberanos_/, '').replace(/_/g, ' ') || x.id }; });
+  }
+
+  /* =================== dentro del iframe: una sola sección =================== */
+  if (EMB) {
+    var mode = Q.get('emb'), wid = Q.get('wid') || '';
+    var post = window.DBPOST = function (o) { o.wid = wid; try { parent.postMessage(o, location.origin); } catch (e) { } };
+    css('html.emb,html.emb body{background:transparent!important}html.emb body{padding:0!important;margin:0!important;overflow-y:hidden}html.emb main{max-width:none!important;margin:0!important;padding:0!important}' +
+      'html.emb #sideNav,html.emb #snShade,html.emb #qvB,html.emb #qvM,html.emb footer{display:none!important}');
+    window.addEventListener('message', function (e) {
+      if (e.origin !== location.origin || e.source !== parent || !e.data) return;
+      if (e.data.t === 'dbTheme' && (H.getAttribute('data-theme') === 'light' ? 'light' : 'dark') !== e.data.th && window.toggleTheme) window.toggleTheme();
+      if (e.data.t === 'dbSp') { var bb = document.getElementById(e.data.sp === 'C' ? 'bccl' : 'bmep'); if (bb && !bb.classList.contains('on')) bb.click(); }
+    });
+    var only = function (id) { // todo lo que no sea la sección, ni la contiene ni está adentro, se oculta (y sigue oculto aunque la pestaña se vuelva a dibujar)
+      css('html.emb body *:not(:has(#' + id + ')):not(#' + id + '):not(#' + id + ' *):not(#ampOv):not(#ampOv *){display:none!important}html.emb #' + id + '{margin:0!important}');
+    };
+    var watch = function (id) { // avisa la altura al tablero mientras cambie
+      var last = -1, t0 = Date.now(), ok = false;
+      setInterval(function () {
+        var el = document.getElementById(id);
+        if (!el || !el.getClientRects().length) { if (!ok && Date.now() - t0 > 25000) { ok = true; post({ t: 'dbH', miss: 1 }); } return; }
+        if (!ok) { ok = true; H.classList.add('embok'); }
+        var h = Math.ceil(el.getBoundingClientRect().bottom + window.scrollY + 2); if (h !== last) { last = h; post({ t: 'dbH', h: h }); }
+      }, 400);
+    };
+    if (mode === 'cat') { // recorre las pestañas y manda las secciones de cada una
+      var list = (Q.get('tabs') || '').split(',').filter(Boolean), i = 0;
+      var next = function () {
+        if (i >= list.length) { post({ t: 'dbCatEnd' }); return; }
+        var p = list[i++].split(':'), tab = p[0], sec = p[1] || '', n = -1, same = 0, t0 = Date.now();
+        goTab(tab, sec);
+        var iv = setInterval(function () {
+          var L = secsOf(tab); if (L.length === n && L.length) same++; else { same = 0; n = L.length; }
+          if (same >= 3 || Date.now() - t0 > (i === 1 ? 15000 : 7000)) { clearInterval(iv); post({ t: 'dbCat', key: tab + ':' + sec, L: L }); next(); }
+        }, 300);
+      };
+      setTimeout(next, 600);
+    } else if (mode === 'sec') {
+      var tab = Q.get('tab'), id = Q.get('id') || tab;
+      only(id); setTimeout(function () { goTab(tab, Q.get('sec') || ''); window.scrollTo(0, 0); watch(id); }, 300);
+    } else if (mode === 'tk' || mode === 'vol') {
+      only('qvOv'); setTimeout(function () { if (window.QV) window.QV.embed(mode, { k: Q.get('k') || '', sp: Q.get('sp') || '', r: Q.get('r') || '' }); watch('qvOv'); }, 300);
+    }
+    return;
+  }
+
+  /* =================== en la página: piezas compartidas =================== */
+  var ICON = function (p, w) { return '<svg width="' + (w || 16) + '" height="' + (w || 16) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>'; };
+  var I = {
+    grid: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>', go: '<path d="M7 17 17 7M8 7h9v9"/>', up: '<path d="m6 15 6-6 6 6"/>', dn: '<path d="m6 9 6 6 6-6"/>', x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    wide: '<path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4"/>', half: '<rect x="3" y="5" width="8" height="14" rx="1.5"/><path d="M15 5h6M15 12h6M15 19h6"/>', back: '<path d="m15 18-6-6 6-6"/>',
+    tk: '<path d="M3 17l5-5 4 4 8-9"/><path d="M15 7h5v5"/>', vol: '<path d="M5 20V12M12 20V5M19 20v-9"/>', trash: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>'
+  };
+  css('#dbPk{position:fixed;inset:0;z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(12,10,9,.45);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);animation:dbFd .15s ease-out}' +
+    '@keyframes dbFd{from{opacity:0}to{opacity:1}}@keyframes dbIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}' +
+    '#dbPk .p{width:min(560px,100%);max-height:min(720px,100%);display:flex;flex-direction:column;background:var(--card);border:1px solid var(--bd);border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.5);color:var(--tx);overflow:hidden;animation:dbIn .2s ease-out}' +
+    '#dbPk .h{display:flex;align-items:center;gap:10px;padding:14px 16px 10px}#dbPk .h b{flex:1;font-size:16px}#dbPk .h button{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:9px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);cursor:pointer}#dbPk .h button:hover{color:var(--ac);border-color:var(--ac)}' +
+    '#dbPk .s{padding:0 16px 10px}#dbPk .s input{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:9px 12px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}#dbPk .s input:focus{outline:none;border-color:var(--ac)}' +
+    '#dbPk .b{overflow:auto;padding:0 10px 12px}#dbPk .g{margin:10px 6px 4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mu)}' +
+    '#dbPk .it{display:flex;align-items:center;gap:12px;width:100%;text-align:left;font:inherit;padding:10px;border:0;border-radius:10px;background:none;color:var(--tx);cursor:pointer}#dbPk .it:hover,#dbPk .it:focus-visible{background:rgba(148,163,184,.1);outline:none}' +
+    '#dbPk .it .ic{flex:none;width:34px;height:34px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:rgba(245,158,11,.14);color:var(--ac)}#dbPk .it .ic svg{width:18px;height:18px}' +
+    '#dbPk .it .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}#dbPk .it .tx b{font-size:14px;font-weight:600}#dbPk .it .tx small{font-size:12px;color:var(--mu)}#dbPk .it .ar{flex:none;color:var(--mu)}' +
+    '#dbPk .ld{display:flex;align-items:center;gap:10px;padding:14px 10px;font-size:13px;color:var(--mu)}#dbPk .sp{width:16px;height:16px;border-radius:50%;border:2px solid var(--bd);border-top-color:var(--ac);animation:dbRot .8s linear infinite}@keyframes dbRot{to{transform:rotate(360deg)}}' +
+    '.dbF{position:relative;min-height:120px}.dbF iframe{display:block;width:100%;height:420px;border:0;background:transparent;transition:height .2s}.dbF .ld{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;color:var(--mu);background:var(--card);border:1px solid var(--bd);border-radius:12px}.dbF.ok .ld{display:none}' +
+    '.dbF .ld i{width:16px;height:16px;border-radius:50%;border:2px solid var(--bd);border-top-color:var(--ac);animation:dbRot .8s linear infinite}');
+
+  /* --- iframe de un widget: avisa su altura y su configuración (ticker) --- */
+  var FR = {}, seq = 0;
+  function srcOf(w, wid) {
+    var u = location.pathname + '?emb=' + w.k + '&wid=' + encodeURIComponent(wid);
+    if (w.k === 'sec') u += '&tab=' + encodeURIComponent(w.tab) + '&sec=' + encodeURIComponent(w.sec || '') + '&id=' + encodeURIComponent(w.id || w.tab);
+    else u += '&k=' + encodeURIComponent(w.tk || '') + '&sp=' + encodeURIComponent(w.sp || '') + '&r=' + encodeURIComponent(w.r || '');
+    return u;
+  }
+  window.DBFRAME = function (w, opt) { // opt: {onCfg, onGo, max}
+    var wid = 'f' + (++seq), box = document.createElement('div'); box.className = 'dbF';
+    box.innerHTML = '<div class="ld"><i></i>Cargando ' + esc(w.t || 'la sección') + '…</div>';
+    var fr = document.createElement('iframe'); fr.loading = 'lazy'; fr.title = w.t || 'Sección'; fr.src = srcOf(w, wid); box.appendChild(fr);
+    FR[wid] = { fr: fr, box: box, opt: opt || {} };
+    return box;
+  };
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin || !e.data || !e.data.wid) return;
+    var f = FR[e.data.wid]; if (!f) return;
+    if (!document.body.contains(f.box)) { delete FR[e.data.wid]; return; }
+    var d = e.data;
+    if (d.t === 'dbH') { if (d.miss) { f.box.querySelector('.ld').innerHTML = 'Esta sección ya no está en la página. Quitala y traé otra.'; return; } f.fr.style.height = d.h + 'px'; f.box.classList.add('ok'); }
+    if (d.t === 'dbCfg' && f.opt.onCfg) f.opt.onCfg(d.o);
+    if (d.t === 'dbGo' && f.opt.onGo) f.opt.onGo(d.tab);
+  });
+  new MutationObserver(function () { // el tema claro u oscuro de la página llega a cada widget
+    var th = H.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    Object.keys(FR).forEach(function (k) { try { FR[k].fr.contentWindow.postMessage({ t: 'dbTheme', th: th }, location.origin); } catch (e) { } });
+  }).observe(H, { attributes: true, attributeFilter: ['data-theme'] });
+  ['bmep', 'bccl'].forEach(function (id) { var bt = document.getElementById(id); if (bt) bt.addEventListener('click', function () { // MEP o cable, también en los widgets
+    Object.keys(FR).forEach(function (k) { try { FR[k].fr.contentWindow.postMessage({ t: 'dbSp', sp: id === 'bccl' ? 'C' : 'D' }, location.origin); } catch (e) { } });
+  }); });
+
+  /* --- las pestañas del menú lateral, con su grupo --- */
+  function tabsList() {
+    var L = [], seen = {};
+    document.querySelectorAll('#sideNav nav [data-t]').forEach(function (b) {
+      var t = b.getAttribute('data-t'), s = b.getAttribute('data-sec') || ''; if (/^(home|dash|cons)$/.test(t)) return;
+      var g = b.closest('.sn-g'), gl = g ? g.querySelector('[data-g] span').textContent.trim() : '', lb = b.querySelector('span').textContent.trim();
+      if (t === 'thist') { if (seen.thist) return; lb = gl; s = ''; } // Tasas por bono y Precio relativo son la misma pestaña
+      var k = t + ':' + (t === 'desglose' ? s : ''); if (seen[k]) return; seen[k] = seen[t] = 1;
+      L.push({ tab: t, sec: t === 'desglose' ? s : '', key: k, t: lb, g: t === 'thist' ? '' : gl });
+    });
+    return L;
+  }
+
+  /* --- catálogo de secciones: un iframe oculto recorre las pestañas, una vez cada medio día --- */
+  var CK = 'dbCat2:' + location.pathname, CAT = {}, catFr = null, catWait = [];
+  try { var c0 = JSON.parse(localStorage.getItem(CK) || 'null'); if (c0 && Date.now() - c0.ts < 12 * 3600e3) CAT = c0.c || {}; } catch (e) { }
+  function catLoad() {
+    var miss = tabsList().filter(function (x) { return !CAT[x.key]; }); if (!miss.length || catFr) return;
+    catFr = document.createElement('iframe'); catFr.setAttribute('aria-hidden', 'true'); catFr.tabIndex = -1;
+    catFr.style.cssText = 'position:fixed;left:-3000px;top:0;width:1400px;height:900px;border:0;visibility:hidden;pointer-events:none';
+    catFr.src = location.pathname + '?emb=cat&wid=cat&tabs=' + encodeURIComponent(miss.map(function (x) { return x.key; }).join(','));
+    document.body.appendChild(catFr);
+  }
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin || !e.data || e.data.wid !== 'cat') return;
+    if (e.data.t === 'dbCat') { CAT[e.data.key] = e.data.L; try { localStorage.setItem(CK, JSON.stringify({ ts: Date.now(), c: CAT })); } catch (x) { } catWait.forEach(function (f) { f(); }); }
+    if (e.data.t === 'dbCatEnd' && catFr) { catFr.remove(); catFr = null; }
+  });
+
+  /* --- selector: pestaña › sección (lo usan el botón flotante y el Dashboard) --- */
+  window.DBPICK = function (opt, cb) {
+    var old = document.getElementById('dbPk'); if (old) old.remove();
+    var pk = document.createElement('div'); pk.id = 'dbPk'; pk.setAttribute('data-html2canvas-ignore', 'true');
+    pk.innerHTML = '<div class="p" role="dialog" aria-label="' + esc(opt.title) + '"><div class="h"><button type="button" data-bk aria-label="Volver" style="display:none">' + ICON(I.back) + '</button><b>' + esc(opt.title) + '</b><button type="button" data-x aria-label="Cerrar">' + ICON(I.x) + '</button></div>' +
+      '<div class="s"><input type="search" placeholder="Buscá una pestaña o una sección" autocomplete="off"></div><div class="b"></div></div>';
+    document.body.appendChild(pk); catLoad();
+    var body = pk.querySelector('.b'), inp = pk.querySelector('input'), bk = pk.querySelector('[data-bk]'), TAB = null, TL = tabsList();
+    var close = function () { pk.remove(); document.removeEventListener('keydown', key); catWait = catWait.filter(function (f) { return f !== draw; }); };
+    var key = function (e) { if (e.key === 'Escape') { if (TAB) { TAB = null; draw(); } else close(); } };
+    document.addEventListener('keydown', key); catWait.push(draw);
+    var row = function (attrs, ic, t, s) { return '<button type="button" class="it" ' + attrs + '><span class="ic">' + ICON(ic) + '</span><span class="tx"><b>' + esc(t) + '</b>' + (s ? '<small>' + esc(s) + '</small>' : '') + '</span><span class="ar">' + ICON('<path d="m9 6 6 6-6 6"/>') + '</span></button>'; };
+    function draw() {
+      if (!document.body.contains(pk)) return;
+      var f = inp.value.trim().toLowerCase(), h = '';
+      bk.style.display = TAB ? '' : 'none'; pk.querySelector('.h b').textContent = TAB ? TAB.t : opt.title;
+      if (!TAB) {
+        if (opt.quick && !f) h += '<div class="g">Rápidos</div>' + row('data-q="tk"', I.tk, 'Ticker', 'Puntas, último, volumen y gráfico de un bono') + row('data-q="vol"', I.vol, 'Volumen del día', 'Los bonos más operados de la rueda');
+        var g0 = null;
+        TL.forEach(function (x, i) {
+          var L = CAT[x.key] || [], hit = !f || (x.t + ' ' + x.g).toLowerCase().indexOf(f) >= 0, secHit = f ? L.filter(function (s) { return s.t.toLowerCase().indexOf(f) >= 0; }) : [];
+          if (!hit && !secHit.length) return;
+          if (x.g !== g0) { g0 = x.g; h += '<div class="g">' + esc(x.g || 'Pestañas') + '</div>'; }
+          if (hit) h += row('data-tab="' + i + '"', I.grid, x.t, CAT[x.key] ? (L.length ? L.length + (L.length === 1 ? ' sección' : ' secciones') : 'La pestaña completa') : 'Buscando sus secciones…');
+          secHit.forEach(function (s) { h += row('data-tab="' + i + '" data-id="' + esc(s.id) + '"', I.half, s.t, x.t); });
+        });
+        if (!h) h = '<div class="ld">No hay nada con «' + esc(f) + '».</div>';
+      } else {
+        var L2 = CAT[TAB.key];
+        h += row('data-id=""', I.wide, 'Toda la pestaña', TAB.t + ' completa');
+        if (!L2) h += '<div class="ld"><span class="sp"></span>Buscando las secciones de ' + esc(TAB.t) + '…</div>';
+        else L2.filter(function (s) { return !f || s.t.toLowerCase().indexOf(f) >= 0; }).forEach(function (s) { h += row('data-id="' + esc(s.id) + '"', I.half, s.t, ''); });
+      }
+      body.innerHTML = h;
+    }
+    pk.addEventListener('click', function (e) {
+      if (e.target === pk || e.target.closest('[data-x]')) { close(); return; }
+      if (e.target.closest('[data-bk]')) { TAB = null; inp.value = ''; draw(); inp.focus(); return; }
+      var q = e.target.closest('[data-q]'); if (q) { close(); var v = q.getAttribute('data-q'); cb({ k: v, t: v === 'tk' ? 'Ticker' : 'Volumen del día', s: 1 }); return; }
+      var it = e.target.closest('[data-tab],[data-id]'); if (!it) return;
+      var x = it.hasAttribute('data-tab') ? TL[+it.getAttribute('data-tab')] : TAB;
+      if (!it.hasAttribute('data-id')) { TAB = x; inp.value = ''; draw(); return; }
+      var id = it.getAttribute('data-id'), s = id ? (CAT[x.key] || []).filter(function (o) { return o.id === id; })[0] : null;
+      close(); cb({ k: 'sec', tab: x.tab, sec: x.sec, id: id || '', t: s ? s.t : x.t, tt: x.t, s: id ? 1 : 2 });
+    });
+    inp.addEventListener('input', draw);
+    draw(); setTimeout(function () { inp.focus(); }, 30);
+  };
+  window.DBGO = function (w) { // ir a la sección en su pestaña
+    goTab(w.tab, w.sec); window.scrollTo(0, 0);
+    if (w.id) setTimeout(function () { var el = document.getElementById(w.id); if (el) try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { } }, 450);
+  };
+
+  /* =================== la pestaña Dashboard =================== */
+  var KEY = 'dbBoards1', ST = { cur: '', b: [] };
+  try { var s0 = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s0 && Array.isArray(s0.b)) ST = s0; } catch (e) { }
+  var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
+  var uid = function () { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); };
+  var cur = function () { return ST.b.filter(function (b) { return b.id === ST.cur; })[0] || ST.b[0] || null; };
+  function newBoard(n) { var b = { id: uid(), n: n || 'Tablero ' + (ST.b.length + 1), w: [] }; ST.b.push(b); ST.cur = b.id; save(); return b; }
+  window.DBADD = function (w) { // desde el botón flotante: al tablero que estés usando (o a uno nuevo)
+    var b = cur() || newBoard('Mi tablero'); w = JSON.parse(JSON.stringify(w)); w.i = uid(); b.w.push(w); save(); if (built) render(); return b.n;
+  };
+  var root = document.getElementById('dash'), built = false, grid = null;
+  if (!root) return;
+  css('#dash .dbT{display:flex;flex-direction:column;gap:14px}#dash .dbT h2{margin:0;font-size:24px;letter-spacing:-.01em}#dash .dbT p{margin:2px 0 0;font-size:14px;color:var(--mu)}' +
+    '#dash .dbC{display:flex;flex-wrap:wrap;gap:8px;align-items:center}#dash .dbC button{font:inherit;font-size:13px;font-weight:600;padding:7px 14px;border-radius:99px;border:1px solid var(--bd);background:transparent;color:var(--mu);cursor:pointer}' +
+    '#dash .dbC button.on{background:var(--ac);border-color:var(--ac);color:var(--acx,var(--bg))}#dash .dbC button:hover:not(.on){color:var(--tx);border-color:var(--mu)}#dash .dbC .nw{display:inline-flex;align-items:center;gap:6px;border-style:dashed}' +
+    '#dash .dbR{display:flex;flex-wrap:wrap;gap:10px;align-items:center}#dash .dbR input{flex:1 1 220px;min-width:0;font:inherit;font-size:18px;font-weight:700;padding:8px 12px;border-radius:10px;border:1px solid transparent;background:transparent;color:var(--tx)}#dash .dbR input:hover{border-color:var(--bd)}#dash .dbR input:focus{outline:none;border-color:var(--ac);background:var(--bg)}' +
+    '#dash .dbB{display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:14px;font-weight:700;padding:10px 16px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);cursor:pointer;white-space:nowrap}#dash .dbB:hover{border-color:var(--ac);color:var(--ac)}' +
+    '#dash .dbB.pr{background:var(--ac);border-color:var(--ac);color:var(--acx,var(--bg))}#dash .dbB.pr:hover{filter:brightness(1.08);color:var(--acx,var(--bg))}#dash .dbB.dg.arm{border-color:#fb7185;color:#fb7185}' +
+    '#dash .dbG{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 16px;align-items:start}#dash .dbW.s2{grid-column:1/-1}' +
+    '#dash .dbH{display:flex;align-items:center;gap:8px;margin:0 2px 8px;min-height:30px}#dash .dbH .tt{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px}#dash .dbH .tt b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#dash .dbH .tt small{font-size:12px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '#dash .dbH .ac{display:flex;gap:4px;opacity:.55;transition:opacity .15s}#dash .dbW:hover .dbH .ac,#dash .dbH .ac:focus-within{opacity:1}' +
+    '#dash .dbH .ac button{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--mu);cursor:pointer}#dash .dbH .ac button:hover{color:var(--ac);border-color:var(--ac)}#dash .dbH .ac button[data-a=rm]:hover{color:#fb7185;border-color:#fb7185}#dash .dbH .ac button:disabled{opacity:.35;pointer-events:none}' +
+    '#dash .dbE{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:44px 20px;border:1px dashed var(--bd);border-radius:14px;text-align:center;color:var(--mu)}#dash .dbE .ic{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(245,158,11,.14);color:var(--ac)}#dash .dbE b{font-size:17px;color:var(--tx)}#dash .dbE p{margin:0;max-width:440px;font-size:14px;line-height:1.55}' +
+    '#dash .dbE form{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px}#dash .dbE input{width:min(280px,70vw);font:inherit;font-size:14px;padding:10px 12px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}#dash .dbE input:focus{outline:none;border-color:var(--ac)}' +
+    '@media(max-width:900px){#dash .dbG{grid-template-columns:minmax(0,1fr)}#dash .dbW{grid-column:1/-1}#dash .dbH .ac{opacity:1}#dash .dbH .ac [data-a=sz]{display:none}}');
+  function render() {
+    built = true; var b = cur(); if (b) ST.cur = b.id;
+    var IC2 = function (p) { return ICON(p, 16); };
+    root.innerHTML = '<div class="card dbT" data-norf><div><h2>Dashboard</h2><p>Tus propios monitores: traé cualquier sección de la página, el ticker de un bono o el volumen del día, y se actualizan solos. Quedan guardados en este navegador.</p></div>' +
+      (ST.b.length ? '<div class="dbC">' + ST.b.map(function (x) { return '<button type="button" data-b="' + x.id + '" class="' + (b && x.id === b.id ? 'on' : '') + '">' + esc(x.n) + '</button>'; }).join('') + '<button type="button" class="nw" data-nb>' + IC2(I.plus) + 'Nuevo tablero</button></div>' +
+        '<div class="dbR"><input id="dbName" maxlength="40" value="' + esc(b.n) + '" aria-label="Nombre del tablero" title="Tocá para cambiarle el nombre"><button type="button" class="dbB pr" data-add>' + IC2(I.plus) + 'Nuevo widget</button><button type="button" class="dbB dg" data-del>' + IC2(I.trash) + '<span>Borrar tablero</span></button></div>' : '') +
+      '</div><div class="dbG" id="dbGrid"></div>';
+    grid = root.querySelector('#dbGrid');
+    if (!b) {
+      grid.innerHTML = '<div class="dbE"><span class="ic">' + ICON(I.grid, 24) + '</span><b>Armá tu primer tablero</b><p>Ponele un nombre y después sumá widgets: cualquier gráfico o tabla de la página, el ticker de un bono o el volumen del día, todo junto en una pantalla.</p>' +
+        '<form data-nf><input name="n" maxlength="40" placeholder="Por ejemplo: Mis Lecaps" aria-label="Nombre del tablero"><button class="dbB pr" type="submit">' + IC2(I.plus) + 'Crear tablero</button></form></div>';
+      return;
+    }
+    if (!b.w.length) grid.innerHTML = '<div class="dbE"><span class="ic">' + ICON(I.grid, 24) + '</span><b>«' + esc(b.n) + '» está vacío</b><p>Tocá «Nuevo widget» y elegí una pestaña y la sección que quieras ver acá, o el ticker de un bono.</p><button type="button" class="dbB pr" data-add>' + IC2(I.plus) + 'Nuevo widget</button></div>';
+    b.w.forEach(function (w, i) { grid.appendChild(widget(b, w, i)); });
+  }
+  function widget(b, w, i) {
+    var el = document.createElement('div'); el.className = 'dbW' + (w.s === 2 ? ' s2' : ''); el.setAttribute('data-w', w.i); el.style.order = i;
+    var IC2 = function (p) { return ICON(p, 15); }, sub = w.k === 'sec' ? (w.id ? w.tt : 'Pestaña completa') : w.k === 'tk' ? (w.tk || '') : '';
+    el.innerHTML = '<div class="dbH"><span class="tt"><b>' + esc(w.k === 'tk' ? 'Ticker' : w.t) + '</b><small>' + esc(sub) + '</small></span><span class="ac">' +
+      (w.k === 'sec' ? '<button type="button" data-a="go" title="Ir a la pestaña">' + IC2(I.go) + '</button>' : '') +
+      '<button type="button" data-a="sz" title="' + (w.s === 2 ? 'Achicar a media pantalla' : 'Ancho completo') + '">' + IC2(w.s === 2 ? I.half : I.wide) + '</button>' +
+      '<button type="button" data-a="up" title="Mover antes">' + IC2(I.up) + '</button><button type="button" data-a="dn" title="Mover después">' + IC2(I.dn) + '</button>' +
+      '<button type="button" data-a="rm" title="Quitar del tablero">' + IC2(I.x) + '</button></span></div>';
+    el.appendChild(window.DBFRAME({ k: w.k, tab: w.tab, sec: w.sec, id: w.id, tk: w.tk, sp: w.sp, r: w.r, t: w.t }, {
+      onCfg: function (o) { if (w.k === 'sec') return; var ch = o.k !== w.tk || o.sp !== w.sp || o.r !== w.r; w.tk = o.k; w.sp = o.sp; w.r = o.r; if (ch) { save(); el.querySelector('.dbH small').textContent = w.k === 'tk' ? o.k + (o.sp ? ' · ' + (o.sp === 'D' ? 'MEP' : 'cable') : '') : ''; } },
+      onGo: function (tab) { goTab(tab); window.scrollTo(0, 0); }
+    }));
+    return el;
+  }
+  function orders() { var b = cur(); if (!b) return; b.w.forEach(function (w, i) { var el = grid.querySelector('[data-w="' + w.i + '"]'); if (el) el.style.order = i; }); }
+  root.addEventListener('click', function (e) {
+    var b = cur(), t;
+    if ((t = e.target.closest('[data-b]'))) { ST.cur = t.getAttribute('data-b'); save(); render(); return; }
+    if (e.target.closest('[data-nb]')) { newBoard(); render(); var n = document.getElementById('dbName'); if (n) { n.focus(); n.select(); } return; }
+    if (e.target.closest('[data-add]')) { window.DBPICK({ title: 'Nuevo widget', quick: true }, function (w) { window.DBADD(w); var g = grid && grid.lastElementChild; if (g) setTimeout(function () { try { g.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) { } }, 60); }); return; }
+    if ((t = e.target.closest('[data-del]'))) {
+      if (!t.classList.contains('arm')) { t.classList.add('arm'); t.querySelector('span').textContent = '¿Seguro? Tocá de nuevo'; setTimeout(function () { if (document.body.contains(t)) { t.classList.remove('arm'); t.querySelector('span').textContent = 'Borrar tablero'; } }, 3500); return; }
+      ST.b = ST.b.filter(function (x) { return x !== b; }); ST.cur = ST.b.length ? ST.b[0].id : ''; save(); render(); return;
+    }
+    var a = e.target.closest('[data-a]'); if (!a || !b) return;
+    var el = a.closest('[data-w]'), wi = el.getAttribute('data-w'), i = b.w.findIndex(function (w) { return w.i === wi; }), w = b.w[i], act = a.getAttribute('data-a');
+    if (act === 'go') { window.DBGO(w); return; }
+    if (act === 'rm') { b.w.splice(i, 1); el.remove(); save(); if (!b.w.length) render(); else orders(); return; }
+    if (act === 'sz') { w.s = w.s === 2 ? 1 : 2; el.classList.toggle('s2', w.s === 2); a.innerHTML = ICON(w.s === 2 ? I.half : I.wide, 15); a.title = w.s === 2 ? 'Achicar a media pantalla' : 'Ancho completo'; save(); return; }
+    var j = act === 'up' ? i - 1 : i + 1; if (j < 0 || j >= b.w.length) return;
+    b.w[i] = b.w[j]; b.w[j] = w; save(); orders(); // con «order», sin mover los iframes (moverlos los recarga)
+  });
+  root.addEventListener('submit', function (e) { var f = e.target.closest('[data-nf]'); if (!f) return; e.preventDefault(); newBoard(f.n.value.trim().slice(0, 40) || 'Mi tablero'); render(); });
+  root.addEventListener('change', function (e) { if (e.target.id !== 'dbName') return; var b = cur(), v = e.target.value.trim().slice(0, 40); if (!b || !v) { e.target.value = b ? b.n : ''; return; } b.n = v; save(); var c = root.querySelector('[data-b="' + b.id + '"]'); if (c) c.textContent = v; });
+  root.addEventListener('keydown', function (e) { if (e.target.id === 'dbName' && e.key === 'Enter') e.target.blur(); });
+  var sw = window.switchTab; window.switchTab = function (id) { sw.apply(this, arguments); if (id === 'dash') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; if (!built) render(); catLoad(); } };
+})();
+/*@@DB_END@@*/
+</script>
 </body>
 </html>
