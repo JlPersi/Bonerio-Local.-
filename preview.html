@@ -5822,7 +5822,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
      ===================================================================== */
   (function () {
     var T = tab('tfut', render); if (!T) return;
-    var root = T.root, ST = { s: ['f90'], w: '1a', cv: 'tna' }, CH = {}, S = null, bTry = 0;
+    var root = T.root, ST = { s: ['f90'], w: '1a', cv: 'tna', db: 'c' }, CH = {}, S = null, bTry = 0;
     var SER = { f90: ['Tasa implícita a 3 meses', C_FUT, 'r'], dev: ['Devaluación mensual implícita', C_DEV, 'm'], fx: ['Dólar A3500', C_FX, '$'] };
     function html() {
       root.innerHTML = STYLE('#tfut') +
@@ -5843,17 +5843,24 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         '<div class="rs"><div class="hl" style="margin:0"><p><b>Cómo se lee</b></p><ul>' +
         '<li><b>Futuros de dólar</b>: el precio del dólar mayorista (A3500) al último día hábil de cada mes. <b>Tasa implícita</b>: cuánto rinde en pesos comprar dólares hoy y venderlos a futuro, en TNA: (futuro / spot − 1) × 365 / días, con el mismo dólar spot que usa A3 para la tasa que publica (en la rueda, el del último cierre). <b>Devaluación mensual implícita</b>: la suba del dólar por mes que descuenta el futuro.</li>' +
         '<li><b>Ajuste</b>: el precio de cierre oficial de A3 de cada contrato. <b>Último</b>: el último operado. <b>I.A.</b>: interés abierto, los contratos que siguen abiertos; <b>Var. I.A.</b>, cuánto cambió en la rueda.</li>' +
+        '<li><b>Las tasas</b> salen del <b>Ajuste</b> (no del último operado, que en los contratos sin volumen puede quedar viejo): TNA = (futuro / spot − 1) × 365 / días, TEA = (futuro / spot)<sup>365/días</sup> − 1 y devaluación mensual = (futuro / spot)<sup>30/días</sup> − 1. <b>Días desde</b>: la rueda, como publica A3, o la liquidación T+1, la que usa Sintéticos para comparar con Lecaps y dollar linked.</li>' +
         '<li><b>Tasas forward</b>: la devaluación mensual entre dos contratos seguidos, (futuro siguiente / futuro anterior)<sup>30/días entre ambos</sup> − 1.</li>' +
         '<li><b>Futuros de caución</b>: el precio es la tasa de caución a 1 día que el mercado espera para el vencimiento de cada contrato. Se comparan con la caución y las Lecaps en la curva de Mercado de dinero; las estrategias contra bonos están en Sintéticos.</li></ul></div></div></div>';
       root.addEventListener('click', function (e) {
-        var b = e.target.closest('[data-s],[data-w],[data-cv]'); if (!b || !root.contains(b)) return;
+        var b = e.target.closest('[data-s],[data-w],[data-cv],[data-db]'); if (!b || !root.contains(b)) return;
         if (b.hasAttribute('data-cv')) { ST.cv = b.getAttribute('data-cv'); charts(); return; }
+        if (b.hasAttribute('data-db')) { ST.db = b.getAttribute('data-db'); cards(); charts(); tables(); forwards(); return; }
         if (b.hasAttribute('data-w')) ST.w = b.getAttribute('data-w');
         if (b.hasAttribute('data-s')) ST.s = toggleSer(ST.s, b.getAttribute('data-s'), function (x) { return SER[x][2]; });
         history();
       });
     }
-    var fc = function () { return S.futV && S.futV.length ? S.futV : S.fut; };
+    var t1 = function (b) { var t = bxDayNum(String(b).slice(0, 10)), n = t + 1; while (!bxIsBiz(n) && n - t < 15) n++; return n; }; // la liquidación T+1 de la rueda
+    var A = function (c) { // con «liquidación T+1», los días (y las tasas) se cuentan desde el día hábil siguiente a la rueda, como en Sintéticos
+      if (ST.db !== 't1' || !c) return c;
+      return c.map(function (f) { var d = bxDayNum(String(f.v).slice(0, 10)) - t1(f.base), g = {}; for (var k in f) g[k] = f[k]; g.d = d; g.t = d > 0 ? tna(f.F, f.sp, d) : null; g.dev = d > 0 ? dev(f.F, f.sp, d) : null; return g; }).filter(function (f) { return f.d > 0; });
+    };
+    var fc = function () { return A(S.futV && S.futV.length ? S.futV : S.fut); };
     function cards() {
       var f = fc().filter(function (x) { return x.d >= 3; }).slice(0, 3), c0 = S.cfut.filter(function (r) { return r[1] && dn(r[1]) - dn(S.dcf) >= 10; })[0];
       document.getElementById('tfCards').innerHTML = card('A3500', 'Dólar A3500') + card('TASA FUTURO 3M', 'Tasa implícita a 3 meses') + card('DEVALUACION', 'Devaluación mensual implícita') + card('CAUCION', cauT('CAUCION', 'Caución en pesos')) +
@@ -5865,7 +5872,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var fade = function (col) { return function (cx) { var A = cx.chart.chartArea; if (!A) return 'transparent'; var g = cx.chart.ctx.createLinearGradient(0, A.top, 0, A.bottom); g.addColorStop(0, col + '38'); g.addColorStop(0.6, col + '10'); g.addColorStop(1, col + '00'); return g; }; };
     function charts() {
       ['a', 'e'].forEach(function (k) { if (CH[k]) { CH[k].destroy(); CH[k] = null; } });
-      document.getElementById('tfCv').innerHTML = pills('data-cv', ST.cv, [['tna', 'Tasa implícita (TNA)'], ['dev', 'Devaluación mensual']]);
+      var b0 = (S.futV && S.futV.length ? S.futV : S.fut)[0], bd = b0 ? b0.base : S.df;
+      document.getElementById('tfCv').innerHTML = pills('data-cv', ST.cv, [['tna', 'Tasa implícita (TNA)'], ['dev', 'Devaluación mensual']]) +
+        '<span class="mu" style="font-size:12px;margin:0 2px 0 8px">Días desde</span>' + pills('data-db', ST.db, [['c', 'Rueda (' + fr(bd).slice(0, 5) + ')'], ['t1', 'Liquidación T+1 (' + fr(bxDayStr(t1(bd))).slice(0, 5) + ')']]);
       var c = fc(), mx = Math.min(420, Math.ceil((Math.max.apply(null, c.map(function (f) { return f.d; }).concat([60])) + 10) / 30) * 30), isT = ST.cv !== 'dev';
       var tip = function (x) { return function (cc) { return x + ': ' + nf(cc.raw.y, 2) + '% · ' + dias(Math.round(cc.raw.x)); }; };
       var sh = function (s) { return name(s).replace(/^(DLR|Caución) /, ''); }, card = css('--card') || '#1c1917';
@@ -5890,17 +5899,17 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       CH.a.options.layout = { padding: { right: 30, top: 4 } }; CH.a.options.scales.x.grid.display = false; if (!isT) CH.a.options.plugins.legend.display = false; CH.a.update();
     }
     function tables() {
-      var live = !!(S.futV && S.futV.length), lv = {}; if (live) S.futV.forEach(function (f) { lv[f.s] = f; });
+      var live = !!(S.futV && S.futV.length), lv = {}; if (live) A(S.futV).forEach(function (f) { lv[f.s] = f; });
       var prev = {}; S.futPrev.forEach(function (f) { prev[f.s] = f.F; });
       var x1 = function (v) { return v ? nf(v, 1) : '—'; }, cls = function (v) { return v > 0 ? 'up' : v < 0 ? 'dn' : 'mu'; };
-      var h = '<thead><tr><th class="l">Contrato</th><th>Vence</th><th>Días</th>' + (live ? '<th>Compra</th><th>Venta</th>' : '') + '<th>Apertura</th><th>Mín.</th><th>Máx.</th><th class="lc">Último</th><th>' + (live ? 'Ajuste anterior' : 'Ajuste') + '</th><th>Var. %</th><th>Volumen</th><th>I.A.</th><th>Var. I.A.</th><th>TNA</th><th>TEA</th><th>Dev. mensual</th></tr></thead><tbody>';
-      S.fut.forEach(function (f) {
+      var h = '<thead><tr><th class="l">Contrato</th><th>Vence</th><th>Días</th>' + (live ? '<th>Compra</th><th>Venta</th>' : '') + '<th>Apertura</th><th>Mín.</th><th>Máx.</th><th' + (live ? ' class="lc"' : '') + '>Último</th>' + (live ? '<th>Ajuste anterior</th>' : '<th class="lc">Ajuste</th>') + '<th>Var. %</th><th>Volumen</th><th>I.A.</th><th>Var. I.A.</th><th>TNA</th><th>TEA</th><th>Dev. mensual</th></tr></thead><tbody>';
+      A(S.fut).forEach(function (f) {
         var r = f.raw, L = lv[f.s], q = L ? L.raw : null, t = L && L.t != null ? L.t : f.t, dv = L && L.dev != null ? L.dev : f.dev, d = L ? L.d : f.d;
         var op, lo, hi, la, aj, ch, vol, oi, doi;
         if (q) { op = q[8]; hi = q[9]; lo = q[10]; la = q[4]; aj = f.F; ch = la ? (la / f.F - 1) * 100 : null; vol = q[7]; oi = q[6]; doi = oi != null && f.oi != null ? oi - f.oi : null; }
         else { op = r[6]; hi = r[7]; lo = r[8]; la = r[9]; aj = f.F; ch = prev[f.s] ? (f.F / prev[f.s] - 1) * 100 : null; vol = r[4]; oi = r[3]; doi = r[10]; }
         h += '<tr data-qv="' + f.s + '"><td class="l"><b>' + name(f.s) + '</b></td><td>' + fr(f.v) + '</td><td>' + d + '</td>' + (live ? '<td>' + x1(q && q[2]) + '</td><td>' + x1(q && q[3]) + '</td>' : '') +
-          '<td>' + x1(op) + '</td><td>' + x1(lo) + '</td><td>' + x1(hi) + '</td><td class="lc">' + x1(la) + '</td><td>' + x1(aj) + '</td><td class="' + cls(ch) + '">' + (ch == null ? '—' : sg(ch, 2) + '%') + '</td>' +
+          '<td>' + x1(op) + '</td><td>' + x1(lo) + '</td><td>' + x1(hi) + '</td><td' + (live ? ' class="lc"' : '') + '>' + x1(la) + '</td><td' + (live ? '' : ' class="lc"') + '>' + x1(aj) + '</td><td class="' + cls(ch) + '">' + (ch == null ? '—' : sg(ch, 2) + '%') + '</td>' +
           '<td>' + cnt(vol) + '</td><td>' + cnt(oi) + '</td><td class="' + cls(doi) + '">' + (doi == null ? '—' : sg(doi, 0)) + '</td><td><b>' + P(t) + '</b></td><td>' + P(tea(t, d)) + '</td><td>' + P(dv) + '</td></tr>';
       });
       document.getElementById('tfFut').innerHTML = h + '</tbody>';
@@ -5932,7 +5941,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       o1.plugins.tooltip = { callbacks: { label: function (cc) { return cc.datasetIndex === 0 ? 'I.A.: ' + nf(cc.parsed.y, 0) + ' (' + nf(tOI ? cc.parsed.y / tOI * 100 : null, 1) + '% del total)' : 'Var. I.A.: ' + sg(cc.parsed.y, 0); } } };
       CH.f = new Chart(document.getElementById('tfCh6').getContext('2d'), { type: 'bar', data: { labels: lb, datasets: [
         { label: 'Interés abierto', data: oi, backgroundColor: C_FUT + 'cc', borderRadius: 4, yAxisID: 'y', order: 2 },
-        { type: 'line', label: 'Variación del I.A. (eje derecho)', data: doi, borderColor: '#38bdf8', backgroundColor: doi.map(function (v) { return v < 0 ? '#fb7185' : '#34d399'; }), pointRadius: 4, pointHoverRadius: 6, borderWidth: 1.5, showLine: false, yAxisID: 'y2', order: 1 }] }, options: o1 });
+        { type: 'line', label: 'Variación del I.A. (eje derecho)', data: doi, borderColor: '#38bdf8', backgroundColor: doi.map(function (v) { return v < 0 ? '#fb7185' : '#34d399'; }), pointBackgroundColor: doi.map(function (v) { return v < 0 ? '#fb7185' : '#34d399'; }), pointBorderColor: css('--card') || '#1c1917', pointRadius: 5, pointHoverRadius: 6, borderWidth: 1.5, showLine: false, yAxisID: 'y2', order: 1 }] }, options: o1 });
       var o2 = opt('Volumen por contrato', (live ? 'Hoy' : 'Rueda del ' + fr(S.df)) + ' · ' + M(tV) + ' contratos');
       o2.plugins.legend.display = false;
       o2.plugins.tooltip = { callbacks: { label: function (cc) { return 'Volumen: ' + nf(cc.parsed.y, 0) + ' (' + nf(tV ? cc.parsed.y / tV * 100 : null, 1) + '% del total)'; } } };
@@ -5947,14 +5956,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     }
     function forwards() {
       if (CH.h) { CH.h.destroy(); CH.h = null; }
-      var c = fc(), now = fwd(c), ago = fwd(S.futAgo || [], c), lb = c.map(function (f) { return name(f.s).replace('DLR ', ''); }), tx = css('--tx'), bd = css('--bd');
+      var c = fc(), now = fwd(c), ago = fwd(A(S.futAgo || []), c), lb = c.map(function (f) { return name(f.s).replace('DLR ', ''); }), tx = css('--tx'), bd = css('--bd');
       CH.h = new Chart(document.getElementById('tfCh8').getContext('2d'), { type: 'bar', data: { labels: lb, datasets: [
         { label: S.futV ? 'Hoy' : 'Cierre del ' + fr(S.df), data: c.map(function (f) { return now[f.s] != null ? now[f.s] : null; }), backgroundColor: C_FUT + 'dd', borderRadius: 4 },
         { label: S.ago ? 'Hace un mes (' + fr(S.ago) + ')' : 'Hace un mes', data: c.map(function (f) { return ago[f.s] != null ? ago[f.s] : null; }), backgroundColor: 'rgba(168,162,158,.55)', borderRadius: 4 }] },
         options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
           plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, title: { display: true, text: 'Devaluación mensual implícita de cada tramo (%)', color: tx, font: { size: 13, weight: '600' } },
             tooltip: { callbacks: { title: function (cc) { var f = c[cc[0].dataIndex], a = cc[0].dataIndex ? name(c[cc[0].dataIndex - 1].s) : 'Spot'; return a + ' → ' + name(f.s); }, label: function (cc) { return cc.dataset.label + ': ' + P(cc.parsed.y); } } } },
-          scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: true }, grid: { display: false } }, y: { ticks: { color: tx, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
+          scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: true }, grid: { display: false } }, y: { ticks: { color: tx, stepSize: 0.5, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
     }
     function history() {
       if (CH.b) { CH.b.destroy(); CH.b = null; }
