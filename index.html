@@ -542,6 +542,9 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('rot')">Rotación</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('vol')">Volumen</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('dol')">Dólar</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('tcor')">Mercado de dinero</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('tfut')">Futuros</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('sint')">Sintéticos</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('thist')">Tasas históricas</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('expi')">Inflación implícita</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('expd')">Devaluación implícita</button>
@@ -568,7 +571,7 @@ window.curveFitUSD = function (pts, model, minN) {
 <div class="card ctl" id="globalControls">
     <label>Fecha de corte<input type="date" id="d1" value="2027-10-25"></label>
     <label>Reinvertir cupones<div class="seg"><button id="bsi">SI</button><button id="bno">NO</button></div></label>
-    <label>Tasa de reinversión (%)<input type="number" step="0.01" id="ust" value="4.46"></label>
+    <label title="Con Reinvertir en SI, es la tasa a la que se reinvierten los cupones. Siempre es la tasa de referencia de la columna BE vs. reinv. y de la tarjeta 3.">Tasa ref. / reinversión (%)<input type="number" step="0.01" id="ust" value="4.46"></label>
     <label>Liquidación<div class="seg"><button id="bci" title="Contado inmediato: liquida hoy (si hoy no es hábil, el próximo día hábil). Los precios de data912 son de 24 hs: en CI, las tasas del día anterior a un fin de semana o feriado salen distorsionadas (la de las Lecaps cortas cae cerca de 90 pb y vuelve a subir la rueda siguiente)">CI (hoy)</button><button id="bt1" class="on" title="T+1 (24 hs): liquida el día hábil siguiente. Es el plazo de los precios de data912, por eso es la opción por defecto">T+1 (mañana)</button></div></label>
     <label>Fecha de entrada<input type="date" id="d0" disabled></label>
 </div>
@@ -704,6 +707,9 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="rot" class="tab-content"></div>
 <div id="vol" class="tab-content"></div>
 <div id="dol" class="tab-content"></div>
+<div id="tcor" class="tab-content"></div>
+<div id="tfut" class="tab-content"></div>
+<div id="sint" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
 
 <div id="curva" class="tab-content">
@@ -799,7 +805,7 @@ window.curveFitUSD = function (pts, model, minN) {
   <div class="card sx" id="spreadHistContainer">
     <div class="sxh"><div style="min-width:0"><p class="qh">Panel de Spread Histórico (Z-Score)</p></div><div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD('spreadHistContainer', 'Soberanos_Spread_Historico')" title="Descargar Panel Histórico en HD"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>
     <div class="ctl sxc"><label>Par<select id="spreadPairSelect" onchange="if(window.updateSpreadChart) window.updateSpreadChart()"></select></label>
-    <label>Moneda<select id="spreadSp" onchange="window.SPREAD_SP=this.value;try{localStorage.setItem('spreadSp',this.value)}catch(e){};if(window.updateSpreadChart) window.updateSpreadChart();if(window.renderSpreadCards) window.renderSpreadCards()"><option value="C">Cable (especie C)</option><option value="D">MEP (especie D)</option></select></label>
+    <label>Moneda<select id="spreadSp" onchange="window.SPREAD_SP=this.value;if(window.updateSpreadChart) window.updateSpreadChart();if(window.renderSpreadCards) window.renderSpreadCards()"><option value="C">Cable (especie C)</option><option value="D">MEP (especie D)</option></select></label>
     <label>Desde<input type="date" id="spreadFrom" onchange="if(window.updateSpreadChart) window.updateSpreadChart()"></label>
     <label>Hasta<input type="date" id="spreadTo" onchange="if(window.updateSpreadChart) window.updateSpreadChart()"></label></div>
       <div class="chart-error" id="spreadChartError"></div>
@@ -1063,7 +1069,7 @@ function spreadClean(h) {
   }
   return { pts: pts, drop: drop };
 }
-window.SPREAD_SP = (function () { try { return localStorage.getItem('spreadSp') || 'C'; } catch (e) { return 'C'; } })(); // moneda del spread de legislación: cable (C) por defecto
+window.SPREAD_SP = null; // moneda del spread de legislación: sigue al MEP / cable de arriba salvo que se elija otra en el panel
 let HIST_MIN = bxDayStr(PX.SP.dates[0]), HIST_MAX = bxDayStr(PX.last);
 function refreshSpreadRange() { var d = logDays(); HIST_MAX = d.length ? d[d.length - 1] : bxDayStr(PX.last); }
 function addMonthsClamped(dateStr, months) {
@@ -1144,6 +1150,7 @@ function calc(b, d0, d1, u, customP) {
  const T = (d1 - d0) / 365;
  const c0 = fl.filter(function(x) { return x[0] <= d1; }).reduce(function(s, x) { return s + x[1]; }, 0);
  const c1 = fl.filter(function(x) { return x[0] <= d1; }).reduce(function(s, x) { return s + x[1] * Math.pow(1 + u, (d1 - x[0]) / 365); }, 0);
+ const am = fl.filter(function(x) { return x[0] <= d1; }).reduce(function(s, x) { return s + Math.min(bxCapAt(b.k, x[0]), x[1]); }, 0); // capital devuelto hasta el corte (va al efecto capital, no a los cupones)
  
  let reinv = true; try { reinv = localStorage.getItem('reinv') !== 'NO'; } catch(e) {}
  const cash = reinv ? c1 : c0;
@@ -1174,7 +1181,7 @@ function calc(b, d0, d1, u, customP) {
     tir: tir, cst: tir == null ? null : ret(tir), g: G.map(ret), 
     be0: be(P - cash), beu: be(P * Math.pow(1 + u, T) - cash), 
     ven: b.f[b.f.length - 1][0], modD: modD, conv: conv, 
-    entry_p: P, cash_out: cash, mtm_exit: tir == null ? null : mtm(tir)
+    entry_p: P, cash_out: cash, amort: am, mtm_exit: tir == null ? null : mtm(tir)
  };
 }
 
@@ -1228,7 +1235,8 @@ function draw() {
  // lectura de la tabla: cada dato sale de una columna y su celda queda marcada con el mismo número
  const pick = function (f, hi) { const a = rows.filter(function (x) { return x[f] != null; }); return a.length ? a.reduce(function (m, x) { return (hi ? x[f] > m[f] : x[f] < m[f]) ? x : m; }, a[0]) : null; };
  const best = pick('colch', true), worst = pick('colch', false), bestM = pick('mreinv', true);
- const avgCst = rows.length ? rows.reduce(function(s, x) { return s + (x.r.cst || 0); }, 0) / rows.length : 0;
+ const avgR = rows.filter(function (x) { return x.r.cst != null && !(x.r.ven > d1 && x.r.ven - d1 <= 30); }), avgOut = rows.filter(function (x) { return x.r.ven > d1 && x.r.ven - d1 <= 30; }).map(function (x) { return x.k; }); // los que vencen hasta 30 días después del corte casi no tienen duración: no entran al promedio
+ const avgCst = avgR.length ? avgR.reduce(function(s, x) { return s + x.r.cst; }, 0) / avgR.length : 0;
  const mkAt = function (k, col) { const n = [best, worst, bestM].map(function (x, i) { return x && x.k === k && (i < 2 ? col === 'c' : col === 'u') ? i + 1 : 0; }).filter(Boolean); return n.length ? ' class="mk" data-mk="' + n.join(' · ') + '"' : ''; };
  const pb = function (v) { return Math.round(v).toLocaleString('es-AR'); }, fc = $('d1').value ? $('d1').value.split('-').reverse().join('/') : 'la fecha de corte';
  h = h.replace('<th>Ret. TIR<br>constante</th>', '<th class="mk" data-mk="4">Ret. TIR<br>constante</th>');
@@ -1241,9 +1249,9 @@ function draw() {
  $('t').innerHTML = h;
  const card = function (n, t, v, txt) { return '<div class="ti"><small><i class="n">' + n + '</i>' + t + '</small><b>' + v + '</b><span>' + txt + '</span></div>'; };
  $('read').innerHTML = (best ? card(1, 'Mayor colchón', '<em>' + best.k + '</em> · ' + pb(best.colch) + ' pb', 'Su TIR puede subir ' + pb(best.colch) + ' pb hasta el ' + fc + ' antes de que el retorno en USD pase a ser negativo.') : '') +
-  (worst ? card(2, 'Menor colchón', '<em>' + worst.k + '</em> · ' + pb(worst.colch) + ' pb', 'Con una suba de su TIR mayor a esa ya perdés: es el más expuesto a un salto de tasa.') : '') +
-  (bestM ? card(3, 'Más margen contra reinvertir', '<em>' + bestM.k + '</em> · ' + pc(bestM.r.beu), 'Le gana a reinvertir al ' + pc(u) + ' mientras su TIR de salida no pase de ' + pc(bestM.r.beu) + ': puede subir ' + pb(bestM.mreinv) + ' pb desde hoy.') : '') +
-  card(4, 'Si ninguna TIR cambia', pc(avgCst, 1), 'Retorno promedio de los ' + rows.length + ' bonos hasta el ' + fc + ': el promedio de la columna Ret. TIR constante.');
+  (worst ? card(2, 'Menor colchón', '<em>' + worst.k + '</em> · ' + pb(worst.colch) + ' pb', 'Si su TIR sube más que eso hasta el ' + fc + ', el retorno en USD pasa a ser negativo: es el más expuesto a una suba de tasas.') : '') +
+  (bestM ? card(3, 'Más margen contra reinvertir', '<em>' + bestM.k + '</em> · +' + pb(bestM.mreinv) + ' pb', 'Le gana a reinvertir al ' + pc(u) + ' mientras su TIR de salida no pase de ' + pc(bestM.r.beu) + ' (hoy ' + pc(bestM.r.tir) + '): puede subir ' + pb(bestM.mreinv) + ' pb.') : '') +
+  card(4, 'Si ninguna TIR cambia', pc(avgCst, 1), 'Retorno promedio de los ' + avgR.length + ' bonos hasta el ' + fc + ': el promedio de la columna Ret. TIR constante' + (avgOut.length ? ', sin ' + avgOut.join(', ') + ' (vence' + (avgOut.length > 1 ? 'n' : '') + ' a menos de 30 días del corte).' : '.'));
  
  window.bdUsd = rows; if (window.bdRender) window.bdRender(); else updateBreakdownChart(rows, false);
  if(window.updateCFChart) window.updateCFChart();
@@ -1261,7 +1269,8 @@ window.bdRender = function() { // atribución: los bonos en dólares de la tabla
     updateBreakdownChart(PS.cfList().map(function(k) {
         const c = PS.bondCF(k); if (!c || c.tea == null) return null;
         const cash = c.fl.reduce(function(a, x) { return a + (x[0] <= d1 ? x[1] : 0); }, 0), post = c.fl.filter(function(x) { return x[0] > d1; });
-        return { k: k, r: { tir: c.tea, entry_p: c.P, cash_out: cash, mtm_exit: post.length ? PS.pvAt(post, d1, c.tea) : 0 } };
+        const am = (c.rows || []).reduce(function(a, x) { return a + (x.t <= d1 ? x.amort || 0 : 0); }, 0);
+        return { k: k, r: { tir: c.tea, entry_p: c.P, cash_out: cash, amort: am, mtm_exit: post.length ? PS.pvAt(post, d1, c.tea) : 0 } };
     }).filter(Boolean), true);
 };
 
@@ -1273,7 +1282,7 @@ function updateBreakdownChart(rows, ars) {
     let capitalPnlPct = [];
     let couponPnlPct = [];
     
-    let tableHtml = '<tr><th>Bono</th><th>Inv. Inicial</th><th>Cupones</th><th>Valor Residual<br>(MTM Salida)</th><th>PnL Capital</th><th>PnL Cupones</th><th class="b">Total Return</th></tr>';
+    let tableHtml = '<tr><th>Bono</th><th>Inv. Inicial</th><th>Cupones</th><th>Amortización</th><th>Valor Residual<br>(MTM Salida)</th><th>PnL Capital</th><th>PnL Cupones</th><th class="b">Total Return</th></tr>';
 
     for (let i = 0; i < rows.length; i++) {
         let item = rows[i];
@@ -1283,8 +1292,9 @@ function updateBreakdownChart(rows, ars) {
         let c = item.r.cash_out;
         let m = item.r.mtm_exit;
         
-        let capPct = (m - p) / p * 100;
-        let cupPct = c / p * 100;
+        let a = Math.min(item.r.amort || 0, c); // el capital que devuelve el bono es pull to par (efecto capital); en cupones van solo los intereses (y su reinversión)
+        let capPct = (m + a - p) / p * 100;
+        let cupPct = (c - a) / p * 100;
         let totPct = capPct + cupPct;
 
         labels.push(item.k);
@@ -1297,7 +1307,8 @@ function updateBreakdownChart(rows, ars) {
         tableHtml += '<tr>' +
             '<td class="t">' + item.k + '</td>' +
             '<td' + flashCls + '>' + usd(p) + '</td>' +
-            '<td style="color:var(--ok)">+' + usd(c) + '</td>' +
+            '<td style="color:var(--ok)">+' + usd(c - a) + '</td>' +
+            '<td>' + (a > 0 ? '+' + usd(a) : '—') + '</td>' +
             '<td>' + usd(m) + '</td>' +
             '<td style="' + col(capPct / 100) + '">' + pc(capPct / 100) + '</td>' +
             '<td style="color:var(--ok)">' + pc(cupPct / 100) + '</td>' +
@@ -1332,8 +1343,8 @@ function updateBreakdownChart(rows, ars) {
             data: {
                 labels: labels,
                 datasets: [
-                    { label: 'Efecto capital (pull to par)', data: capitalPnlPct, backgroundColor: colorCapital, borderRadius: 3, borderSkipped: false, maxBarThickness: 44 },
-                    { label: 'Efecto flujo (cupones, amortización y reinversión)', data: couponPnlPct, backgroundColor: colorCoupon, borderRadius: 3, borderSkipped: false, maxBarThickness: 44 }
+                    { label: 'Efecto capital (pull to par y amortizaciones)', data: capitalPnlPct, backgroundColor: colorCapital, borderRadius: 3, borderSkipped: false, maxBarThickness: 44 },
+                    { label: 'Efecto cupones (intereses y reinversión)', data: couponPnlPct, backgroundColor: colorCoupon, borderRadius: 3, borderSkipped: false, maxBarThickness: 44 }
                 ]
             },
             options: {
@@ -1417,7 +1428,7 @@ window.updateCFChart = function() {
     const style = getComputedStyle(document.body);
     const colorTx = style.getPropertyValue('--tx').trim(), colorMu = style.getPropertyValue('--mu').trim(), colorBd = style.getPropertyValue('--bd').trim();
     const cRenta = style.getPropertyValue('--c-cup').trim(), cAmort = style.getPropertyValue('--c-cap').trim(), cCard = style.getPropertyValue('--card').trim();
-    const dimCol = function(c) { return /^#[0-9a-f]{6}$/i.test(c) ? c + '66' : c; };
+    const dimCol = function(c) { return /^#[0-9a-f]{6}$/i.test(c) ? c + '2e' : c; }; // después del corte: casi transparente
     const labels = rows.map(function(r) { return new Date(r.t * 864e5).toLocaleDateString('es-AR', { month: 'short', year: '2-digit', timeZone: 'UTC' }); });
     const mkCol = function(c) { return function(ctx) { return rows[ctx.dataIndex] && rows[ctx.dataIndex].t > d1 ? dimCol(c) : c; }; };
 
@@ -1430,6 +1441,10 @@ window.updateCFChart = function() {
         y: { stacked: true, position: 'left', max: yMax, beginAtZero: true, grid: { color: colorBd, drawBorder: false }, border: { display: false }, title: { display: true, text: 'Cobro en la fecha (' + (ars ? '$' : 'USD') + ')', color: colorMu }, ticks: { font: { size: 13 }, color: colorMu, callback: function(v) { return (ars ? '$ ' : 'US$ ') + v.toLocaleString('es-AR'); } } }
     };
     const plug = { id: 'cfClipLabels', afterDatasetsDraw: function(ch) {
+        const R = ch.$rows || [], k = R.findIndex(function (r) { return r.t > ch.$d1; }), m0 = ch.getDatasetMeta(0); // línea de la fecha de corte: lo de la derecha no se cobra al corte
+        if (k >= 0 && m0.data[k]) { const c2 = ch.ctx, a2 = ch.chartArea, x = k > 0 && m0.data[k - 1] ? (m0.data[k - 1].x + m0.data[k].x) / 2 : m0.data[k].x - 20;
+          c2.save(); c2.strokeStyle = colorMu; c2.setLineDash([5, 4]); c2.lineWidth = 1.5; c2.beginPath(); c2.moveTo(x, a2.top); c2.lineTo(x, a2.bottom); c2.stroke(); c2.setLineDash([]);
+          c2.font = '600 12px system-ui, sans-serif'; c2.fillStyle = colorMu; c2.textAlign = x > a2.right - 90 ? 'right' : 'left'; c2.fillText('Corte ' + fd(ch.$d1), x + (c2.textAlign === 'right' ? -6 : 6), a2.top + 12); c2.restore(); }
         if (!ch.$clip || !ch.isDatasetVisible(0)) return; const ctx = ch.ctx, a = ch.chartArea;
         ctx.save(); ctx.font = '600 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = colorTx;
         const meta = ch.getDatasetMeta(0);
@@ -1439,7 +1454,7 @@ window.updateCFChart = function() {
 
     if (window.cfChartObj instanceof Chart) {
         const ch = window.cfChartObj;
-        ch.data.labels = labels; ch.data.datasets = datasets; ch.options.scales = scales; ch.$rows = rows; ch.$fmt = usd; // los formatos del tooltip siguen a la moneda del bono elegido
+        ch.data.labels = labels; ch.data.datasets = datasets; ch.options.scales = scales; ch.$rows = rows; ch.$d1 = d1; ch.$fmt = usd; // los formatos del tooltip siguen a la moneda del bono elegido
         ch.$clip = clip ? rows.map(function(r, i) { return { i: i, v: r.total }; }).filter(function(c) { return c.v > yMax; }) : [];
         ch.update('none');
     } else {
@@ -1457,7 +1472,7 @@ window.updateCFChart = function() {
             },
             plugins: [plug]
         });
-        window.cfChartObj.$fmt = usd; window.cfChartObj.$rows = rows; // el tooltip lee las filas del bono actual (el gráfico se reutiliza al cambiar de bono)
+        window.cfChartObj.$fmt = usd; window.cfChartObj.$rows = rows; window.cfChartObj.$d1 = d1; // el tooltip lee las filas del bono actual (el gráfico se reutiliza al cambiar de bono)
         window.cfChartObj.$clip = clip ? rows.map(function(r, i) { return { i: i, v: r.total }; }).filter(function(c) { return c.v > yMax; }) : [];
         window.cfChartObj.update('none');
     }
@@ -1473,8 +1488,8 @@ $('pr').oninput = function(e) {
 };
 
 let especie = 'D';
-$('bmep').onclick = function() { especie = 'D'; $('bmep').className = 'on'; $('bccl').className = ''; $('statusTxt').textContent = 'Cambiando a MEP...'; window.fetchLive(); };
-$('bccl').onclick = function() { especie = 'C'; $('bccl').className = 'on'; $('bmep').className = ''; $('statusTxt').textContent = 'Cambiando a Cable...'; window.fetchLive(); };
+$('bmep').onclick = function() { especie = 'D'; window.SPREAD_SP = null; $('bmep').className = 'on'; $('bccl').className = ''; $('statusTxt').textContent = 'Cambiando a MEP...'; window.fetchLive(); };
+$('bccl').onclick = function() { especie = 'C'; window.SPREAD_SP = null; $('bccl').className = 'on'; $('bmep').className = ''; $('statusTxt').textContent = 'Cambiando a Cable...'; window.fetchLive(); };
 
 $('bsi').onclick = function() { try { localStorage.setItem('reinv', 'SI'); } catch(e){} draw(); };
 $('bno').onclick = function() { try { localStorage.setItem('reinv', 'NO'); } catch(e){} draw(); };
@@ -1600,16 +1615,15 @@ window.updateCurveChart = function() {
 
     function getReg(dataArr) { const r = window.curveFitUSD(dataArr.filter(function (p) { return p.md >= 1.1; }).map(function (p) { return { x: p.x * w, y: p.y }; }), window.USD_MODEL, 2); return r ? { f: function (x) { return r.f(x * w); }, name: r.name } : null; } // la curva se ajusta en años // misma regla que el desvío de Quant: los bonos de menos de ~1 año de duración no entran al ajuste
 
-    const regNY = getReg(dataNY), regLoc = getReg(dataLoc);
+    const rest = function (p) { return /^A[LE]\d/.test(p.bono); }; // los Bonares nuevos (AO27, AO28, AO29, AN29) no son de la reestructuración: se muestran pero no entran al ajuste
+    const regNY = getReg(dataNY), regLoc = getReg(dataLoc.filter(rest));
     let allPoints = dataNY.concat(dataLoc); // las curvas de fair value se dibujan solo sobre el rango de los soberanos (los BOPREAL cortos las estiraban hacia abajo)
     let minX = Math.min.apply(null, allPoints.map(function(p) { return p.x; })) * 0.95;
     let maxX = Math.max.apply(null, allPoints.map(function(p) { return p.x; })) * 1.15;
     
-    let lineNY = [], lineLoc = [];
-    for (let x = minX; x <= maxX; x += (maxX - minX) / 150) {
-        if (regNY) lineNY.push({ x: x, y: regNY.f(x) });
-        if (regLoc) lineLoc.push({ x: x, y: regLoc.f(x) });
-    }
+    const span = function (a) { const xs = a.map(function (p) { return p.x; }); return xs.length ? [Math.min.apply(null, xs), Math.max.apply(null, xs)] : null; }; // cada curva solo hasta el bono más largo de su ley
+    const line = function (reg, a) { const r = span(a), o = []; if (!reg || !r) return o; for (let i = 0; i <= 150; i++) { const x = r[0] + (r[1] - r[0]) * i / 150; o.push({ x: x, y: reg.f(x) }); } return o; };
+    let lineNY = line(regNY, dataNY), lineLoc = line(regLoc, dataLoc);
 
     const style = getComputedStyle(document.body);
     const colorAc = style.getPropertyValue('--c-s1').trim(); // ley NY
@@ -1695,7 +1709,7 @@ window.updateCurveChart = function() {
 }
 
 window.renderSpreadCards = function () { // último spread de cada par (cierre o precio en vivo de hoy) y su z contra toda la historia, en la moneda elegida
-    const sp = window.SPREAD_SP || 'C';
+    const sp = window.SPREAD_SP || especie;
     const lo = $('spreadFrom').value || addMonthsClamped(HIST_MAX, 6), hi = $('spreadTo').value || HIST_MAX, dd = function (s) { return s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(2, 4); };
     $('spreadsTitle').textContent = 'Spread de Legislación (Ley Local − Ley NY) · ' + (sp === 'C' ? 'cable' : 'MEP') + ' · media y z del ' + dd(lo) + ' al ' + dd(hi);
     $('spreadsGrid').innerHTML = Object.keys(SPREADS).map(function (key) {
@@ -1732,7 +1746,7 @@ window.updateSpreadChart = function() {
   if (!key) throw new Error('Ningún par seleccionado.');
   const p = SPREADS[key];
   if (!p) throw new Error('Par no encontrado.');
-  const sp = window.SPREAD_SP || 'C', spn = sp === 'C' ? 'cable' : 'MEP';
+  const sp = window.SPREAD_SP || especie, spn = sp === 'C' ? 'cable' : 'MEP';
   if ($('spreadSp').value !== sp) $('spreadSp').value = sp;
 
   if (!$('spreadPreset').value && !$('spreadFrom').value) $('spreadPreset').value = '6M';
@@ -2261,7 +2275,7 @@ setInterval(window.fetchLive, 90000);
     qCard('Escenarios de TIR (reprecio instantáneo)', 'Variación de precio ante shocks paralelos de la curva y de pendiente (steepener: puntas cortas bajan, largas suben; flattener: lo inverso; ±75 pb lineales en duración).', '<div class="wrap"><table class="qt" id="qScen"></table></div>'), 'projSection'));
   hosts.push(mount('desglose',
     '<hr style="border:0;border-top:1px solid var(--bd);margin:36px 0 20px">' +
-    '<div class="card ctl"><label>Horizonte carry / roll-down<select id="qHz"><option value="30">30 días</option><option value="60">60 días</option><option value="90" selected>90 días</option><option value="180">180 días</option></select></label>' +
+    '<div class="card ctl"><label>Horizonte carry / roll-down<select id="qHz"><option value="cut" selected>Hasta la fecha de corte</option><option value="30">30 días</option><option value="60">60 días</option><option value="90">90 días</option><option value="180">180 días</option></select></label>' +
     '</div>' +
     '<div class="qrow">' + qCard('Carry y roll-down', 'Retorno esperado al horizonte (sin reinvertir cupones): con la TIR constante y con roll-down (el bono se desliza por la curva manteniendo su desvío actual).', '<div class="qc tall"><canvas id="qCarryChart"></canvas></div>') +
     qCard('Detalle de carry', 'Detalle por bono. Colchón = cuántos pb puede subir la TIR antes de perder contra mantener caja (carry ÷ duración).', '<div class="wrap"><table class="qt" id="qCarry"></table></div>') + '</div>'));
@@ -2281,7 +2295,7 @@ setInterval(window.fetchLive, 90000);
   }); });
   var ctl = gid('qHz').closest('.card');
   var rst = document.createElement('button'); rst.className = 'act'; rst.textContent = 'Restablecer controles'; rst.title = 'Vuelve horizonte y ventana a sus valores por defecto'; rst.setAttribute('data-html2canvas-ignore', 'true');
-  rst.onclick = function () { gid('qHz').value = '90'; window.renderQuant(true); };
+  rst.onclick = function () { gid('qHz').value = 'cut'; window.renderQuant(true); };
   ctl.appendChild(rst);
   ['qHz'].forEach(function (id) { gid(id).onchange = function () { window.renderQuant(true); }; });
   var _sel = gid('qResSel');
@@ -2362,17 +2376,39 @@ setInterval(window.fetchLive, 90000);
     if (post.length < 1) return null;
     var P1c = bxPv(post, d1, o.tir), tr0 = (P1c + cash) / o.P - 1;
     var md1 = mdOf(post, d1, o.tir), tr1 = null, y1 = null;
-    if (o.reg && md1 > 0.05) { y1 = (o.reg.f(md1) / 100) + (o.dev || 0) / 1e4; tr1 = (bxPv(post, d1, y1) + cash) / o.P - 1; }
+    if (o.reg && md1 > 0.05) { var mA = Math.max(0.1, o.md), mB = Math.max(0.1, o.md - hz / 365); y1 = o.tir + (o.reg.f(mB) - o.reg.f(mA)) / 100; tr1 = (bxPv(post, d1, y1) + cash) / o.P - 1; } // roll-down: la TIR propia del bono más lo que cambia la curva al acortarse su duración por el paso del tiempo (no la duración de los flujos que quedan, que sube después de una amortización)
     var carry = cash + (bxPv(post, d1, o.tir) - o.P) , coll = hz > 0 ? (tr0 * 365 / hz) : null;
     var cushion = o.md > 0.05 ? (tr0 / o.md) * 1e4 : null; // pb de suba de TIR que absorbe el retorno
     return { tr0: tr0, tr1: tr1, ann0: tr0 * 365 / hz, ann1: tr1 == null ? null : tr1 * 365 / hz, roll: tr1 == null ? null : tr1 - tr0, cushion: cushion };
   }
-  function renderCarry(S, c, hz) {
-    var rows = S.map(function (o) { return { o: o, r: carryCalc(o, c, hz) }; }).filter(function (x) { return x.r; });
-    var h = '<tr><th class="l">Bono</th><th>Retorno<br>TIR cte.</th><th>Anualiz.</th><th>Roll-down<br>(pp)</th><th>Retorno<br>con roll</th><th>Colchón<br>(pb)</th></tr>';
-    rows.forEach(function (x) {
-      h += '<tr><td class="k">' + x.o.k + '</td><td style="' + colorOf(x.r.tr0, 0.06) + '">' + fm(x.r.tr0 * 100, 2) + '%</td><td>' + fm(x.r.ann0 * 100, 1) + '%</td><td>' + sg(x.r.roll == null ? null : x.r.roll * 100, 2) + '</td><td style="' + colorOf(x.r.tr1, 0.06) + '">' + (x.r.tr1 == null ? 'n/a' : fm(x.r.tr1 * 100, 2) + '%') + '</td><td>' + (x.r.cushion == null ? 'n/a' : fm(x.r.cushion, 0)) + '</td></tr>';
+  var isArs = function () { var b = gid('bdCcy'); return !!(b && b.value === 'ars'); }; // Flujos y total return en pesos: los bonos de Curva Pesos
+  function pesoCarry(hz) { // carry y roll-down de los bonos en pesos, en pesos (TEA nominal de Curva Pesos); el roll-down con la curva ajustada de cada familia
+    var X = window.PSX, sn = null; try { sn = X && X.snap ? X.snap(1) : null; } catch (e) { sn = null; } if (!sn) return [];
+    var s = sn.s, NM = { fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dl: 'Dólar linked' }, G = {};
+    sn.S.forEach(function (o) { if (!NM[o.fam] || o.miss || !(o.P > 0) || !o.fl || o.tea == null || !isFinite(o.tea) || o.d < 3) return; (G[o.fam] = G[o.fam] || []).push(o); });
+    var rows = [];
+    ['fija', 'cer', 'tamar', 'dl'].forEach(function (f) {
+      var L = (G[f] || []).sort(function (a, b) { return a.d - b.d; }), F = null; if (!L.length) return;
+      try { F = L.length >= 3 ? X.fairFit(L.map(function (o) { return { x: o.d, y: o.tea * 100 }; }), 'auto') : null; } catch (e) { F = null; }
+      var x0 = L[0].d, x1 = L[L.length - 1].d, cl = function (x) { return Math.min(Math.max(x, x0), x1); };
+      L.forEach(function (o) {
+        var d1 = s + hz, cash = 0, fl = o.fl.filter(function (x) { return x[0] > s; }), post = fl.filter(function (x) { return x[0] > d1; });
+        fl.forEach(function (x) { if (x[0] <= d1) cash += x[1]; }); if (!post.length) return;
+        var tr0 = (X.pvAt(post, d1, o.tea) + cash) / o.P - 1, tr1 = null;
+        if (F) { var yT = o.tea + (F.f(cl(o.d - hz)) - F.f(cl(o.d))) / 100; if (yT > -0.9) tr1 = (X.pvAt(post, d1, yT) + cash) / o.P - 1; } // mantiene el desvío contra la curva
+        rows.push({ o: { k: o.k, fam: NM[f] }, r: { tr0: tr0, tr1: tr1, ann0: tr0 * 365 / hz, roll: tr1 == null ? null : tr1 - tr0, cushion: o.mdur > 0.01 ? tr0 / o.mdur * 1e4 : null } });
+      });
     });
+    return rows;
+  }
+  function renderCarry(S, c, hz) {
+    var ars = isArs(), rows = ars ? pesoCarry(hz) : S.map(function (o) { return { o: o, r: carryCalc(o, c, hz) }; }).filter(function (x) { return x.r; });
+    var h = '<tr><th class="l">Bono</th>' + (ars ? '<th class="l">Familia</th>' : '') + '<th>Retorno<br>TIR cte.</th><th>Anualiz.</th><th>Roll-down<br>(pp)</th><th>Retorno<br>con roll</th><th>Colchón<br>(pb)</th></tr>';
+    rows.forEach(function (x) {
+      h += '<tr><td class="k">' + x.o.k + '</td>' + (ars ? '<td class="l">' + x.o.fam + '</td>' : '') + '<td style="' + colorOf(x.r.tr0, 0.06) + '">' + fm(x.r.tr0 * 100, 2) + '%</td><td>' + fm(x.r.ann0 * 100, 1) + '%</td><td>' + sg(x.r.roll == null ? null : x.r.roll * 100, 2) + '</td><td style="' + colorOf(x.r.tr1, 0.06) + '">' + (x.r.tr1 == null ? 'n/a' : fm(x.r.tr1 * 100, 2) + '%') + '</td><td>' + (x.r.cushion == null ? 'n/a' : fm(x.r.cushion, 0)) + '</td></tr>';
+    });
+    if (!rows.length) h += '<tr><td class="l" colspan="7">' + (ars ? 'Esperando los precios de Curva Pesos…' : 'Sin bonos con precio.') + '</td></tr>';
+    if (ars && rows.length) h += '<tr><td class="l" colspan="7" style="color:var(--mu);font-size:12px">En pesos, con la TEA nominal de Curva Pesos (CER y dólar linked con la inflación y el dólar que proyecta). Los que vencen antes del horizonte no entran.</td></tr>';
     document.getElementById('qCarry').innerHTML = h;
     var cv = document.getElementById('qCarryChart'); if (Q.carryCh) Q.carryCh.destroy();
     var bd = css('--bd'), tx = css('--tx');
@@ -2382,7 +2418,7 @@ setInterval(window.fetchLive, 90000);
         { label: 'TIR constante', data: rows.map(function (x) { return x.r.tr0 * 100; }), backgroundColor: css('--c-s2'), borderRadius: 3, borderSkipped: 'bottom', maxBarThickness: 22 },
         { label: 'Con roll-down', data: rows.map(function (x) { return x.r.tr1 == null ? null : x.r.tr1 * 100; }), backgroundColor: css('--c-s1'), borderRadius: 3, borderSkipped: 'bottom', maxBarThickness: 22 }] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: tx } }, tooltip: { callbacks: { label: function (i) { return i.dataset.label + ': ' + fm(i.raw, 2) + '%'; } } } },
-        scales: { x: { ticks: { color: tx }, grid: { display: false } }, y: { ticks: { color: tx, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd }, border: { display: false }, title: { display: true, text: 'Retorno a ' + hz + ' días (%)', color: css('--mu') } } } }
+        scales: { x: { ticks: { color: tx }, grid: { display: false } }, y: { ticks: { color: tx, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd }, border: { display: false }, title: { display: true, text: 'Retorno ' + (Q.hzLab || 'a ' + hz + ' días') + ' (%)', color: css('--mu') } } } }
     });
   }
 
@@ -2446,7 +2482,8 @@ setInterval(window.fetchLive, 90000);
       var c = ctx(), S = snapshot(c), want = function (t) { return all === 'all' || at === t || all === true && at === t; };
       if (all === 'all' || at === 'tabla') renderScen(S);
       if (all === 'all' || at === 'desglose') {
-        var hz = parseInt(gid('qHz').value, 10);
+        var hv = gid('qHz').value, hz = hv === 'cut' ? Math.max(1, c.d1 - c.d0) : parseInt(hv, 10); // por defecto, el mismo horizonte que la tabla (la fecha de corte)
+        Q.hzLab = hv === 'cut' ? 'hasta el corte (' + $('d1').value.split('-').reverse().join('/') + ', ' + hz + ' días)' : 'a ' + hz + ' días';
         renderCarry(S, c, hz);
       }
       if (all === 'all' || at === 'curva') { var H2 = history(c); renderRes(H2, S); }
@@ -2455,7 +2492,7 @@ setInterval(window.fetchLive, 90000);
   window.addEventListener('load', function () {
     setInterval(function () { if (TABS.indexOf(activeTab()) >= 0) window.renderQuant(); }, 30000);
     ['bmep', 'bccl'].forEach(function (id) { var el = gid(id); if (el) el.addEventListener('click', function () { setTimeout(function () { window.renderQuant(); }, 1800); }); });
-    ['ust'].forEach(function (id) { var el = gid(id); if (el) el.addEventListener('change', function () { window.renderQuant(); }); });
+    ['ust', 'd1'].forEach(function (id) { var el = gid(id); if (el) el.addEventListener('change', function () { window.renderQuant(); }); });
   });
   var _tt = window.toggleTheme;
   window.toggleTheme = function () { _tt(); setTimeout(window.renderQuant, 0); };
@@ -2697,11 +2734,11 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
     for (i = 13; i <= 15; i++) L[i] = REMD.fxSep27 * Math.pow(REMD.fxDec27 / REMD.fxSep27, (i - 12) / 3);
     dev[0] = 0; for (i = 1; i <= 15; i++) dev[i] = L[i] / L[i - 1] - 1;
     for (i = 16; i < n; i++) dev[i] = pi[i]; // desde 2028: tipo de cambio real constante (devaluación = inflación del REM)
-    return { pi: pi, tam: tam, dev: dev };
+    return { pi: pi, tam: tam, dev: dev, fx: L };
   }
   var REMP = buildRem(), remF = function (a) { return function (mi) { return a[Math.max(0, Math.min(a.length - 1, mi - MIN_M))]; }; };
   var REMSC = mkSc(remF(REMP.pi), remF(REMP.tam), remF(REMP.dev));
-  window.PSREM = { pi: REMP.pi, dev: REMP.dev, m0: MIN_M }; // el REM mes a mes (desde sep-26), para las implícitas de Tasas históricas
+  window.PSREM = { pi: REMP.pi, dev: REMP.dev, fx: REMP.fx, m0: MIN_M }; // el REM mes a mes (desde sep-26), para las implícitas de Tasas históricas
   function remCer(o, sc) { var T = bdBack(o.mat, 10), l = lastOf(IDX.CER); if (T <= l) return null; return Math.pow(cerAt(T, sc || REMSC) / IDX.CER.v[IDX.CER.v.length - 1], 30.4375 / (T - l)) - 1; }
   function remFx(o, sc) { var T = bdBack(o.mat, 3), l = lastOf(IDX.FX); if (T <= l) return null; return Math.pow(fxAt(T, sc || REMSC) / IDX.FX.v[IDX.FX.v.length - 1], 30.4375 / (T - l)) - 1; }
   function remTam(o, sc) { var lt = lastOf(IDX.TAMAR), a = 0, n = 0; for (var t = lt + 1; t < o.mat; t++) { a += tamAt(t, sc || REMSC); n++; } return n ? a / n : null; }
@@ -2735,7 +2772,7 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
     card('TAMAR', 'Rendimiento de los bonos TAMAR contra su plazo. Verde: rinde más que la curva (barato); rojo: rinde menos (caro). Se pueden sumar los duales a la curva.', '<div class="ctl" style="margin-bottom:10px"><label>Métrica<select id="psM3"></select></label><label>Curva<select id="psK3">'+CURVEOPT+'</select></label><label>Eje X<select id="psA3">' + xaxOpts('plazo') + '</select></label><label>Plazo máximo<select id="psX3"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000" selected>1.000 días</option><option value="1500">1.500 días</option><option value="99999">Todos</option></select></label><label>Duales<select id="psD3"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' + MIRn(3) + RSTBn(3) + '</div><div class="qc mid"><canvas id="psC3"></canvas></div><p class="note" id="psKn3" style="margin:6px 0 0"></p><div class="wrap" style="margin-top:14px"><table class="qt" id="psTamar"></table></div>') +
     card('Dólar linked', 'Rendimiento de los bonos dólar linked contra su plazo. Verde: rinde más que la curva (barato); rojo: rinde menos (caro).', '<div class="ctl" style="margin-bottom:10px"><label>Métrica<select id="psM4"></select></label><label>Curva<select id="psK4">'+CURVEOPT+'</select></label><label>Eje X<select id="psA4">' + xaxOpts('plazo') + '</select></label><label>Plazo máximo<select id="psX4"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000" selected>1.000 días</option><option value="1500">1.500 días</option><option value="99999">Todos</option></select></label>' + MIRn(4) + RSTBn(4) + '</div><div class="qc mid"><canvas id="psC4"></canvas></div><p class="note" id="psKn4" style="margin:6px 0 0"></p><div class="wrap" style="margin-top:14px"><table class="qt" id="psDl"></table></div>') +
     card('Duales (el mayor de dos pagos)', 'Bonos que pagan el mayor entre dos ramas, con la rama ganadora y el punto de indiferencia. El gráfico compara todos los duales en una misma métrica.', '<div class="ctl" style="margin-bottom:10px"><label>Métrica<select id="psM5"></select></label><label>Curva<select id="psK5">'+CURVEOPT+'</select></label><label>Eje X<select id="psA5">' + xaxOpts('plazo') + '</select></label><label>Plazo máximo<select id="psX5"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000" selected>1.000 días</option><option value="1500">1.500 días</option><option value="99999">Todos</option></select></label>' + MIRn(5) + RSTBn(5) + '</div><div class="qc mid"><canvas id="psC5"></canvas></div><p class="note" id="psKn5" style="margin:6px 0 0"></p><div class="wrap" style="margin-top:14px"><table class="qt" id="psDual"></table></div>') +
-    card('Historial y comparación de dos instrumentos', 'Compará dos instrumentos en retorno total, precio o rendimiento desde la fecha que elijas. La línea punteada es el relativo A/B.', '<div class="ctl" style="margin-bottom:10px"><label>Instrumento A<select id="psHA"></select></label><label>Instrumento B<select id="psHB"></select></label><label title="Arma la lista de B con bonos de otras familias parecidos a A">Emparejar B<select id="psHM"><option value="">A mano</option><option value="mat">Mismo vencimiento, otra familia</option><option value="dur">Misma duración, otra familia</option></select></label><label>Vista<select id="psHV"><option value="tr">Retorno total y relativo A/B</option><option value="px">Precio</option><option value="yd">Rendimiento</option></select></label><label>Desde<input type="date" id="psHFrom"></label></div><div class="qgrid s" id="psHStats" style="margin-bottom:10px"></div><div class="qc tall"><canvas id="psHist"></canvas></div>') +
+    card('Historial y comparación de dos instrumentos', 'Compará dos instrumentos en retorno total, precio o rendimiento desde la fecha que elijas. La línea punteada es el relativo A/B en retorno total y el spread en pb en rendimiento.', '<div class="ctl" style="margin-bottom:10px"><label>Instrumento A<select id="psHA"></select></label><label>Instrumento B<select id="psHB"></select></label><label title="Arma la lista de B con bonos de otras familias parecidos a A">Emparejar B<select id="psHM"><option value="">A mano</option><option value="mat">Mismo vencimiento, otra familia</option><option value="dur">Misma duración, otra familia</option></select></label><label>Vista<select id="psHV"><option value="tr">Retorno total y relativo A/B</option><option value="px">Precio</option><option value="yd">Rendimiento y spread A − B</option></select></label><label>Desde<input type="date" id="psHFrom"></label></div><div class="qgrid s" id="psHStats" style="margin-bottom:10px"></div><div class="qc tall"><canvas id="psHist"></canvas></div>') +
     '<p class="note" id="psInfo"></p>';
   var ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>';
   root.querySelectorAll('.card').forEach(function (cd, i) {
@@ -3308,7 +3345,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         var yA = ts.map(function (t) { return mapA[t].y; }); dsets.push(line(kA + ' (' + yieldLab(kA) + ')', yA, cA)); scales.y.title.text = 'Rendimiento (%)'; scales.y.ticks.callback = function (v) { return fm(v, 1) + '%'; };
         var lastOf_ = function (a) { for (var i = a.length - 1; i >= 0; i--) if (a[i] != null) return a[i]; return null; }, firstOf_ = function (a) { for (var i = 0; i < a.length; i++) if (a[i] != null) return a[i]; return null; };
         stats += box(kA + ' · ' + yieldLab(kA), fm(lastOf_(yA), 2) + '%', 'Cambio ' + sg((lastOf_(yA) - firstOf_(yA)) * 100, 0) + ' pb');
-        if (B) { var yB = ts.map(function (t) { return mapB[t].y; }); dsets.push(line(kB + ' (' + yieldLab(kB) + ')', yB, cB)); stats += box(kB + ' · ' + yieldLab(kB), fm(lastOf_(yB), 2) + '%', 'Cambio ' + sg((lastOf_(yB) - firstOf_(yB)) * 100, 0) + ' pb'); if (yieldLab(kA) === yieldLab(kB)) stats += box('Spread A − B', sg((lastOf_(yA) - lastOf_(yB)) * 100, 0) + ' pb', 'Hoy'); }
+        if (B) { var yB = ts.map(function (t) { return mapB[t].y; }); dsets.push(line(kB + ' (' + yieldLab(kB) + ')', yB, cB)); stats += box(kB + ' · ' + yieldLab(kB), fm(lastOf_(yB), 2) + '%', 'Cambio ' + sg((lastOf_(yB) - firstOf_(yB)) * 100, 0) + ' pb'); if (yieldLab(kA) === yieldLab(kB)) { // con tasas, la serie de la derecha es el spread en pb (un cociente de tasas explota cuando una se acerca a cero)
+            var spr = yA.map(function (v, i) { return v != null && yB[i] != null ? (v - yB[i]) * 100 : null; }), s0_ = firstOf_(spr);
+            dsets.push(line('Spread ' + kA + ' − ' + kB + ' (pb)', spr, css('--tx'), 'y1', [6, 4]));
+            scales.y1 = { position: 'right', ticks: { color: tx, callback: function (v) { return sg(v, 0); } }, grid: { drawOnChartArea: false }, title: { display: true, text: 'Spread A − B (pb)', color: tx } };
+            stats += box('Spread A − B', sg(lastOf_(spr), 0) + ' pb', 'Hoy · ' + (s0_ == null ? '' : sg(lastOf_(spr) - s0_, 0) + ' pb desde ' + bxDayStr(ts[0]))); }
+          else stats += box('Spread A − B', 'n/a', 'Miden tasas distintas (' + yieldLab(kA) + ' y ' + yieldLab(kB) + '): no se restan'); }
       }
     }
     document.getElementById('psHStats').innerHTML = stats;
@@ -4761,7 +4803,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var css = function (n) { return getComputedStyle(document.body).getPropertyValue(n).trim(); };
   var PESOS = ['fija', 'cer', 'tamar', 'dl', 'dual'], USD = ['bonar', 'glob', 'bop'];
   var CTX = { curva: ['Hard dollar', USD], tabla: ['Hard dollar', USD], dol: ['Hard dollar', USD], pesos: ['Bonos en pesos', PESOS], lic: ['Bonos en pesos', PESOS], tcor: ['Lecaps y Boncaps', ['fija']],
-    tfut: ['Tasa fija y dólar linked', ['fija', 'dl']], expi: ['Tasa fija y CER', ['fija', 'cer']], expd: ['Tasa fija y dólar linked', ['fija', 'dl']], expf: ['Bonos en pesos', PESOS] };
+    tfut: ['Tasa fija y dólar linked', ['fija', 'dl']], sint: ['Bonos en pesos', PESOS], expi: ['Tasa fija y CER', ['fija', 'cer']], expd: ['Tasa fija y dólar linked', ['fija', 'dl']], expf: ['Bonos en pesos', PESOS] };
   var ICO = {
     tk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 4 8-9"/><path d="M15 7h5v5"/></svg>',
     vol: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 20V12M12 20V5M19 20v-9"/></svg>',
@@ -4792,7 +4834,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     '#qvP .ch{position:relative;height:170px;margin-bottom:6px}#qvP .ce{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;color:var(--mu);padding:0 20px}' +
     '#qvP .ft{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px 12px;border-top:1px solid var(--bd);font-size:11px;color:var(--mu)}#qvP .ft button{font:inherit;font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);cursor:pointer;white-space:nowrap}#qvP .ft button:hover{color:var(--ac);border-color:var(--ac)}' +
     '@media(max-width:640px){#qvP .f{gap:5px}#qvP .f button{padding:5px 9px;font-size:11.5px}#qvB{right:12px;bottom:12px;width:44px;height:44px}#qvM{right:12px;bottom:66px}#qvOv{padding:0 8px 66px;justify-content:center}#qvP li{grid-template-columns:56px minmax(0,1fr) 94px 48px;gap:6px}}' +
-    '#qvP .ft .bt{display:flex;gap:6px}#qvP .ft button:disabled{opacity:.7;cursor:default}#qvP.wide{width:min(1120px,100%);max-height:calc(100% - 96px)}#qvP.wide .bd{padding:0 14px 10px}#qvP .h .tt{flex:1;min-width:0;display:flex;flex-direction:column}#qvP .h .tt b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#qvP .h .tt small{font-size:12px;color:var(--mu)}#qvP .h .tt+.sp{display:none}' +
+    '#qvP .ft{flex-wrap:wrap}#qvP .ft>span:first-child{flex:1 1 220px;min-width:0}#qvP .ft .bt{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}#qvP .ft button:disabled{opacity:.7;cursor:default}#qvP.wide{width:min(1120px,100%);max-height:calc(100% - 96px)}#qvP.wide .bd{padding:0 14px 10px}#qvP .h .tt{flex:1;min-width:0;display:flex;flex-direction:column}#qvP .h .tt b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#qvP .h .tt small{font-size:12px;color:var(--mu)}#qvP .h .tt+.sp{display:none}' +
     '#qvOv.emb{position:static;inset:auto;display:block;padding:0;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;animation:none}#qvOv.emb #qvP{width:auto;max-height:none;box-shadow:none;animation:none}#qvOv.emb .h .x{display:none}' +
     '#qvP .ampb{display:none}#qvP .nt{margin:-2px 0 6px;font-size:11px;color:var(--mu)}@media print{#qvB,#qvM{display:none}}';
   document.head.appendChild(st);
@@ -5290,6 +5332,804 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   setInterval(function () { if (!isAct()) return; adrT = 0; if (ST.live) render(); else adr(); }, 90000);
 })();
 /*@@DOL_END@@*/
+/*@@TCOR_START@@*/
+/* =====================================================================
+   PESTAÑAS MERCADO DE DINERO (#tcor) Y FUTUROS (#tfut)
+   Datos: data/tasas.json (lo guarda el Action "Tasas cortas", scripts/save_tasas.py): cierres de caución en pesos y en dólares y de
+   futuros de A3 (con apertura, máximo, mínimo, último e interés abierto), plazo fijo, BADLAR y A3500 del BCRA, tasa a 3 meses de los
+   futuros desde 2020, la caución de BYMA (pesos, MEP y cable) y la foto de la rueda por la API de Primary (cuenta de Bull) cada 20 minutos.
+   data/intra.json: el intradiario de las últimas ruedas (caución de BYMA cada 20 minutos y las operaciones de los futuros cada 5).
+   data/indices.json: TAMAR y A3500. Las Lecaps y los dollar linked salen de Curva Pesos (window.PSX) y el volumen de data/volumen.json.
+   window.QVX: estos instrumentos para el panel del botón flotante (caución, plazo fijo, TAMAR, BADLAR, A3500 y cada futuro).
+   ===================================================================== */
+;(function () {
+  var nf = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d == null ? 0 : d, maximumFractionDigits: d == null ? 0 : d }); };
+  var sg = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : (v > 0 ? '+' : '') + nf(v, d); };
+  var css = function (n) { return getComputedStyle(document.body).getPropertyValue(n).trim(); };
+  var fr = function (s) { return s ? s.slice(0, 10).split('-').reverse().join('/') : ''; };
+  var dn = function (s) { return Math.round(Date.parse(s.slice(0, 10) + 'T12:00:00Z') / 864e5); };
+  var ds2 = function (n) { return new Date(n * 864e5).toISOString().slice(0, 10); };
+  var MES = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+  var MESm = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  var mmyy = function (n) { var d = ds2(Math.round(n)); return MESm[+d.slice(5, 7) - 1] + '-' + d.slice(2, 4); };
+  var RG = [['in', 'Intradiario'], ['1m', '1 mes', 21], ['3m', '3 meses', 63], ['6m', '6 meses', 126], ['1a', '1 año', 252], ['3a', '3 años', 756], ['todo', 'Todo', 0]];
+  var RGD = RG.slice(1);
+  var rgN = function (r) { for (var i = 0; i < RG.length; i++) if (RG[i][0] === r) return RG[i][2]; return 63; };
+  var rgName = function (r) { for (var i = 0; i < RG.length; i++) if (RG[i][0] === r) return RG[i][1].toLowerCase(); return ''; };
+  var C_CAU = '#38bdf8', C_VIV = '#0ea5e9', C_USD = '#2dd4bf', C_EXT = '#a78bfa', C_FUT = '#f59e0b', C_CF = '#c084fc', C_PF = '#4ade80', C_TAM = '#f472b6', C_BAD = '#a8a29e', C_LEC = '#fb923c', C_DEV = '#fb7185', C_FX = '#94a3b8', C_DL = '#f87171';
+  var TJ = null, IX = null, DJ = null, INT = {}, err = null, loading = false, WAIT = [], SS = null;
+
+  function load(cb) {
+    if (TJ || err) { cb(); return; } WAIT.push(cb); if (loading) return; loading = true;
+    var j = function (u) { return fetch(u + '?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(u + ' (' + r.status + ')'); return r.json(); }); };
+    var done = function () { loading = false; WAIT.splice(0).forEach(function (f) { f(); }); };
+    Promise.all([j('data/tasas.json'), j('data/indices.json').catch(function () { return {}; }), j('data/dolar.json').catch(function () { return {}; }), j('data/intra.json').catch(function () { return {}; })]).then(function (r) { TJ = r[0]; IX = r[1] || {}; IX.A3500 = (r[2] || {}).A3500 || {}; DJ = r[2] || {}; INT = r[3] || {}; SS = null; done(); },
+      function (e) { err = e.message; done(); });
+  }
+  function reload() { TJ = null; err = null; SS = null; }
+  function todayBA() { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }); } catch (e) { return new Date().toISOString().slice(0, 10); } }
+  var keys = function (o) { return Object.keys(o || {}).sort(); };
+  var at = function (o, d) { var k = keys(o), r = null; for (var i = 0; i < k.length && k[i] <= d; i++) r = k[i]; return r ? [r, o[r]] : [null, null]; }; // último dato hasta esa fecha
+  // contratos: A3 los llama DLR112026 y Primary DLR/NOV26; acá se usa el de Primary
+  var psym = function (s) { var m = /^DLR(\d{2})(\d{4})$/.exec(s); return m ? 'DLR/' + MES[+m[1] - 1] + m[2].slice(2) : s; };
+  var name = function (s) { s = psym(s); var m = /^(DLR|CAUC)\/([A-Z]{3})(\d{2})$/.exec(s); return m ? (m[1] === 'CAUC' ? 'Caución ' : 'DLR ') + m[2] + m[3] : s; };
+  var key = function (s) { s = psym(s); var m = /\/([A-Z]{3})(\d{2})$/.exec(s); return m ? '20' + m[2] + ('0' + (MES.indexOf(m[1]) + 1)).slice(-2) : s; };
+  var tna = function (F, Sp, d) { return F > 0 && Sp > 0 && d > 0 ? (F / Sp - 1) * 365 / d * 100 : null; };
+  var dev = function (F, Sp, d) { return F > 0 && Sp > 0 && d > 0 ? (Math.pow(F / Sp, 30 / d) - 1) * 100 : null; };
+  var tea = function (t, d) { return t == null ? null : (Math.pow(1 + t / 100 * d / 365, 365 / d) - 1) * 100; };
+  var devm = function (v) { return v == null ? null : (Math.pow(1 + v / 100 * 90 / 365, 1 / 3) - 1) * 100; }; // devaluación mensual de la tasa a 3 meses
+  var dias = function (n) { return n + (n === 1 ? ' día' : ' días'); };
+  var cauDias = function (ds) { if (!ds) return null; var t = bxDayNum(String(ds).slice(0, 10)), n = t + 1; if (!isFinite(t)) return null; while (!bxIsBiz(n) && n - t < 15) n++; return n - t; }; // plazo de la caución más corta según nuestro calendario: 1 día corrido, 3 un viernes, más si hay feriados
+  var cauT = function (k, t) { var o = inst(k); if (!o) return t; var hk = keys(o.h || {}), ds = o.i && o.i.d === todayBA() ? o.i.d : hk[hk.length - 1], n = cauDias(ds); return t + ' · ' + (n ? dias(n) : '1 día hábil'); };
+  var hm = function (m) { m = Math.round(m); return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2); };
+  var P = function (v) { return v == null || !isFinite(v) ? 'n/a' : nf(v, 2) + '%'; };
+  var PS = function (v) { return v == null || !isFinite(v) ? 'n/a' : '$ ' + nf(v, v >= 1000 ? 1 : 2); };
+  var cnt = function (v) { return v == null || !isFinite(v) ? '—' : nf(v, 0); };
+
+  /* ---------- cuentas comunes ---------- */
+  function build() {
+    var fx = {}; [TJ.a3500, IX.A3500, IX.FX].forEach(function (o) { keys(o).forEach(function (d) { if (o[d] > 0) fx[d] = o[d]; }); }); // A3500 del BCRA (desde 2020)
+    var spot = function (d) { var a = at(TJ.spot, d); return a[0] ? a : at(fx, d); }; // el spot de A3 (el de su tasa implícita, uno por rueda); si falta, el A3500
+    var cd = keys(TJ.cau), cdD = keys(TJ.cauD), fd = keys(TJ.fut), dc = cd[cd.length - 1], dcD = cdD[cdD.length - 1], df = fd[fd.length - 1];
+    var V = TJ.vivo || null, vd = V && V.ts ? V.ts.slice(0, 10) : null, bd = V && V.bts ? V.bts.slice(0, 10) : null;
+    var hasLive = function (rows, i) { return (rows || []).some(function (r) { return r[i] != null && r[i] > 0; }); };
+    // la foto de Primary vale si es de una rueda posterior al último cierre y ya hubo operaciones (fuera de la rueda solo quedan puntas sueltas)
+    var vivoOk = V && vd > (df || '') && (hasLive(V.fut, 4) || hasLive(V.cau, 3));
+    // la de BYMA (caución en pesos, MEP y cable), si es de hoy y ya se operó
+    var B = V && V.bcau && bd === todayBA() && ['ARS', 'USD', 'EXT'].some(function (m) { return hasLive(V.bcau[m], 3) || hasLive(V.bcau[m], 5); }) ? V.bcau : null;
+    // caución: el plazo más corto de cada rueda (1 día hábil: 1 día corrido, 3 los viernes o 4 si hay feriado)
+    var shortest = function (o) { var r = {}; keys(o).forEach(function (d) { var x = o[d][0]; if (x && x[0] <= 5) r[d] = x; }); return r; };
+    var curve = function (d, rows, live) {
+      var Sp = live && V.spot > 0 ? V.spot : spot(d)[1], base = d; // en la rueda: el spot de A3 por Primary o el del último cierre
+      return (rows || []).map(function (r) {
+        var F = live ? (r[4] || (r[2] && r[3] ? (r[2] + r[3]) / 2 : null) || r[5]) : r[2], dd = r[1] ? dn(r[1]) - dn(base) : null;
+        if (!(dd > 0)) return null;
+        return { s: psym(r[0]), v: r[1], d: dd, F: F, t: tna(F, Sp, dd), dev: dev(F, Sp, dd), oi: live ? r[6] : r[3], vol: live ? r[7] : r[4], raw: r, sp: Sp, base: base };
+      }).filter(function (x) { return x && x.F > 0; }).sort(function (a, b) { return a.d - b.d; });
+    };
+    var i90 = function (c) { // tasa implícita a 3 meses, interpolada entre los contratos de 30 días o más (la misma cuenta que save_tasas.py)
+      c = c.filter(function (x) { return x.d >= 30; });
+      for (var i = 1; i < c.length; i++) if (c[i - 1].d <= 90 && c[i].d >= 90 && c[i - 1].t != null && c[i].t != null) return c[i - 1].t + (c[i].t - c[i - 1].t) * (90 - c[i - 1].d) / (c[i].d - c[i - 1].d);
+      return c.length && c[0].d > 90 ? c[0].t : null;
+    };
+    var f90 = {}; keys(TJ.f90).forEach(function (d) { f90[d] = TJ.f90[d]; });
+    fd.forEach(function (d) { if (f90[d] == null) { var v = i90(curve(d, TJ.fut[d])); if (v != null) f90[d] = v; } });
+    var fut = curve(df, TJ.fut[df]), futPrev = fd.length > 1 ? curve(fd[fd.length - 2], TJ.fut[fd[fd.length - 2]]) : [];
+    var futV = vivoOk ? curve(vd, V.fut, true) : null;
+    var cf = keys(TJ.cfut), dcf = cf[cf.length - 1];
+    // la historia de cada contrato (ajuste de cada rueda) y su última fila
+    var hist = {}, rowOf = {};
+    [TJ.fut, TJ.cfut].forEach(function (o) { keys(o).forEach(function (d) { (o[d] || []).forEach(function (r) { var k = psym(r[0]); (hist[k] || (hist[k] = {}))[d] = r[2]; rowOf[k] = r; }); }); });
+    var ago = at(TJ.fut, ds2(dn(df) - 30))[0]; // la rueda de hace un mes, para las forwards
+    return { cd: cd, dc: dc, dcD: dcD, df: df, dcf: dcf, corta: shortest(TJ.cau), cortaD: shortest(TJ.cauD), f90: f90, fut: fut, futPrev: futPrev, futV: futV, vivoOk: vivoOk, V: V, vd: vd, B: B, bts: V && V.bts,
+      spot: spot(df), fx: fx, cau: TJ.cau[dc] || [], cauPrev: cd.length > 1 ? TJ.cau[cd[cd.length - 2]] : [], cauD: (TJ.cauD || {})[dcD] || [], cauDPrev: cdD.length > 1 ? TJ.cauD[cdD[cdD.length - 2]] : [],
+      cfut: (TJ.cfut[dcf] || []), cfPrev: cf.length > 1 ? TJ.cfut[cf[cf.length - 2]] : [], cfHist: shortest2(TJ.cfut), hist: hist, rowOf: rowOf, ago: ago, futAgo: ago ? curve(ago, TJ.fut[ago]) : [],
+      pf: at(TJ.pf, '9999'), bad: at(TJ.badlar, '9999'), tam: at(IX.TAMAR, '9999') };
+  }
+  function shortest2(o) { var r = {}; keys(o).forEach(function (d) { var x = (o[d] || []).filter(function (q) { return q[1] && dn(q[1]) - dn(d) >= 10; })[0]; if (x) r[d] = x[2]; }); return r; } // futuro de caución más cercano (10 días o más)
+  function getS() { if (!SS && TJ) SS = build(); return SS; }
+  var cp = function (r) { return r ? (r[3] || r[4] || r[5] || (r[1] && r[2] ? (r[1] + r[2]) / 2 : null)) : null; }; // tasa de una fila de BYMA: última, cierre, vwap o punto medio
+  function intraOf(kind, k) { // la última rueda con intradiario de ese instrumento: {d, p: [[minuto, valor, cantidad]], dias}
+    var dd = keys(INT).reverse();
+    for (var i = 0; i < dd.length; i++) { var o = (INT[dd[i]] || {})[kind]; if (o && o[k] && o[k].length) return { d: dd[i], p: o[k], dias: kind === 'cau' && INT[dd[i]].cd ? INT[dd[i]].cd[k] : null }; }
+    return null;
+  }
+  var tail = function (o, n) { var k = keys(o).filter(function (d) { return o[d] != null && isFinite(o[d]); }); k = n ? k.slice(-n) : k; return k.map(function (d) { return [d, o[d]]; }); };
+  var map = function (o, f) { var r = {}; keys(o).forEach(function (d) { var v = f(o[d]); if (v != null && isFinite(v)) r[d] = v; }); return r; };
+
+  /* ---------- instrumentos para las tarjetas y el panel del botón flotante ---------- */
+  function lecapsAll() { // Lecaps y Boncaps con los precios de Curva Pesos
+    var X = window.PSX, sn = null; try { sn = X && X.snap ? X.snap(1) : null; } catch (e) { sn = null; }
+    return (sn ? sn.S : []).filter(function (o) { return o.ins.k === 'cap' && o.tea != null && o.tnas != null && o.d >= 1 && !o.miss && o.P > 0; }).sort(function (a, b) { return a.d - b.d; });
+  }
+  function lecRef(L) { // la curva de Lecaps ajustada como en Curva Pesos (TNA % por días al vencimiento): {f, sigma, name, x0, x1, at(d)}
+    L = L || lecapsAll(); var X = window.PSX, q = null; if (!X || !X.fairFit || L.length < 3) return null;
+    try { q = X.fairFit(L.map(function (o) { return { x: o.d, y: o.tnas * 100, k: o.k }; }), 'auto'); } catch (e) { q = null; }
+    if (!q) return null;
+    var x0 = L[0].d, x1 = L[L.length - 1].d;
+    return { f: q.f, sigma: q.sigma, name: q.name, x0: x0, x1: x1, at: function (d) { return d >= x0 - 3 && d <= x1 + 3 ? q.f(Math.min(x1, Math.max(x0, d))) : null; } };
+  }
+  var LBL = function () { return window.PSX && window.PSX.LABELS ? [window.PSX.LABELS] : []; }; // rótulos con el ticker, sin superponerse (los de Curva Pesos)
+  function smooth(F, a, b, n) { var r = []; n = n || 90; for (var i = 0; i <= n; i++) { var x = a + (b - a) * Math.pow(i / n, 1.4); r.push({ x: x, y: F(x) }); } return r; }
+  var FIX = [['CAUCION', 'Caución en pesos'], ['CAUCION USD', 'Caución en dólares (MEP)'], ['CAUCION CABLE', 'Caución en dólares cable'], ['PLAZO FIJO', 'Plazo fijo a 30 días'], ['TAMAR', 'TAMAR bancos privados'],
+    ['BADLAR', 'BADLAR bancos privados'], ['A3500', 'Dólar mayorista A3500'], ['TASA FUTURO 3M', 'Dólar futuro: tasa implícita a 3 meses'], ['DEVALUACION', 'Devaluación mensual implícita']];
+  function inst(k) {
+    var S = getS(); if (!S) return null;
+    var td = todayBA(), o = { k: k, u: 'r', kv: [], bk: null, i: null }, f = null;
+    var cauX = function (h, m, dsc) { // caución: A3 al cierre y BYMA en la rueda
+      o.h = h; o.i = intraOf('cau', m); o.n = dsc;
+      var b = S.B && S.B[m] ? S.B[m].filter(function (r) { return cp(r); })[0] : null, hk = keys(h), l = hk[hk.length - 1];
+      if (o.i && o.i.d === td) { var lp = o.i.p[o.i.p.length - 1]; o.v = lp[1]; o.vs = 'BYMA, ' + (o.i.dias ? dias(o.i.dias) + ', ' : '') + 'hoy ' + hm(lp[0]); }
+      else if (b) { o.v = cp(b); o.vs = 'BYMA, ' + dias(b[0]) + ', hoy ' + (S.bts || '').slice(11, 16); }
+      if (o.v != null && l && l < td) o.prev = h[l];
+      return b;
+    };
+    if (k === 'CAUCION') {
+      var c = S.cau[0], b = cauX(map(S.corta, function (r) { return r[1]; }), 'ARS', '1 día hábil · TNA');
+      o.t = 'Caución en pesos';
+      if (c) o.kv = [['Plazo', dias(c[0])], ['Liquida', fr(c[5])], ['Cierre A3', P(c[1])], ['Mín. A3', P(c[2])], ['Máx. A3', P(c[3])], ['Monto A3', '$ ' + nf(c[4] / 1e9, 0) + ' mil M']];
+      if (b && b[1] && b[2]) o.bk = [['Tomadora', P(b[1])], ['Colocadora', P(b[2])]];
+    } else if (k === 'CAUCION USD') {
+      var u = S.cauD[0], bu = cauX(map(S.cortaD, function (r) { return r[1]; }), 'USD', '1 día hábil · TNA');
+      o.t = 'Caución en dólares (MEP)';
+      if (u) o.kv = [['Plazo', dias(u[0])], ['Liquida', fr(u[5])], ['Cierre A3', P(u[1])], ['Mín. A3', P(u[2])], ['Máx. A3', P(u[3])], ['Monto A3', 'US$ ' + nf(u[4] / 1e6, 1) + ' M']];
+      if (bu && bu[1] && bu[2]) o.bk = [['Tomadora', P(bu[1])], ['Colocadora', P(bu[2])]];
+    } else if (k === 'CAUCION CABLE') {
+      var be = cauX(map(TJ.bcau || {}, function (x) { return x.EXT ? x.EXT[1] : null; }), 'EXT', '1 día hábil · BYMA · TNA');
+      o.t = 'Caución en dólares cable';
+      if (be && be[1] && be[2]) o.bk = [['Tomadora', P(be[1])], ['Colocadora', P(be[2])]];
+      if (o.v == null && !keys(o.h).length) return null;
+    } else if (k === 'PLAZO FIJO') { o.t = 'Plazo fijo a 30 días'; o.n = 'promedio de los bancos · BCRA · TNA'; o.h = TJ.pf; }
+    else if (k === 'TAMAR') { o.t = 'TAMAR bancos privados'; o.n = 'depósitos de más de $ 1.000 M · BCRA · TNA'; o.h = IX.TAMAR || {}; }
+    else if (k === 'BADLAR') { o.t = 'BADLAR bancos privados'; o.n = 'depósitos de más de $ 1 M · BCRA · TNA'; o.h = TJ.badlar; }
+    else if (k === 'A3500') { o.t = 'Dólar mayorista A3500'; o.n = 'BCRA'; o.h = S.fx; o.u = '$'; }
+    else if (k === 'TASA FUTURO 3M') { o.t = 'Dólar futuro: tasa a 3 meses'; o.n = 'implícita, interpolada entre contratos · TNA'; o.h = S.f90; }
+    else if (k === 'DEVALUACION') { o.t = 'Devaluación mensual implícita'; o.n = 'de la tasa a 3 meses de los futuros'; o.h = map(S.f90, devm); o.u = 'm'; }
+    else if (/^(DLR|CAUC)\/[A-Z]{3}\d{2}$/.test(k)) {
+      var isC = k.indexOf('CAUC') === 0, r = S.rowOf[k], h = S.hist[k] || {};
+      if (!r && !keys(h).length) return null;
+      o.t = name(k); o.h = h; o.u = isC ? 'r' : '$'; o.i = intraOf('fut', k);
+      var lv = S.vivoOk ? ((isC ? S.V.cfut : S.V.fut) || []).filter(function (x) { return x[0] === k; })[0] : null, hk = keys(h), l = hk[hk.length - 1];
+      var vto = r ? r[1] : lv ? lv[1] : null, dd = vto ? dn(vto) - dn(lv ? S.vd : l) : null;
+      o.n = (isC ? 'futuro de caución a 1 día' : 'futuro de dólar') + (vto ? ' · vence el ' + fr(vto) + (dd > 0 ? ' (' + dias(dd) + ')' : '') : '');
+      if (lv && (lv[4] || lv[2] || lv[3])) {
+        o.v = lv[4] || (lv[2] && lv[3] ? (lv[2] + lv[3]) / 2 : null); o.vs = 'Primary, hoy ' + (S.V.ts || '').slice(11, 16) + (lv[4] ? ' · último operado' : ' · punto medio'); o.prev = l && l < td ? h[l] : null;
+        o.bk = [['Compra', lv[2] ? (isC ? P(lv[2]) : nf(lv[2], 1)) : '—'], ['Venta', lv[3] ? (isC ? P(lv[3]) : nf(lv[3], 1)) : '—']];
+        o.kv = [['Apertura', lv[8] ? nf(lv[8], isC ? 2 : 1) : '—'], ['Máximo', lv[9] ? nf(lv[9], isC ? 2 : 1) : '—'], ['Mínimo', lv[10] ? nf(lv[10], isC ? 2 : 1) : '—'], ['Volumen', cnt(lv[7])], ['Interés abierto', cnt(lv[6])]];
+      } else if (r) {
+        o.vs = 'ajuste del ' + fr(l);
+        o.kv = [['Apertura', r[6] ? nf(r[6], isC ? 2 : 1) : '—'], ['Máximo', r[7] ? nf(r[7], isC ? 2 : 1) : '—'], ['Mínimo', r[8] ? nf(r[8], isC ? 2 : 1) : '—'], ['Último', r[9] ? nf(r[9], isC ? 2 : 1) : '—'], ['Volumen', cnt(r[4])], ['Interés abierto', cnt(r[3])]];
+      }
+      if (!isC) { var fc = (S.futV && S.futV.length ? S.futV : S.fut).filter(function (x) { return x.s === k; })[0]; if (fc) o.kv.push(['TNA implícita', P(fc.t)], ['Devaluación mensual', P(fc.dev)]); }
+    } else return null;
+    // valor y variación: el último dato diario si no hay de la rueda de hoy
+    var hk2 = keys(o.h), l2 = hk2[hk2.length - 1], p2 = hk2[hk2.length - 2];
+    if (o.v == null && l2) { o.v = o.h[l2]; o.vs = o.vs || (o.u === '$' && k !== 'A3500' ? 'ajuste del ' : 'dato del ') + fr(l2); o.prev = p2 ? o.h[p2] : null; }
+    if (o.v == null) return null;
+    o.ch = o.prev == null ? null : o.u === '$' ? (o.v / o.prev - 1) * 100 : o.v - o.prev; o.chU = o.u === '$' ? '%' : ' pp';
+    o.fmt = o.u === '$' ? PS : P; o.vf = o.fmt(o.v);
+    return o;
+  }
+  function instSeries(o, R) { // la serie del panel: {pts: [{x, y}], lbl, step, note}
+    if (R === 'in') {
+      if (!o.i) return { pts: [], note: o.k.indexOf('/') > 0 || /^CAUCION/.test(o.k) ? 'Todavía no hay intradiario guardado: se arma en cada rueda (la caución cada 20 minutos, los futuros con cada operación).' : 'Este dato es diario: no tiene intradiario.' };
+      var ref = keys(o.h).filter(function (d) { return d < o.i.d; }), pv = ref.length ? o.h[ref[ref.length - 1]] : null, a = o.i.p.map(function (p) { return { x: p[0], y: p[1] }; });
+      if (pv != null && a.length) a.unshift({ x: Math.min(600, a[0].x), y: pv });
+      return { pts: a, lbl: hm, step: true, note: o.i.d !== todayBA() ? 'Intradiario del ' + fr(o.i.d) + '.' : '' };
+    }
+    var t = tail(o.h, rgN(R));
+    return { pts: t.map(function (p, i) { return { x: i, y: p[1] }; }), lbl: function (i) { var d = t[Math.round(i)]; return d ? fr(d[0]).slice(0, t.length > 300 ? 10 : 5) : ''; } };
+  }
+  function instList() {
+    var S = getS(); if (!S) return FIX.slice();
+    var L = FIX.filter(function (x) { return x[0] !== 'CAUCION CABLE' || keys(TJ.bcau).length || (S.B && S.B.EXT && S.B.EXT.length) || intraOf('cau', 'EXT'); });
+    S.fut.forEach(function (f) { L.push([f.s, name(f.s) + ' (dólar futuro)']); });
+    S.cfut.forEach(function (r) { L.push([psym(r[0]), name(r[0]) + ' (futuro de caución)']); });
+    return L;
+  }
+  window.QVX = {
+    has: function (k) { return FIX.some(function (x) { return x[0] === k; }) || /^(DLR|CAUC)\/[A-Z]{3}\d{2}$/.test(k); },
+    ready: function () { return !!TJ; },
+    ensure: function (cb) { load(cb); },
+    list: instList,
+    get: inst,
+    series: instSeries
+  };
+
+  /* ---------- piezas de interfaz ---------- */
+  function dl(id, nm, tt) { return '<button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'' + id + '\', \'' + nm + '\')" title="' + tt + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button>'; }
+  var HD = 'display:flex;justify-content:space-between;align-items:center;gap:10px 12px;margin-bottom:10px;flex-wrap:wrap';
+  var STYLE = function (r) { return '<style>' +
+      r + ' .rs{border-top:1px solid var(--bd);margin-top:20px;padding-top:18px}' +
+      r + ' .rcards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}@media(max-width:1100px){' + r + ' .rcards{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:420px){' + r + ' .rcards{gap:8px}}' +
+      r + ' .rcard{position:relative;display:flex;flex-direction:column;align-items:stretch;text-align:left;font:inherit;color:var(--tx);border:1px solid var(--bd);border-radius:12px;padding:11px 13px 0;background:var(--bg);cursor:pointer;overflow:hidden;transition:border-color .15s,transform .15s;min-width:0}' +
+      r + ' .rcard:hover,' + r + ' .rcard:focus-visible{border-color:var(--ac);transform:translateY(-1px);outline:none}' +
+      r + ' .rcard small{display:block;color:var(--mu);font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:16px}' +
+      r + ' .rcard .v{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:3px}' + r + ' .rcard b{font-size:21px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}' + r + ' .rcard em{font-style:normal;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}' +
+      r + ' .rcard span.s{display:block;color:var(--mu);font-size:11.5px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      r + ' .rcard svg.sp{display:block;width:calc(100% + 26px);margin:6px -13px 0;height:34px}' + r + ' .rcard i.go{position:absolute;top:10px;right:10px;width:12px;height:12px;color:var(--mu);opacity:.7}' + r + ' .rcard:hover i.go{color:var(--ac);opacity:1}' +
+      r + ' .rcard i.go svg{width:12px;height:12px;display:block}@media(max-width:600px){' + r + ' .rcard small{white-space:normal;line-height:1.25;font-size:11px}' + r + ' .rcard b{font-size:19px}}' +
+      r + ' h4{margin:0;font-size:16px;color:var(--mu)}' + r + ' h5{margin:0 0 8px;font-size:14px;color:var(--tx);font-weight:600}' + r + ' .sc{overflow:auto}' +
+      r + ' .rg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}@media(max-width:1000px){' + r + ' .rg{grid-template-columns:minmax(0,1fr)}}' +
+      r + ' .rt{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}' + r + ' .rt th,' + r + ' .rt td{padding:6px 9px;white-space:nowrap;text-align:right}' + r + ' .rt th{font-size:12px;position:sticky;top:0;background:var(--card);color:var(--mu);border-bottom:1px solid var(--bd);z-index:1}' + r + ' .rt td.l,' + r + ' .rt th.l{text-align:left}' + r + ' .rt tr+tr td{border-top:1px solid rgba(148,163,184,.12)}' +
+      r + ' .rt tr[data-qv]{cursor:pointer}' + r + ' .rt tr[data-qv]:hover td{background:rgba(148,163,184,.07)}' +
+      r + ' .rt .lc{background:rgba(245,158,11,.07);font-weight:700;color:var(--tx)}' + r + ' .rt .lc.up{color:#34d399}' + r + ' .rt .lc.dn{color:#fb7185}' + r + ' .rt th.lc{color:#f59e0b;background-color:var(--card);background-image:linear-gradient(rgba(245,158,11,.08),rgba(245,158,11,.08))}' + r + ' .rt tr[data-qv]:hover td.lc{background:rgba(245,158,11,.13)}' +
+      r + ' .up{color:var(--ok)}' + r + ' .dn{color:var(--bad,#f87171)}' + r + ' .mu{color:var(--mu)}' +
+      r + ' .rp{display:inline-flex;flex-wrap:wrap;gap:5px}' + r + ' .rp button{font:inherit;font-size:12px;font-weight:600;padding:5px 11px;border-radius:99px;border:1px solid var(--bd);background:transparent;color:var(--mu);cursor:pointer;white-space:nowrap}' +
+      r + ' .rp button:hover{color:var(--tx);border-color:var(--mu)}' + r + ' .rp button.on{background:var(--ac);border-color:var(--ac);color:var(--bg)}' + r + ' .rp.sr button.on{background:transparent;color:var(--tx);border-color:var(--ac)}' + r + ' .rp.sr button i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0}' +
+      r + ' .bar{display:flex;justify-content:space-between;align-items:center;gap:8px 14px;flex-wrap:wrap;margin:0 0 10px}' +
+      r + ' .cw{position:relative}' + r + ' .ce{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:13px;color:var(--mu);padding:0 24px;pointer-events:none}' +
+      r + ' .ft{margin:8px 0 0;font-size:12px;color:var(--mu)}' +
+      r + ' .spr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}@media(max-width:900px){' + r + ' .spr{grid-template-columns:repeat(2,minmax(0,1fr))}}' +
+      r + ' .sp1{border:1px solid var(--bd);border-radius:10px;padding:9px 12px;min-width:0}' + r + ' .sp1 small{display:block;color:var(--mu);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      r + ' .sp1 b{display:block;font-size:18px;font-variant-numeric:tabular-nums;margin-top:2px}' + r + ' .sp1 span{display:block;color:var(--mu);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}@media(max-width:600px){' + r + ' .sp1 small{white-space:normal;line-height:1.25}}' +
+      r + ' .hl{color:var(--mu);font-size:14px;line-height:1.6;margin:10px 0 0}' + r + ' .hl p{margin:0 0 6px}' + r + ' .hl ul{margin:4px 0 0;padding-left:20px}' + r + ' .hl li{margin:3px 0}' + r + ' .hl b{color:var(--tx)}@media(max-width:700px){' + r + ' .hl{font-size:13px}}' +
+      '</style>'; };
+  var GO = '<i class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></i>';
+  function spark(a) { // la serie chica de la tarjeta (SVG, sin Chart)
+    a = (a || []).filter(function (v) { return v != null && isFinite(v); }); if (a.length < 3) return '<svg class="sp" viewBox="0 0 100 30"></svg>';
+    var mn = Math.min.apply(null, a), mx = Math.max.apply(null, a), rg = mx - mn || 1, col = a[a.length - 1] >= a[0] ? '#34d399' : '#fb7185';
+    var pts = a.map(function (v, i) { return (i / (a.length - 1) * 100).toFixed(2) + ',' + (27 - (v - mn) / rg * 22).toFixed(2); });
+    return '<svg class="sp" viewBox="0 0 100 30" preserveAspectRatio="none"><polygon points="0,30 ' + pts.join(' ') + ' 100,30" fill="' + col + '" fill-opacity=".13"/><polyline points="' + pts.join(' ') + '" fill="none" stroke="' + col + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>';
+  }
+  function card(k, title) { // tarjeta de un instrumento: valor, variación, fuente y la serie de 3 meses (o la rueda de hoy); al tocarla abre el panel
+    var o = inst(k); if (!o) return '';
+    var tdy = o.i && o.i.d === todayBA() && o.i.p.length >= 3, sp = tdy ? o.i.p.map(function (p) { return p[1]; }) : tail(o.h, 63).map(function (p) { return p[1]; });
+    var cl = o.ch > 0 ? 'up' : o.ch < 0 ? 'dn' : 'mu';
+    return '<button type="button" class="rcard" data-qv="' + k + '" title="Ver ' + (title || o.t) + ': gráfico intradiario e histórico">' + GO + '<small>' + (title || o.t) + '</small><span class="v"><b>' + o.vf + '</b>' + (o.ch != null ? '<em class="' + cl + '">' + sg(o.ch, 2) + o.chU + '</em>' : '') + '</span>' +
+      '<span class="s">' + o.vs + '</span>' + spark(sp) + '</button>';
+  }
+  function lcard(L) { // la Lecap corta (7 a 60 días) más operada, que abre su ticker; sin volumen, la más corta
+    var VM = window.VOLX && window.VOLX.adtv, sh = L.filter(function (o) { return o.d >= 7 && o.d <= 60; }), l0 = sh[0] || L.filter(function (o) { return o.d >= 7; })[0]; if (!l0) return '';
+    if (VM) sh.forEach(function (o) { if ((VM[o.k] || 0) > (VM[l0.k] || 0)) l0 = o; });
+    var Q = (window.PXQ || {})[l0.k] || {};
+    return '<button type="button" class="rcard" data-qv="' + l0.k + '" title="Ver el ticker de ' + l0.k + '">' + GO + '<small>' + (VM ? 'Lecap corta más operada · ' : 'Lecap más corta · ') + l0.k + '</small><span class="v"><b>' + P(l0.tnas * 100) + '</b>' + (Q.pct != null ? '<em class="' + (Q.pct > 0 ? 'up' : Q.pct < 0 ? 'dn' : 'mu') + '">' + sg(Q.pct, 2) + '% precio</em>' : '') + '</span>' +
+      '<span class="s">TNA · ' + dias(l0.d) + ' · TEA ' + P(l0.tea * 100) + '</span>' + spark([]) + '</button>';
+  }
+  var pills = function (attr, cur, list, cls) { return '<span class="rp' + (cls ? ' ' + cls : '') + '" data-html2canvas-ignore="true">' + list.map(function (p) { var on = Array.isArray(cur) ? cur.indexOf(p[0]) >= 0 : p[0] === cur; return '<button type="button" ' + attr + '="' + p[0] + '" class="' + (on ? 'on' : '') + '" aria-pressed="' + on + '">' + (p[3] ? '<i style="background:' + p[3] + '"></i>' : '') + p[1] + '</button>'; }).join('') + '</span>'; };
+  var ds = function (label, data, col, extra) { var o = { type: 'line', label: label, data: data.filter(function (p) { return p.y != null && isFinite(p.y) && p.x != null; }), borderColor: col, backgroundColor: col, borderWidth: 2, pointRadius: 3.5, pointHoverRadius: 6, tension: 0.15, showLine: true }; for (var k in extra) o[k] = extra[k]; return o; };
+  var lin = function (label, data, col, extra) { var o = { label: label, data: data, borderColor: col, backgroundColor: col, borderWidth: 2, pointRadius: 0, tension: 0.1, spanGaps: true }; for (var k in extra) o[k] = extra[k]; return o; };
+  // dispersión: el título del tooltip es el instrumento (el ticker), no los días
+  function nearTip() { // el punto más cercano al mouse, sin contar las líneas de ajuste y las bandas (noTip)
+    if (!Chart.Interaction.modes.tcNear) Chart.Interaction.modes.tcNear = function (ch, e) {
+      var best = null, bd = 1e9; ch.data.datasets.forEach(function (d, i) { var m = ch.getDatasetMeta(i); if (d.noTip || m.hidden) return; m.data.forEach(function (el, j) { var dx = el.x - e.x, dy = el.y - e.y, q = dx * dx + dy * dy; if (q < bd) { bd = q; best = { element: el, datasetIndex: i, index: j }; } }); });
+      return best && bd < 2500 ? [best] : [];
+    };
+    return 'tcNear';
+  }
+  function scatterOpt(xt, yt, yfmt, tip, maxX, xfmt) { var tx = css('--tx'), bd = css('--bd'); return { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: nearTip(), intersect: false },
+    plugins: { legend: { labels: { color: tx, boxWidth: 12, usePointStyle: true, filter: function (it, d) { return !d.datasets[it.datasetIndex].noLeg; },
+      generateLabels: function (ch) { return Chart.defaults.plugins.legend.labels.generateLabels(ch).map(function (it) { var d = ch.data.datasets[it.datasetIndex]; if (d && d.legCol) { it.fillStyle = it.strokeStyle = d.legCol; } return it; }); } } }, title: { display: !!yt, text: yt, color: tx, font: { size: 13, weight: '600' } },
+      tooltip: { filter: function (c) { return !c.dataset.noTip; }, callbacks: { title: function (c) { var p = c[0] && c[0].raw; return p && p.s ? p.s : c[0] ? c[0].dataset.label : ''; }, label: tip } } },
+    scales: { x: { type: 'linear', min: 0, max: maxX, title: { display: !!xt, text: xt, color: tx }, ticks: { color: tx, callback: xfmt || undefined }, grid: { color: bd } }, y: { ticks: { color: tx, callback: yfmt }, grid: { color: bd } } } }; }
+  var pct = function (v, i, t) { var st = t && t.length > 1 ? Math.abs(t[1].value - t[0].value) : 1; return nf(v, st < 1 ? 1 : 0) + '%'; };
+  function histChart(canvas, D2, sets, title, y2, fy, fy2) { // series diarias con fechas como etiquetas
+    var tx = css('--tx'), bd = css('--bd'), sc = { x: { ticks: { color: tx, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } }, y: { ticks: { color: tx, callback: fy || pct }, grid: { color: bd } } };
+    if (y2) sc.y2 = { position: 'right', title: { display: true, text: y2, color: tx }, ticks: { color: tx, callback: fy2 || function (v) { return nf(v, 1) + '%'; } }, grid: { display: false } };
+    var fmtOf = function (c) { return c.dataset.yAxisID === 'y2' && c.dataset.fmt2 ? c.dataset.fmt2 : c.dataset.fmt || P; };
+    return new Chart(document.getElementById(canvas).getContext('2d'), { type: 'line', data: { labels: D2.map(function (d) { return D2.length > 400 ? fr(d).slice(3) : fr(d).slice(0, 5); }), datasets: sets },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: sets.length > 1, labels: { color: tx, boxWidth: 12 } }, title: { display: !!title, text: title, color: tx, font: { size: 13, weight: '600' } },
+        tooltip: { callbacks: { title: function (c) { return fr(D2[c[0].dataIndex]); }, label: function (c) { return c.dataset.label + ': ' + fmtOf(c)(c.parsed.y); } } } }, scales: sc } });
+  }
+  function intraChart(canvas, sets, title, fy) { // intradiario: minutos del día de 10 a 17 hs
+    var tx = css('--tx'), bd = css('--bd'), x0 = 600, x1 = 1020;
+    sets.forEach(function (s) { s.p.forEach(function (q) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); }); });
+    return new Chart(document.getElementById(canvas).getContext('2d'), { type: 'line', data: { datasets: sets.map(function (s) {
+      return { label: s.label, data: s.p.map(function (q) { return { x: q[0], y: q[1] }; }), borderColor: s.col, backgroundColor: s.col + '22', fill: sets.length === 1, borderWidth: 2, pointRadius: s.p.length < 40 ? 2.5 : 0, stepped: 'before', yAxisID: s.y2 ? 'y2' : 'y' }; }) },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'nearest', axis: 'x', intersect: false }, plugins: { legend: { display: sets.length > 1, labels: { color: tx, boxWidth: 12 } }, title: { display: !!title, text: title, color: tx, font: { size: 13, weight: '600' } },
+        tooltip: { callbacks: { title: function (c) { return hm(c[0].parsed.x) + ' hs'; }, label: function (c) { return c.dataset.label + ': ' + (fy || P)(c.parsed.y); } } } },
+        scales: { x: { type: 'linear', min: x0, max: x1, ticks: { color: tx, stepSize: 60, callback: hm }, grid: { display: false } }, y: { ticks: { color: tx, callback: function (v) { return (fy || P)(v); } }, grid: { color: bd } } } } });
+  }
+  var empty = function (id, t) { var e = document.getElementById(id); if (e) e.textContent = t || ''; };
+  var window_ = function (series, from, w) { var all = {}; series.forEach(function (o) { keys(o).forEach(function (d) { all[d] = 1; }); }); var D = keys(all).filter(function (d) { return d >= from; }), n = D.length; return D.slice(Math.max(0, n - (w || n))); };
+  var on = function (D2, o, f) { return D2.map(function (d) { return o[d] != null ? (f ? f(o[d]) : o[d]) : null; }); };
+  // series a elección: se pueden sumar hasta dos unidades (la segunda va al eje derecho); otra unidad reemplaza la selección
+  function toggleSer(sel, k, unitOf) {
+    var i = sel.indexOf(k); if (i >= 0) { if (sel.length > 1) sel.splice(i, 1); return sel; }
+    var u = {}; sel.concat([k]).forEach(function (x) { u[unitOf(x)] = 1; });
+    return Object.keys(u).length > 2 ? [k] : sel.concat([k]);
+  }
+
+  function tab(id, render) {
+    var root = document.getElementById(id); if (!root) return null;
+    var isAct = function () { return root.classList.contains('active'); };
+    var _sw = window.switchTab;
+    window.switchTab = function (t) { _sw(t); var gc = document.getElementById('globalControls'); if (t === id) { if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
+    var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(render, 0); };
+    setInterval(function () { if (isAct()) { reload(); render(); } }, 5 * 60000); // el Action la actualiza cada 20 minutos en la rueda
+    root.addEventListener('click', function (e) { var c = e.target.closest('[data-qv]'); if (c && window.QV && window.QV.show) window.QV.show(c.getAttribute('data-qv')); });
+    return { root: root, isAct: isAct };
+  }
+
+  function fitCurve(pts) { // y = a + b·ln(d) + c·ln(d)² por mínimos cuadrados (lineal si hay pocos puntos); devuelve la curva entre el primer y el último plazo
+    pts = pts.filter(function (p) { return p[0] >= 5 && p[1] != null; }); if (pts.length < 3) return [];
+    var q = pts.length >= 6 ? 3 : 2, A = [], B = [];
+    for (var i = 0; i < q; i++) { A.push([]); for (var j = 0; j < q; j++) A[i].push(0); B.push(0); }
+    pts.forEach(function (p) { var l = Math.log(p[0]), v = [1, l, l * l].slice(0, q); for (var i = 0; i < q; i++) { B[i] += v[i] * p[1]; for (var j = 0; j < q; j++) A[i][j] += v[i] * v[j]; } });
+    for (var c = 0; c < q; c++) { var m = c; for (var r = c + 1; r < q; r++) if (Math.abs(A[r][c]) > Math.abs(A[m][c])) m = r; var t = A[c]; A[c] = A[m]; A[m] = t; t = B[c]; B[c] = B[m]; B[m] = t; if (!A[c][c]) return [];
+      for (r = 0; r < q; r++) if (r !== c) { var f = A[r][c] / A[c][c]; for (var k = c; k < q; k++) A[r][k] -= f * A[c][k]; B[r] -= f * B[c]; } }
+    var co = B.map(function (b, i) { return b / A[i][i]; }), d0 = pts[0][0], d1 = pts[pts.length - 1][0], out = [];
+    for (var x = d0; x <= d1 + 0.01; x += Math.max(1, (d1 - d0) / 80)) { var l = Math.log(x); out.push({ x: x, y: co[0] + co[1] * l + (q > 2 ? co[2] * l * l : 0) }); }
+    return out;
+  }
+
+  /* =====================================================================
+     MERCADO DE DINERO: caución en pesos, dólar MEP y cable, Lecaps, plazo fijo, TAMAR y BADLAR
+     ===================================================================== */
+  (function () {
+    var T = tab('tcor', render); if (!T) return;
+    var root = T.root, ST = { h: 400, rc: '3m', rd: '3m', s: ['cau'], w: '1a' }, CH = {}, S = null, VREQ = false, lTry = 0;
+    var SER = { cau: ['Caución en pesos', C_CAU, 'r'], usd: ['Caución en dólares', C_USD, 'u'], pf: ['Plazo fijo 30 días', C_PF, 'r'], tam: ['TAMAR', C_TAM, 'r'], bad: ['BADLAR', C_BAD, 'r'] };
+    function html() {
+      root.innerHTML = STYLE('#tcor') +
+        '<div class="card" id="tcCap"><div class="status" style="justify-content:space-between;gap:12px;flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0;flex:1 1 0"><p style="margin:0;color:var(--tx);font-size:16px;font-weight:600">Mercado de dinero</p>' +
+        '<p class="note" style="margin-top:4px" id="tcSub"></p></div>' + dl('tcCap', 'Mercado_de_dinero', 'Descargar la pestaña en HD') + '</div>' +
+        '<div class="rcards" id="tcCards"></div>' +
+        '<div class="rs" id="tcS1"><div style="' + HD + '"><h4>Curva de tasas en pesos (TNA)</h4><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="tcH"></span>' + dl('tcS1', 'Mercado_de_dinero_Curva', 'Descargar la curva en HD') + '</span></div>' +
+        '<div class="cw" style="height:420px"><canvas id="tcCh1"></canvas></div><p class="ft" id="tcKn"></p><div class="spr" id="tcSp"></div></div>' +
+        '<div class="rs" id="tcS5"><div style="' + HD + '"><h4>Lecaps y Boncaps hasta 6 meses</h4>' + dl('tcS5', 'Mercado_de_dinero_Lecaps', 'Descargar la tabla en HD') + '</div>' +
+        '<div class="sc"><table class="rt" id="tcLec"></table></div><p class="ft">Volumen diario: promedio de las últimas 20 ruedas (en naranja, menos de $ 100 M). Tocá una fila para ver su ticker.</p></div>' +
+        '<div class="rs rg" id="tcS4"><div><div style="' + HD + '"><h4 id="tcT4">Caución en pesos</h4>' + dl('tcS4', 'Mercado_de_dinero_Caucion', 'Descargar la caución en HD') + '</div><div class="sc"><table class="rt" id="tcCau"></table></div>' +
+        '<div class="bar" style="margin-top:14px"><h5 style="margin:0" id="tcT7">1 día hábil (TNA)</h5><span id="tcRc"></span></div><div class="cw" style="height:250px"><canvas id="tcCh4"></canvas><div class="ce" id="tcE4"></div></div></div>' +
+        '<div><div style="' + HD + '"><h4 id="tcT6">Caución en dólares</h4></div><div class="sc"><table class="rt" id="tcCauD"></table></div>' +
+        '<div class="bar" style="margin-top:14px"><h5 style="margin:0">1 día hábil (TNA)</h5><span id="tcRd"></span></div><div class="cw" style="height:250px"><canvas id="tcCh3"></canvas><div class="ce" id="tcE3"></div></div></div></div>' +
+        '<div class="rs" id="tcS2"><div style="' + HD + '"><h4 id="tcT2">Histórico de tasas</h4>' + dl('tcS2', 'Mercado_de_dinero_Historia', 'Descargar la historia en HD') + '</div>' +
+        '<div class="bar"><span id="tcSer"></span><span id="tcW"></span></div><div class="cw" style="height:360px"><canvas id="tcCh2"></canvas></div></div>' +
+        '<div class="rs"><div class="hl" style="margin:0"><p><b>Cómo se lee</b></p><ul>' +
+        '<li><b>Caución</b>: el préstamo de corto plazo con garantía de títulos. El que coloca presta pesos (o dólares) y cobra la tasa; el que toma se financia. La de A3 es el promedio ponderado por monto de cada plazo al cierre; la de BYMA, la última operada en la rueda. El plazo más corto es <b>1 día hábil</b>: 1 día corrido de lunes a jueves, 3 los viernes y 4 si hay feriado.</li>' +
+        '<li><b>Caución en dólares</b>: <b>MEP</b> se liquida en dólares en cuentas locales; <b>cable</b>, en dólares en el exterior.</li>' +
+        '<li><b>Lecaps y Boncaps</b>: se compran hoy y pagan un monto fijo al vencimiento; la TNA es (monto final / precio − 1) × 365 / días. La línea de la curva es un ajuste por los puntos.</li>' +
+        '<li><b>Plazo fijo a 30 días</b>: la tasa promedio que pagan los bancos por depósitos a 30 días (BCRA). <b>TAMAR</b>: depósitos de más de $ 1.000 millones en bancos privados. <b>BADLAR</b>: depósitos de más de $ 1 millón a 30-35 días en bancos privados.</li>' +
+        '<li>Tocá cualquier tarjeta de arriba para ver ese instrumento con su gráfico intradiario y su historia. Todas las tasas están en TNA.</li></ul></div></div></div>';
+      root.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-h],[data-rc],[data-rd],[data-s],[data-w]'); if (!b || !root.contains(b)) return;
+        if (b.hasAttribute('data-h')) ST.h = +b.getAttribute('data-h');
+        if (b.hasAttribute('data-rc')) ST.rc = b.getAttribute('data-rc');
+        if (b.hasAttribute('data-rd')) ST.rd = b.getAttribute('data-rd');
+        if (b.hasAttribute('data-w')) ST.w = b.getAttribute('data-w');
+        if (b.hasAttribute('data-s')) ST.s = toggleSer(ST.s, b.getAttribute('data-s'), function (x) { return SER[x][2]; });
+        render();
+      });
+    }
+    function cards(L) {
+      var cab = card('CAUCION CABLE', cauT('CAUCION CABLE', 'Caución en dólares cable'));
+      document.getElementById('tcCards').innerHTML = card('CAUCION', cauT('CAUCION', 'Caución en pesos')) + card('CAUCION USD', cauT('CAUCION USD', 'Caución en dólares MEP')) + (cab || card('A3500', 'Dólar A3500')) + lcard(L) +
+        card('PLAZO FIJO', 'Plazo fijo 30 días') + card('TAMAR') + card('BADLAR') + card('TASA FUTURO 3M', 'Dólar futuro · tasa 3 meses');
+    }
+    var LF = null; // el ajuste de la curva de Lecaps (el mismo de Curva Pesos): {f, sigma, name}; el desvío de cada Lecap en pb
+    function lecFit(L) {
+      LF = lecRef(L); if (!LF) return null;
+      LF.res = {}; L.forEach(function (o) { LF.res[o.k] = (o.tnas * 100 - LF.f(o.d)) * 100; }); return LF;
+    }
+    var RESC = function (r) { return LF && r != null ? (Math.abs(r) < 25 * LF.sigma ? C_LEC : r > 0 ? '#34d399' : '#fb7185') : C_LEC; }; // verde: rinde más que la curva; rojo: menos
+    var VLN = { id: 'tcVert', afterDatasetsDraw: function (ch) { // línea punteada de cada Lecap a la curva
+      var ctx = ch.ctx; ctx.save(); ctx.setLineDash([3, 3]); ctx.lineWidth = 1; ctx.strokeStyle = css('--mu');
+      ch.data.datasets.forEach(function (d, i) { if (!d.toFit || ch.getDatasetMeta(i).hidden) return; ch.getDatasetMeta(i).data.forEach(function (el, j) { var r = d.data[j]; if (r.fy == null) return; ctx.beginPath(); ctx.moveTo(el.x, el.y); ctx.lineTo(el.x, ch.scales.y.getPixelForValue(r.fy)); ctx.stroke(); }); });
+      ctx.restore(); } };
+    function spreads(F, c) { // los diferenciales que importan, con la curva de Lecaps ajustada como referencia (no un bono suelto)
+      var el = document.getElementById('tcSp'); if (!el) return;
+      var fu = (S.futV && S.futV.length ? S.futV : S.fut).filter(function (f) { return f.t != null; }), fAt = function (d) { for (var i = 1; i < fu.length; i++) if (fu[i - 1].d <= d && fu[i].d >= d) return fu[i - 1].t + (fu[i].t - fu[i - 1].t) * (d - fu[i - 1].d) / (fu[i].d - fu[i - 1].d); return null; };
+      var l30 = F ? F.at(30) : null, l90 = F ? F.at(90) : null, f30 = fAt(30), f90 = fAt(90), pb = function (v) { return v == null || !isFinite(v) ? 'n/a' : sg(v * 100, 0) + ' pb'; };
+      var chip = function (t, v, sub, tt) { var cl = v == null ? 'mu' : v > 0 ? 'up' : v < 0 ? 'dn' : 'mu'; return '<div class="sp1" title="' + tt + '"><small>' + t + '</small><b class="' + cl + '">' + pb(v) + '</b><span>' + sub + '</span></div>'; };
+      var cv = c && c.v != null ? c.v : null, pf = S.pf[1];
+      el.innerHTML = chip('Lecap 30 días vs. caución', l30 != null && cv != null ? l30 - cv : null, 'curva ' + P(l30) + ' · caución ' + P(cv), 'Lo que paga estirar de la caución de 1 día a una Lecap de 30 días (curva ajustada)') +
+        chip('Lecap 30 días vs. plazo fijo', l30 != null && pf != null ? l30 - pf : null, 'curva ' + P(l30) + ' · plazo fijo ' + P(pf), 'Positivo: la Lecap rinde más que el plazo fijo a 30 días') +
+        chip('Lecap vs. dólar futuro, 1 mes', l30 != null && f30 != null ? l30 - f30 : null, 'Lecap ' + P(l30) + ' · futuro ' + P(f30), 'Carry trade: lo que rinde la Lecap por encima de la devaluación que descuenta el futuro. Positivo: conviene quedarse en pesos') +
+        chip('Lecap vs. dólar futuro, 3 meses', l90 != null && f90 != null ? l90 - f90 : null, 'Lecap ' + P(l90) + ' · futuro ' + P(f90), 'Carry trade a 3 meses, con la curva de Lecaps y la de futuros interpoladas a 90 días');
+    }
+    function curveChart(L) {
+      if (CH.a) CH.a.destroy();
+      document.getElementById('tcH').innerHTML = pills('data-h', ST.h, [[190, '6 meses'], [400, '1 año'], [0, 'Toda la curva']]);
+      var Lh = L.filter(function (o) { return !ST.h || o.d <= ST.h; }), F = LF, xe = Lh.length ? Math.min(F ? F.x1 : 0, Lh[Lh.length - 1].d + 10) : 0;
+      var c = inst('CAUCION'), cd = S.cau[0] ? S.cau[0][0] : 1, set = [];
+      if (F && xe > F.x0) { // la curva ajustada con su banda de ±1σ, solo en el rango de las Lecaps
+        var cu = [], up = [], lo = [];
+        for (var i = 0; i <= 90; i++) { var x = F.x0 + (xe - F.x0) * Math.pow(i / 90, 1.5), y = F.f(x); cu.push({ x: x, y: y }); up.push({ x: x, y: y + F.sigma }); lo.push({ x: x, y: y - F.sigma }); }
+        set.push(ds('+1σ', up, 'rgba(148,163,184,.55)', { pointRadius: 0, pointHoverRadius: 0, borderWidth: 1, borderDash: [4, 4], tension: 0, noTip: true, noLeg: true, backgroundColor: 'transparent', order: 5 }));
+        set.push(ds('Banda ±1σ', lo, 'rgba(148,163,184,.55)', { pointRadius: 0, pointHoverRadius: 0, borderWidth: 1, borderDash: [4, 4], tension: 0, noTip: true, fill: '-1', backgroundColor: 'rgba(148,163,184,.13)', order: 5, pointStyle: 'rect' }));
+        set.push(ds('Curva ajustada', cu, C_LEC, { pointRadius: 0, pointHoverRadius: 0, borderWidth: 2.2, tension: 0, noTip: true, backgroundColor: C_LEC, order: 4, pointStyle: 'line' }));
+      }
+      var lp = Lh.map(function (o) { var r = F ? F.res[o.k] : null; return { x: o.d, y: o.tnas * 100, s: o.k, k: o.k, r: r, fy: r != null ? o.tnas * 100 - r / 100 : null }; });
+      set.push(ds('Lecaps y Boncaps', lp, C_LEC, { type: 'scatter', showLine: false, pointRadius: 5.5, pointHoverRadius: 8, toFit: true, legCol: C_LEC, backgroundColor: lp.map(function (p) { return RESC(p.r); }), borderColor: lp.map(function (p) { return RESC(p.r); }), order: 1 }));
+      if (c) set.push(ds('Caución 1 día hábil', [{ x: (c.i && c.i.d === todayBA() && c.i.dias) || cd, y: c.v, s: 'Caución en pesos · ' + c.vs }], C_CAU, { pointRadius: 8, pointStyle: 'circle', showLine: false }));
+      if (S.pf[0]) set.push(ds('Plazo fijo 30 días', [{ x: 30, y: S.pf[1], s: 'Plazo fijo 30 días · BCRA ' + fr(S.pf[0]) }], C_PF, { pointRadius: 8, pointStyle: 'rectRot', showLine: false }));
+      if (S.bad[0]) set.push(ds('BADLAR', [{ x: 32, y: S.bad[1], s: 'BADLAR · BCRA ' + fr(S.bad[0]) }], C_BAD, { pointRadius: 7, pointStyle: 'rect', showLine: false }));
+      if (S.tam[0]) set.push(ds('TAMAR', [{ x: 34, y: S.tam[1], s: 'TAMAR · BCRA ' + fr(S.tam[0]) }], C_TAM, { pointRadius: 8, pointStyle: 'triangle', showLine: false }));
+      var cfd = S.dcf ? dn(S.dcf) : 0, cfp = S.cfut.map(function (r) { return { x: r[1] ? dn(r[1]) - cfd : null, y: r[2], s: name(r[0]) + ' · caución a 1 día esperada', k: 'Cau. ' + name(r[0]).replace('Caución ', '') }; }).filter(function (p) { return p.x > 0 && p.y > 0 && (!ST.h || p.x <= ST.h); });
+      if (cfp.length) set.push(ds('Futuros de caución', cfp, C_CF, { type: 'scatter', showLine: false, pointRadius: 5, pointHoverRadius: 8, pointStyle: 'rectRounded', borderColor: css('--card') || '#1c1917', borderWidth: 1.5, backgroundColor: C_CF, legCol: C_CF, order: 2 }));
+      var mx = Math.ceil((Math.max.apply(null, Lh.map(function (o) { return o.d; }).concat([60])) + 15) / 30) * 30;
+      var tip = function (cc) { var p = cc.raw, t = 'TNA ' + nf(p.y, 2) + '% · ' + dias(Math.round(p.x)); if (p.r != null) t += ' · desvío ' + sg(p.r, 0) + ' pb' + (F && Math.abs(p.r) >= 100 * F.sigma ? ' (fuera de la banda)' : ''); return t; };
+      CH.a = new Chart(document.getElementById('tcCh1').getContext('2d'), { type: 'scatter', data: { datasets: set }, plugins: [VLN].concat(LBL()),
+        options: scatterOpt('Días al vencimiento', '', function (v) { return nf(v, 0) + '%'; }, tip, mx) });
+      spreads(F, c);
+      var kn = document.getElementById('tcKn');
+      if (kn) kn.innerHTML = F ? 'Curva: ' + F.name + ' · dispersión ±1σ = ' + nf(F.sigma * 100, 0) + ' pb (banda sombreada). <span style="color:#34d399">Verde</span>: rinde más que la curva (barata); <span style="color:#fb7185">rojo</span>: rinde menos (cara). La línea punteada es el desvío.' + (S.cfut.length ? ' <span style="color:' + C_CF + '">Violeta</span>: futuros de caución, la caución a 1 día que espera el mercado para cada fecha (no es la tasa del plazo).' : '') : '';
+    }
+    function lecTable(L) {
+      var q = window.PXQ || {}, VM = window.VOLX && window.VOLX.adtv;
+      if (!VREQ && window.VOLX) { VREQ = true; window.VOLX.ensure(function () { if (T.isAct()) render(); }); }
+      var mm = function (v) { return v == null ? '…' : v >= 1e9 ? nf(v / 1e9, 1) + ' mil M' : v >= 1e6 ? nf(v / 1e6, 0) + ' M' : v > 0 ? '< 1 M' : '0'; };
+      var h = '<thead><tr><th class="l">Lecap</th><th>Vence</th><th>Días</th><th>Precio</th><th>Var.</th><th>Compra</th><th>Venta</th><th>TNA</th><th>TEM</th><th>TEA</th><th title="TNA de la Lecap menos la curva ajustada. Positivo: rinde más que la curva (barata)">Desvío (pb)</th><th>Volumen diario ($)</th></tr></thead><tbody>';
+      L.filter(function (o) { return o.d <= 185; }).forEach(function (o) { var qq = q[o.k] || {}, v = VM ? VM[o.k] || 0 : null;
+        h += '<tr data-qv="' + o.k + '"><td class="l"><b>' + o.k + '</b></td><td>' + fr(bxDayStr(o.mat)) + '</td><td>' + o.d + '</td><td>' + nf(o.P, 3) + '</td><td class="' + (qq.pct > 0 ? 'up' : qq.pct < 0 ? 'dn' : 'mu') + '">' + (qq.pct == null ? '—' : sg(qq.pct, 2) + '%') + '</td><td>' + (qq.bid ? nf(qq.bid, 3) : '—') + '</td><td>' + (qq.ask ? nf(qq.ask, 3) : '—') + '</td><td><b>' + P(o.tnas * 100) + '</b></td><td>' + P(o.tem != null ? o.tem * 100 : null) + '</td><td>' + P(o.tea * 100) + '</td><td style="color:' + (LF && LF.res[o.k] != null && RESC(LF.res[o.k]) !== C_LEC ? RESC(LF.res[o.k]) : 'var(--tx)') + '">' + (LF && LF.res[o.k] != null ? sg(LF.res[o.k], 0) : '—') + '</td>' +
+          '<td' + (v != null && v < 100e6 ? ' style="color:#f59e0b"' : '') + '>' + mm(v) + '</td></tr>'; });
+      document.getElementById('tcLec').innerHTML = h + (L.length ? '' : '<tr><td class="l mu" colspan="12">Esperando los precios de Curva Pesos…</td></tr>') + '</tbody>';
+    }
+    function cauChart(id, ce, R, sets, title) { // intradiario o historia de la caución
+      empty(ce);
+      if (R === 'in') {
+        var ok = sets.filter(function (s) { return s.i; });
+        if (!ok.length) { empty(ce, 'Todavía no hay intradiario guardado: la caución de BYMA se guarda cada 20 minutos durante la rueda.'); return null; }
+        var d = ok[0].i.d; if (d !== todayBA()) document.getElementById(ce).textContent = '';
+        return intraChart(id, ok.map(function (s) { return { label: s.label + (d !== todayBA() ? ' (' + fr(d).slice(0, 5) + ')' : ''), p: s.i.p, col: s.col }; }), d !== todayBA() ? 'Intradiario del ' + fr(d) : '');
+      }
+      var D2 = window_(sets.map(function (s) { return s.h; }), '0', rgN(R));
+      return histChart(id, D2, sets.map(function (s) { return lin(s.label, on(D2, s.h), s.col, { borderWidth: 1.8 }); }), title);
+    }
+    function cauTables() {
+      var bv = {}; (S.B && S.B.ARS || []).forEach(function (r) { bv[r[0]] = r; }); if (!S.B && S.vivoOk) (S.V.cau || []).forEach(function (r) { bv[r[0]] = [r[0], r[1], r[2], r[3]]; });
+      var hasV = Object.keys(bv).length;
+      var h = '<thead><tr><th class="l">Plazo</th><th>Liquida</th><th>Tasa PP</th><th>Mín.</th><th>Máx.</th><th>Monto ($ M)</th>' + (hasV ? '<th>BYMA hoy</th>' : '') + '</tr></thead><tbody>';
+      S.cau.forEach(function (r) { var v = bv[r[0]]; h += '<tr data-qv="CAUCION"><td class="l"><b>' + dias(r[0]) + '</b></td><td>' + fr(r[5]) + '</td><td><b>' + nf(r[1], 2) + '%</b></td><td>' + nf(r[2], 2) + '%</td><td>' + nf(r[3], 2) + '%</td><td>' + nf(r[4] / 1e6, 0) + '</td>' + (hasV ? '<td>' + (v && cp(v) ? nf(cp(v), 2) + '%' : '—') + '</td>' : '') + '</tr>'; });
+      document.getElementById('tcCau').innerHTML = h + '</tbody>';
+      document.getElementById('tcT4').textContent = 'Caución en pesos · A3, cierre del ' + fr(S.dc);
+      var BU = {}, BE = {}; (S.B && S.B.USD || []).forEach(function (r) { BU[r[0]] = r; }); (S.B && S.B.EXT || []).forEach(function (r) { BE[r[0]] = r; });
+      var pl = {}; S.cauD.forEach(function (r) { pl[r[0]] = 1; }); Object.keys(BU).concat(Object.keys(BE)).forEach(function (d) { pl[d] = 1; });
+      var A = {}; S.cauD.forEach(function (r) { A[r[0]] = r; });
+      h = '<thead><tr><th class="l">Plazo</th><th>A3 (PP)</th><th>Monto (US$ mil)</th>' + (S.B ? '<th>BYMA MEP</th><th>BYMA cable</th>' : '') + '</tr></thead><tbody>';
+      Object.keys(pl).map(Number).sort(function (a, b) { return a - b; }).forEach(function (d) { var a = A[d];
+        h += '<tr data-qv="CAUCION USD"><td class="l"><b>' + dias(d) + '</b></td><td>' + (a ? '<b>' + nf(a[1], 2) + '%</b>' : '—') + '</td><td>' + (a ? nf(a[4] / 1e3, 0) : '—') + '</td>' + (S.B ? '<td>' + (BU[d] && cp(BU[d]) ? nf(cp(BU[d]), 2) + '%' : '—') + '</td><td>' + (BE[d] && cp(BE[d]) ? nf(cp(BE[d]), 2) + '%' : '—') + '</td>' : '') + '</tr>'; });
+      document.getElementById('tcCauD').innerHTML = h + (Object.keys(pl).length ? '' : '<tr><td class="l mu" colspan="5">Sin operaciones de caución en dólares.</td></tr>') + '</tbody>';
+      document.getElementById('tcT6').textContent = 'Caución en dólares · A3, cierre del ' + fr(S.dcD) + (S.B ? ' · BYMA hoy' : '');
+      ['c', 'd'].forEach(function (k) { if (CH[k]) { CH[k].destroy(); CH[k] = null; } });
+      document.getElementById('tcRc').innerHTML = pills('data-rc', ST.rc, RG);
+      document.getElementById('tcRd').innerHTML = pills('data-rd', ST.rd, RG);
+      CH.d = cauChart('tcCh4', 'tcE4', ST.rc, [{ label: 'Caución en pesos', h: map(S.corta, function (r) { return r[1]; }), i: intraOf('cau', 'ARS'), col: C_CAU }], '');
+      var cab = map(TJ.bcau || {}, function (x) { return x.EXT ? x.EXT[1] : null; }), dset = [{ label: 'MEP (A3)', h: map(S.cortaD, function (r) { return r[1]; }), i: intraOf('cau', 'USD'), col: C_USD }];
+      if (keys(cab).length || intraOf('cau', 'EXT')) dset.push({ label: 'Cable (BYMA)', h: cab, i: intraOf('cau', 'EXT'), col: C_EXT });
+      CH.c = cauChart('tcCh3', 'tcE3', ST.rd, dset, '');
+    }
+    function history() {
+      if (CH.b) { CH.b.destroy(); CH.b = null; }
+      document.getElementById('tcSer').innerHTML = pills('data-s', ST.s, Object.keys(SER).map(function (k) { return [k, SER[k][0], 0, SER[k][1]]; }), 'sr');
+      document.getElementById('tcW').innerHTML = pills('data-w', ST.w, RGD);
+      var src = { cau: map(S.corta, function (r) { return r[1]; }), usd: map(S.cortaD, function (r) { return r[1]; }), pf: TJ.pf, tam: IX.TAMAR || {}, bad: TJ.badlar };
+      var units = {}; ST.s.forEach(function (k) { units[SER[k][2]] = 1; }); var two = Object.keys(units).length > 1, u1 = SER[ST.s[0]][2];
+      var D2 = window_(ST.s.map(function (k) { return src[k]; }), '0', rgN(ST.w));
+      document.getElementById('tcT2').textContent = 'Histórico de tasas · ' + rgName(ST.w);
+      CH.b = histChart('tcCh2', D2, ST.s.map(function (k) { return lin(SER[k][0] + (two && SER[k][2] !== u1 ? ' (eje derecho)' : ''), on(D2, src[k]), SER[k][1], { borderWidth: 1.8, yAxisID: two && SER[k][2] !== u1 ? 'y2' : 'y' }); }), 'TNA (%) de cada rueda', two ? 'TNA (%)' : null);
+    }
+    function render() {
+      if (!T.isAct()) return;
+      try {
+        if (typeof Chart === 'undefined') return;
+        if (!document.getElementById('tcLec')) html();
+        var sub = document.getElementById('tcSub');
+        if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
+        if (!TJ) { sub.textContent = 'Cargando las tasas…'; load(render); return; }
+        S = getS(); var L = lecapsAll();
+        sub.innerHTML = 'Caución de A3 al cierre del ' + fr(S.dc) + (S.B ? ', de BYMA en la rueda de hoy (' + S.bts.slice(11, 16) + ')' : S.vivoOk ? ' y de BYMA en vivo por Primary (' + S.V.ts.slice(11, 16) + ')' : '') + ', plazo fijo, TAMAR y BADLAR del BCRA y las Lecaps de Curva Pesos.<span class="xp"> Tocá una tarjeta para ver su intradiario y su historia.</span>';
+        lecFit(L); cards(L); curveChart(L); lecTable(L); cauTables(); history();
+        if (!L.length && lTry++ < 20) setTimeout(function () { if (T.isAct()) render(); }, 1500); // Curva Pesos todavía no tiene precios
+      } catch (x) { console.error('tcor', x); var s2 = document.getElementById('tcSub'); if (s2) s2.textContent = 'Error: ' + x.message; }
+    }
+    window.renderMercadoDinero = render;
+  })();
+
+  /* =====================================================================
+     FUTUROS: dólar futuro y futuros de caución; contra las Lecaps, los dollar linked y el REM
+     ===================================================================== */
+  (function () {
+    var T = tab('tfut', render); if (!T) return;
+    var root = T.root, ST = { s: ['f90'], w: '1a', cv: 'tna' }, CH = {}, S = null, bTry = 0;
+    var SER = { f90: ['Tasa implícita a 3 meses', C_FUT, 'r'], dev: ['Devaluación mensual implícita', C_DEV, 'm'], cf: ['Futuro de caución más cercano', C_CF, 'r'], cau: ['Caución 1 día hábil', C_CAU, 'r'], fx: ['Dólar A3500', C_FX, '$'] };
+    function html() {
+      root.innerHTML = STYLE('#tfut') +
+        '<div class="card" id="tfCap"><div class="status" style="justify-content:space-between;gap:12px;flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0;flex:1 1 0"><p style="margin:0;color:var(--tx);font-size:16px;font-weight:600">Futuros de dólar y de caución</p>' +
+        '<p class="note" style="margin-top:4px" id="tfSub"></p></div>' + dl('tfCap', 'Futuros', 'Descargar la pestaña en HD') + '</div>' +
+        '<div class="rcards" id="tfCards"></div>' +
+        '<div class="rs" id="tfS1"><div style="' + HD + '"><h4>Curva de futuros</h4><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="tfCv"></span>' + dl('tfS1', 'Futuros_Curva', 'Descargar la curva y la tabla en HD') + '</span></div>' +
+        '<div class="cw" style="height:400px"><canvas id="tfCh1"></canvas></div>' +
+        '<h5 style="margin:20px 0 8px" id="tfT3">Futuros de dólar</h5><div class="sc"><table class="rt" id="tfFut"></table></div><p class="ft">I.A.: interés abierto (contratos). Tocá una fila para ver el contrato con su intradiario y su historia.</p></div>' +
+        '<div class="rs" id="tfS7"><div style="' + HD + '"><h4 id="tfT7">Volumen e interés abierto</h4>' + dl('tfS7', 'Futuros_Volumen', 'Descargar en HD') + '</div>' +
+        '<div class="rg"><div class="cw" style="height:300px"><canvas id="tfCh6"></canvas></div><div class="cw" style="height:300px"><canvas id="tfCh7"></canvas></div></div></div>' +
+        '<div class="rs" id="tfS8"><div style="' + HD + '"><h4>Tasas forward</h4>' + dl('tfS8', 'Futuros_Forward', 'Descargar en HD') + '</div>' +
+        '<div class="cw" style="height:300px"><canvas id="tfCh8"></canvas></div><p class="ft">La devaluación mensual que descuenta cada tramo: del spot al primer contrato, del primero al segundo, y así. En gris, el mismo tramo hace un mes.</p></div>' +
+        '<div class="rs" id="tfS2"><div style="' + HD + '"><h4 id="tfT2">Historia de las tasas del dólar futuro</h4>' + dl('tfS2', 'Futuros_Historia', 'Descargar la historia en HD') + '</div>' +
+        '<div class="bar"><span id="tfSer"></span><span id="tfW"></span></div><div class="cw" style="height:340px"><canvas id="tfCh2"></canvas></div>' +
+        '<p class="ft">La tasa a 3 meses se interpola entre los contratos de 30 días o más, en cada rueda desde 2020; la devaluación mensual sale de esa tasa. Para la cotización de un contrato, tocá su fila en la tabla.</p></div>' +
+        '<div class="rs" id="tfS4"><div style="' + HD + '"><h4 id="tfT4">Futuros de caución</h4>' + dl('tfS4', 'Futuros_caucion', 'Descargar la tabla en HD') + '</div><div class="sc"><table class="rt" id="tfCf"></table></div></div>' +
+        '<div class="rs"><div class="hl" style="margin:0"><p><b>Cómo se lee</b></p><ul>' +
+        '<li><b>Futuros de dólar</b>: el precio del dólar mayorista (A3500) al último día hábil de cada mes. <b>Tasa implícita</b>: cuánto rinde en pesos comprar dólares hoy y venderlos a futuro, en TNA: (futuro / spot − 1) × 365 / días, con el mismo dólar spot que usa A3 para la tasa que publica (en la rueda, el del último cierre). <b>Devaluación mensual implícita</b>: la suba del dólar por mes que descuenta el futuro.</li>' +
+        '<li><b>Ajuste</b>: el precio de cierre oficial de A3 de cada contrato. <b>Último</b>: el último operado. <b>I.A.</b>: interés abierto, los contratos que siguen abiertos; <b>Var. I.A.</b>, cuánto cambió en la rueda.</li>' +
+        '<li><b>Tasas forward</b>: la devaluación mensual entre dos contratos seguidos, (futuro siguiente / futuro anterior)<sup>30/días entre ambos</sup> − 1.</li>' +
+        '<li><b>Futuros de caución</b>: el precio es la tasa de caución a 1 día que el mercado espera para el vencimiento de cada contrato. Se comparan con la caución y las Lecaps en la curva de Mercado de dinero; las estrategias contra bonos están en Sintéticos.</li></ul></div></div></div>';
+      root.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-s],[data-w],[data-cv]'); if (!b || !root.contains(b)) return;
+        if (b.hasAttribute('data-cv')) { ST.cv = b.getAttribute('data-cv'); charts(); return; }
+        if (b.hasAttribute('data-w')) ST.w = b.getAttribute('data-w');
+        if (b.hasAttribute('data-s')) ST.s = toggleSer(ST.s, b.getAttribute('data-s'), function (x) { return SER[x][2]; });
+        history();
+      });
+    }
+    var fc = function () { return S.futV && S.futV.length ? S.futV : S.fut; };
+    function cards() {
+      var f = fc().filter(function (x) { return x.d >= 3; }).slice(0, 3), c0 = S.cfut.filter(function (r) { return r[1] && dn(r[1]) - dn(S.dcf) >= 10; })[0];
+      document.getElementById('tfCards').innerHTML = card('A3500', 'Dólar A3500') + card('TASA FUTURO 3M', 'Tasa implícita a 3 meses') + card('DEVALUACION', 'Devaluación mensual implícita') + card('CAUCION', cauT('CAUCION', 'Caución en pesos')) +
+        f.map(function (x) { return card(x.s, name(x.s) + ' · ' + dias(x.d)); }).join('') + (c0 ? card(psym(c0[0]), name(c0[0]) + ' · futuro de caución') : '');
+    }
+    var GLOW = { id: 'tfGlow', // la curva con brillo: sombra difusa del mismo color
+      beforeDatasetDraw: function (ch, a) { var d = ch.data.datasets[a.index]; if (!d.glow) return; ch.ctx.save(); ch.ctx.shadowColor = d.glow; ch.ctx.shadowBlur = 16; },
+      afterDatasetDraw: function (ch, a) { if (ch.data.datasets[a.index].glow) ch.ctx.restore(); } };
+    var fade = function (col) { return function (cx) { var A = cx.chart.chartArea; if (!A) return 'transparent'; var g = cx.chart.ctx.createLinearGradient(0, A.top, 0, A.bottom); g.addColorStop(0, col + '38'); g.addColorStop(0.6, col + '10'); g.addColorStop(1, col + '00'); return g; }; };
+    function charts() {
+      ['a', 'e'].forEach(function (k) { if (CH[k]) { CH[k].destroy(); CH[k] = null; } });
+      document.getElementById('tfCv').innerHTML = pills('data-cv', ST.cv, [['tna', 'Tasa implícita (TNA)'], ['dev', 'Devaluación mensual']]);
+      var c = fc(), mx = Math.min(420, Math.ceil((Math.max.apply(null, c.map(function (f) { return f.d; }).concat([60])) + 10) / 30) * 30), isT = ST.cv !== 'dev';
+      var tip = function (x) { return function (cc) { return x + ': ' + nf(cc.raw.y, 2) + '% · ' + dias(Math.round(cc.raw.x)); }; };
+      var sh = function (s) { return name(s).replace(/^(DLR|Caución) /, ''); }, card = css('--card') || '#1c1917';
+      var fitL = function (pts, col, extra) { // curva Nelson-Siegel (con pocos puntos, la automática de Curva Pesos) entre el primer y el último punto; con menos de 3, une los puntos
+        var F = null; try { F = window.PSX && window.PSX.fairFit && pts.length >= 3 ? window.PSX.fairFit(pts.map(function (p) { return { x: p.x, y: p.y }; }), 'ns') : null; } catch (e) { F = null; }
+        var o = { pointRadius: 0, pointHoverRadius: 0, borderWidth: 2.6, tension: 0, noTip: true, noLeg: true, order: 4, glow: col + 'aa', fill: 'start', backgroundColor: fade(col) }; for (var k in extra) o[k] = extra[k];
+        return ds('', F ? smooth(F.f, pts[0].x, pts[pts.length - 1].x) : pts, col, o);
+      };
+      var pt = function (col, r) { return { type: 'scatter', showLine: false, pointRadius: r || 5, pointHoverRadius: 8, borderColor: card, borderWidth: 1.5, backgroundColor: col, legCol: col, order: 1 }; };
+      var sets, yt, yf, tp;
+      if (isT) {
+        var fp = c.filter(function (f) { return f.t != null; }).map(function (f) { return { x: f.d, y: f.t, s: name(f.s), k: sh(f.s) }; });
+        sets = [fitL(fp, C_FUT), ds('Dólar futuro' + (S.futV ? ' (en vivo)' : ' (cierre ' + fr(S.df).slice(0, 5) + ')'), fp, C_FUT, pt(C_FUT))];
+        yt = 'Tasa implícita (TNA %)'; yf = function (v) { return nf(v, 1) + '%'; }; tp = tip('TNA');
+      } else {
+        var dp2 = c.filter(function (f) { return f.dev != null; }).map(function (f) { return { x: f.d, y: f.dev, s: name(f.s), k: sh(f.s) }; });
+        sets = [fitL(dp2, C_DEV), ds('Devaluación mensual implícita', dp2, C_DEV, pt(C_DEV))];
+        yt = 'Devaluación mensual implícita (%)'; yf = function (v, i, t) { var st = t && t.length > 1 ? Math.abs(t[1].value - t[0].value) : 0.1; return nf(v, st < 0.1 ? 2 : 1) + '%'; }; tp = tip('Devaluación mensual');
+      }
+      CH.a = new Chart(document.getElementById('tfCh1').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [GLOW].concat(LBL()),
+        options: scatterOpt('Días al vencimiento', yt, yf, tp, mx) });
+      CH.a.options.layout = { padding: { right: 30, top: 4 } }; CH.a.options.scales.x.grid.display = false; if (!isT) CH.a.options.plugins.legend.display = false; CH.a.update();
+    }
+    function tables() {
+      var live = !!(S.futV && S.futV.length), lv = {}; if (live) S.futV.forEach(function (f) { lv[f.s] = f; });
+      var prev = {}; S.futPrev.forEach(function (f) { prev[f.s] = f.F; });
+      var x1 = function (v) { return v ? nf(v, 1) : '—'; }, cls = function (v) { return v > 0 ? 'up' : v < 0 ? 'dn' : 'mu'; };
+      var h = '<thead><tr><th class="l">Contrato</th><th>Vence</th><th>Días</th>' + (live ? '<th>Compra</th><th>Venta</th>' : '') + '<th>Apertura</th><th>Mín.</th><th>Máx.</th><th class="lc">Último</th><th>' + (live ? 'Ajuste anterior' : 'Ajuste') + '</th><th>Var. %</th><th>Volumen</th><th>I.A.</th><th>Var. I.A.</th><th>TNA</th><th>TEA</th><th>Dev. mensual</th></tr></thead><tbody>';
+      S.fut.forEach(function (f) {
+        var r = f.raw, L = lv[f.s], q = L ? L.raw : null, t = L && L.t != null ? L.t : f.t, dv = L && L.dev != null ? L.dev : f.dev, d = L ? L.d : f.d;
+        var op, lo, hi, la, aj, ch, vol, oi, doi;
+        if (q) { op = q[8]; hi = q[9]; lo = q[10]; la = q[4]; aj = f.F; ch = la ? (la / f.F - 1) * 100 : null; vol = q[7]; oi = q[6]; doi = oi != null && f.oi != null ? oi - f.oi : null; }
+        else { op = r[6]; hi = r[7]; lo = r[8]; la = r[9]; aj = f.F; ch = prev[f.s] ? (f.F / prev[f.s] - 1) * 100 : null; vol = r[4]; oi = r[3]; doi = r[10]; }
+        h += '<tr data-qv="' + f.s + '"><td class="l"><b>' + name(f.s) + '</b></td><td>' + fr(f.v) + '</td><td>' + d + '</td>' + (live ? '<td>' + x1(q && q[2]) + '</td><td>' + x1(q && q[3]) + '</td>' : '') +
+          '<td>' + x1(op) + '</td><td>' + x1(lo) + '</td><td>' + x1(hi) + '</td><td class="lc">' + x1(la) + '</td><td>' + x1(aj) + '</td><td class="' + cls(ch) + '">' + (ch == null ? '—' : sg(ch, 2) + '%') + '</td>' +
+          '<td>' + cnt(vol) + '</td><td>' + cnt(oi) + '</td><td class="' + cls(doi) + '">' + (doi == null ? '—' : sg(doi, 0)) + '</td><td><b>' + P(t) + '</b></td><td>' + P(tea(t, d)) + '</td><td>' + P(dv) + '</td></tr>';
+      });
+      document.getElementById('tfFut').innerHTML = h + '</tbody>';
+      document.getElementById('tfT3').textContent = 'Futuros de dólar · ' + (live ? 'rueda de hoy (' + S.V.ts.slice(11, 16) + ')' : 'cierre del ' + fr(S.df)) + ' · spot de A3 $ ' + nf((S.futV && S.futV.length ? S.futV : S.fut)[0] ? (S.futV && S.futV.length ? S.futV : S.fut)[0].sp : S.spot[1], 2);
+      var cpv = {}; (S.cfPrev || []).forEach(function (r) { cpv[r[0]] = r[2]; });
+      var lc = {}; if (S.vivoOk) (S.V.cfut || []).forEach(function (r) { lc[key(r[0])] = r; }); var lcv = Object.keys(lc).length;
+      var x2 = function (v) { return v ? nf(v, 2) + '%' : '—'; };
+      h = '<thead><tr><th class="l">Contrato</th><th>Vence</th>' + (lcv ? '<th>Compra</th><th>Venta</th><th class="lc">Último hoy</th>' : '') + '<th>Apertura</th><th>Mín.</th><th>Máx.</th><th' + (lcv ? '' : ' class="lc"') + '>Último</th><th>Tasa (ajuste)</th><th>Var.</th><th>Volumen</th><th>I.A.</th><th>Var. I.A.</th></tr></thead><tbody>';
+      S.cfut.forEach(function (r) { var p = cpv[r[0]], ch = p != null ? r[2] - p : null, L = lc[key(r[0])];
+        h += '<tr data-qv="' + psym(r[0]) + '"><td class="l"><b>' + name(r[0]) + '</b></td><td>' + fr(r[1]) + '</td>' + (lcv ? '<td>' + x2(L && L[2]) + '</td><td>' + x2(L && L[3]) + '</td><td class="lc">' + x2(L && L[4]) + '</td>' : '') +
+          '<td>' + x2(r[6]) + '</td><td>' + x2(r[8]) + '</td><td>' + x2(r[7]) + '</td><td' + (lcv ? '' : ' class="lc"') + '>' + x2(r[9]) + '</td><td>' + nf(r[2], 2) + '%</td><td class="' + cls(ch) + '">' + (ch == null ? '—' : sg(ch, 2) + ' pp') + '</td>' +
+          '<td>' + cnt(r[4]) + '</td><td>' + cnt(r[3]) + '</td><td class="' + cls(r[10]) + '">' + (r[10] == null ? '—' : sg(r[10], 0)) + '</td></tr>'; });
+      document.getElementById('tfCf').innerHTML = h + '</tbody>';
+      document.getElementById('tfT4').textContent = 'Futuros de caución · cierre del ' + fr(S.dcf);
+    }
+    function liquidity() { // volumen e interés abierto por contrato
+      ['f', 'g'].forEach(function (k) { if (CH[k]) { CH[k].destroy(); CH[k] = null; } });
+      var c = S.fut, live = !!(S.futV && S.futV.length), lv = {}; if (live) S.futV.forEach(function (f) { lv[f.s] = f; });
+      var oi = c.map(function (f) { var L = lv[f.s]; return L && L.oi != null ? L.oi : f.oi; }), vo = c.map(function (f) { var L = lv[f.s]; return L ? L.vol : f.vol; });
+      var doi = c.map(function (f, i) { var L = lv[f.s]; return L ? (L.oi != null && f.oi != null ? L.oi - f.oi : null) : f.raw[10]; });
+      var tOI = oi.reduce(function (a, v) { return a + (v || 0); }, 0), tV = vo.reduce(function (a, v) { return a + (v || 0); }, 0), lb = c.map(function (f) { return name(f.s).replace('DLR ', ''); });
+      var top3 = oi.slice().sort(function (a, b) { return (b || 0) - (a || 0); }).slice(0, 3).reduce(function (a, v) { return a + (v || 0); }, 0);
+      var tx = css('--tx'), bd = css('--bd'), M = function (v) { return Math.abs(v) >= 1e6 ? nf(v / 1e6, 1) + ' M' : Math.abs(v) >= 1e3 ? nf(v / 1e3, 0) + ' mil' : nf(v, 0); };
+      var opt = function (title, sub, y2) { var o = { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, title: { display: true, text: title, color: tx, font: { size: 13, weight: '600' } }, subtitle: { display: !!sub, text: sub, color: css('--mu'), font: { size: 12 }, padding: { bottom: 6 } } },
+        scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: true }, grid: { display: false } }, y: { ticks: { color: tx, callback: M }, grid: { color: bd } } } };
+        if (y2) o.scales.y2 = { position: 'right', ticks: { color: tx, callback: M }, grid: { display: false } }; return o; };
+      var o1 = opt('Interés abierto por contrato', 'Los 3 mayores concentran el ' + nf(tOI ? top3 / tOI * 100 : null, 0) + '% · ' + M(tOI) + ' contratos', true);
+      o1.plugins.tooltip = { callbacks: { label: function (cc) { return cc.datasetIndex === 0 ? 'I.A.: ' + nf(cc.parsed.y, 0) + ' (' + nf(tOI ? cc.parsed.y / tOI * 100 : null, 1) + '% del total)' : 'Var. I.A.: ' + sg(cc.parsed.y, 0); } } };
+      CH.f = new Chart(document.getElementById('tfCh6').getContext('2d'), { type: 'bar', data: { labels: lb, datasets: [
+        { label: 'Interés abierto', data: oi, backgroundColor: C_FUT + 'cc', borderRadius: 4, yAxisID: 'y', order: 2 },
+        { type: 'line', label: 'Variación del I.A. (eje derecho)', data: doi, borderColor: '#38bdf8', backgroundColor: doi.map(function (v) { return v < 0 ? '#fb7185' : '#34d399'; }), pointRadius: 4, pointHoverRadius: 6, borderWidth: 1.5, showLine: false, yAxisID: 'y2', order: 1 }] }, options: o1 });
+      var o2 = opt('Volumen por contrato', (live ? 'Hoy' : 'Rueda del ' + fr(S.df)) + ' · ' + M(tV) + ' contratos');
+      o2.plugins.legend.display = false;
+      o2.plugins.tooltip = { callbacks: { label: function (cc) { return 'Volumen: ' + nf(cc.parsed.y, 0) + ' (' + nf(tV ? cc.parsed.y / tV * 100 : null, 1) + '% del total)'; } } };
+      CH.g = new Chart(document.getElementById('tfCh7').getContext('2d'), { type: 'bar', data: { labels: lb, datasets: [{ label: 'Volumen', data: vo, backgroundColor: '#38bdf8cc', borderRadius: 4 }] }, options: o2 });
+    }
+    function fwd(c, ref) { // devaluación mensual de cada tramo entre contratos seguidos (el primero, desde el A3500); con ref, los mismos tramos de esa curva
+      var r = {}, by = {}; c.forEach(function (f) { by[f.s] = f; });
+      (ref || c).forEach(function (g, i) {
+        var f = by[g.s], p = i ? by[(ref || c)[i - 1].s] : null, a = i ? p : f ? { d: 0, F: f.sp } : null;
+        if (f && a && f.d - a.d >= 5 && a.F > 0) r[g.s] = (Math.pow(f.F / a.F, 30 / (f.d - a.d)) - 1) * 100;
+      }); return r;
+    }
+    function forwards() {
+      if (CH.h) { CH.h.destroy(); CH.h = null; }
+      var c = fc(), now = fwd(c), ago = fwd(S.futAgo || [], c), lb = c.map(function (f) { return name(f.s).replace('DLR ', ''); }), tx = css('--tx'), bd = css('--bd');
+      CH.h = new Chart(document.getElementById('tfCh8').getContext('2d'), { type: 'bar', data: { labels: lb, datasets: [
+        { label: S.futV ? 'Hoy' : 'Cierre del ' + fr(S.df), data: c.map(function (f) { return now[f.s] != null ? now[f.s] : null; }), backgroundColor: C_FUT + 'dd', borderRadius: 4 },
+        { label: S.ago ? 'Hace un mes (' + fr(S.ago) + ')' : 'Hace un mes', data: c.map(function (f) { return ago[f.s] != null ? ago[f.s] : null; }), backgroundColor: 'rgba(168,162,158,.55)', borderRadius: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, title: { display: true, text: 'Devaluación mensual implícita de cada tramo (%)', color: tx, font: { size: 13, weight: '600' } },
+            tooltip: { callbacks: { title: function (cc) { var f = c[cc[0].dataIndex], a = cc[0].dataIndex ? name(c[cc[0].dataIndex - 1].s) : 'Spot'; return a + ' → ' + name(f.s); }, label: function (cc) { return cc.dataset.label + ': ' + P(cc.parsed.y); } } } },
+          scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: true }, grid: { display: false } }, y: { ticks: { color: tx, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
+    }
+    function history() {
+      if (CH.b) { CH.b.destroy(); CH.b = null; }
+      document.getElementById('tfSer').innerHTML = pills('data-s', ST.s, Object.keys(SER).map(function (k) { return [k, SER[k][0], 0, SER[k][1]]; }), 'sr');
+      document.getElementById('tfW').innerHTML = pills('data-w', ST.w, RGD);
+      var src = { f90: S.f90, dev: map(S.f90, devm), cf: S.cfHist, cau: map(S.corta, function (r) { return r[1]; }), fx: S.fx };
+      var units = {}; ST.s.forEach(function (k) { units[SER[k][2]] = 1; }); var two = Object.keys(units).length > 1, u1 = SER[ST.s[0]][2], u2 = null;
+      ST.s.forEach(function (k) { if (SER[k][2] !== u1) u2 = SER[k][2]; });
+      var D2 = window_(ST.s.map(function (k) { return src[k]; }), '0', rgN(ST.w)), fm = function (u) { return u === '$' ? PS : P; }, ax = function (u) { return u === '$' ? function (v) { return '$ ' + nf(v, 0); } : u === 'm' ? function (v) { return nf(v, 1) + '%'; } : pct; };
+      document.getElementById('tfT2').textContent = 'Historia de las tasas del dólar futuro · ' + rgName(ST.w);
+      CH.b = histChart('tfCh2', D2, ST.s.map(function (k) { var y2 = two && SER[k][2] !== u1; return lin(SER[k][0] + (y2 ? ' (eje derecho)' : ''), on(D2, src[k]), SER[k][1], { borderWidth: 1.8, yAxisID: y2 ? 'y2' : 'y', fmt: fm(SER[k][2]) }); }),
+        u1 === '$' ? 'Dólar A3500 ($)' : u1 === 'm' ? 'Devaluación mensual (%)' : 'TNA (%) de cada rueda', two ? (u2 === '$' ? 'Pesos por dólar' : u2 === 'm' ? 'Devaluación mensual' : 'TNA') : null, ax(u1), u2 ? ax(u2) : null);
+    }
+    function render() {
+      if (!T.isAct()) return;
+      try {
+        if (typeof Chart === 'undefined') return;
+        if (!document.getElementById('tfFut')) html();
+        var sub = document.getElementById('tfSub');
+        if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
+        if (!TJ) { sub.textContent = 'Cargando los futuros…'; load(render); return; }
+        S = getS();
+        sub.innerHTML = 'Cierres de A3 del ' + fr(S.df) + (S.vivoOk ? ' y la rueda de hoy por Primary (' + S.V.ts.slice(11, 16) + ')' : '') + ', con el dólar spot de A3.<span class="xp"> Tocá una tarjeta o un contrato para ver su intradiario y su historia.</span>';
+        cards(); charts(); tables(); liquidity(); forwards(); history();
+      } catch (x) { console.error('tfut', x); var s2 = document.getElementById('tfSub'); if (s2) s2.textContent = 'Error: ' + x.message; }
+    }
+    window.renderFuturos = render;
+  })();
+  /* ---------- PESTAÑA SINTÉTICOS (#sint) ----------
+     Dos estrategias con futuros de dólar, a elección: el dólar sintético (Lecap + compra de futuro, contra el dollar linked) y la Lecap sintética
+     (dollar linked + venta de futuro, contra la Lecap). Precios de Curva Pesos (window.PSX) y futuros de A3 con su spot; las curvas son las
+     ajustadas de Curva Pesos (fairFit) y no se extrapolan fuera de su rango. */
+  (function () {
+    var T = tab('sint', render); if (!T) return;
+    var root = T.root, CH = {}, S = null, bTry = 0, ST = { m: 'usd' }, LAST = null, O = 0;
+    var GLW = { id: 'syGlow', // las curvas con brillo
+      beforeDatasetDraw: function (ch, a) { var d = ch.data.datasets[a.index]; if (!d.glow) return; ch.ctx.save(); ch.ctx.shadowColor = d.glow; ch.ctx.shadowBlur = 14; },
+      afterDatasetDraw: function (ch, a) { if (ch.data.datasets[a.index].glow) ch.ctx.restore(); } };
+    var fade = function (col) { return function (cx) { var A = cx.chart.chartArea; if (!A) return 'transparent'; var g = cx.chart.ctx.createLinearGradient(0, A.top, 0, A.bottom); g.addColorStop(0, col + '30'); g.addColorStop(0.7, col + '08'); g.addColorStop(1, col + '00'); return g; }; };
+    var cline = function (pts, col, fill) { return ds('', pts, col, { pointRadius: 0, pointHoverRadius: 0, borderWidth: 2.4, tension: 0, noTip: true, noLeg: true, order: 4, glow: col + 'aa', fill: fill ? 'start' : false, backgroundColor: fill ? fade(col) : 'transparent' }); };
+    var dots = function (label, pts, col, extra) { var o = { type: 'scatter', showLine: false, pointRadius: 5, pointHoverRadius: 8, borderColor: css('--card') || '#1c1917', borderWidth: 1.5, backgroundColor: col, legCol: col, order: 1 }; for (var k in extra) o[k] = extra[k]; return ds(label, pts, col, o); };
+    var fitLine = function (pts, col, fill, model) { // la curva ajustada por puntos {x: fecha, y}, en días desde la liquidación (O); con menos de 3 puntos, nada
+      pts = pts.slice().sort(function (a, b) { return a.x - b.x; }); if (pts.length < 3 || !window.PSX || !window.PSX.fairFit) return null;
+      var q = null; try { q = window.PSX.fairFit(pts.map(function (p) { return { x: p.x - O, y: p.y }; }), model || 'auto'); } catch (e) { q = null; } if (!q) return null;
+      return cline(smooth(function (x) { return q.f(x - O); }, pts[0].x, pts[pts.length - 1].x), col, fill);
+    };
+    var li = function (pts, x) { if (!pts.length) return null; if (x < pts[0][0] - 3) return null; if (x <= pts[0][0]) return pts[0][1]; if (x > pts[pts.length - 1][0] + 3) return null; if (x >= pts[pts.length - 1][0]) return pts[pts.length - 1][1]; for (var i = 1; i < pts.length; i++) if (x <= pts[i][0]) return pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * (x - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0]); return null; };
+    var ctd = function (c) { return c ? c.n + (c.ip ? ' <span class="mu" title="El bono vence antes del fin de mes: se usa este contrato desarmándolo al vencimiento; el precio es interpolado y queda riesgo de base">*</span>' : '') : '<span class="mu">—</span>'; };
+    var ncl = function (n) { return n && Math.abs(n.g) <= 60 ? n.k + ' · ' + P(n.v) + (Math.abs(n.g) > 3 ? ' <span class="mu">(' + (n.g > 0 ? '+' : '−') + Math.abs(n.g) + ' d)</span>' : '') : '<span class="mu">—</span>'; };
+    var tem = function (tea) { return tea == null ? null : (Math.pow(1 + tea / 100, 1 / 12) - 1) * 100; }; // TEM equivalente a la TEA (%)
+    var bp = function (v) { return v == null || !isFinite(v) ? 'n/a' : sg(v * 100, 0); }, cls = function (v) { return v == null ? 'mu' : v > 0 ? 'up' : v < 0 ? 'dn' : 'mu'; };
+    var dp = function (x) { return bxDayNum(String(x).slice(0, 10)); };
+    var fc = function () { return S.futV && S.futV.length ? S.futV : S.fut; };
+    var sh = function (s) { return name(s).replace(/^DLR /, ''); };
+    var cw = function (id, h) { return '<div class="cw" style="height:' + h + 'px"><canvas id="' + id + '"></canvas><div class="ce" id="' + id + 'E"></div></div>'; };
+    var MODES = [['usd', 'Dólar sintético: Lecap + compra de futuro'], ['lec', 'Lecap sintética: dollar linked + venta de futuro']];
+    function html() {
+      root.innerHTML = STYLE('#sint') +
+        '<div class="card" id="syCap"><div class="status" style="justify-content:space-between;gap:12px;flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0;flex:1 1 0"><p style="margin:0;color:var(--tx);font-size:16px;font-weight:600">Sintéticos</p>' +
+        '<p class="note" style="margin-top:4px" id="sySub"></p></div>' + dl('syCap', 'Sinteticos', 'Descargar la pestaña en HD') + '</div>' +
+        '<div class="rs" id="syS"><div style="' + HD + '"><span id="syM"></span>' + dl('syS', 'Sinteticos_estrategia', 'Descargar en HD') + '</div>' +
+        cw('syA', 400) + '<div class="rg" style="margin-top:22px">' + cw('syB', 320) + cw('syC', 320) + '</div>' +
+        '<h5 style="margin:22px 0 8px" id="syH"></h5><div class="sc"><table class="rt" id="syT"></table></div><div class="hl" style="margin:18px 0 0" id="syN"></div></div></div>';
+      root.addEventListener('click', function (e) { var b = e.target.closest('[data-sm]'); if (!b || !root.contains(b) || !LAST) return; ST.m = b.getAttribute('data-sm'); draw(LAST); });
+    }
+    function build() {
+      var X = window.PSX, sn = null; try { sn = X && X.snap ? X.snap(1) : null; } catch (e) { sn = null; }
+      var all = sn ? sn.S : [], s0 = sn ? sn.s : null; if (!all.length) return null;
+      var by = function (f) { return all.filter(function (o) { return f(o) && !o.miss && o.P > 0; }).sort(function (a, b) { return a.d - b.d; }); };
+      var orig = function (k) { try { return PSD.INST[k] ? PSD.INST[k].k : null; } catch (e) { return null; } }; // Curva Pesos pasa a tasa fija los CER con el índice ya fijado (TZXO6, X30N6): acá no son Lecaps
+      var fija = by(function (o) { return o.ins.k === 'cap' && !o.ins.cerFix && orig(o.k) === 'cap' && o.tnas != null && o.d >= 7; }); if (!fija.length) return null;
+      var c = fc(), Sp = c.length ? c[0].sp : null, base = c.length ? dp(c[0].base) : s0;
+      var D = { s0: s0, fija: fija, c: c, Sp: Sp, dls: by(function (o) { return o.ins.k === 'dl' && o.usdTea != null && o.d >= 7; }) };
+      D.fx = (D.dls[0] && D.dls[0].fx0) || at(S.fx, '9999')[1] || Sp; // el A3500: con el que el dollar linked da su tasa en dólares, así el sintético se compara igual
+      D.fCurve = [[base, Sp]].concat(c.map(function (f) { return [dp(f.v), f.F]; })); // el futuro por fecha, desde el spot de la rueda
+      D.Fat = function (day) { return li(D.fCurve, day); };
+      D.ctr = function (day) { // el contrato del mes del vencimiento; interpolado si el bono vence antes del fin de mes (riesgo de base)
+        var ym = bxDayStr(day).slice(0, 7), f = c.filter(function (x) { return String(x.v).slice(0, 7) === ym; })[0];
+        return f ? { n: sh(f.s), ip: Math.abs(dp(f.v) - day) > 1 } : null; };
+      var near = function (L, d, val) { var b = null; L.forEach(function (o) { if (!b || Math.abs(o.d - d) < Math.abs(b.d - d)) b = o; }); return b ? { k: b.k, v: val(b), g: b.d - d } : null; }; // el bono más cercano en plazo
+      var q = null; try { q = X.fairFit(fija.map(function (o) { return { x: o.d, y: o.tea * 100, k: o.k }; }), 'auto'); } catch (e) { q = null; }
+      var lx0 = fija[0].d, lx1 = fija[fija.length - 1].d; D.LR = q ? { f: q.f, x0: lx0, x1: lx1 } : null;
+      D.lecT = function (d) { return q && d >= lx0 - 3 && d <= lx1 + 3 ? q.f(Math.min(lx1, Math.max(lx0, d))) : null; }; // la TEA de la curva de Lecaps ajustada
+      D.last = D.fCurve[D.fCurve.length - 1][0]; D.x1 = Math.max(D.last, s0 + 120) + 20;
+      // dollar linked + venta de futuro: el futuro al vencimiento del bono (el contrato del mes), como se opera; el bono cobra el A3500 de 3 días hábiles antes (base chica)
+      D.dlr = D.dls.map(function (o) { var Fm = D.Fat(o.mat), lf = D.lecT(o.d), be = lf == null ? null : o.P * Math.pow(1 + lf / 100, o.d / 365) / 100, hed = Fm ? (Math.pow(100 * Fm / o.P, 365 / o.d) - 1) * 100 : null, Fb = X && X.bdBack ? D.Fat(X.bdBack(o.mat, 3)) : null, hn = Fb ? (Math.pow(100 * Fb / o.P, 365 / o.d) - 1) * 100 : null; return { o: o, Fm: Fm, Fb: Fb, hn: hn, lf: lf, be: be, hed: hed, ct: D.ctr(o.mat), nl: near(fija, o.d, function (b) { return b.tea * 100; }) }; }); // TEA
+      // Lecap + compra de futuro: la tasa en dólares oficiales; contra el dollar linked del mismo plazo (interpolado)
+      var qd = null; try { qd = D.dls.length >= 3 ? X.fairFit(D.dls.map(function (o) { return { x: o.d, y: o.usdTea * 100, k: o.k }; }), 'auto') : null; } catch (e) { qd = null; }
+      var dx0 = D.dls.length ? D.dls[0].d : 0, dx1 = D.dls.length ? D.dls[D.dls.length - 1].d : 0, dlT = function (d) { return qd && d >= dx0 - 3 && d <= dx1 + 3 ? qd.f(Math.min(dx1, Math.max(dx0, d))) : null; }; // la TEA en USD de la curva de dollar linked ajustada
+      D.usd = fija.filter(function (o) { return o.mat <= D.last + 3; }).map(function (o) { var F = D.Fat(o.mat), pay = o.P * (1 + o.tnas * o.d / 365), u0 = o.P / D.fx, u1 = F ? pay / F : null, u = u1 ? (Math.pow(u1 / u0, 365 / o.d) - 1) * 100 : null; return { o: o, F: F, pay: pay, u0: u0, u1: u1, u: u, dl: dlT(o.d), ct: D.ctr(o.mat), nd: near(D.dls, o.d, function (b) { return b.usdTea * 100; }) }; }).filter(function (r) { return r.u != null; }); // TEA en dólares
+      return D;
+    }
+    var dateTip = function (s0, u) { return function (cc) { return (u === '$' ? '$ ' + nf(cc.raw.y, 1) : 'TEA ' + nf(cc.raw.y, 2) + '%') + ' · vence el ' + fr(ds2(cc.raw.x)) + ' (' + dias(Math.round(cc.raw.x - s0)) + ')'; }; };
+    var dateOpt = function (D, yt, yf, u) { var o = scatterOpt('', yt, yf, dateTip(D.s0, u), D.x1, mmyy); o.scales.x.min = D.s0; o.layout = { padding: { right: 30, top: 4 } }; o.scales.x.grid = { display: false }; return o; };
+    var mk = function (id, cfg) { if (CH[id]) { CH[id].destroy(); CH[id] = null; } var el = document.getElementById(id); if (!el) return null; CH[id] = new Chart(el.getContext('2d'), cfg); return CH[id]; };
+    function bars(id, rows, title, tipL) { // diferencia en pb, verde si conviene el sintético
+      var tx = css('--tx'), bd = css('--bd');
+      document.getElementById(id + 'E').textContent = rows.length ? '' : 'Sin pares del mismo plazo para comparar.';
+      mk(id, { type: 'bar', data: { labels: rows.map(function (r) { return r.l; }), datasets: [{ data: rows.map(function (r) { return Math.round(r.v * 100); }), backgroundColor: rows.map(function (r) { return r.v >= 0 ? '#34d399cc' : '#fb7185cc'; }), borderRadius: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, title: { display: true, text: title, color: tx, font: { size: 13, weight: '600' } }, tooltip: { callbacks: { title: function (cc) { return rows[cc[0].dataIndex].l; }, label: function (cc) { return tipL(rows[cc.dataIndex]) + ' · ' + sg(cc.parsed.y, 0) + ' pb'; } } } },
+          scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: true }, grid: { display: false } }, y: { ticks: { color: tx, callback: function (v) { return sg(v, 0); } }, grid: { color: bd } } } } });
+    }
+    function fxChart(D) { // el tipo de cambio esperado: futuros, el breakeven de cada dollar linked contra la Lecap y el REM
+      var rem = [], R = window.PSREM; if (R && R.fx) R.fx.forEach(function (v, i) { if (!(v > 0)) return; var m = R.m0 + i, d = bxDayNum(Math.floor(m / 12) + '-' + ('0' + (m % 12 + 1)).slice(-2) + '-15'); if (d > D.s0 && d <= D.x1) rem.push({ x: d, y: v, s: 'REM ' + MESm[m % 12] + '-' + String(Math.floor(m / 12)).slice(2) }); });
+      var fpx = [{ x: D.s0, y: D.Sp, s: 'Dólar spot' }].concat(D.c.map(function (f) { return { x: dp(f.v), y: f.F, s: name(f.s) }; }));
+      mk('syC', { type: 'scatter', data: { datasets: [cline(fpx, C_FUT, true), dots('Futuros de dólar', fpx.slice(1), C_FUT, { pointRadius: 3.5 }),
+        dots('Breakeven dollar linked vs. Lecap', D.dlr.filter(function (x) { return x.o.mat <= D.x1 && x.be; }).map(function (x) { return { x: x.o.mat, y: x.be, s: x.o.k + ' (breakeven)', k: x.o.k }; }), C_DL, { pointRadius: 6, pointStyle: 'rectRot' }),
+        ds('REM (promedio del mes)', rem, '#a8a29e', { borderDash: [5, 4], borderWidth: 1.6, pointRadius: 2 })] }, plugins: [GLW].concat(LBL()),
+        options: dateOpt(D, 'Tipo de cambio esperado ($ por dólar)', function (v) { return nf(v, 0); }, '$') });
+    }
+    var MIN = 21; // a menos de 3 semanas la TEA anualiza cualquier diferencia chica: esos bonos van solo en la tabla
+    var xEnd = function (o, pts) { var m = Math.max.apply(null, pts.map(function (p) { return p.x; })); if (isFinite(m)) o.scales.x.max = m + 40; return o; };
+    function drawUsd(D) { // 1) dólar sintético: Lecap + compra de futuro, contra el dollar linked
+      var up = D.usd.filter(function (r) { return r.o.d >= MIN; }).map(function (r) { return { x: r.o.mat, y: r.u, s: r.o.k + ' + futuro', k: r.o.k }; }), dpts = D.dls.filter(function (o) { return o.mat <= D.x1 && o.d >= MIN; }).map(function (o) { return { x: o.mat, y: o.usdTea * 100, s: o.k, k: o.k }; }), sets = [];
+      var f1 = fitLine(up, '#38bdf8', true); if (f1) sets.push(f1);
+      var f2 = fitLine(dpts, C_DL, false); if (f2) { f2.borderDash = [5, 4]; f2.borderWidth = 1.8; f2.glow = null; sets.push(f2); }
+      sets.push(dots('Lecap + compra de futuro', up, '#38bdf8'), dots('Dollar linked', dpts, C_DL, { pointRadius: 6, pointStyle: 'rectRot' }));
+      mk('syA', { type: 'scatter', data: { datasets: sets }, plugins: [GLW].concat(LBL()), options: xEnd(dateOpt(D, 'Tasa en dólares oficiales por vencimiento (TEA %)', function (v) { return nf(v, 1) + '%'; }, 'r'), up.concat(dpts)) });
+      bars('syB', D.usd.filter(function (r) { return r.dl != null && r.o.d >= MIN; }).map(function (r) { return { l: r.o.k, v: r.u - r.dl, r: r }; }), 'Sintético menos la curva de dollar linked (pb)', function (x) { return 'Sintético ' + P(x.r.u) + ' · dollar linked ' + P(x.r.dl); });
+      document.getElementById('syH').textContent = 'Cada Lecap con el futuro de su vencimiento';
+      var h = '<thead><tr><th class="l">Lecap</th><th>Precio</th><th>Pago</th><th>Contrato</th><th>Futuro al venc.</th><th>Vence</th><th>Días</th><th>USD hoy</th><th>USD al venc.</th><th class="lc">TEA en USD</th><th>TEM</th><th>Dollar linked (curva)</th><th>Dif. (pb)</th><th class="l">Conviene</th><th class="l">Dollar linked más cercano</th></tr></thead><tbody>';
+      D.usd.forEach(function (r) { var df = r.dl == null ? null : r.u - r.dl; h += '<tr data-qv="' + r.o.k + '"><td class="l"><b>' + r.o.k + '</b></td><td>' + nf(r.o.P, 2) + '</td><td>' + nf(r.pay, 2) + '</td><td>' + ctd(r.ct) + '</td><td>' + nf(r.F, 1) + '</td><td>' + fr(bxDayStr(r.o.mat)) + '</td><td>' + r.o.d + '</td><td>' + nf(r.u0, 4) + '</td><td>' + nf(r.u1, 4) + '</td><td class="lc">' + P(r.u) + '</td><td>' + P(tem(r.u)) + '</td><td>' + (r.dl == null ? '<span class="mu">sin dollar linked</span>' : P(r.dl)) + '</td><td class="' + cls(df) + '">' + bp(df) + '</td><td class="l">' + (df == null ? '—' : df > 0 ? 'Sintético' : 'Dollar linked') + '</td><td class="l">' + ncl(r.nd) + '</td></tr>'; });
+      document.getElementById('syT').innerHTML = h + (D.usd.length ? '' : '<tr><td class="l mu" colspan="15">No hay Lecaps dentro de la curva de futuros.</td></tr>') + '</tbody>';
+      document.getElementById('syN').innerHTML = '<p><b>Cómo se lee</b></p><ul>' +
+        '<li><b>La estrategia</b>: comprás la Lecap y comprás futuro de dólar por el mismo monto. Al vencimiento cobrás pesos y con el futuro los pasás a dólares oficiales: queda una tasa en dólares.</li>' +
+        '<li><b>USD hoy</b> = precio / A3500 de hoy. <b>USD al vencimiento</b> = pago de la Lecap / futuro de su vencimiento. TEA = (USD al venc. / USD hoy)<sup>365/días</sup> − 1 y TEM = (1 + TEA)<sup>1/12</sup> − 1.</li>' +
+        '<li><b>Contra qué se compara</b>: la curva ajustada de dollar linked al mismo plazo, que también se mide con el A3500. Al lado, el dollar linked real más cercano y cuántos días lo separan. Si el sintético rinde más, conviene armarlo.</li>' +
+        '<li><b>Contrato</b>: el futuro del mes en que vence la Lecap. Con <b>*</b>, la Lecap vence antes de fin de mes: el precio del futuro se interpola a su fecha y, como el contrato se desarma ese día, queda riesgo de base.</li>' +
+        '<li><b>Qué entra</b>: solo Lecaps y Boncaps (los CER con el índice ya fijado no). Los que vencen en menos de 3 semanas van solo en la tabla: a tan pocos días la TEA anualiza cualquier diferencia chica.</li></ul>';
+    }
+    function drawLec(D) { // 2) Lecap sintética: dollar linked + venta de futuro, contra la Lecap
+      var hp = D.dlr.filter(function (x) { return x.o.mat <= D.x1 && x.hed != null && x.o.d >= MIN; }).map(function (x) { return { x: x.o.mat, y: x.hed, s: x.o.k + ' + venta de futuro', k: x.o.k }; }), sets = [];
+      var lp = D.fija.filter(function (o) { return o.d >= MIN && o.mat <= Math.max.apply(null, hp.map(function (p) { return p.x; }).concat([D.s0])) + 45; }).map(function (o) { return { x: o.mat, y: o.tea * 100, s: o.k, k: o.k }; });
+      var f1 = fitLine(hp, C_DL, true); if (f1) sets.push(f1);
+      var f2 = fitLine(lp, '#60a5fa', false); if (f2) { f2.borderDash = [5, 4]; f2.borderWidth = 1.8; f2.glow = null; sets.push(f2); }
+      sets.push(dots('Dollar linked + venta de futuro', hp, C_DL, { pointRadius: 6.5, pointStyle: 'rectRot' }), dots('Lecaps y Boncaps', lp, '#60a5fa', { pointRadius: 4.5 }));
+      mk('syA', { type: 'scatter', data: { datasets: sets }, plugins: [GLW].concat(LBL()), options: xEnd(dateOpt(D, 'Tasa fija en pesos por vencimiento (TEA %)', function (v) { return nf(v, 0) + '%'; }, 'r'), hp.concat(lp)) });
+      bars('syB', D.dlr.filter(function (x) { return x.hed != null && x.lf != null && x.o.d >= MIN; }).map(function (x) { return { l: x.o.k, v: x.hed - x.lf, x: x }; }), 'Sintética menos la curva de Lecaps (pb)', function (q) { return 'Sintética ' + P(q.x.hed) + ' · Lecap ' + P(q.x.lf); });
+      document.getElementById('syH').textContent = 'Cada dollar linked con el futuro de su vencimiento';
+      var h = '<thead><tr><th class="l">Bono</th><th>Precio</th><th>Contrato</th><th>Futuro al venc.</th><th>Pago</th><th>Vence</th><th>Días</th><th class="lc">TEA sintética</th><th>TEM</th><th>TEA neta de base</th><th>Lecap (curva)</th><th>TEM</th><th>Dif. (pb)</th><th class="l">Conviene</th><th class="l">Lecap más cercana</th><th>TC breakeven</th></tr></thead><tbody>';
+      D.dlr.forEach(function (x) { var o = x.o, df = x.hed != null && x.lf != null ? x.hed - x.lf : null;
+        h += '<tr data-qv="' + o.k + '"><td class="l"><b>' + o.k + '</b></td><td>' + nf(o.P, 2) + '</td><td>' + ctd(x.ct) + '</td><td>' + (x.Fm ? nf(x.Fm, 1) : '<span class="mu">sin futuro</span>') + '</td><td>' + (x.Fm ? nf(100 * x.Fm, 0) : 'n/a') + '</td><td>' + fr(bxDayStr(o.mat)) + '</td><td>' + o.d + '</td>' +
+          '<td class="lc">' + P(x.hed) + '</td><td>' + P(tem(x.hed)) + '</td><td>' + (x.hn == null ? 'n/a' : P(x.hn)) + '</td><td>' + (x.lf == null ? '<span class="mu">fuera de la curva</span>' : P(x.lf)) + '</td><td>' + P(tem(x.lf)) + '</td><td class="' + cls(df) + '">' + bp(df) + '</td><td class="l">' + (df == null ? '—' : df > 0 ? 'Sintética' : 'Lecap') + '</td><td class="l">' + ncl(x.nl) + '</td><td>' + (x.be ? '$ ' + nf(x.be, 1) : 'n/a') + '</td></tr>'; });
+      document.getElementById('syT').innerHTML = h + (D.dlr.length ? '' : '<tr><td class="l mu" colspan="16">No hay dollar linked con precio.</td></tr>') + '</tbody>';
+      document.getElementById('syN').innerHTML = '<p><b>Cómo se lee</b></p><ul>' +
+        '<li><b>La estrategia</b>: comprás el dollar linked y vendés futuro de dólar por el mismo monto. Lo que cobra el bono en pesos lo fijás hoy con el futuro: queda una tasa fija en pesos, como una Lecap.</li>' +
+        '<li><b>Pago</b> = 100 × futuro del contrato del mes (el mismo que en el dólar sintético, así las dos son espejo). TEA = (pago / precio)<sup>365/días</sup> − 1 y TEM = (1 + TEA)<sup>1/12</sup> − 1.</li>' +
+        '<li><b>Neta de base</b>: el bono cobra el A3500 de 3 días hábiles antes del vencimiento y el futuro el del último día hábil del mes. Esos días de devaluación no los cobrás: la TEA neta usa el futuro a la fecha del A3500 que paga el bono. En los bonos cortos la diferencia es grande porque se anualiza.</li>' +
+        '<li><b>Contra qué se compara</b>: la curva ajustada de Lecaps al mismo plazo; al lado, la Lecap real más cercana. Si la sintética rinde más, conviene armarla. <b>TC breakeven</b>: el A3500 al vencimiento que iguala el bono con la Lecap.</li>' +
+        '<li><b>Contrato</b>: con <b>*</b>, el bono vence antes de fin de mes y el futuro se interpola a su fecha, con riesgo de base. Los que vencen en menos de 3 semanas van solo en la tabla.</li></ul>';
+    }
+    function draw(D) {
+      document.getElementById('syM').innerHTML = pills('data-sm', ST.m, MODES);
+      try { (ST.m === 'lec' ? drawLec : drawUsd)(D); } catch (e) { console.error('sint ' + ST.m, e); }
+      try { fxChart(D); } catch (e) { console.error('sint tc', e); }
+    }
+    function render() {
+      if (!T.isAct()) return;
+      try {
+        if (typeof Chart === 'undefined') return;
+        if (!document.getElementById('syA')) html();
+        var sub = document.getElementById('sySub');
+        if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
+        if (!TJ) { sub.textContent = 'Cargando…'; load(render); return; }
+        S = getS();
+        var D = build();
+        if (!D) { sub.textContent = 'Esperando los precios de Curva Pesos…'; if (bTry++ < 30) setTimeout(function () { if (T.isAct()) render(); }, 1500); return; }
+        LAST = D; O = D.s0;
+        sub.innerHTML = 'Bonos en pesos armados con futuros de dólar. Precios de Curva Pesos, futuros de A3 del ' + fr(S.df) + (S.vivoOk ? ' y la rueda de hoy (' + S.V.ts.slice(11, 16) + ')' : '') + ', spot de A3 $ ' + nf(D.Sp, 2) + '.<span class="xp"> Tocá una fila para ver el bono.</span>';
+        draw(D);
+      } catch (x) { console.error('sint', x); var s2 = document.getElementById('sySub'); if (s2) s2.textContent = 'Error: ' + x.message; }
+    }
+    window.renderSinteticos = render;
+  })();
+})();
+/*@@TCOR_END@@*/
 /*@@PORT_START@@*/
 /* =====================================================================
    PESTAÑA PORTFOLIO: favoritos + nominales → métricas de riesgo del portfolio
@@ -6469,9 +7309,11 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var sp = isU2(f) ? ST.fsp : '', ck = f + '|' + sp + '|' + from + '|' + (VJ ? 1 : 0); if (FIT[ck]) return FIT[ck];
     var byT = {}, mind = f === 'fija' || isU2(f) ? 20 : 45; // los muy cortos (y en CER, los que ya tienen el índice fijado) meten ruido; en pesos, hasta 1.500 días (Par, Discount y Cuasipar distorsionan la curva)
     famKeys(f, from).forEach(function (k) { series(k, sp, from).forEach(function (r) { var y = margin(k) ? r.m : r.y; if (!(r.D >= mind) || (!isU2(f) && r.D > 1500) || y == null || !isFinite(y)) return; (byT[r.t] = byT[r.t] || []).push({ k: k, x: r.D, y: y * 100 }); }); });
-    var out = [];
+    var out = [], seen = {}, CF = 7; // un bono que no operó ese día sigue con su última tasa hasta 7 días (los poco líquidos, como los dollar linked, no operan todos los días): sin esto la curva pierde un plazo y el gráfico se corta
     Object.keys(byT).map(Number).sort(function (a, b) { return a - b; }).forEach(function (t) {
-      var P = byT[t]; if (P.length < 4) return; var ft = null; try { ft = X.fairFit(P, 'auto'); } catch (e) {} if (!ft) return;
+      var P = byT[t], has = {}; P.forEach(function (p) { has[p.k] = 1; seen[p.k] = { t: t, x: p.x, y: p.y }; });
+      Object.keys(seen).forEach(function (k) { var q = seen[k]; if (has[k] || t - q.t > CF || q.x - (t - q.t) < mind) return; P.push({ k: k, x: q.x - (t - q.t), y: q.y, old: true }); });
+      if (P.length < 4) return; var ft = null; try { ft = X.fairFit(P, 'auto'); } catch (e) {} if (!ft) return;
       var xs = P.map(function (p) { return p.x; }); out.push({ t: t, f: ft.f, x0: Math.min.apply(null, xs), x1: Math.max.apply(null, xs), P: P });
     });
     return (FIT[ck] = out);
@@ -6501,7 +7343,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     B.forEach(function (r) { mb[r.t] = r; });
     ST.beT.slice().sort(function (a, b) { return a - b; }).forEach(function (m) {
       var T = m * 30.4375, d = [], c = TCOL[m];
-      A.forEach(function (a) { var b = mb[a.t]; if (!b || T < Math.max(a.x0, b.x0) || T > Math.min(a.x1, b.x1)) return; var g = (1 + a.f(T) / 100) / (1 + b.f(T) / 100); if (!(g > 0)) return; var v = (mo ? Math.pow(g, 30.4375 / 365) - 1 : g - 1) * 100; if (isFinite(v) && Math.abs(v) < 500) d.push({ x: a.t, y: v }); });
+      A.forEach(function (a) { var b = mb[a.t]; if (!b || T < Math.max(a.x0, b.x0) - 12 || T > Math.min(a.x1, b.x1)) return; var g = (1 + a.f(Math.max(T, a.x0)) / 100) / (1 + b.f(Math.max(T, b.x0)) / 100); /* hasta 12 días antes del bono más corto, con su tasa */ if (!(g > 0)) return; var v = (mo ? Math.pow(g, 30.4375 / 365) - 1 : g - 1) * 100; if (isFinite(v) && Math.abs(v) < 500) d.push({ x: a.t, y: v }); });
       if (d.length < 2) { miss.push(m + (m === 1 ? ' mes' : ' meses')); return; }
       var st = stat(d), main = sets.length, dg = []; d.forEach(function (q, i) { if (i && q.x - d[i - 1].x > 10) dg.push({ x: (q.x + d[i - 1].x) / 2, y: null }); dg.push(q); }); var ds = line(tl(m, L), dg, c); ds.spanGaps = false; sets.push(ds); bands(sets, d, c, main, st); // sin datos por más de 10 días: la línea se corta
       var q = remAvg(R && (k2 === 'cer' ? R.pi : R.dev), m), rv = q == null ? null : (mo ? Math.pow(q, 1 / m) - 1 : Math.pow(q, 12 / m) - 1) * 100;
@@ -6514,13 +7356,13 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       if (r.rem != null) lec += ' ' + (s.last > r.rem ? 'Por encima' : 'Por debajo') + ' del REM: si se cumple el REM, ' + (s.last > r.rem ? 'gana la tasa fija.' : 'gana ' + hi + '.');
       return '<tr><td ' + tdL.replace('">', ';font-weight:700">') + '>' + dot(r.c) + tl(r.m, L) + '</td><td ' + TD + '><b>' + fm(s.last, 2) + '%</b><br><span style="color:var(--mu);font-size:11.5px">' + dfull(s.t) + '</span></td><td ' + TD + '>' + fm(s.mu, 2) + '%</td><td ' + TD + '>' + fm(s.sd * 100, 0) + ' pb</td>' + zTd(s.z) + '<td ' + TD + '>' + (r.rem == null ? '—' : fm(r.rem, 2) + '%') + '</td><td ' + TD + '>' + (r.rem == null ? '—' : (s.last >= r.rem ? '+' : '') + fm((s.last - r.rem) * 100, 0) + ' pb') + '</td><td ' + tdR + '>' + lec + '</td></tr>';
     }).join('') + '</tbody></table>' : '';
-    $('thBEN' + sx).textContent = (miss.length ? 'Sin datos para ' + miss.join(', ') + ': ' + (k2 === 'dl' ? 'la curva dólar linked' : 'las curvas') + ' no llega' + (k2 === 'dl' ? '' : 'n') + ' a ese plazo. ' : '') + 'Cada día se ajusta la curva de tasa fija y la de ' + (k2 === 'cer' ? 'CER (tasa real)' : 'dólar linked (tasa en dólares)') + ' y se compara la tasa de las dos al mismo plazo, sin extrapolar. ' + (k2 === 'cer' ? 'El CER tiene un rezago de 10 días hábiles, así que la inflación implícita va un poco atrasada.' : '');
+    $('thBEN' + sx).textContent = (miss.length ? 'Sin datos para ' + miss.join(', ') + ': ' + (k2 === 'dl' ? 'la curva dólar linked' : 'las curvas') + ' no llega' + (k2 === 'dl' ? '' : 'n') + ' a ese plazo. ' : '') + 'Cada día se ajusta la curva de tasa fija y la de ' + (k2 === 'cer' ? 'CER (tasa real)' : 'dólar linked (tasa en dólares)') + ' y se compara la tasa de las dos al mismo plazo, sin extrapolar (salvo hasta 12 días antes del bono más corto, con su tasa). Un bono que no operó un día sigue con su última tasa hasta 7 días. ' + (k2 === 'cer' ? 'El CER tiene un rezago de 10 días hábiles, así que la inflación implícita va un poco atrasada.' : '');
   }
 
   /* ---------- precio relativo contra la curva ---------- */
   function renderRC() {
     var from = bxDayNum(ST.from), f = ST.rcf, F = dayFits(f, from), H = {}, t1 = F.length ? F[F.length - 1].t : 0;
-    F.forEach(function (o) { o.P.forEach(function (p) { (H[p.k] = H[p.k] || []).push({ x: o.t, y: (p.y - o.f(p.x)) * 100 }); }); });
+    F.forEach(function (o) { o.P.forEach(function (p) { if (p.old) return; (H[p.k] = H[p.k] || []).push({ x: o.t, y: (p.y - o.f(p.x)) * 100 }); }); });
     var rows = Object.keys(H).filter(function (k) { var d = H[k]; return d.length >= 10 && d[d.length - 1].x === t1; }).map(function (k) { return { k: k, d: H[k], st: stat(H[k]) }; }).sort(function (a, b) { return b.st.z - a.st.z; });
     var sel = (ST.rcSel[f] || []).filter(function (k) { return rows.some(function (r) { return r.k === k; }); });
     if (!sel.length && rows.length) { sel = [rows[0].k]; if (rows.length > 1) sel.push(rows[rows.length - 1].k); }
@@ -6528,9 +7370,9 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var sets = [], col = {};
     sel.forEach(function (k, i) { var r = rows.filter(function (x) { return x.k === k; })[0], c = PAL[i % PAL.length], main = sets.length; col[k] = c; sets.push(line(k, r.d, c)); bands(sets, r.d, c, main, r.st); });
     mk('thRCC', sets, 'Contra la curva (pb; + barato, − caro)', function (c) { return c.dataset.label + ': ' + (c.parsed.y >= 0 ? '+' : '') + fm(c.parsed.y, 0) + ' pb'; }, function (v) { return (v >= 0 ? '+' : '') + fm(v, 0) + ' pb'; });
-    if (CH.thRCC) { CH.thRCC.options.scales.y.ticks.callback = function (v) { return fm(v, 0); }; CH.thRCC.update('none'); }
+    if (CH.thRCC) { CH.thRCC.options.scales.y.ticks.callback = function (v) { return fm(Math.round(v) || 0, 0); }; /* sin "-0" */ CH.thRCC.update('none'); }
     $('thRCS').innerHTML = rows.length ? '<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr><th ' + thL + '>Bono</th><th ' + TH + '>Vence</th><th ' + TH + '>Hoy contra la curva</th><th ' + TH + '>Promedio</th><th ' + TH + '>Desvío</th><th ' + TH + '>Hoy vs su promedio</th><th ' + thL + '>Lectura</th></tr></thead><tbody>' + rows.map(function (r) {
-      var s = r.st, on = col[r.k], pb = function (v) { return (v >= 0 ? '+' : '') + fm(v, 0) + ' pb'; };
+      var s = r.st, on = col[r.k], pb = function (v) { v = Math.round(v) || 0; return (v > 0 ? '+' : '') + fm(v, 0) + ' pb'; };
       var lec = s.z >= 1 ? 'Más barato que lo habitual contra la curva.' : s.z <= -1 ? 'Más caro que lo habitual contra la curva.' : 'Dentro de lo normal.';
       return '<tr class="thrc" data-k="' + r.k + '" style="cursor:pointer' + (on ? ';background:rgba(127,127,127,.08)' : '') + '"><td ' + tdL.replace('">', ';font-weight:700">') + '>' + dot(on || 'transparent;border:1px solid var(--mu)') + r.k + '</td><td ' + TD + '>' + dfull(matOf(r.k)) + '</td><td ' + TD + '><b>' + pb(s.last) + '</b></td><td ' + TD + '>' + pb(s.mu) + '</td><td ' + TD + '>' + fm(s.sd, 0) + ' pb</td>' + zTd(s.z) + '<td ' + tdR + '>' + lec + '</td></tr>';
     }).join('') + '</tbody></table>' : '';
@@ -6618,6 +7460,9 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     vol: P('<path d="M5 20v-6M10 20V8M15 20v-9M20 20V5"/>'),
     dol: P('<circle cx="12" cy="12" r="9"/><path d="M15 9.2c-.6-1-1.7-1.5-3-1.5-1.7 0-2.8.9-2.8 2.1 0 2.9 6 1.5 6 4.4 0 1.3-1.2 2.2-3 2.2-1.5 0-2.7-.6-3.3-1.6M12 6v1.7M12 16.4V18"/>'),
     thist: P('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>'),
+    tcor: P('<circle cx="12" cy="13" r="8"/><path d="M12 13V9M9 2h6M12 2v3"/>'),
+    tfut: P('<path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>'),
+    sint: P('<circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/>'),
     lic: P('<path d="M14 3 21 10M11 6l7 7M4 21l7-7M8 10l6 6M12.5 4.5l7 7-3 3-7-7z"/>'),
     menu: P('<path d="M4 6h16M4 12h16M4 18h16"/>'),
     col: P('<path d="m15 18-6-6 6-6"/>')
@@ -6634,6 +7479,9 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     rot: 'Los pares que conviene rotar después de costos.',
     vol: 'Cada rueda desde 2023 por bono, familia y plazo, con la de hoy en vivo.',
     dol: 'MEP, cable y oficial, la brecha y el canje.',
+    tcor: 'Caución en pesos, MEP y cable, Lecaps cortas y plazo fijo: dónde dejar la liquidez.',
+    tfut: 'Dólar futuro y futuros de caución: tasa implícita, devaluación esperada, volumen y forwards.',
+    sint: 'Dólar sintético (Lecap + compra de futuro) y Lecap sintética (dollar linked + venta de futuro), contra el bono del mismo plazo.',
     thist: 'La tasa de cada bono día por día y las forwards entre pares.',
     lic: 'El resultado de cada licitación del Tesoro y el próximo llamado.'
   };
@@ -6649,7 +7497,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var CAR = P('<path d="m9 6 6 6-6 6"/>').replace('<svg ', '<svg class="sn-car" '), has = function (id) { return id === 'home' || TB.some(function (t) { return t[0] === id; }); };
   var GR = [['home', 'Inicio'], ['dash', 'Dashboard'], { g: 'usd', t: 'Bonos en dólares', ic: 'curva', it: [['curva', 'Globales y Bonares'], ['tabla', 'Tabla de retornos'], ['desglose', 'Flujos y total return', 'usd']] },
     { g: 'ars', t: 'Bonos en pesos', ic: 'pesos', it: [['pesos', 'Curva Pesos'], ['desglose', 'Flujos y total return', 'ars'], ['lic', 'Licitaciones']] },
-    { g: 'mkt', t: 'Mercado del día', ic: 'vard', it: [['vard', 'Variación diaria'], ['vol', 'Volumen'], ['rot', 'Rotación']] }, ['dol', 'Dólar'],
+    { g: 'mkt', t: 'Mercado del día', ic: 'vard', it: [['vard', 'Variación diaria'], ['vol', 'Volumen'], ['rot', 'Rotación']] }, ['dol', 'Dólar'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'],
     { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards']] },
     { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, ['port', 'Portfolio'], ['cons', 'Consultame']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
@@ -6688,7 +7536,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       var tmp = document.createElement('select'); tmp.innerHTML = FULL; var gs = tmp.querySelectorAll('optgroup'), g = gs[DESG === 'ars' ? 1 : 0];
       if (g) { sel.innerHTML = g.outerHTML; sel.value = g.querySelector('option').value; sel.setAttribute('data-ccy', DESG); if (window.updateCFChart) window.updateCFChart(); }
     }
-    var bc = $('bdCcy'); if (bc) { if (bc.value !== DESG) { bc.value = DESG; if (window.bdRender) window.bdRender(); } var lb = bc.closest('label'); if (lb) lb.style.display = 'none'; }
+    var bc = $('bdCcy'); if (bc) { if (bc.value !== DESG) { bc.value = DESG; if (window.bdRender) window.bdRender(); if (window.renderQuant) window.renderQuant(); } var lb = bc.closest('label'); if (lb) lb.style.display = 'none'; }
     [['cfChartContainer', 'Flujo de caja proyectado'], ['breakdownContainer', 'Atribución del total return']].forEach(function (q) { var h = document.querySelector('#' + q[0] + ' .qh'); if (h) h.textContent = q[1] + (DESG === 'ars' ? ' · bonos en pesos' : ' · bonos en dólares'); });
   }
   var _sw = window.switchTab;
@@ -7151,13 +7999,16 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     '#dash .dbH .ac button{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--mu);cursor:pointer}#dash .dbH .ac button:hover{color:var(--ac);border-color:var(--ac)}#dash .dbH .ac button[data-a=rm]:hover{color:#fb7185;border-color:#fb7185}#dash .dbH .ac button:disabled{opacity:.35;pointer-events:none}' +
     '#dash .dbE{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:44px 20px;border:1px dashed var(--bd);border-radius:14px;text-align:center;color:var(--mu)}#dash .dbE .ic{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(245,158,11,.14);color:var(--ac)}#dash .dbE b{font-size:17px;color:var(--tx)}#dash .dbE p{margin:0;max-width:440px;font-size:14px;line-height:1.55}' +
     '#dash .dbE form{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px}#dash .dbE input{width:min(280px,70vw);font:inherit;font-size:14px;padding:10px 12px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}#dash .dbE input:focus{outline:none;border-color:var(--ac)}' +
-    '@media(max-width:900px){#dash .dbG{grid-template-columns:minmax(0,1fr)}#dash .dbW{grid-column:1/-1!important}#dash .dbH .ac{opacity:1}#dash .dbH .ac [data-a=sz]{display:none}}');
+    '#dash .dbH{cursor:grab;user-select:none}#dash .dbW.drg{opacity:.55;outline:2px dashed var(--ac);outline-offset:4px;border-radius:12px}#dash .dbW.drg .dbH{cursor:grabbing}body.dbDrag{user-select:none;cursor:grabbing}' +
+    '#dash .dbG.free{display:block;position:relative;min-height:300px}#dash .dbG.free .dbW{position:absolute;box-sizing:border-box;padding:0 4px}#dash .dbG.free .dbW.top{z-index:5}#dash .dbG.free [data-a=up],#dash .dbG.free [data-a=dn],#dash .dbG.free [data-a=sz]{display:none}' +
+    '#dash .dbG.free .dbW .rz{right:-2px}#dash .dbL{display:inline-flex;border:1px solid var(--bd);border-radius:10px;overflow:hidden}#dash .dbL button{font:inherit;font-size:13px;font-weight:600;padding:9px 12px;border:0;background:var(--bg);color:var(--mu);cursor:pointer}#dash .dbL button+button{border-left:1px solid var(--bd)}#dash .dbL button.on{background:var(--ac);color:var(--acx,var(--bg))}' +
+    '@media(max-width:900px){#dash .dbL{display:none}#dash .dbG.free{display:grid;grid-template-columns:minmax(0,1fr)}#dash .dbG.free .dbW{position:relative;left:auto!important;top:auto!important;width:auto!important;padding:0}#dash .dbG{grid-template-columns:minmax(0,1fr)}#dash .dbW{grid-column:1/-1!important}#dash .dbH .ac{opacity:1}#dash .dbH .ac [data-a=sz]{display:none}}');
   function render() {
     built = true; var b = cur(); if (b) ST.cur = b.id;
     var IC2 = function (p) { return ICON(p, 16); };
     root.innerHTML = '<div class="card dbT" data-norf><div><h2>Dashboard</h2><p>Tus propios monitores: traé cualquier sección de la página, el ticker de un bono o el volumen del día, y se actualizan solos. Quedan guardados en este navegador.</p></div>' +
       (ST.b.length ? '<div class="dbC">' + ST.b.map(function (x) { return '<button type="button" data-b="' + x.id + '" class="' + (b && x.id === b.id ? 'on' : '') + '">' + esc(x.n) + '</button>'; }).join('') + '<button type="button" class="nw" data-nb>' + IC2(I.plus) + 'Nuevo tablero</button></div>' +
-        '<div class="dbR"><input id="dbName" maxlength="40" value="' + esc(b.n) + '" aria-label="Nombre del tablero" title="Tocá para cambiarle el nombre"><button type="button" class="dbB pr" data-add>' + IC2(I.plus) + 'Nuevo widget</button><button type="button" class="dbB dg" data-del>' + IC2(I.trash) + '<span>Borrar tablero</span></button></div>' : '') +
+        '<div class="dbR"><input id="dbName" maxlength="40" value="' + esc(b.n) + '" aria-label="Nombre del tablero" title="Tocá para cambiarle el nombre"><span class="dbL" role="group" aria-label="Acomodo"><button type="button" data-lay="auto" class="' + (b.lay === 'free' ? '' : 'on') + '" title="Los widgets se acomodan solos en la grilla; arrastralos desde el título para cambiar el orden">Automático</button><button type="button" data-lay="free" class="' + (b.lay === 'free' ? 'on' : '') + '" title="Cada widget queda donde lo sueltes: arrastralo desde el título y cambiale el tamaño desde la esquina">Libre</button></span><button type="button" class="dbB pr" data-add>' + IC2(I.plus) + 'Nuevo widget</button><button type="button" class="dbB dg" data-del>' + IC2(I.trash) + '<span>Borrar tablero</span></button></div>' : '') +
       '</div><div class="dbG" id="dbGrid"></div>';
     grid = root.querySelector('#dbGrid');
     if (!b) {
@@ -7167,7 +8018,52 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     }
     if (!b.w.length) grid.innerHTML = '<div class="dbE"><span class="ic">' + ICON(I.grid, 24) + '</span><b>«' + esc(b.n) + '» está vacío</b><p>Tocá «Nuevo widget» y elegí una pestaña y la sección que quieras ver acá, o el ticker de un bono.</p><button type="button" class="dbB pr" data-add>' + IC2(I.plus) + 'Nuevo widget</button></div>';
     b.w.forEach(function (w, i) { grid.appendChild(widget(b, w, i)); });
+    if (b.lay === 'free') { grid.classList.add('free'); layFree(); }
   }
+  /* acomodo libre: cada widget con su posición (x y ancho en fracción del tablero, y y alto en px) */
+  var isFree = function () { var b = cur(); return !!(b && b.lay === 'free' && grid && grid.classList.contains('free') && innerWidth > 900); };
+  var HDR = 38;
+  function freeH() { var m = 0; grid.querySelectorAll('.dbW').forEach(function (el) { m = Math.max(m, el.offsetTop + el.offsetHeight); }); grid.style.height = (m + 30) + 'px'; }
+  function layFree() {
+    var b = cur(); if (!b || !grid) return; if (innerWidth <= 900) { grid.style.height = ''; return; }
+    var gw = grid.clientWidth, yb = 0;
+    b.w.forEach(function (w) { if (w.fx) yb = Math.max(yb, w.fx.y + w.fx.h + HDR + 18); });
+    b.w.forEach(function (w) {
+      var el = grid.querySelector('[data-w="' + w.i + '"]'); if (!el) return;
+      if (!w.fx) { w.fx = { x: 0, y: yb, w: 0.5, h: w.h || 420 }; yb += w.fx.h + HDR + 18; save(); }
+      el.style.left = Math.round(w.fx.x * gw) + 'px'; el.style.top = w.fx.y + 'px'; el.style.width = Math.round(w.fx.w * gw) + 'px'; el.style.gridColumn = '';
+      var f = el.querySelector('.dbF'); f.classList.add('fx'); f.style.height = w.fx.h + 'px';
+    });
+    freeH();
+  }
+  function toFree() { // pasa a libre desde lo que se ve en la grilla, así nada salta de lugar
+    var b = cur(); if (!b || !grid) return; var g = grid.getBoundingClientRect(), gw = g.width;
+    b.w.forEach(function (w) { var el = grid.querySelector('[data-w="' + w.i + '"]'); if (!el) return; var r = el.getBoundingClientRect(), f = el.querySelector('.dbF').getBoundingClientRect();
+      w.fx = { x: Math.max(0, (r.left - g.left) / gw), y: Math.round(r.top - g.top), w: Math.min(1, r.width / gw), h: Math.max(160, Math.round(f.height)) }; });
+    b.lay = 'free'; save(); grid.classList.add('free'); layFree();
+  }
+  function toAuto() { var b = cur(); if (!b) return; delete b.lay; save(); render(); }
+  addEventListener('resize', function () { var b = cur(); if (built && grid && b && b.lay === 'free') layFree(); });
+  // arrastrar desde el título: en automático cambia el orden (se reubica al pasar sobre otro); en libre lo deja donde lo sueltes
+  root.addEventListener('pointerdown', function (e) {
+    var hd = e.target.closest('.dbH'); if (!hd || e.target.closest('button') || e.button > 0) return;
+    var el = hd.closest('.dbW'), b = cur(); if (!el || !b) return;
+    var wi = el.getAttribute('data-w'), w = b.w.filter(function (x) { return x.i === wi; })[0]; if (!w) return;
+    var x0 = e.clientX, y0 = e.clientY, on = false, free = isFree(), L0 = el.offsetLeft, T0 = el.offsetTop, gw = grid.clientWidth;
+    grid.querySelectorAll('.dbW.top').forEach(function (x) { x.classList.remove('top'); }); el.classList.add('top');
+    try { hd.setPointerCapture(e.pointerId); } catch (x) { }
+    var mv = function (ev) {
+      var dx = ev.clientX - x0, dy = ev.clientY - y0; if (!on) { if (Math.abs(dx) + Math.abs(dy) < 6) return; on = true; el.classList.add('drg'); document.body.classList.add('dbDrag'); }
+      if (free) { var nx = Math.max(0, Math.min(gw - el.offsetWidth, L0 + dx)), ny = Math.max(0, T0 + dy); el.style.left = Math.round(nx / 8) * 8 + 'px'; el.style.top = Math.round(ny / 8) * 8 + 'px'; freeH(); return; }
+      var o = document.elementFromPoint(ev.clientX, ev.clientY), t = o && o.closest ? o.closest('.dbW') : null; if (!t || t === el || !grid.contains(t)) return;
+      var i = b.w.indexOf(w), j = b.w.findIndex(function (x) { return x.i === t.getAttribute('data-w'); }); if (i < 0 || j < 0) return;
+      b.w.splice(i, 1); b.w.splice(j, 0, w); orders();
+    };
+    var up = function () { hd.removeEventListener('pointermove', mv); hd.removeEventListener('pointerup', up); hd.removeEventListener('pointercancel', up);
+      if (!on) return; el.classList.remove('drg'); document.body.classList.remove('dbDrag');
+      if (free) { w.fx.x = el.offsetLeft / gw; w.fx.y = el.offsetTop; } save(); };
+    hd.addEventListener('pointermove', mv); hd.addEventListener('pointerup', up); hd.addEventListener('pointercancel', up);
+  });
   function widget(b, w, i) {
     var el = document.createElement('div'); el.className = 'dbW'; el.setAttribute('data-w', w.i); el.style.order = i; el.style.gridColumn = 'span ' + span(w);
     var IC2 = function (p) { return ICON(p, 15); }, sub = w.k === 'sec' ? (w.id ? w.tt : 'Pestaña completa') : w.k === 'tk' ? (w.tk || '') : '';
@@ -7192,21 +8088,24 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var f = el.querySelector('.dbF'), r0 = el.getBoundingClientRect(), f0 = f.getBoundingClientRect(), gw = grid.getBoundingClientRect().width, col = (gw + 16) / 6, x0 = e.clientX, y0 = e.clientY, one = getComputedStyle(grid).gridTemplateColumns.split(' ').length === 1;
     var tip = document.createElement('span'); tip.className = 'rzt'; el.appendChild(tip); el.classList.add('rzing'); document.body.classList.add('dbDrag');
     try { h.setPointerCapture(e.pointerId); } catch (x) { }
-    var nc = span(w), nh = Math.round(f0.height);
+    var nc = span(w), nh = Math.round(f0.height), free = isFree(), nw = r0.width;
     var mv = function (ev) {
+      if (free) { nw = Math.max(260, Math.min(gw - el.offsetLeft, r0.width + ev.clientX - x0)); el.style.width = Math.round(nw / 8) * 8 + 'px'; nh = Math.max(160, Math.round((f0.height + ev.clientY - y0) / 8) * 8); f.classList.add('fx'); f.style.height = nh + 'px'; tip.textContent = Math.round(el.offsetWidth) + ' × ' + nh + ' px'; freeH(); return; }
       if (!one) { nc = Math.max(2, Math.min(6, Math.round((r0.width + ev.clientX - x0 + 16) / col))); el.style.gridColumn = 'span ' + nc; }
       nh = Math.max(160, Math.round(f0.height + ev.clientY - y0)); f.classList.add('fx'); f.style.height = nh + 'px';
       tip.textContent = (one ? '' : ['', '', 'Un tercio', 'La mitad', 'Dos tercios', 'Cinco sextos', 'Todo el ancho'][nc] + ' · ') + nh + ' px';
     };
     var up = function () { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); tip.remove(); el.classList.remove('rzing'); document.body.classList.remove('dbDrag');
+      if (free) { w.fx.w = el.offsetWidth / gw; w.fx.h = nh; save(); return; }
       w.c = nc; w.s = nc === 6 ? 2 : 1; w.h = nh; save(); var sz = el.querySelector('[data-a=sz]'); if (sz) { sz.innerHTML = ICON(nc === 6 ? I.half : I.wide, 15); sz.title = nc === 6 ? 'Achicar a media pantalla' : 'Ancho completo'; } };
     h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
   });
-  root.addEventListener('dblclick', function (e) { var h = e.target.closest('.rz'); if (!h) return; var el = h.closest('.dbW'), b = cur(), w = b && b.w.filter(function (x) { return x.i === el.getAttribute('data-w'); })[0]; if (!w) return; delete w.h; save(); var f = el.querySelector('.dbF'); f.classList.remove('fx'); f.style.height = ''; });
+  root.addEventListener('dblclick', function (e) { var h = e.target.closest('.rz'); if (!h || isFree()) return; var el = h.closest('.dbW'), b = cur(), w = b && b.w.filter(function (x) { return x.i === el.getAttribute('data-w'); })[0]; if (!w) return; delete w.h; save(); var f = el.querySelector('.dbF'); f.classList.remove('fx'); f.style.height = ''; });
   function orders() { var b = cur(); if (!b) return; b.w.forEach(function (w, i) { var el = grid.querySelector('[data-w="' + w.i + '"]'); if (el) el.style.order = i; }); }
   root.addEventListener('click', function (e) {
     var b = cur(), t;
     if ((t = e.target.closest('[data-b]'))) { ST.cur = t.getAttribute('data-b'); save(); render(); return; }
+    if ((t = e.target.closest('[data-lay]'))) { if (t.getAttribute('data-lay') === 'free') { if (b && b.lay !== 'free') { toFree(); root.querySelectorAll('[data-lay]').forEach(function (x) { x.classList.toggle('on', x === t); }); } } else if (b && b.lay === 'free') toAuto(); return; }
     if (e.target.closest('[data-nb]')) { newBoard(); render(); var n = document.getElementById('dbName'); if (n) { n.focus(); n.select(); } return; }
     if (e.target.closest('[data-add]')) { window.DBPICK({ title: 'Nuevo widget', quick: true }, function (w) { window.DBADD(w); var g = grid && grid.lastElementChild; if (g) setTimeout(function () { try { g.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) { } }, 60); }); return; }
     if ((t = e.target.closest('[data-del]'))) {
@@ -7216,7 +8115,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var a = e.target.closest('[data-a]'); if (!a || !b) return;
     var el = a.closest('[data-w]'), wi = el.getAttribute('data-w'), i = b.w.findIndex(function (w) { return w.i === wi; }), w = b.w[i], act = a.getAttribute('data-a');
     if (act === 'go') { window.DBGO(w); return; }
-    if (act === 'rm') { b.w.splice(i, 1); el.remove(); save(); if (!b.w.length) render(); else orders(); return; }
+    if (act === 'rm') { b.w.splice(i, 1); el.remove(); save(); if (!b.w.length) render(); else { orders(); if (isFree()) freeH(); } return; }
     if (act === 'sz') { w.c = span(w) === 6 ? 3 : 6; w.s = w.c === 6 ? 2 : 1; el.style.gridColumn = 'span ' + w.c; a.innerHTML = ICON(w.c === 6 ? I.half : I.wide, 15); a.title = w.c === 6 ? 'Achicar a media pantalla' : 'Ancho completo'; save(); return; }
     var j = act === 'up' ? i - 1 : i + 1; if (j < 0 || j >= b.w.length) return;
     b.w[i] = b.w[j]; b.w[j] = w; save(); orders(); // con «order», sin mover los iframes (moverlos los recarga)
