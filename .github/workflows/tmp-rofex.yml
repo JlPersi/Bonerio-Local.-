@@ -1,0 +1,22 @@
+name: tmp rofex (debug)
+on:
+  push:
+    branches: [claude/project-thread-9wlmpw]
+    paths: [scripts/tmp/**, .github/workflows/tmp-rofex.yml]
+permissions:
+  contents: write
+jobs:
+  dbg:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q pyRofex
+      - run: python3 scripts/tmp/probe_tasas.py
+        continue-on-error: true
+        env:
+          ROFEX_USER: ${{ secrets.ROFEX_USER }}
+          ROFEX_PASS: ${{ secrets.ROFEX_PASS }}
+          ROFEX_URL: ${{ secrets.ROFEX_URL }}
+      - run: |
+          git config user.name tmp-bot; git config user.email bot@users.noreply.github.com
+          git add -f tmp_out; git commit -m "tmp: salida del sondeo [skip ci]" && git push
