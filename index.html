@@ -5395,7 +5395,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   /* ---------- cuentas comunes ---------- */
   function build() {
     var fx = {}; [TJ.a3500, IX.A3500, IX.FX].forEach(function (o) { keys(o).forEach(function (d) { if (o[d] > 0) fx[d] = o[d]; }); }); // A3500 del BCRA (desde 2020)
-    var spot = function (d) { var a = at(TJ.spot, d); return a[0] ? a : at(fx, d); }; // el spot de A3 (el de su tasa implícita, uno por rueda); si falta, el A3500
+    var spot = function (d) { var a = at(fx, d), b = at(TJ.spot, d); return a[0] && (!b[0] || a[0] >= b[0]) ? a : b[0] ? b : a; }; // el A3500 del BCRA (contra el que liquidan los futuros); si todavía no salió el de esa rueda, el spot de A3
     var cd = keys(TJ.cau), cdD = keys(TJ.cauD), fd = keys(TJ.fut), dc = cd[cd.length - 1], dcD = cdD[cdD.length - 1], df = fd[fd.length - 1];
     var V = TJ.vivo || null, vd = V && V.ts ? V.ts.slice(0, 10) : null, bd = V && V.bts ? V.bts.slice(0, 10) : null;
     var hasLive = function (rows, i) { return (rows || []).some(function (r) { return r[i] != null && r[i] > 0; }); };
@@ -5930,7 +5930,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
           '<td>' + cnt(vol) + '</td><td>' + cnt(oi) + '</td><td class="' + cls(doi) + '">' + (doi == null ? '—' : sg(doi, 0)) + '</td><td><b>' + P(t) + '</b></td><td>' + P(tea(t, d)) + '</td><td>' + P(dv) + '</td></tr>';
       });
       document.getElementById('tfFut').innerHTML = h + '</tbody>';
-      document.getElementById('tfT3').textContent = 'Futuros de dólar · ' + (live ? 'rueda de hoy (' + S.V.ts.slice(11, 16) + ')' : 'cierre del ' + fr(S.df)) + ' · spot de A3 $ ' + nf((S.futV && S.futV.length ? S.futV : S.fut)[0] ? (S.futV && S.futV.length ? S.futV : S.fut)[0].sp : S.spot[1], 2);
+      document.getElementById('tfT3').textContent = 'Futuros de dólar · ' + (live ? 'rueda de hoy (' + S.V.ts.slice(11, 16) + ')' : 'cierre del ' + fr(S.df)) + (live ? ' · spot $ ' : ' · A3500 $ ') + nf((S.futV && S.futV.length ? S.futV : S.fut)[0] ? (S.futV && S.futV.length ? S.futV : S.fut)[0].sp : S.spot[1], 2);
       var cpv = {}; (S.cfPrev || []).forEach(function (r) { cpv[r[0]] = r[2]; });
       var lc = {}; if (S.vivoOk) (S.V.cfut || []).forEach(function (r) { lc[key(r[0])] = r; }); var lcv = Object.keys(lc).length;
       var x2 = function (v) { return v ? nf(v, 2) + '%' : '—'; };
@@ -6003,7 +6003,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
         if (!TJ) { sub.textContent = 'Cargando los futuros…'; load(render); return; }
         S = getS();
-        sub.innerHTML = 'Cierres de A3 del ' + fr(S.df) + (S.vivoOk ? ' y la rueda de hoy por Primary (' + S.V.ts.slice(11, 16) + ')' : '') + ', con el dólar spot de A3.<span class="xp"> Tocá una tarjeta o un contrato para ver su intradiario y su historia.</span>';
+        sub.innerHTML = 'Cierres de A3 del ' + fr(S.df) + (S.vivoOk ? ' y la rueda de hoy por Primary (' + S.V.ts.slice(11, 16) + ')' : '') + ', contra el A3500 del BCRA (en la rueda, el spot por Primary).<span class="xp"> Tocá una tarjeta o un contrato para ver su intradiario y su historia.</span>';
         cards(); charts(); tables(); liquidity(); forwards(); history();
       } catch (x) { console.error('tfut', x); var s2 = document.getElementById('tfSub'); if (s2) s2.textContent = 'Error: ' + x.message; }
     }
@@ -6157,7 +6157,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         var D = build();
         if (!D) { sub.textContent = 'Esperando los precios de Curva Pesos…'; if (bTry++ < 30) setTimeout(function () { if (T.isAct()) render(); }, 1500); return; }
         LAST = D; O = D.s0;
-        sub.innerHTML = 'Bonos en pesos armados con futuros de dólar. Precios de Curva Pesos, futuros de A3 del ' + fr(S.df) + (S.vivoOk ? ' y la rueda de hoy (' + S.V.ts.slice(11, 16) + ')' : '') + ', spot de A3 $ ' + nf(D.Sp, 2) + '.<span class="xp"> Tocá una fila para ver el bono.</span>';
+        sub.innerHTML = 'Bonos en pesos armados con futuros de dólar. Precios de Curva Pesos, futuros de A3 del ' + fr(S.df) + (S.vivoOk ? ' y la rueda de hoy (' + S.V.ts.slice(11, 16) + ')' : '') + ', A3500 $ ' + nf(D.fx, 2) + '.<span class="xp"> Tocá una fila para ver el bono.</span>';
         draw(D);
       } catch (x) { console.error('sint', x); var s2 = document.getElementById('sySub'); if (s2) s2.textContent = 'Error: ' + x.message; }
     }
