@@ -5208,7 +5208,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         chip('Brecha MEP', PC(bM(e)), pp(bM(e) - bM(b)) + ' ' + vs) +
         chip('Brecha CCL', PC(bC(e)), pp(bC(e) - bC(b)) + ' ' + vs) +
         chip('Canje CCL/MEP', PC(cj(e)), pp(cj(e) - cj(b)) + ' ' + vs) +
-        chip('Flujo neto estimado', MS(fM + fC), (fM + fC >= 0 ? 'compra' : 'venta') + ' de dólares ' + (w === 1 ? 'en la rueda' : 'en ' + w + ' ruedas'));
+        chip('Flujo neto estimado', MS(fM + fC), (fM + fC >= 0 ? 'compra' : 'venta') + ' de dólares ' + (w === 1 ? 'en la rueda' : 'acumulada en las últimas ' + w + ' ruedas'));
       charts(a0, w); table(a0); stats();
     } catch (x) { console.error('dol', x); var s2 = document.getElementById('dxSub'); if (s2) s2.textContent = 'Error: ' + x.message; }
   }
@@ -5308,7 +5308,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     document.getElementById('dxStat').innerHTML =
       chip('Brecha MEP', nf(brM(e), 1) + '%', 'percentil ' + pct(bm, brM(e)) + ' desde la salida del cepo · promedio ' + nf(avg(bm), 1) + '% · rango ' + nf(ext(bm).v, 1) + '% a ' + nf(ext(bm, true).v, 1) + '%') +
       chip('Brecha CCL', nf(brC(e), 1) + '%', 'percentil ' + pct(bc, brC(e)) + ' desde la salida del cepo · promedio ' + nf(avg(bc), 1) + '% · máximo ' + nf(ext(bc, true).v, 1) + '% (' + fd(ext(bc, true)) + ')') +
-      chip('Canje CCL/MEP', nf(cjF(e), 2) + '%', 'promedio de 60 ruedas ' + nf(avg(c60), 2) + '%' + (zc == null ? '' : ' (' + sg(zc, 1) + ' desvíos)') + ' · percentil ' + pct(cjA, cjF(e)) + ' desde la salida del cepo') +
+      chip('Canje CCL/MEP', nf(cjF(e), 1) + '%', 'promedio de 60 ruedas ' + nf(avg(c60), 1) + '%' + (zc == null ? '' : ' (' + sg(zc, 1) + ' desvíos)') + ' · percentil ' + pct(cjA, cjF(e)) + ' desde la salida del cepo') +
       chip('Volatilidad del MEP', nf(S.VM[e], 1) + '%', 'últimas 20 ruedas, anualizada · promedio de 1 año ' + nf(avg(vm), 1) + '% · CCL ' + nf(S.VC[e], 1) + '%') +
       chip('MEP real (CER)', '$ ' + nf(S.MR[e], 0), 'a pesos del ' + fr(S.cerD) + ' · ' + (S.MR[e] <= mn.v * 1.001 ? 'el más bajo desde el ' + fr(D[0]) : 'percentil ' + pct(mr, S.MR[e]) + ' desde ' + fr(D[0]) + ', mínimo $ ' + nf(mn.v, 0) + ' (' + fd(mn) + ')') + ' · máximo $ ' + nf(mx.v, 0) + ' (' + fd(mx) + ')') +
       chip('Flujo desde la salida del cepo', MS(fM + fC), 'MEP ' + MS(fM) + ' · cable ' + MS(fC) + ' · ' + dU + ' ruedas con demanda y ' + dD + ' con oferta');
