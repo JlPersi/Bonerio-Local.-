@@ -7,8 +7,10 @@
    apertura, máximo, mínimo, último operado, variación del interés abierto, cantidad de operaciones].
 - cfut[fecha]: lo mismo para los futuros de tasa de caución (el precio es la tasa), con la tasa implícita en null.
 - pf y badlar: tasa de plazo fijo a 30 días (serie 12 del BCRA) y BADLAR de bancos privados (serie 7), TNA %. a3500: serie 5 del BCRA.
-- f90[fecha]: tasa implícita a 3 meses de los futuros de dólar (TNA %), con el A3500 de esa rueda: (futuro / A3500 − 1) × 365 / días,
+- spot[fecha]: el dólar spot que usa A3 para su tasa implícita (sale de despejar ajuste / (1 + tasa × días / 365); es uno por rueda).
+- f90[fecha]: tasa implícita a 3 meses de los futuros de dólar (TNA %), con ese spot (o el A3500 si falta): (futuro / spot − 1) × 365 / días,
   interpolada a 90 días entre los contratos de 30 días o más. Se calcula desde 2020 con los cierres de A3 (en fut quedan solo los de DESDE en adelante).
+- vto: el vencimiento de cada contrato según Primary (el último día hábil del mes; el de diciembre es el 30).
 - bcau: caución de BYMA (open.bymadata.com.ar, sin credenciales) en pesos, dólar MEP y dólar cable. vivo.bcau = foto de la rueda por plazo
   [días, compra, venta, última, cierre, vwap, monto]; bcau[fecha] = cierre del plazo más corto de cada moneda [días, cierre, vwap, monto].
 - vivo: foto de la rueda por la API de Primary con la cuenta de Bull (secrets ROFEX_USER, ROFEX_PASS, ROFEX_URL; sin ellos no se toma):
@@ -50,14 +52,25 @@ def get(url, t=60, tries=3):
             time.sleep(2 + 3 * k)
 
 
-def ultimo_habil(y, m):  # los futuros de dólar y de caución vencen el último día hábil del mes (sin contar feriados)
+NOHAB = {(1, 1), (3, 24), (4, 2), (5, 1), (5, 25), (6, 20), (7, 9), (12, 8), (12, 24), (12, 25), (12, 31)}  # feriados fijos y los días no laborables del 24 y el 31 de diciembre
+VTO = {}  # vencimientos que informa Primary (db["vto"]): cubren los feriados móviles
+
+
+def ultimo_habil(y, m):  # los futuros de dólar y de caución vencen el último día hábil del mes
     d = dt.date(y + (m == 12), m % 12 + 1, 1) - dt.timedelta(days=1)
-    while d.weekday() >= 5:
+    while d.weekday() >= 5 or (d.month, d.day) in NOHAB:
         d -= dt.timedelta(days=1)
     return d.isoformat()
 
 
+def psym(sym):  # DLR102026 (A3) -> DLR/OCT26 (Primary)
+    m = re.fullmatch(r"DLR(\d{2})(\d{4})", sym)
+    return "DLR/%s%s" % (list(MES)[int(m.group(1)) - 1], m.group(2)[2:]) if m else sym
+
+
 def venc(sym):  # DLR102026, CAUC/OCT26, DLR/OCT26
+    if VTO.get(psym(sym)):
+        return VTO[psym(sym)]
     m = re.fullmatch(r"DLR(\d{2})(\d{4})", sym)
     if m:
         return ultimo_habil(int(m.group(2)), int(m.group(1)))
@@ -80,9 +93,10 @@ try:
 except Exception:
     db = {}
 before = json.dumps({k: v for k, v in db.items() if k not in ("generado",)}, sort_keys=True)
-KEYS = ("cau", "cauD", "fut", "cfut", "pf", "badlar", "a3500", "f90", "bcau")
+KEYS = ("cau", "cauD", "fut", "cfut", "pf", "badlar", "a3500", "f90", "bcau", "vto", "spot")
 for k in KEYS:
     db.setdefault(k, {})
+VTO.update(db["vto"])
 
 
 def desde(key, d0=DESDE):  # toda la historia si falta el principio o el formato quedó viejo; si no, las últimas dos semanas
@@ -120,7 +134,8 @@ for key, prod in (("fut", "DLR"), ("cfut", "Tasa de Caución")):
     try:
         n, got = 0, {}
         d0 = desde(key)
-        if key == "fut" and len(db["f90"]) < 20 or key == "fut" and min(db["f90"] or ["9"]) > (DESDE_F90 + dt.timedelta(days=200)).isoformat():
+        if key == "fut" and (len(db["f90"]) < 20 or min(db["f90"] or ["9"]) > (DESDE_F90 + dt.timedelta(days=200)).isoformat()
+                             or min(db["spot"] or ["9"]) > (DESDE_F90 + dt.timedelta(days=200)).isoformat()):
             d0 = DESDE_F90
         for a, b in chunks(d0, today, 6):  # hasta 100 filas por pedido: 6 días de 14 contratos
             q = urllib.parse.urlencode({"product": prod, "type": "FUT", "from": a.isoformat(), "to": b.isoformat()})
@@ -154,12 +169,24 @@ for key, i, d0 in (("pf", 12, DESDE_F90), ("badlar", 7, DESDE_F90), ("a3500", 5,
     except Exception as e:
         print(key, "BCRA no disponible:", e)
 
-# --- tasa implícita a 3 meses de los futuros de dólar ---
+# --- el dólar spot de A3: el que usa para su tasa implícita (uno por rueda; sale de despejar ajuste / (1 + tasa × días / 365)) ---
+def a3spot(f, rows):
+    v = []
+    for r in rows:
+        if r[1] and r[2] and r[5]:
+            d = (dt.date.fromisoformat(r[1]) - dt.date.fromisoformat(f)).days
+            if d > 0:
+                v.append(r[2] / (1 + r[5] / 100 * d / 365))
+    v.sort()
+    return round(v[len(v) // 2], 4) if v and v[-1] - v[0] < 0.5 else None  # si los contratos no coinciden, el vencimiento está mal: no se usa
+
+
+# --- tasa implícita a 3 meses de los futuros de dólar, con ese spot (o el A3500 del BCRA si A3 no publicó la tasa) ---
 def f90(f, rows):
     ks = [d for d in db["a3500"] if d <= f]
-    if not ks:
+    sp, c = db["spot"].get(f) or (db["a3500"][max(ks)] if ks else None), []
+    if not sp:
         return None
-    sp, c = db["a3500"][max(ks)], []
     for r in rows:
         if not r[1] or not r[2]:
             continue
@@ -173,8 +200,15 @@ def f90(f, rows):
     return round(c[0][1], 4) if c and c[0][0] > 90 else None
 
 
+for key in ("fut", "cfut"):  # el vencimiento de cada fila con la regla de hoy (feriados y lo que informa Primary)
+    for f, rows in db[key].items():
+        for r in rows:
+            r[1] = venc(r[0]) or r[1]
+        rows.sort(key=lambda x: x[1] or "")
 for src in (OLD, db["fut"]):
     for f, rows in src.items():
+        if a3spot(f, rows):
+            db["spot"][f] = a3spot(f, rows)
         v = f90(f, rows)
         if v is not None:
             db["f90"][f] = v
@@ -265,7 +299,14 @@ if U and P and not os.environ.get("SIN_VIVO"):
             m = (by[s].get("maturityDate") or "")
             return "%s-%s-%s" % (m[:4], m[4:6], m[6:8]) if len(m) == 8 else venc(s)
 
+        for s in by:  # los vencimientos de Primary quedan para las próximas corridas
+            if re.fullmatch(r"(DLR|CAUC)/[A-Z]{3}\d{2}", s) and len(by[s].get("maturityDate") or "") == 8:
+                db["vto"][s] = mat(s)
+
         viv = {"ts": dt.datetime.now(TZ).strftime("%Y-%m-%dT%H:%M"), "fut": [], "cfut": [], "cau": []}
+        if "DLR/SPOT" in by:  # el spot de A3 en la rueda, si Primary lo publica
+            d = md("DLR/SPOT") or {}
+            viv["spot"] = px(d.get("LA")) or px(d.get("CL"))
         for key, pat in (("fut", r"DLR/[A-Z]{3}\d{2}"), ("cfut", r"CAUC/[A-Z]{3}\d{2}")):
             for s in sorted((s for s in by if re.fullmatch(pat, s)), key=mat):
                 d = md(s)
