@@ -84,8 +84,12 @@
     ['Rotación', 'Los pares de bonos que conviene rotar después de costos, con el colchón de tasa que tiene cada salto.', 'rotacion'],
     ['Volumen', 'Cada rueda desde 2023, por bono, familia y plazo, con la rueda de hoy en vivo y para qué lado empujó el precio.', 'volumen'],
     ['Dólar', 'MEP, cable y oficial día por día, la brecha, el canje y cuánta plata pasó de pesos a dólares en el mercado de bonos.', 'dolar'],
-    ['Licitaciones', 'El resultado de cada licitación del Tesoro contra el mercado y la curva, y los instrumentos del próximo llamado.', 'licitacion-proxima']
+    ['Licitaciones', 'El resultado de cada licitación del Tesoro contra el mercado y la curva, y los instrumentos del próximo llamado.', 'licitacion-proxima'],
+    ['Expectativas', 'La inflación y la devaluación que descuentan los bonos, bono por bono y contra el REM, y las tasas forward entre plazos.', 'expectativas'],
+    ['Historia y señales', 'La tasa de cada bono día por día y cuánto se aleja hoy de su curva contra lo habitual: las señales de rotación.', 'historia'],
+    ['Portfolio', 'Tus bonos con sus nominales: valor, duración, escenarios de tasas, value at risk y el flujo de fondos que vas a cobrar.', 'portfolio']
   ];
+  var NUM = ['', 'Una', 'Dos', 'Tres', 'Cuatro', 'Cinco', 'Seis', 'Siete', 'Ocho', 'Nueve', 'Diez', 'Once', 'Doce', 'Trece', 'Catorce', 'Quince', 'Dieciséis'];
   var html = '' +
     '<div class="tp" aria-hidden="true"><div data-tape><span class="eq">Cargando cierres…</span></div></div>' +
     '<div class="w"><div class="tb"><span class="lg"><img src="/favicon.svg?v=2" alt="">BONERÍO LOCAL</span><span class="sp"></span>' +
@@ -93,7 +97,7 @@
     '<div class="mn"><div>' +
     '<p class="ey">Terminal analítica · renta fija soberana</p>' +
     '<h1>Cada bono argentino, con su <em>curva</em>, su <em>retorno</em> y su <em>volumen</em>.</h1>' +
-    '<p class="ld">Hard dollar y pesos en una misma terminal: precios de cada rueda, curvas ajustadas, escenarios de retorno, rotaciones, el dólar de los bonos y las licitaciones del Tesoro.</p>' +
+    '<p class="ld">Hard dollar y pesos en una misma terminal: precios de cada rueda, curvas ajustadas, escenarios de retorno, rotaciones, el dólar de los bonos, las licitaciones del Tesoro, lo que descuenta el mercado de inflación y devaluación, y tu portfolio.</p>' +
     '<div class="ti">' +
     '<div class="t"><small>Dólar MEP · AL30</small><b data-k="mep">—</b><span data-k="ccl">&nbsp;</span></div>' +
     '<div class="t"><small>Oficial · A3500</small><b data-k="ofi">—</b><span data-k="ofid">&nbsp;</span><svg data-k="ofis" viewBox="0 0 100 40" preserveAspectRatio="none"></svg></div>' +
@@ -111,7 +115,7 @@
     '<button type="button" class="ln ml" data-alt></button>' +
     '<p class="msg" data-m></p><p class="lgl">Al ingresar, aceptás los <a href="/terminos.html" target="_blank" rel="noopener">Términos y Condiciones</a> y confirmás que leíste la <a href="/privacidad.html" target="_blank" rel="noopener">Política de Privacidad</a>. La información es con fines informativos; no es una recomendación de inversión.</p></div></div>' +
 
-    '<div class="cat"><h3>Nueve pantallas, un mismo mercado.</h3><p>Pasá por cada una para ver qué hay adentro.</p><div class="cg"><div class="ls">' +
+    '<div class="cat"><h3>' + (NUM[TABS.length] || TABS.length) + ' pantallas, un mismo mercado.</h3><p>Pasá por cada una para ver qué hay adentro.</p><div class="cg"><div class="ls">' +
     TABS.map(function (t, i) { return '<button data-tab="' + i + '"' + (i ? '' : ' class="on"') + '><i>' + (i < 9 ? '0' : '') + (i + 1) + '</i><b>' + t[0] + '</b><span>' + t[1] + '</span></button>'; }).join('') +
     '</div><figure class="pv" style="margin:0"><img data-pv src="/intro/' + TABS[0][2] + '.webp?v=1" alt="' + TABS[0][0] + '" decoding="async"><figcaption><span data-pvn>01 · ' + TABS[0][0] + '</span><span>captura de la terminal</span></figcaption></figure></div></div>' +
 
