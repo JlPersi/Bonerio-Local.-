@@ -1,0 +1,30 @@
+name: Tasas cortas
+on:
+  schedule:
+    # cada 20 minutos de 10 a 18 hora Argentina (la foto de la rueda por Primary) y 18:30 (cierres de A3 y BCRA), lunes a viernes
+    - cron: "*/20 13-20 * * 1-5"
+    - cron: "30 21 * * 1-5"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency: tasas
+jobs:
+  tasas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q pyRofex
+      - run: python3 scripts/save_tasas.py
+        env:
+          ROFEX_USER: ${{ secrets.ROFEX_USER }}
+          ROFEX_PASS: ${{ secrets.ROFEX_PASS }}
+          ROFEX_URL: ${{ secrets.ROFEX_URL }}
+      - name: Commit
+        run: |
+          if [ -n "$(git status --porcelain data)" ]; then
+            git config user.name "cierre-bot"
+            git config user.email "bot@users.noreply.github.com"
+            git add data
+            git commit -m "tasas $(date -u +%F)"
+            git pull --rebase -q origin main && git push
+          fi
