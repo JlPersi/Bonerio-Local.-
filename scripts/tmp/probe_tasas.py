@@ -1,69 +1,26 @@
-"""Sondeo temporal de fuentes para Tasas cortas. No imprime ni guarda credenciales."""
-import json, os, re, datetime as dt, urllib.request, urllib.parse, pyRofex
+"""Sondeo temporal 2: fuentes de caución. Sin credenciales."""
+import json, os, re, ssl, urllib.request
 OUT = "tmp_out"; os.makedirs(OUT, exist_ok=True)
-U, P = os.environ.get("ROFEX_USER", "").strip(), os.environ.get("ROFEX_PASS", "").strip()
-url = (os.environ.get("ROFEX_URL") or "https://api.bull.xoms.com.ar").strip().rstrip("/")
-def clean(m):
-    for x in (U, P):
-        if x: m = m.replace(x, "<x>")
-    return m[:400]
-def get(u, t=60):
-    return json.load(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=t))
-res = {}
-# BCRA: lista de variables
-try:
-    v = get("https://api.bcra.gob.ar/estadisticas/v4.0/monetarias?limit=1000")
-    res["bcra_vars"] = [(r.get("idVariable"), r.get("descripcion"), r.get("ultFechaInformada"), r.get("ultValorInformado"))
-                        for r in v.get("results", []) if re.search(r"plazo|dep[oó]sit|badlar|tamar|cauci|pase", (r.get("descripcion") or ""), re.I)]
-except Exception as e:
-    res["bcra_err"] = str(e)[:300]
-# A3 cierres
-B = "https://apicem.matbarofex.com.ar/api/v2/closing-prices"
-for prod in ("DLR", "Tasa de Caución"):
+ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+def req(u, data=None, h=None, t=40):
+    hh = {"User-Agent": "Mozilla/5.0", "Accept": "application/json, text/plain, */*"}; hh.update(h or {})
+    r = urllib.request.Request(u, data=json.dumps(data).encode() if data is not None else None, headers=hh, method="POST" if data is not None else "GET")
     try:
-        q = urllib.parse.urlencode({"product": prod, "type": "FUT", "excludeEmptyVol": "false", "from": "2026-09-01", "to": "2026-10-18"})
-        d = get(B + "?" + q, 120)["data"]
-        res["a3_" + prod] = {"n": len(d), "sample": d[:3], "dates": sorted({r["dateTime"][:10] for r in d})[-5:]}
+        with urllib.request.urlopen(r, timeout=t, context=ctx) as x:
+            return x.status, x.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode("utf-8", "replace")[:500]
     except Exception as e:
-        res["a3_err_" + prod] = str(e)[:300]
-try:
-    q = urllib.parse.urlencode({"product": "DLR", "type": "FUT", "from": "2026-10-15", "to": "2026-10-17", "page": 1, "pageSize": 5000})
-    res["a3_paged"] = len(get(B + "?" + q)["data"])
-except Exception as e:
-    res["a3_paged_err"] = str(e)[:200]
-# Primary
-env = pyRofex.Environment.LIVE
-try:
-    pyRofex._set_environment_parameter("url", url + "/", env)
-    pyRofex._set_environment_parameter("ws", url.replace("https://", "wss://") + "/", env)
-    pyRofex.initialize(user=U, password=P, account="", environment=env)
-    items = pyRofex.get_detailed_instruments(environment=env).get("instruments", [])
-    by = {(i.get("instrumentId") or {}).get("symbol", ""): i for i in items}
-    dlr = sorted(s for s in by if re.fullmatch(r"DLR/[A-Z]{3}\d{2}", s))
-    cauc = sorted(s for s in by if re.fullmatch(r"CAUC/[A-Z]{3}\d{2}", s))
-    pes = sorted((s for s in by if re.fullmatch(r"MERV - XMEV - PESOS - \d+D", s)), key=lambda s: int(s.split("-")[-1].strip()[:-1]))
-    res["dlr"], res["cauc"], res["pesos"] = dlr, cauc, pes
-    res["detail_dlr"] = by.get(dlr[0]) if dlr else None
-    res["detail_pes"] = by.get(pes[0]) if pes else None
-    res["detail_cauc"] = by.get(cauc[0]) if cauc else None
-    E = pyRofex.MarketDataEntry
-    ents = [E.BIDS, E.OFFERS, E.LAST, E.CLOSING_PRICE, E.SETTLEMENT_PRICE, E.OPEN_INTEREST, E.TRADE_VOLUME, E.OPENING_PRICE, E.HIGH_PRICE, E.LOW_PRICE, E.NOMINAL_VOLUME, E.TRADE_EFFECTIVE_VOLUME]
-    md = {}
-    for s in dlr + cauc + pes[:12]:
-        try:
-            md[s] = pyRofex.get_market_data(ticker=s, entries=ents, environment=env).get("marketData")
-        except Exception as e:
-            md[s] = clean(str(e))
-    res["md"] = md
-    tr = {}
-    d1 = dt.date.today(); d0 = d1 - dt.timedelta(days=6)
-    for s in pes[:3] + dlr[:1]:
-        try:
-            t = pyRofex.get_trade_history(ticker=s, start_date=d0, end_date=d1, environment=env)
-            tr[s] = {"n": len(t.get("trades", [])), "sample": t.get("trades", [])[-3:], "status": t.get("status")}
-        except Exception as e:
-            tr[s] = clean(str(e))
-    res["trades"] = tr
-except Exception as e:
-    res["primary_err"] = clean(type(e).__name__ + ": " + str(e))
-json.dump(res, open(OUT + "/tasas.json", "w"), indent=1, ensure_ascii=False, default=str)
+        return 0, str(e)[:300]
+res = {}
+B = "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/"
+for ep in ("cauciones", "short-term-government-bonds"):
+    st, b = req(B + ep, {"excludeZeroPxAndQty": False, "T2": True, "T1": False, "T0": False}, {"Content-Type": "application/json", "Origin": "https://open.bymadata.com.ar", "Referer": "https://open.bymadata.com.ar/"})
+    res["byma_" + ep] = [st, b[:3000]]
+st, b = req("https://marketdata.mae.com.ar/titulos/CAU/CAARS?plazo=003&segmento=K&moneda=$&fechaLiquidacion=2026-10-19T00:00:00", h={"Accept": "text/html"})
+res["mae_page"] = [st, len(b), re.findall(r'(?:src|href)="([^"]+\.js[^"]*)"', b)[:20], re.findall(r'https?://[a-zA-Z0-9.\-]*mae[a-zA-Z0-9.\-/]*', b)[:30], b[:1500]]
+for u in ("https://api.marketdata.mae.com.ar/api/mercado/cauciones", "https://marketdata.mae.com.ar/api/mercado/cauciones",
+          "https://api.marketdata.mae.com.ar/api/cotizaciones/cauciones", "https://marketdata.mae.com.ar/api/titulos/CAU/CAARS?plazo=003&segmento=K&moneda=$"):
+    res[u] = list(req(u))[:2]
+    res[u][1] = res[u][1][:800]
+json.dump(res, open(OUT + "/tasas2.json", "w"), indent=1, ensure_ascii=False)
