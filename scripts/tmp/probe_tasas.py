@@ -16,11 +16,17 @@ res = {}
 B = "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/"
 for ep in ("cauciones", "short-term-government-bonds"):
     st, b = req(B + ep, {"excludeZeroPxAndQty": False, "T2": True, "T1": False, "T0": False}, {"Content-Type": "application/json", "Origin": "https://open.bymadata.com.ar", "Referer": "https://open.bymadata.com.ar/"})
-    res["byma_" + ep] = [st, b[:3000]]
+    res["byma_" + ep] = [st, len(b)]
+    open(OUT + "/byma_" + ep + ".json", "w").write(b)
 st, b = req("https://marketdata.mae.com.ar/titulos/CAU/CAARS?plazo=003&segmento=K&moneda=$&fechaLiquidacion=2026-10-19T00:00:00", h={"Accept": "text/html"})
 res["mae_page"] = [st, len(b), re.findall(r'(?:src|href)="([^"]+\.js[^"]*)"', b)[:20], re.findall(r'https?://[a-zA-Z0-9.\-]*mae[a-zA-Z0-9.\-/]*', b)[:30], b[:1500]]
 for u in ("https://api.marketdata.mae.com.ar/api/mercado/cauciones", "https://marketdata.mae.com.ar/api/mercado/cauciones",
           "https://api.marketdata.mae.com.ar/api/cotizaciones/cauciones", "https://marketdata.mae.com.ar/api/titulos/CAU/CAARS?plazo=003&segmento=K&moneda=$"):
     res[u] = list(req(u))[:2]
     res[u][1] = res[u][1][:800]
+st, js = req("https://marketdata.mae.com.ar/assets/index-DseC26QM.js")
+res["mae_js_len"] = len(js)
+res["mae_urls"] = sorted(set(re.findall(r'https?://[a-zA-Z0-9.\-]+(?:/[a-zA-Z0-9_.\-/{}$]*)?', js)))[:200]
+res["mae_paths"] = sorted(set(re.findall(r'["`/](api/[a-zA-Z0-9_\-/{}$.]+)', js)))[:300]
+res["mae_cau"] = [js[max(0, m.start()-300):m.start()+300] for m in re.finditer(r'[Cc]auci|CAARS|/titulos', js)][:12]
 json.dump(res, open(OUT + "/tasas2.json", "w"), indent=1, ensure_ascii=False)
