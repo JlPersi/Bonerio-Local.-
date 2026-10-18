@@ -2374,12 +2374,34 @@ setInterval(window.fetchLive, 90000);
     var cushion = o.md > 0.05 ? (tr0 / o.md) * 1e4 : null; // pb de suba de TIR que absorbe el retorno
     return { tr0: tr0, tr1: tr1, ann0: tr0 * 365 / hz, ann1: tr1 == null ? null : tr1 * 365 / hz, roll: tr1 == null ? null : tr1 - tr0, cushion: cushion };
   }
-  function renderCarry(S, c, hz) {
-    var rows = S.map(function (o) { return { o: o, r: carryCalc(o, c, hz) }; }).filter(function (x) { return x.r; });
-    var h = '<tr><th class="l">Bono</th><th>Retorno<br>TIR cte.</th><th>Anualiz.</th><th>Roll-down<br>(pp)</th><th>Retorno<br>con roll</th><th>Colchón<br>(pb)</th></tr>';
-    rows.forEach(function (x) {
-      h += '<tr><td class="k">' + x.o.k + '</td><td style="' + colorOf(x.r.tr0, 0.06) + '">' + fm(x.r.tr0 * 100, 2) + '%</td><td>' + fm(x.r.ann0 * 100, 1) + '%</td><td>' + sg(x.r.roll == null ? null : x.r.roll * 100, 2) + '</td><td style="' + colorOf(x.r.tr1, 0.06) + '">' + (x.r.tr1 == null ? 'n/a' : fm(x.r.tr1 * 100, 2) + '%') + '</td><td>' + (x.r.cushion == null ? 'n/a' : fm(x.r.cushion, 0)) + '</td></tr>';
+  var isArs = function () { var b = gid('bdCcy'); return !!(b && b.value === 'ars'); }; // Flujos y total return en pesos: los bonos de Curva Pesos
+  function pesoCarry(hz) { // carry y roll-down de los bonos en pesos, en pesos (TEA nominal de Curva Pesos); el roll-down con la curva ajustada de cada familia
+    var X = window.PSX, sn = null; try { sn = X && X.snap ? X.snap(1) : null; } catch (e) { sn = null; } if (!sn) return [];
+    var s = sn.s, NM = { fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dl: 'Dólar linked' }, G = {};
+    sn.S.forEach(function (o) { if (!NM[o.fam] || o.miss || !(o.P > 0) || !o.fl || o.tea == null || !isFinite(o.tea) || o.d < 3) return; (G[o.fam] = G[o.fam] || []).push(o); });
+    var rows = [];
+    ['fija', 'cer', 'tamar', 'dl'].forEach(function (f) {
+      var L = (G[f] || []).sort(function (a, b) { return a.d - b.d; }), F = null; if (!L.length) return;
+      try { F = L.length >= 3 ? X.fairFit(L.map(function (o) { return { x: o.d, y: o.tea * 100 }; }), 'auto') : null; } catch (e) { F = null; }
+      var x0 = L[0].d, x1 = L[L.length - 1].d, cl = function (x) { return Math.min(Math.max(x, x0), x1); };
+      L.forEach(function (o) {
+        var d1 = s + hz, cash = 0, fl = o.fl.filter(function (x) { return x[0] > s; }), post = fl.filter(function (x) { return x[0] > d1; });
+        fl.forEach(function (x) { if (x[0] <= d1) cash += x[1]; }); if (!post.length) return;
+        var tr0 = (X.pvAt(post, d1, o.tea) + cash) / o.P - 1, tr1 = null;
+        if (F) { var yT = o.tea + (F.f(cl(o.d - hz)) - F.f(cl(o.d))) / 100; if (yT > -0.9) tr1 = (X.pvAt(post, d1, yT) + cash) / o.P - 1; } // mantiene el desvío contra la curva
+        rows.push({ o: { k: o.k, fam: NM[f] }, r: { tr0: tr0, tr1: tr1, ann0: tr0 * 365 / hz, roll: tr1 == null ? null : tr1 - tr0, cushion: o.mdur > 0.01 ? tr0 / o.mdur * 1e4 : null } });
+      });
     });
+    return rows;
+  }
+  function renderCarry(S, c, hz) {
+    var ars = isArs(), rows = ars ? pesoCarry(hz) : S.map(function (o) { return { o: o, r: carryCalc(o, c, hz) }; }).filter(function (x) { return x.r; });
+    var h = '<tr><th class="l">Bono</th>' + (ars ? '<th class="l">Familia</th>' : '') + '<th>Retorno<br>TIR cte.</th><th>Anualiz.</th><th>Roll-down<br>(pp)</th><th>Retorno<br>con roll</th><th>Colchón<br>(pb)</th></tr>';
+    rows.forEach(function (x) {
+      h += '<tr><td class="k">' + x.o.k + '</td>' + (ars ? '<td class="l">' + x.o.fam + '</td>' : '') + '<td style="' + colorOf(x.r.tr0, 0.06) + '">' + fm(x.r.tr0 * 100, 2) + '%</td><td>' + fm(x.r.ann0 * 100, 1) + '%</td><td>' + sg(x.r.roll == null ? null : x.r.roll * 100, 2) + '</td><td style="' + colorOf(x.r.tr1, 0.06) + '">' + (x.r.tr1 == null ? 'n/a' : fm(x.r.tr1 * 100, 2) + '%') + '</td><td>' + (x.r.cushion == null ? 'n/a' : fm(x.r.cushion, 0)) + '</td></tr>';
+    });
+    if (!rows.length) h += '<tr><td class="l" colspan="7">' + (ars ? 'Esperando los precios de Curva Pesos…' : 'Sin bonos con precio.') + '</td></tr>';
+    if (ars && rows.length) h += '<tr><td class="l" colspan="7" style="color:var(--mu);font-size:12px">En pesos, con la TEA nominal de Curva Pesos (CER y dólar linked con la inflación y el dólar que proyecta). Los que vencen antes del horizonte no entran.</td></tr>';
     document.getElementById('qCarry').innerHTML = h;
     var cv = document.getElementById('qCarryChart'); if (Q.carryCh) Q.carryCh.destroy();
     var bd = css('--bd'), tx = css('--tx');
@@ -7620,7 +7642,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       var tmp = document.createElement('select'); tmp.innerHTML = FULL; var gs = tmp.querySelectorAll('optgroup'), g = gs[DESG === 'ars' ? 1 : 0];
       if (g) { sel.innerHTML = g.outerHTML; sel.value = g.querySelector('option').value; sel.setAttribute('data-ccy', DESG); if (window.updateCFChart) window.updateCFChart(); }
     }
-    var bc = $('bdCcy'); if (bc) { if (bc.value !== DESG) { bc.value = DESG; if (window.bdRender) window.bdRender(); } var lb = bc.closest('label'); if (lb) lb.style.display = 'none'; }
+    var bc = $('bdCcy'); if (bc) { if (bc.value !== DESG) { bc.value = DESG; if (window.bdRender) window.bdRender(); if (window.renderQuant) window.renderQuant(); } var lb = bc.closest('label'); if (lb) lb.style.display = 'none'; }
     [['cfChartContainer', 'Flujo de caja proyectado'], ['breakdownContainer', 'Atribución del total return']].forEach(function (q) { var h = document.querySelector('#' + q[0] + ' .qh'); if (h) h.textContent = q[1] + (DESG === 'ars' ? ' · bonos en pesos' : ' · bonos en dólares'); });
   }
   var _sw = window.switchTab;
