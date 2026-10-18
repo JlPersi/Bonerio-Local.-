@@ -5823,7 +5823,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   (function () {
     var T = tab('tfut', render); if (!T) return;
     var root = T.root, ST = { s: ['f90'], w: '1a', cv: 'tna' }, CH = {}, S = null, bTry = 0;
-    var SER = { f90: ['Tasa implícita a 3 meses', C_FUT, 'r'], dev: ['Devaluación mensual implícita', C_DEV, 'm'], cf: ['Futuro de caución más cercano', C_CF, 'r'], cau: ['Caución 1 día hábil', C_CAU, 'r'], fx: ['Dólar A3500', C_FX, '$'] };
+    var SER = { f90: ['Tasa implícita a 3 meses', C_FUT, 'r'], dev: ['Devaluación mensual implícita', C_DEV, 'm'], fx: ['Dólar A3500', C_FX, '$'] };
     function html() {
       root.innerHTML = STYLE('#tfut') +
         '<div class="card" id="tfCap"><div class="status" style="justify-content:space-between;gap:12px;flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0;flex:1 1 0"><p style="margin:0;color:var(--tx);font-size:16px;font-weight:600">Futuros de dólar y de caución</p>' +
@@ -5960,7 +5960,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (CH.b) { CH.b.destroy(); CH.b = null; }
       document.getElementById('tfSer').innerHTML = pills('data-s', ST.s, Object.keys(SER).map(function (k) { return [k, SER[k][0], 0, SER[k][1]]; }), 'sr');
       document.getElementById('tfW').innerHTML = pills('data-w', ST.w, RGD);
-      var src = { f90: S.f90, dev: map(S.f90, devm), cf: S.cfHist, cau: map(S.corta, function (r) { return r[1]; }), fx: S.fx };
+      var src = { f90: S.f90, dev: map(S.f90, devm), fx: S.fx };
       var units = {}; ST.s.forEach(function (k) { units[SER[k][2]] = 1; }); var two = Object.keys(units).length > 1, u1 = SER[ST.s[0]][2], u2 = null;
       ST.s.forEach(function (k) { if (SER[k][2] !== u1) u2 = SER[k][2]; });
       var D2 = window_(ST.s.map(function (k) { return src[k]; }), '0', rgN(ST.w)), fm = function (u) { return u === '$' ? PS : P; }, ax = function (u) { return u === '$' ? function (v) { return '$ ' + nf(v, 0); } : u === 'm' ? function (v) { return nf(v, 1) + '%'; } : pct; };
