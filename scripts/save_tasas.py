@@ -16,6 +16,7 @@
 - vivo: foto de la rueda por la API de Primary con la cuenta de Bull (secrets ROFEX_USER, ROFEX_PASS, ROFEX_URL; sin ellos no se toma):
     fut y cfut: [contrato, vencimiento, compra, venta, último, ajuste, interés abierto, volumen, apertura, máximo, mínimo]
     cau: caución de BYMA en pesos por plazo, [días, compra, venta, última, volumen nominal]
+    spot: el spot de A3 de hoy por Primary (spotF "A3") o, si Primary no tiene uno de hoy, el mayorista de dolarapi.com (spotF "mayorista")
 data/intra.json: el intradiario de las últimas ruedas, {fecha: {"cau": {"ARS"|"USD"|"EXT": [[minuto del día, tasa, monto]]}, "cd": {moneda: días},
   "fut": {contrato: [[minuto, último, cantidad]]}}}. La caución es el plazo más corto de BYMA en cada corrida del Action (cada 10 minutos);
   los futuros de dólar y de caución, todas las operaciones del día por Primary agrupadas cada 5 minutos.
@@ -32,6 +33,7 @@ DESDE_CAU = dt.date(2022, 6, 1)  # A3 tiene la caución desde 2023
 DESDE_F90 = dt.date(2020, 1, 2)  # y los cierres de futuros de dólar desde 2020
 A3 = "https://apicem.matbarofex.com.ar/api/v2/closing-prices?"
 CAU = "https://api.marketdata.mae.com.ar/api/mercado/titulo/historicocauciones?oTitulo="
+MAY = "https://dolarapi.com/v1/dolares/mayorista"
 BCRA = "https://api.bcra.gob.ar/estadisticas/v4.0/monetarias/%d?desde=%s&hasta=%s&limit=3000"
 MES = {m: i + 1 for i, m in enumerate("ENE FEB MAR ABR MAY JUN JUL AGO SEP OCT NOV DIC".split())}
 
@@ -88,6 +90,16 @@ def chunks(d0, d1, n):
 
 
 num = lambda v: v if isinstance(v, (int, float)) and v == v else None
+
+
+def de_hoy(t):  # fecha de un dato (epoch en ms o ISO) que cae en la rueda de hoy
+    try:
+        f = dt.datetime.fromtimestamp(t / 1000, TZ) if isinstance(t, (int, float)) else dt.datetime.fromisoformat(str(t).replace("Z", "+00:00")).astimezone(TZ)
+        return f.date() == today
+    except Exception:
+        return False
+
+
 try:
     db = json.load(open(OUT))
 except Exception:
@@ -225,6 +237,7 @@ MIN = NOW.hour * 60 + NOW.minute
 RUEDA = not os.environ.get("FORCE_DATE") and NOW.weekday() < 5 and 10 * 60 + 25 <= MIN <= 17 * 60 + 10
 
 # --- caución de BYMA (datos abiertos): pesos, dólar MEP y dólar cable ---
+pc = lambda v: round(v * 100, 4) if v is not None else None  # BYMA da la tasa como fracción (0,209): se guarda en % (20,9), como A3 y Primary
 try:
     BY = "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/cauciones"
     body = json.dumps({"excludeZeroPxAndQty": False, "T2": True, "T1": True, "T0": True, "Content-Type": "application/json"}).encode()
@@ -237,7 +250,7 @@ try:
         m, d = r.get("denominationCcy"), r.get("daysToMaturity")
         if m not in fb or not isinstance(d, int) or not 0 < d <= 35:
             continue
-        row = [d] + [num(r.get(k)) or None for k in ("bidPrice", "offerPrice", "trade", "closingPrice", "vwap", "volumeAmount")]
+        row = [d] + [pc(num(r.get(k))) or None for k in ("bidPrice", "offerPrice", "trade", "closingPrice", "vwap")] + [num(r.get("volumeAmount")) or None]
         if any(row[1:]):
             fb[m].append(row)
     for m in fb:
@@ -304,9 +317,17 @@ if U and P and not os.environ.get("SIN_VIVO"):
                 db["vto"][s] = mat(s)
 
         viv = {"ts": dt.datetime.now(TZ).strftime("%Y-%m-%dT%H:%M"), "fut": [], "cfut": [], "cau": []}
-        if "DLR/SPOT" in by:  # el spot de A3 en la rueda, si Primary lo publica
-            d = md("DLR/SPOT") or {}
-            viv["spot"] = px(d.get("LA")) or px(d.get("CL"))
+        if "DLR/SPOT" in by:  # el spot de A3 en la rueda, si Primary lo publica y es de hoy (el cierre que repite es el de la rueda anterior)
+            d = (md("DLR/SPOT") or {}).get("LA")
+            if isinstance(d, dict) and de_hoy(d.get("date")):
+                viv["spot"], viv["spotF"] = px(d), "A3"
+        if not viv.get("spot"):  # si no, el mayorista de hoy
+            try:
+                m = get(MAY, t=20)
+                if de_hoy(m.get("fechaActualizacion")) and num(m.get("venta")):
+                    viv["spot"], viv["spotF"] = m["venta"], "mayorista"
+            except Exception as e:
+                print("mayorista no disponible:", type(e).__name__)
         for key, pat in (("fut", r"DLR/[A-Z]{3}\d{2}"), ("cfut", r"CAUC/[A-Z]{3}\d{2}")):
             for s in sorted((s for s in by if re.fullmatch(pat, s)), key=mat):
                 d = md(s)

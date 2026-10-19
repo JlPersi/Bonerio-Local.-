@@ -1,32 +1,67 @@
 name: Tasas cortas
 on:
   schedule:
-    # cada 10 minutos de 10 a 18 hora Argentina (la foto de la rueda por Primary; desde las 17:07, ya cerrada la rueda, también el cierre de A3)
-    # y 18:33 (lo que A3 y el BCRA publiquen tarde), lunes a viernes. Minutos impares a propósito: GitHub saltea más las corridas en punto.
-    # Cada corrida tarda 5 a 8 minutos; con concurrency, si una se demora la siguiente espera en vez de pisarla
-    - cron: "7,17,27,37,47,57 13-20 * * 1-5"
+    # GitHub larga las corridas programadas con horas de atraso (o no las larga), así que no se usan para la foto cada 10 minutos:
+    # una sola corrida queda prendida toda la rueda y saca la foto cada 10 minutos (ver el paso «Rueda»). Estos horarios solo la arrancan
+    # si la cadena se cortó; si ya hay una corriendo, esperan en la fila y la siguiente de la cadena las reemplaza.
+    - cron: "37 12 * * 1-5"
+    - cron: "7 15 * * 1-5"
     - cron: "33 21 * * 1-5"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      cadena:
+        description: "La relanzó la corrida anterior (no saca foto si está fuera de la rueda)"
+        default: ""
 permissions:
   contents: write
+  actions: write
 concurrency: tasas
 jobs:
   tasas:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
       - run: pip install -q pyRofex
-      - run: python3 scripts/save_tasas.py
+      - name: Rueda
+        # Foto cada 10 minutos de 10 a 18:40 hora Argentina, lunes a viernes: los futuros por Primary hasta su cierre de las 15, la caución
+        # de BYMA hasta las 17 y después lo que A3 y el BCRA publican al cierre.
+        # Fuera de ese horario espera dormida hasta la próxima rueda. Antes de las 6 horas que permite GitHub por corrida, se relanza sola
+        # (workflow_dispatch con el GITHUB_TOKEN sí arranca otra corrida), así la cadena no depende de los horarios programados.
         env:
           ROFEX_USER: ${{ secrets.ROFEX_USER }}
           ROFEX_PASS: ${{ secrets.ROFEX_PASS }}
           ROFEX_URL: ${{ secrets.ROFEX_URL }}
-      - name: Commit
+          GH_TOKEN: ${{ github.token }}
+          CADENA: ${{ inputs.cadena }}
         run: |
-          if [ -n "$(git status --porcelain data)" ]; then
-            git config user.name "cierre-bot"
-            git config user.email "bot@users.noreply.github.com"
-            git add data
-            git commit -m "tasas $(date -u +%F)"
-            git pull --rebase -q origin main && git push
-          fi
+          git config user.name "cierre-bot"
+          git config user.email "bot@users.noreply.github.com"
+          fin=$(( $(date +%s) + 320 * 60 ))
+          ar() { TZ=America/Argentina/Buenos_Aires date "$@"; }
+          rueda() { [ "$(ar +%u)" -le 5 ] && [ "$(ar +%H%M)" -ge 1000 ] && [ "$(ar +%H%M)" -le 1840 ]; }
+          foto() {
+            git pull -q --rebase origin main || true
+            python3 scripts/save_tasas.py || echo "save_tasas falló"
+            if [ -n "$(git status --porcelain data)" ]; then
+              git add data && git commit -q -m "tasas $(date -u +%F)" || true
+              for k in 1 2 3 4; do git pull -q --rebase origin main && git push -q && break; sleep $(( 5 * k )); done
+            fi
+          }
+          rueda || [ -n "$CADENA" ] || foto  # la que arranca fuera de la rueda (la de las 18:33 o una a mano) igual saca su foto; la de la cadena, no
+          while :; do
+            if rueda; then
+              t0=$(date +%s); foto; espera=$(( 600 - $(date +%s) + t0 )); [ $espera -lt 30 ] && espera=30
+            else
+              # hasta las 10 del próximo día hábil
+              prox=$(ar -d "$(ar +%F) 10:00" +%s); [ "$(ar +%H%M)" -ge 1000 ] && prox=$(ar -d "$(ar +%F) 10:00 tomorrow" +%s)
+              while [ "$(ar -d @$prox +%u)" -gt 5 ]; do prox=$(( prox + 86400 )); done
+              espera=$(( prox - $(date +%s) ))
+            fi
+            if [ $(( $(date +%s) + espera )) -ge $fin ]; then
+              resto=$(( fin - $(date +%s) )); [ $resto -gt 0 ] && ! rueda && sleep $resto
+              gh workflow run tasas.yml --ref main -f cadena=1 && echo "relanzada" || echo "no se pudo relanzar"
+              break
+            fi
+            sleep $espera
+          done

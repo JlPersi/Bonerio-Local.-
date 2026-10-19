@@ -5172,6 +5172,16 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function todayBA() { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }); } catch (e) { return new Date().toISOString().slice(0, 10); } }
   function liveOpen() { return typeof mktOpen === 'function' ? mktOpen() : true; }
 
+  var MAY = null, mayT = 0;
+  function may() { // el mayorista del día (Ámbito), hasta que el BCRA publique el A3500 de hoy (lo hace a la noche)
+    if (Date.now() - mayT < 85000) return; mayT = Date.now();
+    fetch('https://mercados.ambito.com//dolar/mayorista/variacion', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (o) {
+      var f = String(o && o.fecha || '').match(/(\d{2})\/(\d{2})\/(\d{4})/), v = parseFloat(String(o && o.venta || '').replace(/\./g, '').replace(',', '.'));
+      if (!f || !(v > 0)) return; var d = f[3] + '-' + f[2] + '-' + f[1]; if (MAY && MAY.d === d && MAY.v === v) return;
+      MAY = { d: d, v: v }; if (isAct() && VD) render();
+    }).catch(function () { });
+  }
+
   /* ---------- series ---------- */
   function build() {
     var D = VD, dates = D.dates.slice(), q = window.PXQ || {}, td = todayBA(), i, k;
@@ -5190,6 +5200,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     // oficial: A3500 de data/dolar.json (desde 2023), lo nuevo de data/indices.json y, si faltara, el embebido de Curva Pesos
     var A = {}, put = function (o) { Object.keys(o || {}).forEach(function (d) { if (A[d] == null && o[d] > 0) A[d] = o[d]; }); };
     put(DJ.A3500); put(IX.FX);
+    var ofMay = !!(MAY && MAY.d === dates[n - 1] && A[MAY.d] == null); if (ofMay) A[MAY.d] = MAY.v; // sin el A3500 de hoy: el mayorista en vivo
     try { var fx = PSD.IDX.FX; for (k = 0; k < fx.v.length; k++) { var ds = bxDayStr(fx.s + k); if (A[ds] == null && fx.v[k] > 0) A[ds] = fx.v[k]; } } catch (e) { }
     var ak = Object.keys(A).sort(), OF = new Float64Array(n).fill(NaN), OFd = new Array(n), j = 0, last = NaN, lastD = null;
     for (i = 0; i < n; i++) { while (j < ak.length && ak[j] <= dates[i]) { last = A[ak[j]]; lastD = ak[j]; j++; } OF[i] = last; OFd[i] = lastD; }
@@ -5216,7 +5227,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     // volatilidad: desvío de las variaciones diarias de las últimas 20 ruedas, anualizado (raíz de 250)
     var vol = function (Y) { var o = new Float64Array(n).fill(NaN); for (var i = 20; i < n; i++) { var s = 0, c = 0; for (var k = i - 19; k <= i; k++) if (Y[k] > 0 && Y[k - 1] > 0) { var r = Math.log(Y[k] / Y[k - 1]); s += r * r; c++; } if (c >= 15) o[i] = Math.sqrt(s / c * 250) * 100; } return o; };
     var IXD = {}; for (i = 0; i < n; i++) IXD[dates[i]] = i;
-    S = { n: n, dates: dates, P: P, MD: MD, CC: CC, MEP: MEP, CCL: CCL, OF: OF, OFd: OFd, zM: zM, zC: zC, fM: fM, fC: fC, live: live, snap: snap, AD: AD, MR: MR, cerD: dates[n - 1], VM: vol(MEP), VC: vol(CCL), IXD: IXD };
+    S = { n: n, ofMay: ofMay, dates: dates, P: P, MD: MD, CC: CC, MEP: MEP, CCL: CCL, OF: OF, OFd: OFd, zM: zM, zC: zC, fM: fM, fC: fC, live: live, snap: snap, AD: AD, MR: MR, cerD: dates[n - 1], VM: vol(MEP), VC: vol(CCL), IXD: IXD };
 
   }
 
@@ -5280,7 +5291,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var sub = document.getElementById('dxSub');
       if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
       if (!VD) { sub.textContent = 'Cargando la serie de AL30…'; load(); return; }
-      adr(); build();
+      adr(); may(); build();
       document.getElementById('dxW').value = ST.w; document.getElementById('dxL').checked = ST.live; document.getElementById('dxTop').value = ST.top; document.getElementById('dxLg').checked = ST.log;
       var n = S.n, w = ST.w === 0 ? n - 1 : Math.min(ST.w, n - 1), a0 = n - w, b = lastV(S.MEP, a0 - 1), e = lastV(S.MEP, n - 1), D = S.dates;
       sub.innerHTML = 'Serie diaria de AL30 en pesos, MEP (AL30D) y cable (AL30C) desde el ' + fr(D[0]) + ' y oficial del BCRA (A3500).' + (S.live ? ' Incluye la rueda de hoy, ' + (liveOpen() ? 'todavía incompleta.' : 'ya cerrada.') : ST.live && !mktStarted() ? ' Hoy no hay rueda o todavía no empezó: se muestra hasta el ' + fr(D[D.length - 1]) + '.' : '') + '<span class="xp"> Cuánto se pagó el dólar en el mercado de bonos, cuánta brecha hubo con el oficial y hacia dónde fue la plata: de pesos a dólares o al revés.</span>';
@@ -5294,7 +5305,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       document.getElementById('dxChips').innerHTML =
         chip('MEP (AL30)', P$(S.MEP[e]), sg((ch(S.MEP, b, e) || 0) * 100, 2) + '% ' + vs) +
         chip('CCL (AL30)', P$(S.CCL[e]), sg((ch(S.CCL, b, e) || 0) * 100, 2) + '% ' + vs) +
-        chip('Oficial (A3500)', P$(S.OF[e]), sg((ch(S.OF, b, e) || 0) * 100, 2) + '% ' + vs + (S.OFd[e] && S.OFd[e] < D[e] ? ' · dato del ' + fr(S.OFd[e]) : '')) +
+        chip(S.ofMay && e === n - 1 ? 'Oficial (mayorista)' : 'Oficial (A3500)', P$(S.OF[e]), sg((ch(S.OF, b, e) || 0) * 100, 2) + '% ' + vs + (S.ofMay && e === n - 1 ? ' · el A3500 de hoy lo publica el BCRA a la noche' : S.OFd[e] && S.OFd[e] < D[e] ? ' · dato del ' + fr(S.OFd[e]) : '')) +
         (adrV ? chip('CCL de acciones', P$(adrV), (ADR ? 'en vivo, ' + ADR.n + ' papeles' : 'cierre del ' + fr(adrD)) + ' · ' + sg((adrV / S.CCL[e] - 1) * 100, 1) + '% vs. AL30') : '') +
         chip('Brecha MEP', PC(bM(e)), pp(bM(e) - bM(b)) + ' ' + vs) +
         chip('Brecha CCL', PC(bC(e)), pp(bC(e) - bC(b)) + ' ' + vs) +
@@ -5426,7 +5437,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var _sw = window.switchTab;
   window.switchTab = function (id) { _sw(id); var gc = document.getElementById('globalControls'); if (id === 'dol') { if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
   var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(render, 0); };
-  setInterval(function () { if (!isAct()) return; adrT = 0; if (ST.live) render(); else adr(); }, 30000);
+  setInterval(function () { if (!isAct()) return; adrT = 0; if (ST.live) render(); else { adr(); may(); } }, 30000);
 })();
 /*@@DOL_END@@*/
 /*@@TCOR_START@@*/
@@ -5486,7 +5497,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   /* ---------- cuentas comunes ---------- */
   function build() {
     var fx = {}; [TJ.a3500, IX.A3500, IX.FX].forEach(function (o) { keys(o).forEach(function (d) { if (o[d] > 0) fx[d] = o[d]; }); }); // A3500 del BCRA (desde 2020)
-    var spot = function (d) { var a = at(fx, d), b = at(TJ.spot, d); return a[0] && (!b[0] || a[0] >= b[0]) ? a : b[0] ? b : a; }; // el A3500 del BCRA (contra el que liquidan los futuros); si todavía no salió el de esa rueda, el spot de A3
+    var spot = function (d) { var a = at(fx, d), b = at(TJ.spot, d); return b[0] && (!a[0] || b[0] >= a[0]) ? b : a[0] ? a : b; }; // el spot de A3 de esa rueda (con el que publica su tasa implícita); si falta, el A3500 del BCRA
     var cd = keys(TJ.cau), cdD = keys(TJ.cauD), fd = keys(TJ.fut), dc = cd[cd.length - 1], dcD = cdD[cdD.length - 1], df = fd[fd.length - 1];
     var V = TJ.vivo || null, vd = V && V.ts ? V.ts.slice(0, 10) : null, bd = V && V.bts ? V.bts.slice(0, 10) : null;
     var hasLive = function (rows, i) { return (rows || []).some(function (r) { return r[i] != null && r[i] > 0; }); };
@@ -5941,7 +5952,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         '<p class="ft">La tasa a 3 meses se interpola entre los contratos de 30 días o más, en cada rueda desde 2020; la devaluación mensual sale de esa tasa. Para la cotización de un contrato, tocá su fila en la tabla.</p></div>' +
         '<div class="rs" id="tfS4"><div style="' + HD + '"><h4 id="tfT4">Futuros de caución</h4>' + dl('tfS4', 'Futuros_caucion', 'Descargar la tabla en HD') + '</div><div class="sc"><table class="rt" id="tfCf"></table></div></div>' +
         '<div class="rs"><div class="hl" style="margin:0"><p><b>Cómo se lee</b></p><ul>' +
-        '<li><b>Futuros de dólar</b>: el precio del dólar mayorista (A3500) al último día hábil de cada mes. <b>Tasa implícita</b>: cuánto rinde en pesos comprar dólares hoy y venderlos a futuro, en TNA: (futuro / spot − 1) × 365 / días, con el mismo dólar spot que usa A3 para la tasa que publica (en la rueda, el del último cierre). <b>Devaluación mensual implícita</b>: la suba del dólar por mes que descuenta el futuro.</li>' +
+        '<li><b>Futuros de dólar</b>: el precio del dólar mayorista (A3500) al último día hábil de cada mes. <b>Tasa implícita</b>: cuánto rinde en pesos comprar dólares hoy y venderlos a futuro, en TNA: (futuro / spot − 1) × 365 / días, con el mismo dólar spot que usa A3 para la tasa que publica (en la rueda, el de hoy por Primary). <b>Devaluación mensual implícita</b>: la suba del dólar por mes que descuenta el futuro.</li>' +
         '<li><b>Ajuste</b>: el precio de cierre oficial de A3 de cada contrato. <b>Último</b>: el último operado. <b>I.A.</b>: interés abierto, los contratos que siguen abiertos; <b>Var. I.A.</b>, cuánto cambió en la rueda.</li>' +
         '<li><b>Las tasas</b> salen del <b>Ajuste</b> (no del último operado, que en los contratos sin volumen puede quedar viejo): TNA = (futuro / spot − 1) × 365 / días, TEA = (futuro / spot)<sup>365/días</sup> − 1 y devaluación mensual = (futuro / spot)<sup>30/días</sup> − 1. <b>Días desde</b>: la rueda, como publica A3, o la liquidación T+1, la que usa Sintéticos para comparar con Lecaps y dollar linked.</li>' +
         '<li><b>Tasas forward</b>: la devaluación mensual entre dos contratos seguidos, (futuro siguiente / futuro anterior)<sup>30/días entre ambos</sup> − 1.</li>' +
@@ -5973,10 +5984,6 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
           var b = el.querySelector('.v b'), em = el.querySelector('.v em'), sm = el.querySelector('small'); if (b) b.textContent = P(q[1]); if (em) em.textContent = ''; if (sm) sm.textContent += ' · T+1'; });
       }
     }
-    var GLOW = { id: 'tfGlow', // la curva con brillo: sombra difusa del mismo color
-      beforeDatasetDraw: function (ch, a) { var d = ch.data.datasets[a.index]; if (!d.glow) return; ch.ctx.save(); ch.ctx.shadowColor = d.glow; ch.ctx.shadowBlur = 16; },
-      afterDatasetDraw: function (ch, a) { if (ch.data.datasets[a.index].glow) ch.ctx.restore(); } };
-    var fade = function (col) { return function (cx) { var A = cx.chart.chartArea; if (!A) return 'transparent'; var g = cx.chart.ctx.createLinearGradient(0, A.top, 0, A.bottom); g.addColorStop(0, col + '38'); g.addColorStop(0.6, col + '10'); g.addColorStop(1, col + '00'); return g; }; };
     function charts() {
       ['a', 'e'].forEach(function (k) { if (CH[k]) { CH[k].destroy(); CH[k] = null; } });
       var b0 = (S.futV && S.futV.length ? S.futV : S.fut)[0], bd = b0 ? b0.base : S.df;
@@ -5988,7 +5995,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var fitL = function (pts, col, extra) { // curva Nelson-Siegel (con pocos puntos, la automática de Curva Pesos) entre el primer y el último punto; con menos de 3, une los puntos
         var lg = pts.filter(function (p) { return p.x >= 21; }); if (lg.length >= 3) pts = lg; // sin el contrato de menos de 3 semanas: anualizado o mensualizado, cualquier diferencia chica lo dispara y tuerce la curva
         var F = null; try { F = window.PSX && window.PSX.fairFit && pts.length >= 3 ? window.PSX.fairFit(pts.map(function (p) { return { x: p.x, y: p.y }; }), 'ns') : null; } catch (e) { F = null; }
-        var o = { pointRadius: 0, pointHoverRadius: 0, borderWidth: 2.6, tension: 0, noTip: true, noLeg: true, order: 4, glow: col + 'aa', fill: 'start', backgroundColor: fade(col) }; for (var k in extra) o[k] = extra[k];
+        var o = { pointRadius: 0, pointHoverRadius: 0, borderWidth: 2, tension: 0, noTip: true, noLeg: true, order: 4, fill: false }; for (var k in extra) o[k] = extra[k];
         return ds('', F ? smooth(F.f, pts[0].x, pts[pts.length - 1].x) : pts, col, o);
       };
       var pt = function (col, r) { return { type: 'scatter', showLine: false, pointRadius: r || 5, pointHoverRadius: 8, borderColor: card, borderWidth: 1.5, backgroundColor: col, legCol: col, order: 1 }; };
@@ -6001,18 +6008,23 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         return out;
       };
       var sets, yt, yf, tp;
+      var pv = A(S.futV && S.futV.length ? S.fut : S.futPrev), c0 = c[0], pvD = pv.length && c0 ? fr(pv[0].base).slice(0, 5) : ''; // la rueda anterior, contra los mismos vencimientos
+      var prevL = function (key, col) { if (!pvD) return null; var pts = pv.map(function (f) { return { x: dn(f.v) - dn(c0.v) + c0.d, y: f[key] }; }).filter(function (p) { return p.y != null && p.x > 0; });
+        if (pts.length < 2) return null; var l = fitL(pts, col, { borderWidth: 1.4, borderDash: [5, 4], order: 5, noLeg: false }); l.label = 'Cierre del ' + pvD; l.pointStyle = 'line'; return l; };
       if (isT) {
         var fp = c.filter(function (f) { return f.t != null; }).map(function (f) { return { x: f.d, y: f.t, s: name(f.s), k: sh(f.s) }; });
         sets = [fitL(fp, C_FUT)].concat(split(fp, C_FUT, 'Dólar futuro' + (S.futV ? ' (en vivo)' : ' (cierre ' + fr(S.df).slice(0, 5) + ')')));
+        var pl = prevL('t', css('--mu') || '#a8a29e'); if (pl) sets.push(pl);
         yt = 'Tasa implícita (TNA %)'; yf = function (v) { return nf(v, 1) + '%'; }; tp = tip('TNA');
       } else {
         var dp2 = c.filter(function (f) { return f.dev != null; }).map(function (f) { return { x: f.d, y: f.dev, s: name(f.s), k: sh(f.s) }; });
         sets = [fitL(dp2, C_DEV)].concat(split(dp2, C_DEV, 'Devaluación mensual implícita'));
+        var pl2 = prevL('dev', css('--mu') || '#a8a29e'); if (pl2) sets.push(pl2);
         yt = 'Devaluación mensual implícita (%)'; yf = function (v, i, t) { var st = t && t.length > 1 ? Math.abs(t[1].value - t[0].value) : 0.1; return nf(v, st < 0.1 ? 2 : 1) + '%'; }; tp = tip('Devaluación mensual');
       }
-      CH.a = new Chart(document.getElementById('tfCh1').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [GLOW].concat(LBL()),
+      CH.a = new Chart(document.getElementById('tfCh1').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [].concat(LBL()),
         options: scatterOpt('Días al vencimiento', yt, yf, tp, mx) });
-      CH.a.options.layout = { padding: { right: 30, top: 4 } }; CH.a.options.scales.x.grid.display = false; if (!isT) CH.a.options.plugins.legend.display = false; if (yr) { CH.a.options.scales.y.suggestedMin = yr[0]; CH.a.options.scales.y.suggestedMax = yr[1]; } CH.a.update();
+      CH.a.options.layout = { padding: { right: 30, top: 4 } }; CH.a.options.scales.x.grid.display = false; if (!isT && !pl2) CH.a.options.plugins.legend.display = false; if (yr) { CH.a.options.scales.y.suggestedMin = yr[0]; CH.a.options.scales.y.suggestedMax = yr[1]; } CH.a.update();
     }
     function tables() {
       var live = !!(S.futV && S.futV.length), lv = {}; if (live) A(S.futV).forEach(function (f) { lv[f.s] = f; });
@@ -6030,7 +6042,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
           '<td>' + cnt(vol) + '</td><td>' + cnt(oi) + '</td><td class="' + cls(doi) + '">' + (doi == null ? '—' : sg(doi, 0)) + '</td><td><b>' + P(t) + '</b></td><td>' + P(tea(t, d)) + '</td><td>' + P(dv) + '</td></tr>';
       });
       document.getElementById('tfFut').innerHTML = h + '</tbody>';
-      document.getElementById('tfT3').textContent = 'Futuros de dólar · ' + (live ? 'rueda de hoy (' + S.V.ts.slice(11, 16) + ')' : 'cierre del ' + fr(S.df)) + (live ? ' · spot $ ' : ' · A3500 $ ') + nf((S.futV && S.futV.length ? S.futV : S.fut)[0] ? (S.futV && S.futV.length ? S.futV : S.fut)[0].sp : S.spot[1], 2);
+      document.getElementById('tfT3').textContent = 'Futuros de dólar · ' + (live ? 'rueda de hoy (' + S.V.ts.slice(11, 16) + ')' : 'cierre del ' + fr(S.df)) + ' · spot $ ' + nf((S.futV && S.futV.length ? S.futV : S.fut)[0] ? (S.futV && S.futV.length ? S.futV : S.fut)[0].sp : S.spot[1], 2);
       var cpv = {}; (S.cfPrev || []).forEach(function (r) { cpv[r[0]] = r[2]; });
       var lc = {}; if (S.vivoOk) (S.V.cfut || []).forEach(function (r) { lc[key(r[0])] = r; }); var lcv = Object.keys(lc).length;
       var x2 = function (v) { return v ? nf(v, 2) + '%' : '—'; };
@@ -6105,7 +6117,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
         if (!TJ) { sub.textContent = 'Cargando los futuros…'; load(render); return; }
         S = getS();
-        sub.innerHTML = 'Cierres de A3 del ' + fr(S.df) + (S.vivoOk ? ' y la rueda de hoy por Primary (' + S.V.ts.slice(11, 16) + ')' : '') + ', contra el A3500 del BCRA (en la rueda, el spot por Primary).<span class="xp"> Tocá una tarjeta o un contrato para ver su intradiario y su historia.</span>';
+        sub.innerHTML = 'Cierres de A3 del ' + fr(S.df) + (S.vivoOk ? ' y la rueda de hoy por Primary (' + S.V.ts.slice(11, 16) + ')' : '') + ', con el spot de A3 (el mismo con el que A3 publica su tasa; en la rueda, el de hoy por Primary).<span class="xp"> Tocá una tarjeta o un contrato para ver su intradiario y su historia.</span>';
         cards(); charts(); tables(); liquidity(); forwards(); history();
       } catch (x) { console.error('tfut', x); var s2 = document.getElementById('tfSub'); if (s2) s2.textContent = 'Error: ' + x.message; }
     }
