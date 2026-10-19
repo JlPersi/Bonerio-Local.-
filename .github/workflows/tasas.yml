@@ -24,8 +24,8 @@ jobs:
       - uses: actions/checkout@v4
       - run: pip install -q pyRofex
       - name: Rueda
-        # Foto cada 10 minutos de 10 a 18:40 hora Argentina, lunes a viernes: los futuros por Primary hasta su cierre de las 15, la caución
-        # de BYMA hasta las 17 y después lo que A3 y el BCRA publican al cierre.
+        # Foto cada 10 minutos de 10 a 20 hora Argentina, lunes a viernes: los futuros por Primary hasta su cierre de las 15, la caución
+        # de BYMA hasta las 17 y después lo que A3 y el BCRA publican al cierre (el A3500 del día sale entre las 18 y las 20).
         # Fuera de ese horario espera dormida hasta la próxima rueda. Antes de las 6 horas que permite GitHub por corrida, se relanza sola
         # (workflow_dispatch con el GITHUB_TOKEN sí arranca otra corrida), así la cadena no depende de los horarios programados.
         env:
@@ -39,13 +39,17 @@ jobs:
           git config user.email "bot@users.noreply.github.com"
           fin=$(( $(date +%s) + 320 * 60 ))
           ar() { TZ=America/Argentina/Buenos_Aires date "$@"; }
-          rueda() { [ "$(ar +%u)" -le 5 ] && [ "$(ar +%H%M)" -ge 1000 ] && [ "$(ar +%H%M)" -le 1840 ]; }
+          rueda() { [ "$(ar +%u)" -le 5 ] && [ "$(ar +%H%M)" -ge 1000 ] && [ "$(ar +%H%M)" -le 2000 ]; }
           foto() {
-            git pull -q --rebase origin main || true
+            git pull -q --rebase origin main || { git rebase --abort 2>/dev/null; git reset -q --hard origin/main; }
             python3 scripts/save_tasas.py || echo "save_tasas falló"
+            [ "$(ar +%H%M)" -ge 1730 ] && { python3 scripts/save_dolar.py || echo "save_dolar falló"; }  # el A3500 del día apenas lo publica el BCRA (el cierre diario llega tarde)
             if [ -n "$(git status --porcelain data)" ]; then
               git add data && git commit -q -m "tasas $(date -u +%F)" || true
-              for k in 1 2 3 4; do git pull -q --rebase origin main && git push -q && break; sleep $(( 5 * k )); done
+              for k in 1 2 3 4; do
+                if git pull -q --rebase origin main; then git push -q && break; else git rebase --abort 2>/dev/null; git reset -q --hard origin/main; break; fi  # choque con el cierre diario: la próxima foto lo vuelve a sacar
+                sleep $(( 5 * k ))
+              done
             fi
           }
           rueda || [ -n "$CADENA" ] || foto  # la que arranca fuera de la rueda (la de las 18:33 o una a mano) igual saca su foto; la de la cadena, no
