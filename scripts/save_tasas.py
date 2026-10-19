@@ -17,7 +17,7 @@
     fut y cfut: [contrato, vencimiento, compra, venta, último, ajuste, interés abierto, volumen, apertura, máximo, mínimo]
     cau: caución de BYMA en pesos por plazo, [días, compra, venta, última, volumen nominal]
 data/intra.json: el intradiario de las últimas ruedas, {fecha: {"cau": {"ARS"|"USD"|"EXT": [[minuto del día, tasa, monto]]}, "cd": {moneda: días},
-  "fut": {contrato: [[minuto, último, cantidad]]}}}. La caución es el plazo más corto de BYMA en cada corrida del Action (cada 20 minutos);
+  "fut": {contrato: [[minuto, último, cantidad]]}}}. La caución es el plazo más corto de BYMA en cada corrida del Action (cada 10 minutos);
   los futuros de dólar y de caución, todas las operaciones del día por Primary agrupadas cada 5 minutos.
 La primera vez trae la historia desde DESDE; después, las últimas dos semanas (A3 y el BCRA a veces corrigen el último dato).
 Si una fuente falla, no pisa lo que ya había. Para pruebas: FORCE_DATE (fecha de hoy) y SIN_VIVO=1.
