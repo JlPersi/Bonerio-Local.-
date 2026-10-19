@@ -3134,7 +3134,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var rgba = function (c, a) { var m = /^#([0-9a-f]{6})$/i.exec(c || ''); if (!m) return c; var n = parseInt(m[1], 16); return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; };
   var GHOST = { id: 'psGhost',
     beforeDatasetsDraw: function (ch) { // halo difuminado de los puntos con tu escenario
-      var ctx = ch.ctx; ch.data.datasets.forEach(function (d, i) { if (!d.ghostPts) return; ch.getDatasetMeta(i).data.forEach(function (el, j) { var c = d.glow[j]; ctx.save(); ctx.shadowColor = c; ctx.shadowBlur = 18; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(el.x, el.y, 7, 0, 6.2832); ctx.fill(); ctx.restore(); }); });
+      var ctx = ch.ctx; ch.data.datasets.forEach(function (d, i) { if (!d.ghostPts || !d.glow) return; ch.getDatasetMeta(i).data.forEach(function (el, j) { var c = d.glow[j]; ctx.save(); ctx.shadowColor = c; ctx.shadowBlur = 18; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(el.x, el.y, 7, 0, 6.2832); ctx.fill(); ctx.restore(); }); });
     },
     afterDatasetsDraw: function (ch) { // línea punteada original → escenario con la diferencia en pb
       var ctx = ch.ctx, y = ch.scales.y, tx = css('--tx'), card = css('--card');
@@ -3307,11 +3307,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var data = PER[c[0]].S.filter(function (o) { return o.fam === c[1] && !o.miss; }).sort(function (a, b) { return a.d - b.d; }), gm = null, pj = window.BEPJ ? window.BEPJ(c[0] === 2 ? 'i' : 'd') : null;
       var avg = function (days) { if (!pj) return null; var n = Math.max(days, 1) / 30.4375, q = 1, j = 0; for (; j < Math.floor(n); j++) q *= 1 + pj[Math.min(j, pj.length - 1)]; q *= Math.pow(1 + pj[Math.min(j, pj.length - 1)], n - Math.floor(n)); return Math.pow(q, 1 / n) - 1; }; // promedio mensual de tu proyección hasta ese plazo
       if (pj) { gm = {}; data.forEach(function (o) { if (o.be != null && isFinite(o.be)) gm[o.k] = avg(o.d); }); }
-      try { fairChart(id, 'b' + c[0], data, sp, 1e9, 0, null, 'auto', 'plazo'); } catch (e) { console.error('breakeven', e); } // el gráfico queda igual con o sin tu proyección: solo se suma su línea (la distancia de cada bono, en el tooltip y en la tabla)
+      try { fairChart(id, 'b' + c[0], data, sp, 1e9, 0, gm, 'auto', 'plazo'); } catch (e) { console.error('breakeven', e); } // con tu proyección, cada bono suma un aro sobre su línea: adónde iría su breakeven
       var ch = Q['b' + c[0]], dd = data.filter(function (o) { return o.be != null && isFinite(o.be); }).map(function (o) { return o.d; });
       if (ch && pj && dd.length) { // la línea de tu proyección: el promedio mensual hasta cada plazo
         var x0 = Math.max(1, Math.min.apply(null, dd) - 10), x1 = Math.max.apply(null, dd) + 10, ln = [];
         for (var q = 0; q <= 40; q++) { var xx = x0 + (x1 - x0) * q / 40; ln.push({ x: xx, y: avg(xx) * 100 }); }
+        ch.data.datasets.forEach(function (d) { if (d.ghostPts) { d.glow = null; d.backgroundColor = 'transparent'; d.borderColor = d.data.map(function () { return css('--ac'); }); d.borderWidth = 2; d.pointRadius = 5.5; } }); // aros limpios, sin difuminado
         ch.data.datasets.push({ type: 'line', label: 'Tu proyección', data: ln, borderColor: css('--ac'), borderDash: [7, 5], borderWidth: 2, pointRadius: 0, fill: false, order: 3, noTip: true });
         var oo = ch.config.options, pl = oo.plugins = oo.plugins || {}, tt = pl.tooltip = pl.tooltip || {}, cb = tt.callbacks = tt.callbacks || {}, al = cb.afterLabel, tf = tt.filter, G = gm; // en las opciones crudas (no en el proxy de Chart.js)
         tt.filter = function (it) { return !it.dataset.noTip && (tf ? tf.apply(this, arguments) : true); };
@@ -3668,7 +3669,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var b = fetch('data/indices.json?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (o) {
       extendIdx('CER', o.CER); extendIdx('TAMAR', o.TAMAR); extendIdx('FX', o.FX); cerFix();
     }).catch(function () {});
-    return Promise.all([a, b]).then(function () { if (root.classList.contains('active')) window.renderPesos(); document.dispatchEvent(new Event('psdata')); });
+    var c = b.then(function () { return fetch('data/dolar.json?v=' + Date.now(), { cache: 'no-store' }); }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (o) { // el A3500 del día, que dolar.json tiene apenas lo publica el BCRA
+      var a = o && o.A3500, m = {}; if (a) Object.keys(a).sort().slice(-40).forEach(function (d) { m[d] = a[d]; }); extendIdx('FX', m);
+    }).catch(function () {});
+    return Promise.all([a, b, c]).then(function () { if (root.classList.contains('active')) window.renderPesos(); document.dispatchEvent(new Event('psdata')); });
   };
   window.psDataSheet = function () {
     var ks = Object.keys(INST).sort(), m = {}, dd = {};
@@ -5956,7 +5960,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         '<p class="note" style="margin-top:4px" id="tfSub"></p></div>' + dl('tfCap', 'Futuros', 'Descargar la pestaña en HD') + '</div>' +
         '<div class="rcards" id="tfCards"></div>' +
         '<div class="rs" id="tfS1"><div style="' + HD + '"><h4>Curva de futuros</h4><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="tfCv"></span>' + dl('tfS1', 'Futuros_Curva', 'Descargar la curva y la tabla en HD') + '</span></div>' +
-        '<div class="cw" style="height:400px"><canvas id="tfCh1"></canvas></div>' +
+        '<div class="cw" style="height:460px"><canvas id="tfCh1"></canvas></div>' +
         '<h5 style="margin:20px 0 8px" id="tfT3">Futuros de dólar</h5><div class="sc"><table class="rt" id="tfFut"></table></div><p class="ft">I.A.: interés abierto (contratos). Tocá una fila para ver el contrato con su intradiario y su historia.</p></div>' +
         '<div class="rs" id="tfS7"><div style="' + HD + '"><h4 id="tfT7">Volumen e interés abierto</h4>' + dl('tfS7', 'Futuros_Volumen', 'Descargar en HD') + '</div>' +
         '<div class="rg"><div class="cw" style="height:300px"><canvas id="tfCh6"></canvas></div><div class="cw" style="height:300px"><canvas id="tfCh7"></canvas></div></div></div>' +
@@ -6004,22 +6008,22 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var b0 = (S.futV && S.futV.length ? S.futV : S.fut)[0], bd = b0 ? b0.base : S.df;
       document.getElementById('tfCv').innerHTML = pills('data-cv', ST.cv, [['tna', 'Tasa implícita (TNA)'], ['dev', 'Devaluación mensual']]) +
         '<span class="mu" style="font-size:12px;margin:0 2px 0 8px">Días desde</span>' + pills('data-db', ST.db, [['c', 'Rueda (' + fr(bd).slice(0, 5) + ')'], ['t1', 'Liquidación T+1 (' + fr(bxDayStr(t1(bd))).slice(0, 5) + ')']]);
-      var c = fc(), mx = Math.min(420, Math.ceil((Math.max.apply(null, c.map(function (f) { return f.d; }).concat([60])) + 10) / 30) * 30), isT = ST.cv !== 'dev';
-      var tip = function (x) { return function (cc) { return x + ': ' + nf(cc.raw.yv != null ? cc.raw.yv : cc.raw.y, 2) + '% · ' + dias(Math.round(cc.raw.x)) + (cc.raw.x < 21 ? ' · fuera de la curva (menos de 3 semanas)' : ''); }; };
+      var FMIN = 5, c = fc(), mx = Math.min(420, Math.ceil((Math.max.apply(null, c.map(function (f) { return f.d; }).concat([60])) + 10) / 30) * 30), isT = ST.cv !== 'dev';
+      var tip = function (x) { return function (cc) { return x + ': ' + nf(cc.raw.yv != null ? cc.raw.yv : cc.raw.y, 2) + '% · ' + dias(Math.round(cc.raw.x)) + (cc.raw.x < FMIN ? ' · fuera de la curva (vence en menos de ' + FMIN + ' días)' : ''); }; };
       var sh = function (s) { return name(s).replace(/^(DLR|Caución) /, ''); }, card = css('--card') || '#1c1917';
       var fitL = function (pts, col, extra) { // curva Nelson-Siegel (con pocos puntos, la automática de Curva Pesos) entre el primer y el último punto; con menos de 3, une los puntos
-        var lg = pts.filter(function (p) { return p.x >= 21; }); if (lg.length >= 3) pts = lg; // sin el contrato de menos de 3 semanas: anualizado o mensualizado, cualquier diferencia chica lo dispara y tuerce la curva
+        var lg = pts.filter(function (p) { return p.x >= FMIN; }); if (lg.length >= 3) pts = lg; // sin el contrato que vence en días: anualizado o mensualizado, cualquier diferencia chica lo dispara y tuerce la curva
         var F = null; try { F = window.PSX && window.PSX.fairFit && pts.length >= 3 ? window.PSX.fairFit(pts.map(function (p) { return { x: p.x, y: p.y }; }), 'ns') : null; } catch (e) { F = null; }
         var o = { pointRadius: 0, pointHoverRadius: 0, borderWidth: 2, tension: 0, noTip: true, noLeg: true, order: 4, fill: false }; for (var k in extra) o[k] = extra[k];
         return ds('', F ? smooth(F.f, pts[0].x, pts[pts.length - 1].x) : pts, col, o);
       };
       var pt = function (col, r) { return { type: 'scatter', showLine: false, pointRadius: r || 5, pointHoverRadius: 8, borderColor: card, borderWidth: 1.5, backgroundColor: col, legCol: col, order: 1 }; };
-      var yr = null, split = function (pts, col, lab) { // los contratos de menos de 3 semanas van aparte, huecos, y no estiran el eje: si se salen del rango de la curva, quedan clavados en el borde con su valor
-        var lg = pts.filter(function (p) { return p.x >= 21; }); if (lg.length < 3) return [ds(lab, pts, col, pt(col))];
-        var lo = Math.min.apply(null, lg.map(function (p) { return p.y; })), hi = Math.max.apply(null, lg.map(function (p) { return p.y; })), pad = Math.max((hi - lo) * 0.18, Math.abs(hi) * 0.01, 0.02);
+      var yr = null, split = function (pts, col, lab) { // el contrato que vence en días va aparte, hueco, y no estira el eje: si se sale del rango de la curva, queda clavado en el borde con su valor
+        var lg = pts.filter(function (p) { return p.x >= FMIN; }); if (lg.length < 3) return [ds(lab, pts, col, pt(col))];
+        var lo = Math.min.apply(null, lg.map(function (p) { return p.y; })), hi = Math.max.apply(null, lg.map(function (p) { return p.y; })), pad = Math.max((hi - lo) * 0.08, Math.abs(hi) * 0.01, 0.02);
         yr = [lo - pad, hi + pad];
-        var sh2 = pts.filter(function (p) { return p.x < 21; }).map(function (p) { var q = {}; for (var k in p) q[k] = p[k]; if (p.y > yr[1] || p.y < yr[0]) { q.yv = p.y; q.y = p.y > yr[1] ? yr[1] : yr[0]; q.k = p.k + ' ' + nf(p.y, 2) + '% ' + (p.y > yr[1] ? '↑' : '↓'); } return q; });
-        var out = [ds(lab, lg, col, pt(col))]; if (sh2.length) { var o = pt(col, 5); o.backgroundColor = card; o.borderColor = col; o.borderWidth = 2; out.push(ds('Menos de 3 semanas (fuera de la curva)', sh2, col, o)); }
+        var sh2 = pts.filter(function (p) { return p.x < FMIN; }).map(function (p) { var q = {}; for (var k in p) q[k] = p[k]; if (p.y > yr[1] || p.y < yr[0]) { q.yv = p.y; q.y = p.y > yr[1] ? yr[1] : yr[0]; q.k = p.k + ' ' + nf(p.y, 2) + '% ' + (p.y > yr[1] ? '↑' : '↓'); } return q; });
+        var out = [ds(lab, lg, col, pt(col))]; if (sh2.length) { var o = pt(col, 5); o.backgroundColor = card; o.borderColor = col; o.borderWidth = 2; out.push(ds('Vence en menos de ' + FMIN + ' días (fuera de la curva)', sh2, col, o)); }
         return out;
       };
       var sets, yt, yf, tp;
@@ -6039,7 +6043,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       }
       CH.a = new Chart(document.getElementById('tfCh1').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [].concat(LBL()),
         options: scatterOpt('Días al vencimiento', yt, yf, tp, mx) });
-      CH.a.options.layout = { padding: { right: 30, top: 4 } }; CH.a.options.scales.x.grid.display = false; if (!isT && !pl2) CH.a.options.plugins.legend.display = false; if (yr) { CH.a.options.scales.y.suggestedMin = yr[0]; CH.a.options.scales.y.suggestedMax = yr[1]; } CH.a.update();
+      CH.a.options.layout = { padding: { right: 30, top: 4 } }; CH.a.options.plugins.title.display = false; CH.a.options.scales.x.grid.display = false; if (!isT && !pl2) CH.a.options.plugins.legend.display = false; if (yr) { CH.a.options.scales.y.suggestedMin = yr[0]; CH.a.options.scales.y.suggestedMax = yr[1]; } CH.a.update();
     }
     function tables() {
       var live = !!(S.futV && S.futV.length), lv = {}; if (live) A(S.futV).forEach(function (f) { lv[f.s] = f; });
@@ -6181,7 +6185,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var fija = by(function (o) { return o.ins.k === 'cap' && o.tnas != null && o.d >= 7; }); // los CER con el índice fijado entran solo con la opción «CER fijados como tasa fija» if (!fija.length) return null;
       var c = fc(), Sp = c.length ? c[0].sp : null, base = c.length ? dp(c[0].base) : s0;
       var D = { s0: s0, fija: fija, c: c, Sp: Sp, dls: by(function (o) { return o.ins.k === 'dl' && o.usdTea != null && o.d >= 7; }) };
-      D.fx = (D.dls[0] && D.dls[0].fx0) || at(S.fx, '9999')[1] || Sp; // el A3500: con el que el dollar linked da su tasa en dólares, así el sintético se compara igual
+      var a3 = at(S.fx, '9999'); D.fx = a3[1] || (D.dls[0] && D.dls[0].fx0) || Sp; D.fxD = a3[1] ? a3[0] : null; // el A3500: con el que el dollar linked da su tasa en dólares, así el sintético se compara igual
       D.fCurve = [[base, Sp]].concat(c.map(function (f) { return [dp(f.v), f.F]; })); // el futuro por fecha, desde el spot de la rueda
       D.Fat = function (day) { return li(D.fCurve, day); };
       D.ctr = function (day) { // el contrato del mes del vencimiento; interpolado si el bono vence antes del fin de mes (riesgo de base)
@@ -6282,7 +6286,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         var D = build();
         if (!D) { sub.textContent = 'Esperando los precios de Curva Pesos…'; if (bTry++ < 30) setTimeout(function () { if (T.isAct()) render(); }, 1500); return; }
         LAST = D; O = D.s0;
-        sub.innerHTML = 'Bonos en pesos armados con futuros de dólar. Precios de Curva Pesos, futuros de A3 del ' + fr(S.df) + (S.vivoOk ? ' y la rueda de hoy (' + futH(S.V.ts) + ')' : '') + ', A3500 $ ' + nf(D.fx, 2) + '.<span class="xp"> Tocá una fila para ver el bono.</span>';
+        sub.innerHTML = 'Bonos en pesos armados con futuros de dólar. Precios de Curva Pesos, futuros de A3 del ' + fr(S.df) + (S.vivoOk ? ' y la rueda de hoy (' + futH(S.V.ts) + ')' : '') + ', A3500 ' + (D.fxD ? 'del ' + fr(D.fxD).slice(0, 5) + ' ' : '') + '$ ' + nf(D.fx, 2) + '.<span class="xp"> Tocá una fila para ver el bono.</span>';
         draw(D);
       } catch (x) { console.error('sint', x); var s2 = document.getElementById('sySub'); if (s2) s2.textContent = 'Error: ' + x.message; }
     }
