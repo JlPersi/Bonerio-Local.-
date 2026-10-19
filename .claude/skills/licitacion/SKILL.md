@@ -19,7 +19,7 @@ En `licitaciones.html`:
 
 - `LLAM["AAAA-MM-DD"]` (clave = fecha de licitación): un objeto por instrumento, en el orden del comunicado: `{t, f, k, ve}`.
   - `t` ticker; `f` familia: `fija`, `cer`, `tamar`, `dl` o `dual`; `k` texto ("Lecap", "Boncap", "Boncer cero", "Bono TAMAR", "Dollar linked", "Dual CER / TAMAR", "Dual TAMAR / dólar linked"); `ve` vencimiento `dd/mm/aaaa`.
-  - Si el ticker ya existe en `PSD.INST` (index.html) es reapertura; si no, es instrumento nuevo y hay que darlo de alta (punto 4).
+  - Si el ticker ya está en `data/flujos.xlsx` es reapertura; si no, es instrumento nuevo y hay que darlo de alta (punto 4).
 - Si el cronograma cambió (fechas corridas), corregir `CAL`.
 
 ## 3. Resultado (script: segundos)
@@ -50,11 +50,9 @@ Qué escribe, por si hace falta tocar algo a mano (montos en billones de $, tasa
 
 Darlo de alta en todo el sitio:
 
-1. `index.html`, línea `const PSD = …` → `PSD.INST[ticker] = {k, f, iss, r}` con fechas en días desde 1970 (`Date.parse('AAAA-MM-DDT00:00:00Z')/864e5`).
-   - `k`: `cap` (Lecap/Boncap), `cerc` (Boncer), `tamar`, `dl`, `dual`, `dualtf`, `cpn`. `f`: `fija`, `cer`, `tamar`, `dl`, `cer+tamar`, `dl+tamar`. `iss`: fecha de emisión.
-   - `r`: `[fecha de pago, monto o cupón, amortización, tasa (TEM, margen, etc. en decimal), 0, 0, tipo]` con tipo `FIXED_RATE`, `CER`, `TAMAR` o `DOLLAR_LINKED`. Copiar la forma de un bono de la misma clase (por ejemplo `S29E7`, `TMG28`, `TXMD9`, `TMVE8`).
-2. `PSD.H[ticker] = {s: día de emisión, d: [0], p: [precio de emisión]}` para que tenga serie hasta que el Action guarde cierres.
-3. `scripts/pesos_tickers.json`: agregar el ticker (orden alfabético) para que el Action guarde su cierre diario.
+1. `data/flujos.xlsx`, hoja «Pesos»: una fila por pago con Ticker, Clase, Familia, Emisión, Fecha de pago, Pago, Amortización, Tasa, Interés, Residual y Tipo (la hoja «Leeme» explica cada columna). Copiar las filas de un bono de la misma clase (por ejemplo `S29E7`, `TMG28`, `TXMD9`, `TMVE8`) y cambiar lo que corresponda. En la hoja «Precio de emisión», el ticker y su precio de emisión: arranca su serie de precios hasta que el Action guarde cierres.
+2. `python3 scripts/flujos.py build`: pasa la planilla a `index.html` y `preview.html` (`PSD.INST`, y `PSD.H` del bono nuevo) y suma el ticker a `scripts/pesos_tickers.json`. Si se sube solo la planilla a `main`, el Action «Flujos» hace lo mismo. Nunca editar `PSD.INST` a mano en el HTML: la planilla es la fuente y lo pisaría.
+3. Revisar que `scripts/pesos_tickers.json` tenga el ticker (lo agrega `flujos.py build`) para que el Action guarde su cierre diario.
 4. Verificar que aparezca en Curva Pesos, Variación diaria y Rotación (y en el gráfico del llamado de `licitaciones.html`).
 
 ## 5. Probar y entregar

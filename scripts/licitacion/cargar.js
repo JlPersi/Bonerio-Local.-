@@ -100,7 +100,7 @@ function calc({ R, REF, Q, CL }) { // corre dentro de index.html
   const day = s => Date.parse(s + 'T00:00:00Z') / 864e5, wd = t => new Date(t * 864e5).getUTCDay();
   const nxt = t => { t++; while (wd(t) === 0 || wd(t) === 6) t++; return t; }, prv = t => { t--; while (wd(t) === 0 || wd(t) === 6) t--; return t; };
   const tR = day(REF), q = day(Q), tC = prv(q), sR = nxt(tR), I = PSX.INST;
-  const miss = R.ins.filter(x => !I[x.t]).map(x => x.t); if (miss.length) return { err: 'bono(s) nuevo(s) sin alta en PSD.INST de index.html: ' + miss.join(', ') + ' (ver .claude/skills/licitacion, punto 4)' };
+  const miss = R.ins.filter(x => !I[x.t]).map(x => x.t); if (miss.length) return { err: 'bono(s) nuevo(s) sin alta en data/flujos.xlsx: ' + miss.join(', ') + ' (ver .claude/skills/licitacion, punto 4)' };
   const d0 = document.getElementById('d0'), isoD = t => new Date(t * 864e5).toISOString().slice(0, 10), snapAt = t => { d0.value = isoD(t); const o = {}; PSX.snap(5).S.forEach(x => o[x.k] = x); return o; };
   const SR = snapAt(sR), SQ = snapAt(q);
   const tnas = (tea, d) => (Math.pow(1 + tea, d / 365) - 1) * 365 / d * 100, tna30 = tea => (Math.pow(1 + tea, 30 / 365) - 1) * 365 / 30 * 100, tea30 = y => Math.pow(1 + y / 100 * 30 / 365, 365 / 30) - 1;
