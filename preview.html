@@ -5965,7 +5965,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       document.getElementById('tfCv').innerHTML = pills('data-cv', ST.cv, [['tna', 'Tasa implícita (TNA)'], ['dev', 'Devaluación mensual']]) +
         '<span class="mu" style="font-size:12px;margin:0 2px 0 8px">Días desde</span>' + pills('data-db', ST.db, [['c', 'Rueda (' + fr(bd).slice(0, 5) + ')'], ['t1', 'Liquidación T+1 (' + fr(bxDayStr(t1(bd))).slice(0, 5) + ')']]);
       var c = fc(), mx = Math.min(420, Math.ceil((Math.max.apply(null, c.map(function (f) { return f.d; }).concat([60])) + 10) / 30) * 30), isT = ST.cv !== 'dev';
-      var tip = function (x) { return function (cc) { return x + ': ' + nf(cc.raw.y, 2) + '% · ' + dias(Math.round(cc.raw.x)); }; };
+      var tip = function (x) { return function (cc) { return x + ': ' + nf(cc.raw.yv != null ? cc.raw.yv : cc.raw.y, 2) + '% · ' + dias(Math.round(cc.raw.x)) + (cc.raw.x < 21 ? ' · fuera de la curva (menos de 3 semanas)' : ''); }; };
       var sh = function (s) { return name(s).replace(/^(DLR|Caución) /, ''); }, card = css('--card') || '#1c1917';
       var fitL = function (pts, col, extra) { // curva Nelson-Siegel (con pocos puntos, la automática de Curva Pesos) entre el primer y el último punto; con menos de 3, une los puntos
         var lg = pts.filter(function (p) { return p.x >= 21; }); if (lg.length >= 3) pts = lg; // sin el contrato de menos de 3 semanas: anualizado o mensualizado, cualquier diferencia chica lo dispara y tuerce la curva
@@ -5974,19 +5974,27 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         return ds('', F ? smooth(F.f, pts[0].x, pts[pts.length - 1].x) : pts, col, o);
       };
       var pt = function (col, r) { return { type: 'scatter', showLine: false, pointRadius: r || 5, pointHoverRadius: 8, borderColor: card, borderWidth: 1.5, backgroundColor: col, legCol: col, order: 1 }; };
+      var yr = null, split = function (pts, col, lab) { // los contratos de menos de 3 semanas van aparte, huecos, y no estiran el eje: si se salen del rango de la curva, quedan clavados en el borde con su valor
+        var lg = pts.filter(function (p) { return p.x >= 21; }); if (lg.length < 3) return [ds(lab, pts, col, pt(col))];
+        var lo = Math.min.apply(null, lg.map(function (p) { return p.y; })), hi = Math.max.apply(null, lg.map(function (p) { return p.y; })), pad = Math.max((hi - lo) * 0.18, Math.abs(hi) * 0.01, 0.02);
+        yr = [lo - pad, hi + pad];
+        var sh2 = pts.filter(function (p) { return p.x < 21; }).map(function (p) { var q = {}; for (var k in p) q[k] = p[k]; if (p.y > yr[1] || p.y < yr[0]) { q.yv = p.y; q.y = p.y > yr[1] ? yr[1] : yr[0]; q.k = p.k + ' ' + nf(p.y, 2) + '% ' + (p.y > yr[1] ? '↑' : '↓'); } return q; });
+        var out = [ds(lab, lg, col, pt(col))]; if (sh2.length) { var o = pt(col, 5); o.backgroundColor = card; o.borderColor = col; o.borderWidth = 2; out.push(ds('Menos de 3 semanas (fuera de la curva)', sh2, col, o)); }
+        return out;
+      };
       var sets, yt, yf, tp;
       if (isT) {
         var fp = c.filter(function (f) { return f.t != null; }).map(function (f) { return { x: f.d, y: f.t, s: name(f.s), k: sh(f.s) }; });
-        sets = [fitL(fp, C_FUT), ds('Dólar futuro' + (S.futV ? ' (en vivo)' : ' (cierre ' + fr(S.df).slice(0, 5) + ')'), fp, C_FUT, pt(C_FUT))];
+        sets = [fitL(fp, C_FUT)].concat(split(fp, C_FUT, 'Dólar futuro' + (S.futV ? ' (en vivo)' : ' (cierre ' + fr(S.df).slice(0, 5) + ')')));
         yt = 'Tasa implícita (TNA %)'; yf = function (v) { return nf(v, 1) + '%'; }; tp = tip('TNA');
       } else {
         var dp2 = c.filter(function (f) { return f.dev != null; }).map(function (f) { return { x: f.d, y: f.dev, s: name(f.s), k: sh(f.s) }; });
-        sets = [fitL(dp2, C_DEV), ds('Devaluación mensual implícita', dp2, C_DEV, pt(C_DEV))];
+        sets = [fitL(dp2, C_DEV)].concat(split(dp2, C_DEV, 'Devaluación mensual implícita'));
         yt = 'Devaluación mensual implícita (%)'; yf = function (v, i, t) { var st = t && t.length > 1 ? Math.abs(t[1].value - t[0].value) : 0.1; return nf(v, st < 0.1 ? 2 : 1) + '%'; }; tp = tip('Devaluación mensual');
       }
       CH.a = new Chart(document.getElementById('tfCh1').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [GLOW].concat(LBL()),
         options: scatterOpt('Días al vencimiento', yt, yf, tp, mx) });
-      CH.a.options.layout = { padding: { right: 30, top: 4 } }; CH.a.options.scales.x.grid.display = false; if (!isT) CH.a.options.plugins.legend.display = false; CH.a.update();
+      CH.a.options.layout = { padding: { right: 30, top: 4 } }; CH.a.options.scales.x.grid.display = false; if (!isT) CH.a.options.plugins.legend.display = false; if (yr) { CH.a.options.scales.y.suggestedMin = yr[0]; CH.a.options.scales.y.suggestedMax = yr[1]; } CH.a.update();
     }
     function tables() {
       var live = !!(S.futV && S.futV.length), lv = {}; if (live) A(S.futV).forEach(function (f) { lv[f.s] = f; });
