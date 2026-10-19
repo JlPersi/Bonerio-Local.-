@@ -307,15 +307,15 @@
     if (!sb || !user || !LV.ok || document.visibilityState !== 'visible') return;
     var m = user.user_metadata || {};
     sb.from('presencia').upsert({ user_id: user.id, email: user.email || null, nombre: m.full_name || m.name || null, pestana: lvTab(), dispositivo: /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent) ? 'Celular' : 'Compu', desde: LV.since, visto: new Date().toISOString() }, { onConflict: 'user_id' })
-      .then(function (r) { if (r.error) { LV.ok = false; clearInterval(LV.t); LV.t = null; return; } if (!LV.adm) admin(); }, function () { }); // sin la tabla (o sin permiso) deja de intentar hasta recargar
+      .then(function (r) { if (r.error) { LV.ok = false; clearInterval(LV.t); LV.t = null; return; } if (!LV.ask) admin(); }, function () { }); // sin la tabla (o sin permiso) deja de intentar hasta recargar
   }
   function live() {
     if (!sb || !user || LV.t) return; ping(); LV.t = setInterval(ping, 60000);
     if (!LV.on) { LV.on = 1; document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') ping(); });
-      document.addEventListener('click', function (e) { if (e.target && e.target.closest && e.target.closest('.tab-btn')) setTimeout(ping, 100); }); }
+      document.addEventListener('click', function (e) { if (e.target && e.target.closest && e.target.closest('.tab-btn') && Date.now() - (LV.lc || 0) > 10000) { LV.lc = Date.now(); setTimeout(ping, 100); } }); } // al cambiar de pestaña, como mucho un aviso cada 10 s
   }
-  function admin() { // si la base le deja ver filas de otros, es el administrador
-    sb.from('presencia').select('user_id').neq('user_id', user.id).limit(1).then(function (r) { if (!r.error && r.data && r.data.length) { LV.adm = true; lvBtn(); } }, function () { });
+  function admin() { // si la base le deja ver filas de otros, es el administrador (se pregunta una vez por sesión, no en cada aviso)
+    LV.ask = 1; sb.from('presencia').select('user_id').neq('user_id', user.id).limit(1).then(function (r) { if (!r.error && r.data && r.data.length) { LV.adm = true; lvBtn(); } }, function () { });
   }
   function lvBtn() {
     var d = document.getElementById('blUser'); if (!d || d.querySelector('[data-live]')) return;
@@ -329,7 +329,7 @@
       w.addEventListener('click', function (e) { if (e.target === w || (e.target.closest && e.target.closest('.x'))) { w.remove(); clearInterval(LV.rt); } }); }
     w.innerHTML = '<div class="bx"><div class="hd"><h3>Conectados ahora</h3><button class="x" title="Cerrar">×</button></div><div data-b><p class="mu">Cargando…</p></div></div>';
     var load = function () {
-      sb.from('presencia').select('email,nombre,pestana,dispositivo,desde,visto').order('visto', { ascending: false }).limit(300).then(function (r) {
+      sb.from('presencia').select('email,nombre,pestana,dispositivo,desde,visto').gte('visto', new Date(Date.now() - 864e5).toISOString()).order('visto', { ascending: false }).limit(300).then(function (r) {
         var b = w.querySelector('[data-b]'); if (!b) return; if (r.error) { b.innerHTML = '<p class="mu">No se pudo leer: ' + esc(r.error.message) + '</p>'; return; }
         var now = Date.now(), on = [], day = [];
         (r.data || []).forEach(function (x) { var age = now - new Date(x.visto).getTime(); if (age < 150000) on.push(x); else if (age < 864e5) day.push(x); });
