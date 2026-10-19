@@ -1,0 +1,24 @@
+name: Flujos
+on:
+  push:
+    branches: [main]
+    paths: ["data/flujos.xlsx"]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: flujos
+jobs:
+  flujos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q openpyxl
+      - name: Planilla -> página
+        # data/flujos.xlsx es la fuente de los flujos de fondos: los pasa a index.html y preview.html (y suma los tickers nuevos al cierre diario)
+        run: |
+          python3 scripts/flujos.py build
+          if [ -n "$(git status --porcelain index.html preview.html scripts/pesos_tickers.json)" ]; then
+            git config user.name "cierre-bot"; git config user.email "bot@users.noreply.github.com"
+            git add index.html preview.html scripts/pesos_tickers.json && git commit -q -m "flujos desde data/flujos.xlsx"
+            for k in 1 2 3 4; do git pull -q --rebase origin main && git push -q && break; sleep $(( 5 * k )); done
+          fi
