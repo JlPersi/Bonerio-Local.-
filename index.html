@@ -6045,21 +6045,21 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       }
       var fpts = (isT ? fp : dp2).filter(function (p) { return p.x >= FMIN; }), LL = ST.lec ? lecapsAll() : [], lf = null;
       if (LL.length) { // las Lecaps y Boncaps de Curva Pesos: TNA (o TEM, contra la devaluación mensual) por días al vencimiento
-        var lpts = LL.filter(function (o) { return o.d >= FMIN && o.d <= mx; }).map(function (o) { return { x: o.d, y: isT ? o.tnas * 100 : (Math.pow(1 + o.tnas * o.d / 365, 30 / o.d) - 1) * 100, s: o.k, k: o.k }; });
+        var lpts = LL.filter(function (o) { return o.d >= 21 && o.d <= mx; }) /* sin las de menos de 3 semanas: a tan pocos días, un error chico de precio mueve mucho la tasa (como en Sintéticos) */.map(function (o) { return { x: o.d, y: isT ? o.tnas * 100 : (Math.pow(1 + o.tnas * o.d / 365, 30 / o.d) - 1) * 100, s: o.k, k: o.k }; });
         if (lpts.length) { lf = fitL(lpts, C_LC); sets.unshift(lf); var lp = pt(C_LC); lp.pointStyle = 'rectRot'; lp.pointRadius = 5.5; sets.push(ds(isT ? 'Lecaps y Boncaps (TNA)' : 'Lecaps y Boncaps (TEM)', lpts, C_LC, lp)); }
         if (yr) yr = [Math.min(yr[0], Math.min.apply(null, lpts.map(function (p) { return p.y; })) - 0.3), Math.max(yr[1], Math.max.apply(null, lpts.map(function (p) { return p.y; })) + 0.3)];
       }
       var W = document.getElementById('tfLecW'); W.style.display = ST.lec ? '' : 'none';
       if (ST.lec && !LL.length) { document.getElementById('tfLecN').textContent = 'Cargando los precios de las Lecaps…'; if (lTry++ < 20) setTimeout(function () { if (T.isAct() && ST.lec) charts(); }, 1500); }
       if (lf && lf.F) { // spread: la curva de Lecaps al plazo de cada contrato menos la tasa del futuro, en pb
-        var sp = fpts.filter(function (p) { return p.x >= lf.x0 - 3 && p.x <= lf.x1 + 3; }).map(function (p) { return { k: p.k, v: (lf.F.f(Math.min(lf.x1, Math.max(lf.x0, p.x))) - p.y) * 100, d: p.x }; });
+        var sp = fpts.filter(function (p) { return p.x <= lf.x1 + 3; }) /* antes de la primera Lecap, la tasa de esa Lecap */.map(function (p) { return { k: p.k, v: (lf.F.f(Math.min(lf.x1, Math.max(lf.x0, p.x))) - p.y) * 100, d: p.x }; });
         var tx = css('--tx'), bd = css('--bd');
         CH.l = new Chart(document.getElementById('tfCh9').getContext('2d'), { type: 'bar', data: { labels: sp.map(function (q) { return q.k; }), datasets: [{ label: 'Spread', data: sp.map(function (q) { return q.v; }), backgroundColor: sp.map(function (q) { return (q.v >= 0 ? '#34d399' : '#fb7185') + 'cc'; }), borderRadius: 4 }] },
           options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, title: { display: true, text: 'Spread Lecaps − futuros (' + (isT ? 'TNA' : 'mensual') + ', pb)', color: tx, font: { size: 13, weight: '600' } },
             tooltip: { callbacks: { title: function (c) { return c[0] ? c[0].label + ' · ' + dias(Math.round(sp[c[0].dataIndex].d)) : ''; }, label: function (c) { return 'Lecaps ' + (c.parsed.y >= 0 ? 'por encima: ' : 'por debajo: ') + sg(c.parsed.y, 0) + ' pb'; } } } },
             scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: false }, grid: { display: false } }, y: { title: { display: true, text: 'pb', color: tx }, ticks: { color: tx, callback: function (v) { return sg(v, 0); } }, grid: { color: function (c) { return c.tick && c.tick.value === 0 ? css('--mu') : bd; } } } } } });
         var av = sp.length ? sp.reduce(function (a, q) { return a + q.v; }, 0) / sp.length : null;
-        document.getElementById('tfLecN').innerHTML = 'La curva ajustada de las Lecaps y Boncaps de Curva Pesos (días desde su liquidación) al plazo de cada contrato, menos ' + (isT ? 'la tasa implícita del futuro' : 'la devaluación mensual que descuenta el futuro, contra la TEM de las Lecaps') + '. ' + (av != null ? 'En promedio, ' + sg(av, 0) + ' pb. ' : '') +
+        document.getElementById('tfLecN').innerHTML = 'La curva ajustada de las Lecaps y Boncaps de Curva Pesos (días desde su liquidación; sin las de menos de 3 semanas) al plazo de cada contrato, menos ' + (isT ? 'la tasa implícita del futuro' : 'la devaluación mensual que descuenta el futuro, contra la TEM de las Lecaps') + '. ' + (av != null ? 'En promedio, ' + sg(av, 0) + ' pb. ' : '') +
           '<span style="color:#34d399">Positivo</span>: las Lecaps pagan más que la devaluación que descuenta el futuro (Lecap + compra de futuro, el dólar sintético, rinde más que el dólar). <span style="color:#fb7185">Negativo</span>: al revés.';
       } else if (ST.lec && LL.length) document.getElementById('tfLecN').textContent = 'Hacen falta al menos 3 Lecaps para armar la curva.';
       CH.a = new Chart(document.getElementById('tfCh1').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [].concat(LBL()),
