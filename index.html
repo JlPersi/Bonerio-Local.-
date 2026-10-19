@@ -970,7 +970,16 @@ const BX_BANK = (function () { var o = {}; for (var y = 2015; y <= 2045; y++) o[
 function bxIsSet(t) { return bxIsBiz(t) && !BX_BANK[t]; } // día en que se puede liquidar
 // los CER con el índice de pago ya publicado (TZXO6, X30N6…): por defecto siguen como CER; con la opción, pasan a tasa fija en todo el sitio
 window.CFX = (function () { try { return localStorage.getItem('cerFix1') === '1'; } catch (e) { return false; } })();
-function cfxSet(on) { try { localStorage.setItem('cerFix1', on ? '1' : '0'); var a = document.querySelector('.tab-content.active'); if (a) sessionStorage.setItem('cerFixTab', a.id); } catch (e) { } location.reload(); } // se recalcula todo desde cero
+function cfxSet(on) { // pasa los CER fijados a tasa fija (o los devuelve a CER) sin recargar: se rearman los bonos y se redibuja la pestaña abierta
+  try { localStorage.setItem('cerFix1', on ? '1' : '0'); } catch (e) { }
+  if (typeof window.cfxApply !== 'function') { try { var a0 = document.querySelector('.tab-content.active'); if (a0) sessionStorage.setItem('cerFixTab', a0.id); } catch (e) { } location.reload(); return; } // por si la página no terminó de cargar
+  window.CFX = on; window.cfxApply(on);
+  document.querySelectorAll('#psCfx,#psCfx2').forEach(function (s) { s.value = on ? '1' : '0'; });
+  document.querySelectorAll('[data-cfx]').forEach(function (b) { var v = (b.getAttribute('data-cfx') === '1') === on; b.classList.toggle('on', v); b.setAttribute('aria-pressed', v); });
+  document.dispatchEvent(new Event('cfx'));
+  var a = document.querySelector('.tab-content.active'), y = window.scrollY; if (a) window.switchTab(a.id); window.scrollTo(0, y);
+  document.dispatchEvent(new Event('psdata'));
+}
 document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-cfx]'); if (b && (b.getAttribute('data-cfx') === '1') !== window.CFX) cfxSet(!window.CFX); });
 document.addEventListener('change', function (e) { if (e.target && (e.target.id === 'psCfx' || e.target.id === 'psCfx2')) cfxSet(e.target.value === '1'); });
 window.settleMode = 'T1'; try { if (localStorage.getItem('settle3') === 'CI') window.settleMode = 'CI'; } catch (e) {} // por defecto T+1: los precios de data912 son de 24 hs (en CI, las tasas de las Lecaps cortas caen ~90 pb el día antes de cada fin de semana y suben al siguiente). La clave nueva (settle3) hace que también pase a T+1 quien había quedado en CI cuando era lo de fábrica
@@ -2636,6 +2645,10 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
     });
   }
   cerFix();
+  window.cfxApply = function (on) { // la opción, sin recargar: con on aplica cerFix; sin on devuelve cada bono a su forma CER original
+    if (on) return cerFix();
+    Object.keys(INST).forEach(function (k) { var ins = INST[k], c = ins.cerFix; if (!c) return; ins.r = c.r; ins.k = c.amt != null ? 'cer0' : 'cerc'; ins.f = 'cer'; delete ins.cerFix; delete ins.cerOrig; });
+  };
 
   /* ---------- flujos por instrumento (según escenario) ---------- */
   function rowOf(ins, ty) { return ins.r.filter(function (r) { return r[6] === ty; })[0]; }
@@ -7195,6 +7208,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
   var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) {} };
   var VJ = null, CH = {}, CACHE = {}, FIT = {};
+  document.addEventListener('cfx', function () { CACHE = {}; FIT = {}; }); // cambió la opción de CER fijados: las series se recalculan
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var MN = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
   var dlab = function (t) { var d = new Date(t * 864e5); return d.getUTCDate() + '-' + MN[d.getUTCMonth()] + (d.getUTCMonth() === 0 && d.getUTCDate() < 8 ? ' ' + String(d.getUTCFullYear()).slice(2) : ''); };
