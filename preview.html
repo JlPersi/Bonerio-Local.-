@@ -19,6 +19,35 @@
 <meta name="apple-mobile-web-app-title" content="Bonerío">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <script>if ('serviceWorker' in navigator) addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });</script>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://data912.com" crossorigin>
+<script>
+/* Pedidos compartidos: varias secciones piden los mismos archivos (data/*.json, precios de data912, riesgo país) casi a la vez.
+   El mismo pedido dentro de unos segundos reusa la misma respuesta (cada uno recibe su copia), así se baja una sola vez. */
+(function () {
+  var F = window.fetch; if (!F) return; var M = {};
+  var keyOf = function (u) {
+    var x; try { x = new URL(u, location.href); } catch (e) { return null; }
+    if (x.origin === location.origin) { if (!/^\/(data\/.+\.json|licitaciones\.html)$/.test(x.pathname)) return null; return [x.pathname, 60000, x.pathname + '?m=' + Math.floor(Date.now() / 60000)]; } // el ?v= / ?t= solo evitaba la caché: ahora la dirección cambia cada minuto, así el navegador (y los cuadros del tablero) reusan la misma copia dentro del minuto
+    if (/(^|\.)data912\.com$/.test(x.hostname)) return [x.href, 20000]; // precios en vivo: se piden cada 90 s
+    if (/argentinadatos\.com$|ambito\.com$/.test(x.hostname)) return [x.href, 60000];
+    return null;
+  };
+  window.fetch = function (u, o) {
+    var m = (o && o.method) || (u && u.method) || 'GET', k = String(m).toUpperCase() === 'GET' ? keyOf(typeof u === 'string' ? u : u && u.url) : null;
+    if (!k) return F.apply(this, arguments);
+    var e = M[k[0]], now = Date.now();
+    if (!e || now - e.t > k[1]) { e = M[k[0]] = { t: now, p: k[2] ? F.call(this, k[2], { cache: 'default' }) : F.apply(this, arguments) }; var kk = k[0]; e.p.then(function (r) { if (!r.ok && M[kk] === e) delete M[kk]; }, function () { if (M[kk] === e) delete M[kk]; }); }
+    return e.p.then(function (r) { return r.clone(); });
+  };
+})();
+/* Librerías que solo hacen falta al descargar (imagen HD, Excel): se bajan la primera vez que se usan */
+window.needLib = (function () { var P = {}; return function (src) { return P[src] || (P[src] = new Promise(function (ok, ko) { var s = document.createElement('script'); s.src = src; s.async = true; s.crossOrigin = 'anonymous'; s.onload = ok; s.onerror = function () { delete P[src]; ko(new Error('no se pudo cargar ' + src)); }; document.head.appendChild(s); })); }; })();
+window.LIB_H2C = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'; document.addEventListener('pointerover', function h(e) { if (e.target.closest && e.target.closest('.icon-btn,.dl')) { document.removeEventListener('pointerover', h); window.needLib(window.LIB_H2C).catch(function () {}); } }); // al acercarse a un botón de descarga ya se va bajando
+window.LIB_XLSX = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+</script>
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Bonerío Local">
 <meta property="og:locale" content="es_AR">
@@ -35,8 +64,6 @@
 <meta name="twitter:description" content="Curvas, retornos, rotación y volumen de bonos soberanos argentinos, en dólares y en pesos.">
 <meta name="twitter:image" content="https://boneriolocal.com.ar/og-portada.jpg">
 <meta name="twitter:image:alt" content="Portada de Bonerío Local: cada bono argentino, con su curva, su retorno y su volumen">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" crossorigin="anonymous"></script>
 <script>
 /* El zoom CSS (90%) hace que el navegador informe el mouse en píxeles ya escalados; este plugin lo devuelve a píxeles del gráfico para que el hover funcione. */
@@ -501,7 +528,7 @@ main > h1.hm-h1 { display: flex; align-items: center; gap: 12px }
 </style>
 </head>
 <body>
-<script src="/auth.js?v=12"></script>
+<script src="/auth.js?v=13"></script>
 <main>
 <h1>Bonerío Local: Terminal Analítica</h1>
 
@@ -1259,8 +1286,10 @@ function draw() {
   (bestM ? card(3, 'Más margen contra reinvertir', '<em>' + bestM.k + '</em> · +' + pb(bestM.mreinv) + ' pb', 'Le gana a reinvertir al ' + pc(u) + ' mientras su TIR de salida no pase de ' + pc(bestM.r.beu) + ' (hoy ' + pc(bestM.r.tir) + '): puede subir ' + pb(bestM.mreinv) + ' pb.') : '') +
   card(4, 'Si ninguna TIR cambia', pc(avgCst, 1), 'Retorno promedio de los ' + avgR.length + ' bonos hasta el ' + fc + ': el promedio de la columna Ret. TIR constante' + (avgOut.length ? ', sin ' + avgOut.join(', ') + ' (vence' + (avgOut.length > 1 ? 'n' : '') + ' a menos de 30 días del corte).' : '.'));
  
- window.bdUsd = rows; if (window.bdRender) window.bdRender(); else updateBreakdownChart(rows, false);
- if(window.updateCFChart) window.updateCFChart();
+ window.bdUsd = rows; if ($('desglose') && $('desglose').classList.contains('active')) { // los gráficos de Desglose se dibujan al abrir la pestaña
+     if (window.bdRender) window.bdRender(); else updateBreakdownChart(rows, false);
+     if(window.updateCFChart) window.updateCFChart();
+ }
 
  if ($('curva') && $('curva').classList.contains('active')) {
      window.updateCurveChart();
@@ -1944,7 +1973,7 @@ window.addBrandMark = function(cv, sc) {
 window.snapshotCanvas = function(targetId, scale, hide, cloneHide) { // promesa con el canvas de la sección (con la marca); la usan descargar, copiar y compartir
     const target = targetId && document.getElementById(targetId);
     if (!target) return Promise.reject(new Error('no existe la sección ' + targetId));
-    if (typeof html2canvas === 'undefined') return Promise.reject(new Error('no se pudo cargar html2canvas (¿sin conexión?)'));
+    if (typeof html2canvas === 'undefined') return window.needLib(window.LIB_H2C).then(function () { if (typeof html2canvas === 'undefined') throw 0; return window.snapshotCanvas(targetId, scale, hide, cloneHide); }).catch(function (e) { throw e instanceof Error ? e : new Error('no se pudo cargar html2canvas (¿sin conexión?)'); });
 
     const bgCol = getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#1c1917';
     const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
@@ -2194,7 +2223,7 @@ window.downloadSnapshotHD = function(targetId, fileName, scale, hide, cloneHide)
     }
   }
 
-  window.updateChart = render;
+  window.updateChart = function () { if ($('tabla') && $('tabla').classList.contains('active')) render(); }; // el gráfico de proyección se dibuja solo con la pestaña a la vista (al abrirla se redibuja)
   $('d1').addEventListener('input', function () { if ($('tabla').classList.contains('active')) render(); });
 })();
 
@@ -4276,6 +4305,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
   /* volumen diario promedio (20 ruedas, en pesos) por bono, para que otras pestañas midan la liquidez */
   var VQ = [], RQ = [];
+  var liteAsk = false; function flushAdtv() { var f = VQ.splice(0); f.forEach(function (fn) { try { fn(window.VOLX.adtv); } catch (e) { console.error(e); } }); }
   function flushQ() { var f = VQ.splice(0); f.forEach(function (fn) { try { fn(window.VOLX.adtv); } catch (e) { console.error(e); } }); var g = RQ.splice(0); g.forEach(function (fn) { try { fn(D); } catch (e) { console.error(e); } }); }
   function calcAdtv() {
     var lv = ST.live; ST.live = false; var m = {}, W = 20;
@@ -4287,7 +4317,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     if (window.VOLX.adtv) { cb(window.VOLX.adtv); return; }
     if (D) { try { window.VOLX.adtv = calcAdtv(); } catch (e) { console.error(e); } cb(window.VOLX.adtv); return; }
     if (err) { cb(null); return; }
-    VQ.push(function () { if (!window.VOLX.adtv && D) { try { window.VOLX.adtv = calcAdtv(); } catch (e) { console.error(e); } } cb(window.VOLX.adtv); }); load();
+    VQ.push(function () { if (!window.VOLX.adtv && D) { try { window.VOLX.adtv = calcAdtv(); } catch (e) { console.error(e); } } cb(window.VOLX.adtv); });
+    if (loading || liteAsk) return; liteAsk = true; // el promedio de 20 ruedas sale de la versión liviana (últimas 30 ruedas); el historial completo se baja recién al abrir Volumen
+    fetch('data/volumen_lite.json?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (o) {
+      if (!D) { D = o; try { window.VOLX.adtv = calcAdtv(); } catch (e) { console.error(e); } D = null; T = {}; } flushAdtv();
+    }).catch(function () { load(); });
   }, raw: function (cb) { // la serie tal cual (la usa la pestaña Dólar), o null si no se pudo leer
     if (D) { cb(D); return; } if (err) { cb(null); return; } RQ.push(cb); load();
   }, day: function (cb) { // la última rueda (la de hoy en vivo si ya empezó) por bono, en pesos, contra su promedio de 20 ruedas: la usa el botón flotante de volumen
@@ -6889,6 +6923,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     dataSheets(wb); pesosData(wb); save(wb, 'Completo');
   };
 
+  ['exportXLSX', 'exportTabXLSX', 'exportAllXLSX'].forEach(function (f) { var a = window[f]; window[f] = function () { var t = this, g = arguments; if (typeof XLSX !== 'undefined') return a.apply(t, g); window.needLib(window.LIB_XLSX).then(function () { a.apply(t, g); }, function () { a.apply(t, g); }); }; }); // la librería de Excel se baja al primer uso
   /* sin botones de exportación en la interfaz (las funciones quedan disponibles por consola) */
 })();
 window.addEventListener('load', function(){ window.loadCloses(); });

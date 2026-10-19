@@ -91,4 +91,15 @@ for t, o in sorted(cur.items()):
     t_out[t] = {"s": o["s"], "i": I, "v": V, "e": E, "c": C}
 with open(OUT, "w") as f:
     json.dump({"dates": alld, "t": t_out}, f, separators=(",", ":"))
+# versión liviana con las últimas 30 ruedas (la portada y Rotación solo necesitan el promedio de 20 ruedas): mismo formato
+LITE = os.path.join(HERE, "..", "data", "volumen_lite.json")
+ld = alld[-30:]; lidx = {d: i for i, d in enumerate(ld)}; l_out = {}
+for t, o in sorted(cur.items()):
+    prev, I, V, E, C = 0, [], [], [], []
+    for d in sorted(o["d"]):
+        if d not in lidx: continue
+        v, e, c = o["d"][d]; I.append(lidx[d] - prev); prev = lidx[d]; V.append(v); E.append(e); C.append(c)
+    if I: l_out[t] = {"s": o["s"], "i": I, "v": V, "e": E, "c": C}
+with open(LITE, "w") as f:
+    json.dump({"dates": ld, "t": l_out}, f, separators=(",", ":"))
 print("guardado %s: %d tickers con volumen (%d nuevos), %d ruedas en el historial" % (ds, len(live), n_new, len(alld)))
