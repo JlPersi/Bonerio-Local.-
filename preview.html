@@ -71,6 +71,25 @@ Chart.register({ id: 'zoomFix', beforeEvent: function (ch, args) {
   try { var e = args.event, n = e.native; if (!n || e.type === 'mouseout') return; var cv = ch.canvas, r = cv.getBoundingClientRect(), z = cv.offsetWidth ? r.width / cv.offsetWidth : 1;
     if (Math.abs(z - 1) < 0.002) return; var src = (n.touches && n.touches[0]) || (n.changedTouches && n.changedTouches[0]) || n; if (src.clientX == null) return;
     e.x = (src.clientX - r.left) / z; e.y = (src.clientY - r.top) / z; args.inChartArea = ch.isPointInArea(e); } catch (er) {} } });
+/* Marca de color de los tooltips: un punto (o el símbolo de la serie) del color sólido de la serie, sin el recuadro blanco que Chart.js dibuja por defecto. */
+(function (t) {
+  var KEEP = { triangle: 1, rect: 1, rectRounded: 1, rectRot: 1, star: 1, crossRot: 1, cross: 1 };
+  function solid(v) { return typeof v === 'string' && v ? v : null; }
+  t.usePointStyle = true; t.boxWidth = 9; t.boxHeight = 9; t.boxPadding = 6;
+  t.callbacks.labelColor = function (c) {
+    var o = (c.element && c.element.options) || {}, d = c.dataset || {}, ty = d.type || (c.chart.config && c.chart.config.type);
+    var fillFirst = ty === 'bar' || ty === 'pie' || ty === 'doughnut' || ty === 'polarArea';
+    var a = [o.borderColor, d.borderColor, o.backgroundColor, d.backgroundColor];
+    if (fillFirst) a = [o.backgroundColor, d.backgroundColor, o.borderColor, d.borderColor];
+    var col = null; for (var i = 0; i < a.length && !col; i++) col = solid(a[i]);
+    col = col || '#94a3b8';
+    return { borderColor: col, backgroundColor: col, borderWidth: 0, borderRadius: 0 };
+  };
+  t.callbacks.labelPointStyle = function (c) {
+    var ps = c.element && c.element.options && c.element.options.pointStyle;
+    return { pointStyle: KEEP[ps] ? ps : 'circle', rotation: 0 };
+  };
+})(Chart.defaults.plugins.tooltip);
 /*@@AMP_START@@*/
 /* Ampliar: cada gráfico lleva un botón que lo abre grande en el centro, con el fondo difuminado. Es el mismo gráfico (con su tooltip y sus
    controles): se mueve a la ventana y al cerrar (X, Esc o clic afuera) vuelve a su lugar. El botón no sale en las capturas. */
