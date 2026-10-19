@@ -5566,6 +5566,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     return { f: q.f, sigma: q.sigma, name: q.name, x0: x0, x1: x1, at: function (d) { return d >= x0 - 3 && d <= x1 + 3 ? q.f(Math.min(x1, Math.max(x0, d))) : null; } };
   }
   var LBL = function () { return window.PSX && window.PSX.LABELS ? [window.PSX.LABELS] : []; }; // rótulos con el ticker, sin superponerse (los de Curva Pesos)
+  var futH = function (ts) { var t = String(ts || '').slice(11, 16); return t >= '15:00' ? 'cerró a las 15' : t; }; // los futuros de A3 operan hasta las 15: la foto de después es la rueda ya cerrada
   function smooth(F, a, b, n) { var r = []; n = n || 90; for (var i = 0; i <= n; i++) { var x = a + (b - a) * Math.pow(i / n, 1.4); r.push({ x: x, y: F(x) }); } return r; }
   var FIX = [['CAUCION', 'Caución en pesos'], ['CAUCION USD', 'Caución en dólares (MEP)'], ['CAUCION CABLE', 'Caución en dólares cable'], ['PLAZO FIJO', 'Plazo fijo a 30 días'], ['TAMAR', 'TAMAR bancos privados'],
     ['BADLAR', 'BADLAR bancos privados'], ['A3500', 'Dólar mayorista A3500'], ['TASA FUTURO 3M', 'Dólar futuro: tasa implícita a 3 meses'], ['DEVALUACION', 'Devaluación mensual implícita']];
@@ -5575,7 +5576,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var cauX = function (h, m, dsc) { // caución: A3 al cierre y BYMA en la rueda
       o.h = h; o.i = intraOf('cau', m); o.n = dsc;
       var b = S.B && S.B[m] ? S.B[m].filter(function (r) { return cp(r); })[0] : null, hk = keys(h), l = hk[hk.length - 1];
-      if (o.i && o.i.d === td) { var lp = o.i.p[o.i.p.length - 1]; o.v = lp[1]; o.vs = 'BYMA, ' + (o.i.dias ? dias(o.i.dias) + ', ' : '') + 'hoy ' + hm(lp[0]); }
+      var bc = TJ && TJ.bcau && TJ.bcau[td] && TJ.bcau[td][m]; // BYMA ya cerró: su cierre de hoy [días, cierre, vwap, monto]
+      if (bc && bc[1] != null) { o.v = bc[1]; o.vs = 'BYMA, ' + dias(bc[0]) + ', cierre de hoy'; }
+      else if (o.i && o.i.d === td) { var lp = o.i.p[o.i.p.length - 1]; o.v = lp[1]; o.vs = 'BYMA, ' + (o.i.dias ? dias(o.i.dias) + ', ' : '') + 'hoy ' + hm(lp[0]); }
       else if (b) { o.v = cp(b); o.vs = 'BYMA, ' + dias(b[0]) + ', hoy ' + (S.bts || '').slice(11, 16); }
       if (o.v != null && l && l < td) o.prev = h[l];
       return b;
@@ -5932,7 +5935,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
         if (!TJ) { sub.textContent = 'Cargando las tasas…'; load(render); return; }
         S = getS(); var L = lecapsAll();
-        sub.innerHTML = 'Caución de A3 al cierre del ' + fr(S.dc) + (S.B ? ', de BYMA en la rueda de hoy (' + S.bts.slice(11, 16) + ')' : S.vivoOk ? ' y de BYMA en vivo por Primary (' + S.V.ts.slice(11, 16) + ')' : '') + ', plazo fijo, TAMAR y BADLAR del BCRA y las Lecaps de Curva Pesos.<span class="xp"> Tocá una tarjeta para ver su intradiario y su historia.</span>';
+        sub.innerHTML = 'Caución de A3 al cierre del ' + fr(S.dc) + (S.B ? (TJ.bcau && TJ.bcau[todayBA()] ? ', de BYMA al cierre de hoy' : ', de BYMA en la rueda de hoy (' + S.bts.slice(11, 16) + ')') : S.vivoOk ? ' y de BYMA en vivo por Primary (' + S.V.ts.slice(11, 16) + ')' : '') + ', plazo fijo, TAMAR y BADLAR del BCRA y las Lecaps de Curva Pesos.<span class="xp"> Tocá una tarjeta para ver su intradiario y su historia.</span>';
         lecFit(L); cards(L); curveChart(L); lecTable(L); cauTables(); history();
         if (!L.length && lTry++ < 20) setTimeout(function () { if (T.isAct()) render(); }, 1500); // Curva Pesos todavía no tiene precios
       } catch (x) { console.error('tcor', x); var s2 = document.getElementById('tcSub'); if (s2) s2.textContent = 'Error: ' + x.message; }
@@ -6054,7 +6057,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
           '<td>' + cnt(vol) + '</td><td>' + cnt(oi) + '</td><td class="' + cls(doi) + '">' + (doi == null ? '—' : sg(doi, 0)) + '</td><td><b>' + P(t) + '</b></td><td>' + P(tea(t, d)) + '</td><td>' + P(dv) + '</td></tr>';
       });
       document.getElementById('tfFut').innerHTML = h + '</tbody>';
-      document.getElementById('tfT3').textContent = 'Futuros de dólar · ' + (live ? 'rueda de hoy (' + S.V.ts.slice(11, 16) + ')' : 'cierre del ' + fr(S.df)) + ' · spot $ ' + nf((S.futV && S.futV.length ? S.futV : S.fut)[0] ? (S.futV && S.futV.length ? S.futV : S.fut)[0].sp : S.spot[1], 2);
+      document.getElementById('tfT3').textContent = 'Futuros de dólar · ' + (live ? 'rueda de hoy (' + futH(S.V.ts) + ')' : 'cierre del ' + fr(S.df)) + ' · spot $ ' + nf((S.futV && S.futV.length ? S.futV : S.fut)[0] ? (S.futV && S.futV.length ? S.futV : S.fut)[0].sp : S.spot[1], 2);
       var cpv = {}; (S.cfPrev || []).forEach(function (r) { cpv[r[0]] = r[2]; });
       var lc = {}; if (S.vivoOk) (S.V.cfut || []).forEach(function (r) { lc[key(r[0])] = r; }); var lcv = Object.keys(lc).length;
       var x2 = function (v) { return v ? nf(v, 2) + '%' : '—'; };
@@ -6129,7 +6132,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
         if (!TJ) { sub.textContent = 'Cargando los futuros…'; load(render); return; }
         S = getS();
-        sub.innerHTML = 'Cierres de A3 del ' + fr(S.df) + (S.vivoOk ? ' y la rueda de hoy por Primary (' + S.V.ts.slice(11, 16) + ')' : '') + ', con el spot de A3 (el mismo con el que A3 publica su tasa; en la rueda, el de hoy por Primary).<span class="xp"> Tocá una tarjeta o un contrato para ver su intradiario y su historia.</span>';
+        sub.innerHTML = 'Cierres de A3 del ' + fr(S.df) + (S.vivoOk ? ' y la rueda de hoy por Primary (' + futH(S.V.ts) + ')' : '') + ', con el spot de A3 (el mismo con el que A3 publica su tasa; en la rueda, el de hoy por Primary).<span class="xp"> Tocá una tarjeta o un contrato para ver su intradiario y su historia.</span>';
         cards(); charts(); tables(); liquidity(); forwards(); history();
       } catch (x) { console.error('tfut', x); var s2 = document.getElementById('tfSub'); if (s2) s2.textContent = 'Error: ' + x.message; }
     }
@@ -6279,7 +6282,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         var D = build();
         if (!D) { sub.textContent = 'Esperando los precios de Curva Pesos…'; if (bTry++ < 30) setTimeout(function () { if (T.isAct()) render(); }, 1500); return; }
         LAST = D; O = D.s0;
-        sub.innerHTML = 'Bonos en pesos armados con futuros de dólar. Precios de Curva Pesos, futuros de A3 del ' + fr(S.df) + (S.vivoOk ? ' y la rueda de hoy (' + S.V.ts.slice(11, 16) + ')' : '') + ', A3500 $ ' + nf(D.fx, 2) + '.<span class="xp"> Tocá una fila para ver el bono.</span>';
+        sub.innerHTML = 'Bonos en pesos armados con futuros de dólar. Precios de Curva Pesos, futuros de A3 del ' + fr(S.df) + (S.vivoOk ? ' y la rueda de hoy (' + futH(S.V.ts) + ')' : '') + ', A3500 $ ' + nf(D.fx, 2) + '.<span class="xp"> Tocá una fila para ver el bono.</span>';
         draw(D);
       } catch (x) { console.error('sint', x); var s2 = document.getElementById('sySub'); if (s2) s2.textContent = 'Error: ' + x.message; }
     }
@@ -7764,7 +7767,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   });
   $('hmRPp').addEventListener('click', function (e) { var b = e.target.closest('[data-n]'); if (!b) return; RPN = +b.getAttribute('data-n'); [].forEach.call(this.children, function (x) { x.classList.toggle('on', x === b); }); drawRP(); });
 
-  var CH = {}, RPN = 126, DATA = null;
+  var CH = {}, RPN = 126, DATA = null, MAYD = null;
   function chart(id, cfg) { if (CH[id]) CH[id].destroy(); var c = $(id); if (!c || !window.Chart) return null; CH[id] = new Chart(c.getContext('2d'), cfg); return CH[id]; }
   function spark(svg, ys, col) {
     ys = ys.filter(function (y) { return y > 0; }); if (!svg || ys.length < 2) return;
@@ -7782,9 +7785,12 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     if (dl && dl.d) {
       var dd = lastN(dl.d, 90), L = dd[dd.length - 1], Pv = dd[dd.length - 2], mp = function (x) { return x && x[1].mep && x[1].mep.AL30 && x[1].mep.AL30.close; }, cc = function (x) { return x && x[1].ccl && (x[1].ccl.vw || x[1].ccl.med); };
       var of = lastN(dl.A3500, 90), o1 = of.length ? of[of.length - 1][1] : null, o0 = of.length > 1 ? of[of.length - 2][1] : null;
+      if (MAYD && MAYD.d > (of.length ? of[of.length - 1][0] : '') && (!L || MAYD.d >= L[0])) o1 = MAYD.v; // la brecha, contra el oficial de hoy
       if (mp(L)) tile('mep', '$ ' + nf(mp(L), 2), chg(mp(L), mp(Pv)), o1 ? 'Brecha con el oficial: ' + nf((mp(L) / o1 - 1) * 100, 1) + '%' : '', dd.map(mp), '#4b8fe2');
       if (cc(L)) tile('ccl', '$ ' + nf(cc(L), 2), chg(cc(L), cc(Pv)), mp(L) ? 'Canje con el MEP: ' + nf((cc(L) / mp(L) - 1) * 100, 1) + '%' : '', dd.map(cc), '#1fa58a');
-      if (o1) tile('ofi', '$ ' + nf(o1, 2), chg(o1, o0), 'Comunicación A3500 · ' + dmy(of[of.length - 1][0]), of.map(function (x) { return x[1]; }), '#38bdf8');
+      var ofD = of.length ? of[of.length - 1][0] : '', ofs = 'Comunicación A3500 · ' + dmy(ofD);
+      if (MAYD && MAYD.d > ofD && (!L || MAYD.d >= L[0])) { o0 = o1; o1 = MAYD.v; ofs = 'Mayorista del ' + dmy(MAYD.d) + ' · el A3500 de hoy lo publica el BCRA a la noche'; } // sin el A3500 de hoy: el mayorista en vivo (Ámbito)
+      if (o1) tile('ofi', '$ ' + nf(o1, 2), chg(o1, o0), ofs, of.map(function (x) { return x[1]; }).concat(MAYD && MAYD.d > ofD ? [MAYD.v] : []), '#38bdf8');
       if (L) $('hmSub').textContent = 'Cierre del ' + L[0].split('-').reverse().join('/') + ' (y lo que ya se mueva hoy). Tocá cualquier tarjeta para ver el detalle.';
     }
     if (ix && ix.TAMAR) { var tm = lastN(ix.TAMAR, 60), t1 = tm[tm.length - 1], t0 = tm[tm.length - 2]; tile('tam', nf(t1[1], 2) + '%', t0 ? chgPb(t1[1] * 100, t0[1] * 100) : '', 'Bancos privados · ' + dmy(t1[0]), tm.map(function (x) { return x[1]; }), '#f59e0b'); }
@@ -7866,6 +7872,13 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     DATA = { dl: R[0], ix: R[1], cl: R[2], ar: R[3], cal: cal }; render();
   });
   var n = 0, iv = setInterval(function () { if (window.RIESGO_PAIS || ++n > 40) { clearInterval(iv); render(); } }, 500); // el riesgo país lo carga la tarjeta de Globales / Bonares
+  function may() { // el mayorista del día (Ámbito), hasta que el BCRA publique el A3500 de hoy
+    fetch('https://mercados.ambito.com//dolar/mayorista/variacion', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (o) {
+      var f = String(o && o.fecha || '').match(/(\d{2})\/(\d{2})\/(\d{4})/), v = parseFloat(String(o && o.venta || '').replace(/\./g, '').replace(',', '.'));
+      if (!f || !(v > 0)) return; var x = { d: f[3] + '-' + f[2] + '-' + f[1], v: v }; if (MAYD && MAYD.d === x.d && MAYD.v === x.v) return; MAYD = x; if (DATA) tiles();
+    }).catch(function () { });
+  }
+  may(); setInterval(may, 120000);
   var tt = window.toggleTheme; if (typeof tt === 'function') window.toggleTheme = function () { var r = tt.apply(this, arguments); setTimeout(render, 0); return r; };
   ['bmep', 'bccl'].forEach(function (id) { var b = $(id); if (b) b.addEventListener('click', function () { setTimeout(drawUSD, 50); }); });
   document.addEventListener('rpdata', function () { if (DATA) render(); });
