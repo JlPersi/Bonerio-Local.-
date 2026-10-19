@@ -5999,12 +5999,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     function tables() {
       var live = !!(S.futV && S.futV.length), lv = {}; if (live) A(S.futV).forEach(function (f) { lv[f.s] = f; });
       var prev = {}; S.futPrev.forEach(function (f) { prev[f.s] = f.F; });
+      var oiOld = live && !S.fut.some(function (f) { var L = lv[f.s]; return L && L.raw && L.raw[6] != null && f.oi != null && L.raw[6] !== f.oi; }); // A3 publica el I.A. recién al cierre
       var x1 = function (v) { return v ? nf(v, 1) : '—'; }, cls = function (v) { return v > 0 ? 'up' : v < 0 ? 'dn' : 'mu'; };
       var h = '<thead><tr><th class="l">Contrato</th><th>Vence</th><th>Días</th>' + (live ? '<th>Compra</th><th>Venta</th>' : '') + '<th>Apertura</th><th>Mín.</th><th>Máx.</th><th' + (live ? ' class="lc"' : '') + '>Último</th>' + (live ? '<th>Ajuste anterior</th>' : '<th class="lc">Ajuste</th>') + '<th>Var. %</th><th>Volumen</th><th>I.A.</th><th>Var. I.A.</th><th>TNA</th><th>TEA</th><th>Dev. mensual</th></tr></thead><tbody>';
       A(S.fut).forEach(function (f) {
         var r = f.raw, L = lv[f.s], q = L ? L.raw : null, t = L && L.t != null ? L.t : f.t, dv = L && L.dev != null ? L.dev : f.dev, d = L ? L.d : f.d;
         var op, lo, hi, la, aj, ch, vol, oi, doi;
-        if (q) { op = q[8]; hi = q[9]; lo = q[10]; la = q[4]; aj = f.F; ch = la ? (la / f.F - 1) * 100 : null; vol = q[7]; oi = q[6]; doi = oi != null && f.oi != null ? oi - f.oi : null; }
+        if (q) { op = q[8]; hi = q[9]; lo = q[10]; la = q[4]; aj = f.F; ch = la ? (la / f.F - 1) * 100 : null; vol = q[7]; oi = q[6]; doi = oi != null && f.oi != null ? oi - f.oi : null; if (oiOld) doi = r[10]; } // durante la rueda, el I.A. es el del cierre anterior: su variación es la de esa rueda
         else { op = r[6]; hi = r[7]; lo = r[8]; la = r[9]; aj = f.F; ch = prev[f.s] ? (f.F / prev[f.s] - 1) * 100 : null; vol = r[4]; oi = r[3]; doi = r[10]; }
         h += '<tr data-qv="' + f.s + '"><td class="l"><b>' + name(f.s) + '</b></td><td>' + fr(f.v) + '</td><td>' + d + '</td>' + (live ? '<td>' + x1(q && q[2]) + '</td><td>' + x1(q && q[3]) + '</td>' : '') +
           '<td>' + x1(op) + '</td><td>' + x1(lo) + '</td><td>' + x1(hi) + '</td><td' + (live ? ' class="lc"' : '') + '>' + x1(la) + '</td><td' + (live ? '' : ' class="lc"') + '>' + x1(aj) + '</td><td class="' + cls(ch) + '">' + (ch == null ? '—' : sg(ch, 2) + '%') + '</td>' +
@@ -6028,6 +6029,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var c = S.fut, live = !!(S.futV && S.futV.length), lv = {}; if (live) S.futV.forEach(function (f) { lv[f.s] = f; });
       var oi = c.map(function (f) { var L = lv[f.s]; return L && L.oi != null ? L.oi : f.oi; }), vo = c.map(function (f) { var L = lv[f.s]; return L ? L.vol : f.vol; });
       var doi = c.map(function (f, i) { var L = lv[f.s]; return L ? (L.oi != null && f.oi != null ? L.oi - f.oi : null) : f.raw[10]; });
+      var oiOld = live && !doi.some(function (v) { return v; }); // A3 publica el interés abierto una vez por día, al cierre: durante la rueda Primary repite el del cierre anterior, así que la variación de hoy todavía no existe
+      if (oiOld) doi = c.map(function (f) { return f.raw[10]; }); // se muestra la de la última rueda cerrada
       var tOI = oi.reduce(function (a, v) { return a + (v || 0); }, 0), tV = vo.reduce(function (a, v) { return a + (v || 0); }, 0), lb = c.map(function (f) { return name(f.s).replace('DLR ', ''); });
       var top3 = oi.slice().sort(function (a, b) { return (b || 0) - (a || 0); }).slice(0, 3).reduce(function (a, v) { return a + (v || 0); }, 0);
       var tx = css('--tx'), bd = css('--bd'), M = function (v) { return Math.abs(v) >= 1e6 ? nf(v / 1e6, 1) + ' M' : Math.abs(v) >= 1e3 ? nf(v / 1e3, 0) + ' mil' : nf(v, 0); };
@@ -6035,11 +6038,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, title: { display: true, text: title, color: tx, font: { size: 13, weight: '600' } }, subtitle: { display: !!sub, text: sub, color: css('--mu'), font: { size: 12 }, padding: { bottom: 6 } } },
         scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: true }, grid: { display: false } }, y: { ticks: { color: tx, callback: M }, grid: { color: bd } } } };
         if (y2) o.scales.y2 = { position: 'right', ticks: { color: tx, callback: M }, grid: { display: false } }; return o; };
-      var o1 = opt('Interés abierto por contrato', 'Los 3 mayores concentran el ' + nf(tOI ? top3 / tOI * 100 : null, 0) + '% · ' + M(tOI) + ' contratos', true);
+      var o1 = opt('Interés abierto por contrato', 'Los 3 mayores concentran el ' + nf(tOI ? top3 / tOI * 100 : null, 0) + '% · ' + M(tOI) + ' contratos' + (oiOld ? ' · al cierre del ' + fr(S.df).slice(0, 5) + ' (el de hoy se publica al cierre de A3)' : ''), true);
       o1.plugins.tooltip = { callbacks: { label: function (cc) { return cc.datasetIndex === 0 ? 'I.A.: ' + nf(cc.parsed.y, 0) + ' (' + nf(tOI ? cc.parsed.y / tOI * 100 : null, 1) + '% del total)' : 'Var. I.A.: ' + sg(cc.parsed.y, 0); } } };
       CH.f = new Chart(document.getElementById('tfCh6').getContext('2d'), { type: 'bar', data: { labels: lb, datasets: [
         { label: 'Interés abierto', data: oi, backgroundColor: C_FUT + 'cc', borderRadius: 4, yAxisID: 'y', order: 2 },
-        { type: 'line', label: 'Variación del I.A. (eje derecho)', data: doi, borderColor: '#38bdf8', backgroundColor: doi.map(function (v) { return v < 0 ? '#fb7185' : '#34d399'; }), pointBackgroundColor: doi.map(function (v) { return v < 0 ? '#fb7185' : '#34d399'; }), pointBorderColor: css('--card') || '#1c1917', pointRadius: 5, pointHoverRadius: 6, borderWidth: 1.5, showLine: false, yAxisID: 'y2', order: 1 }] }, options: o1 });
+        { type: 'line', label: 'Variación del I.A.' + (oiOld ? ' del ' + fr(S.df).slice(0, 5) : '') + ' (eje derecho)', data: doi, borderColor: '#38bdf8', backgroundColor: doi.map(function (v) { return v < 0 ? '#fb7185' : '#34d399'; }), pointBackgroundColor: doi.map(function (v) { return v < 0 ? '#fb7185' : '#34d399'; }), pointBorderColor: css('--card') || '#1c1917', pointRadius: 5, pointHoverRadius: 6, borderWidth: 1.5, showLine: false, yAxisID: 'y2', order: 1 }] }, options: o1 });
       var o2 = opt('Volumen por contrato', (live ? 'Hoy' : 'Rueda del ' + fr(S.df)) + ' · ' + M(tV) + ' contratos');
       o2.plugins.legend.display = false;
       o2.plugins.tooltip = { callbacks: { label: function (cc) { return 'Volumen: ' + nf(cc.parsed.y, 0) + ' (' + nf(tV ? cc.parsed.y / tV * 100 : null, 1) + '% del total)'; } } };
