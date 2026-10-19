@@ -4040,7 +4040,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   /* ---------- valuación al horizonte ---------- */
   function valAt(o, T, reRate, refTea, shift) {
     var C = 0, PV = 0, yT = o.tea, rem = o.mat - T;
-    o.fl.forEach(function (f) { if (f[0] <= o.s || f[0] > T) return; var g = reRate != null ? 1 + reRate * (T - f[0]) / 365 : Math.pow(1 + refTea, (T - f[0]) / 365); C += f[1] * g; });
+    o.fl.forEach(function (f) { if (f[0] <= o.s || f[0] > T) return; var g = Math.pow(1 + (reRate != null ? reRate : refTea), (T - f[0]) / 365); C += f[1] * g; });
     if (rem > 0 && o.fit && ST.val !== 'const') {
       var cl = function (x) { return Math.min(Math.max(x, o.fit.x0), o.fit.x1); }, dd = o.fit.f(cl(rem)) - o.fit.f(cl(o.d));
       yT = o.tea + (dd - (ST.val === 'conv' && o.res != null ? o.res : 0)) / 100;
@@ -4058,8 +4058,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var r = { A: A, B: Bb, T: T, H: H, Pa: Pa, Pb: Pb, vA: vA, vB: vB, adv: rot / hold - 1, _c: c, _re: re };
     r.advPb = r.adv * 365 / H * 10000; r.ann = 1 + r.adv > 0 ? Math.pow(1 + r.adv, 365 / H) - 1 : null; r.pbMax = Pa * (1 - c) * vB / vA; r.paMin = Pb * vA / (vB * (1 - c));
     r.pick = (Bb.tea - A.tea) * 10000; r.rA = A.res == null ? null : A.res * 100; r.rB = Bb.res == null ? null : Bb.res * 100;
-    var bull = A.fl.length === 1 && Bb.fl.length === 1 && A.mat < Bb.mat;
-    r.eq = bull ? ((Pa * (1 - c) / Pb * Bb.fl[0][1] / A.fl[0][1] - 1) * 365 / (Bb.mat - A.mat)) : null;
+    var bull = A.fl.length === 1 && Bb.fl.length === 1 && A.mat !== Bb.mat, k = Pa * (1 - c) / Pb * Bb.fl[0][1] / A.fl[0][1]; // equilibrio: la TEA a la que hay que reinvertir entre los dos vencimientos para que rotar empate con quedarse (la forward)
+    r.eq = bull && k > 0 ? (A.mat < Bb.mat ? Math.pow(k, 365 / (Bb.mat - A.mat)) : Math.pow(1 / k, 365 / (A.mat - Bb.mat))) - 1 : null;
+    r.eqLo = bull && Bb.mat < A.mat; // B vence antes: rotar conviene si reinvertís por encima del equilibrio (si A vence antes, por debajo)
     r.verd = r.adv >= 0.001 ? 'Conviene' : r.adv >= 0.00005 ? 'Marginal' : 'No conviene';
     return r;
   }
@@ -4102,11 +4103,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<label>Liquidez mínima (prom. diario, 20 ruedas)<select id="rtL"><option value="0">Sin filtro</option><option value="100">Desde $ 100 M</option><option value="500">Desde $ 500 M</option><option value="1000">Desde $ 1.000 M</option><option value="5000">Desde $ 5.000 M</option></select></label>' +
       '<label>Plazo máx. del que comprás<select id="rtM"><option value="0">Sin límite</option><option value="365">1 año</option><option value="730">2 años</option><option value="1825">5 años</option><option value="3650">10 años</option></select></label>' +
       '<label>Costo ida y vuelta (%)<input type="number" step="0.01" id="rtC" value="0.10"></label>' +
-      '<label>Reinversión de cobros (TNA %)<input type="number" step="0.1" id="rtR" placeholder="la TEA del que vendés"></label></div>' +
+      '<label>Reinversión de cobros (TEA %)<input type="number" step="0.1" id="rtR" placeholder="la TEA del que vendés"></label></div>' +
       '<p class="note" id="rtPM" style="margin:14px 0 0;color:var(--tx);display:none"></p>' +
       '<div class="rs" id="rtDet"></div>' +
       '<div class="rs"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><b style="font-size:16px;color:var(--mu)" id="rtRT">Ranking de pares</b><label style="flex-direction:row;align-items:center;gap:8px">Mostrar<select id="rtT" style="width:110px"><option value="30">30 mejores</option><option value="100">100 mejores</option><option value="9999">Todos</option></select></label></div><div class="wrap" style="max-height:640px;overflow:auto"><table class="rt" id="rtTab"></table></div></div>' +
-      '<div class="rs xp"><p class="note" style="margin:0">Cómo se calcula: vendés una unidad de A al precio de venta y, descontado el costo, comprás B. Se comparan los dos caminos al horizonte: el valor de A (cobros reinvertidos más lo que valdría lo que queda) contra el valor de B. Los cobros que caen antes del horizonte se reinvierten a la TNA que pongas (si la dejás vacía, a la TEA del bono que vendés). "Equilibrio" es la tasa de reinversión que iguala los dos caminos cuando A vence antes que B: si esperás reinvertir por debajo, rotar conviene. "Precio máx. de compra" y "precio mín. de venta" son los precios que dejan la rotación en cero: si conseguís mejor, conviene. "TIR constante" valúa lo que queda a la misma tasa de hoy; "Roll-down" supone que cada bono se acerca a su tramo de la curva manteniendo su desvío (suele favorecer al más largo en una curva con pendiente). Verde (Conviene) es una ventaja neta de al menos 0,10% del capital; entre 0 y 0,10% es marginal. Desvío = rendimiento menos la curva de la familia (positivo = rinde más, está más barato). Son precios de pantalla, no de ejecución: probá con la punta y con tus precios.</p></div></div>';
+      '<div class="rs xp"><p class="note" style="margin:0">Cómo se calcula: vendés una unidad de A al precio de venta y, descontado el costo, comprás B. Se comparan los dos caminos al horizonte: el valor de A (cobros reinvertidos más lo que valdría lo que queda) contra el valor de B. Los cobros que caen antes del horizonte se reinvierten a la TEA que pongas (si la dejás vacía, a la TEA del bono que vendés). "Equilibrio" es la TEA de reinversión entre los dos vencimientos que iguala los dos caminos (la forward): si A vence antes que B, rotar conviene si esperás reinvertir por debajo; si B vence antes (marcado «mín.»), conviene si esperás reinvertir por encima. Solo se calcula en bonos sin cupones intermedios. Los desvíos son contra la curva de toda la familia en TEA (incluye los bonos largos), por eso no coinciden con los de Mercado de dinero, que mide la TNA hasta un año. "Precio máx. de compra" y "precio mín. de venta" son los precios que dejan la rotación en cero: si conseguís mejor, conviene. "TIR constante" valúa lo que queda a la misma tasa de hoy; "Roll-down" supone que cada bono se acerca a su tramo de la curva manteniendo su desvío (suele favorecer al más largo en una curva con pendiente). Verde (Conviene) es una ventaja neta de al menos 0,10% del capital; entre 0 y 0,10% es marginal. Desvío = rendimiento menos la curva de la familia (positivo = rinde más, está más barato). Son precios de pantalla, no de ejecución: probá con la punta y con tus precios.</p></div></div>';
     var on = function (id, ev, fn) { document.getElementById(id)[ev] = fn; };
     on('rtF', 'onchange', function () { ST.fam = this.value; ST.A = ST.B = ''; render(); });
     on('rtA', 'onchange', function () { ST.A = this.value; render(); }); on('rtB', 'onchange', function () { ST.B = this.value; render(); });
@@ -4148,7 +4149,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       chip('Desvío contra la curva', (r.rA == null ? 'n/a' : sg(r.rA, 0)) + ' → ' + (r.rB == null ? 'n/a' : sg(r.rB, 0)) + ' pb', A.k + ' → ' + Bb.k + ' (positivo = más barato)') +
       chip('Colchón de TIR', (cush(r) === 'V' ? 'No aplica' : cush(r) == null ? '—' : sg(cush(r), 0) + ' pb'), cush(r) === 'V' ? Bb.k + ' se mantiene hasta vencer en este horizonte: no hay precio de reventa' : 'cuánto puede subir la TIR de ' + Bb.k + ' antes de que rotar deje de convenir', cush(r) !== 'V' && cush(r) != null && cush(r) < 0 ? 'var(--bad)' : '') +
       chip('Volumen diario', mm(adtvOf(A)) + ' → ' + mm(adtvOf(Bb)), 'pesos por rueda, promedio de 20 ruedas (' + A.k + ' → ' + Bb.k + ')', (adtvOf(A) != null && adtvOf(A) < LOWV) || (adtvOf(Bb) != null && adtvOf(Bb) < LOWV) ? '#f59e0b' : '') +
-      (r.eq != null ? chip('Equilibrio de reinversión', pc(r.eq, 2), 'TNA simple en los ' + (Bb.mat - A.mat) + ' días entre vencimientos') : '') +
+      (r.eq != null ? chip('Equilibrio de reinversión', pc(r.eq, 2), 'TEA en los ' + Math.abs(Bb.mat - A.mat) + ' días entre vencimientos: rotar conviene si reinvertís ' + (r.eqLo ? 'por encima (' + Bb.k + ' vence antes)' : 'por debajo')) : '') +
       '</div><div class="ctl" style="margin-top:16px"><label>Eje X<select id="rtAx">' + xaxOpts(ST.ax) + '</select></label></div><div class="chart-wrap" style="height:380px;margin-top:8px"><canvas id="rtChart"></canvas></div>';
     var ps = document.getElementById('rtPs'), pb = document.getElementById('rtPb');
     if (OV.s[A.k] > 0) ps.value = OV.s[A.k]; if (OV.b[Bb.k] > 0) pb.value = OV.b[Bb.k];
@@ -4194,11 +4195,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     rows.sort(function (p, q) { var a = val(p), b = val(q); if (a == null) return 1; if (b == null) return -1; return (a < b ? -1 : a > b ? 1 : 0) * SORT.d; });
     var tot = rows.length; rows = rows.slice(0, ST.top);
     var th = function (k, t, l) { return '<th data-s="' + k + '" class="' + (l ? 'l ' : '') + (SORT.k === k ? 'on' : '') + '">' + t + (SORT.k === k ? (SORT.d > 0 ? ' ▲' : ' ▼') : '') + '</th>'; };
-    var h = '<thead><tr>' + th('k', 'Vendés → Comprás', 1) + th('dA', 'Días A') + th('dB', 'Días B') + '<th>TEA A</th><th>TEA B</th>' + th('pick', 'Dif. TEA (pb)') + th('rA', 'Desvío A (pb)') + th('rB', 'Desvío B (pb)') + th('eq', 'Equilibrio reinv.') + th('H', 'Horizonte (días)') + th('adv', 'Ventaja neta') + th('ann', 'Ventaja anualiz.') + th('cush', 'Colchón (pb)') + th('vA', 'Volumen A') + th('vB', 'Volumen B') + '<th>Precio máx. compra</th><th>Veredicto</th></tr></thead><tbody>';
+    var h = '<thead><tr>' + th('k', 'Vendés → Comprás', 1) + th('dA', 'Días A') + th('dB', 'Días B') + '<th>TEA A</th><th>TEA B</th>' + th('pick', 'Dif. TEA (pb)') + th('rA', 'Desvío A (pb)') + th('rB', 'Desvío B (pb)') + th('eq', 'Equilibrio reinv. (TEA)') + th('H', 'Horizonte (días)') + th('adv', 'Ventaja neta') + th('ann', 'Ventaja anualiz.') + th('cush', 'Colchón (pb)') + th('vA', 'Volumen A') + th('vB', 'Volumen B') + '<th>Precio máx. compra</th><th>Veredicto</th></tr></thead><tbody>';
     rows.forEach(function (r) {
       var tg = r.verd === 'Conviene' ? 'ok' : r.verd === 'Marginal' ? 'mg' : 'no', sel = r.A.k === ST.A && r.B.k === ST.B, ck = cush(r), vA = adtvOf(r.A), vB = adtvOf(r.B);
       h += '<tr data-a="' + r.A.k + '" data-b="' + r.B.k + '"' + (sel ? ' class="sel"' : '') + '><td class="k l">' + r.A.k + ' → <span style="color:var(--ok)">' + r.B.k + '</span></td><td>' + r.A.d + '</td><td>' + r.B.d + '</td><td>' + pc(r.A.tea) + '</td><td>' + pc(r.B.tea) + '</td>' +
-        '<td style="color:' + (r.pick >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + sg(r.pick, 0) + '</td><td>' + (r.rA == null ? 'n/a' : sg(r.rA, 0)) + '</td><td>' + (r.rB == null ? 'n/a' : sg(r.rB, 0)) + '</td><td>' + (r.eq == null ? '—' : pc(r.eq, 2)) + '</td>' +
+        '<td style="color:' + (r.pick >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + sg(r.pick, 0) + '</td><td>' + (r.rA == null ? 'n/a' : sg(r.rA, 0)) + '</td><td>' + (r.rB == null ? 'n/a' : sg(r.rB, 0)) + '</td><td title="' + (r.eq == null ? 'Solo para bonos sin cupones intermedios' : 'TEA de reinversión que empata: rotar conviene si reinvertís ' + (r.eqLo ? 'por encima (' + r.B.k + ' vence antes que ' + r.A.k + ')' : 'por debajo')) + '">' + (r.eq == null ? '—' : pc(r.eq, 2) + (r.eqLo ? ' <span style="color:var(--mu);font-size:11px">mín.</span>' : '')) + '</td>' +
         '<td' + (r.H > 730 ? ' title="Horizonte largo: la ventaja se compone durante años con la TIR de hoy constante. Mirá la columna anualizada."' : '') + '>' + fm(r.H, 0) + (r.H > 730 ? ' <span style="color:#f59e0b">⚠</span>' : '') + '</td><td style="font-weight:700;color:' + (r.adv >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + sg(r.adv * 100, 3) + '%</td><td style="color:' + (r.ann == null ? 'var(--mu)' : r.ann >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + (r.ann == null ? 'n/a' : sg(r.ann * 100, 2) + '%') + '</td><td' + (ck == null || ck === 'V' ? ' style="color:var(--mu)"' : ck < 0 ? ' style="color:var(--bad)"' : '') + ' title="' + (ck === 'V' ? 'Con este horizonte el bono que comprás se mantiene hasta vencer: no hay precio de reventa, así que una suba de TIR no te afecta (queda el riesgo de inflación y de reinversión).' : 'Cuánto puede subir la TIR (TEA) del que comprás, en pb, antes de que rotar deje de convenir. Negativo: hace falta que baje.') + '">' + (ck === 'V' ? 'a vencim.' : ck == null ? '—' : sg(ck, 0)) + '</td><td' + (vA != null && vA < LOWV ? ' style="color:#f59e0b"' : '') + '>' + mm(vA) + '</td><td' + (vB != null && vB < LOWV ? ' style="color:#f59e0b"' : '') + '>' + mm(vB) + '</td><td>' + fm(r.pbMax, 2) + '</td><td><span class="tg ' + tg + '">' + r.verd + '</span>' + ((vA != null && vA < LOWV) || (vB != null && vB < LOWV) ? ' <span class="tg mg" title="Alguno de los dos bonos opera menos de $ 100 M por rueda (promedio de 20 ruedas): el precio de pantalla puede no ser ejecutable.">Poco volumen</span>' : '') + '</td></tr>';
     });
     document.getElementById('rtTab').innerHTML = h + '</tbody>';
@@ -4473,14 +4474,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var c = function (t, v, s) { return '<div class="rchip"><small>' + t + '</small><b>' + v + '</b><span>' + s + '</span></div>'; };
     document.getElementById('vlChips').innerHTML =
       c('Total del período', mon(totAll), (dlt == null ? 'sin período previo comparable' : sg(dlt, 0) + '% vs. ' + (w === 1 ? 'la rueda anterior' : 'las ' + w + ' ruedas anteriores'))) +
-      c('Promedio por rueda', mon(totAll / w), w + (w === 1 ? ' rueda' : ' ruedas') + ' · ' + (w === 1 ? fr(d1) : fr(d0) + ' al ' + fr(d1))) +
+      (w === 1 ? c('Rueda anterior', prevAll > 0 ? mon(prevAll) : '—', 'para comparar con la del ' + fr(d1)) : c('Promedio por rueda', mon(totAll / w), w + ' ruedas · ' + fr(d0) + ' al ' + fr(d1))) + // con una rueda, el promedio repetiría el total
       (fl ? c('Familia líder', '<i style="color:' + FAMS[fl][1] + ';font-style:normal">●</i> ' + FAMS[fl][0], nf(famTot[fl] / totAll * 100, 0) + '% del total') : '') +
       (lead[0] ? c('Más operado', lead[0].key, nf(lead[0].tot / totAll * 100, 1) + '% del total') : '') +
       c('Concentración', nf(top5 / totAll * 100, 0) + '%', 'de los 5 primeros bonos');
   }
 
   function famTable(M, famTot, famPrev, totAll) {
-    var h = '<thead><tr><th class="l">Familia</th><th>Monto</th><th>% total</th><th>% previo</th><th>Δ pp</th></tr></thead><tbody>', pa = 0;
+    var h = '<thead><tr><th class="l">Familia</th><th>Monto</th><th>% total</th><th title="Participación de cada familia en el período anterior del mismo largo">% período previo</th><th>Δ pp</th></tr></thead><tbody>', pa = 0;
     FORD.forEach(function (f) { if (famPrev[f] > 0) pa += famPrev[f]; });
     FORD.forEach(function (f) {
       if (!(famTot[f] > 0) && !(famPrev[f] > 0)) return;
