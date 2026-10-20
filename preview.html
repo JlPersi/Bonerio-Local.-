@@ -5684,7 +5684,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       return ds.map(function (d, i) { return { x: i, y: comb(A[d], B[d]), lab: fr(d) }; });
     }
     // intradiario: cada 5 minutos, cada serie con su último dato; las ruedas guardadas, una al lado de la otra
-    var days = Object.keys(IB || {}).concat(Object.keys(IJ || {})).filter(function (d, i, a) { return a.indexOf(d) === i && d <= t.d; }).sort().slice(-2), out = [], x = 0;
+    var days = Object.keys(IB || {}).concat(Object.keys(IJ || {})).filter(function (d, i, a) { return a.indexOf(d) === i && d <= t.d; }).sort().slice(-(ST.wi || 2)), out = [], x = 0;
     var LA = live(ST.a), LB = live(ST.b);
     days.forEach(function (d) {
       var a = intra(ST.a, d), b = intra(ST.b, d); if (d === t.d && t.m >= 630 && t.m <= 1020) { if (LA.last) a.push([t.m, LA.last]); if (LB.last) b.push([t.m, LB.last]); }
@@ -5718,21 +5718,29 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '#brc .rt{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}#brc .rt th,#brc .rt td{padding:5px 7px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--bd)}#brc .rt th{color:var(--mu);font-size:11.5px;font-weight:600}#brc .rt td.l,#brc .rt th.l{text-align:left}' +
       '#brc .rt tr.on td{background:rgba(255,197,66,.10)}#brc .rt tbody tr{cursor:pointer}#brc .rt tbody tr:hover td{background:rgba(161,161,170,.08)}#brc .st{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:13px}#brc .st span{color:var(--mu)}#brc .st b{text-align:right;font-variant-numeric:tabular-nums}' +
       '#brc .hw p{margin:0 0 8px;font-size:13px;line-height:1.5;color:var(--mu)}#brc .hw b{color:var(--tx)}' +
+      '#brc .brL2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;margin-top:16px}#brc .brL2 .bx{margin:0}@media(max-width:900px){#brc .brL2{grid-template-columns:minmax(0,1fr)}}#brc .ctl input{width:150px}#brc .ctl #bsD{min-width:250px}#brc .brL3{grid-template-columns:minmax(0,1fr) 340px}@media(max-width:1100px){#brc .brL3{grid-template-columns:minmax(0,1fr)}}#brc .brEq{cursor:pointer;padding:9px 12px;border-radius:10px;border:1px solid var(--bd);background:transparent;color:var(--tx);font:600 12.5px Inter,system-ui,sans-serif}#brc .rt tr.up td b{color:var(--ok)}#brc .rt tr.dn td b{color:var(--bad)}' +
       '</style>' +
       '<div class="card" id="brA"><p style="margin:0;color:var(--tx);font-size:18px;font-weight:700">Ratios de brecha y canje</p><p class="note" style="margin-top:4px">Dos patas sintéticas (MEP, CCL, futuro u oficial) y su ratio en el tiempo: dónde está hoy contra su historia, a qué nivel entrás long o short y cómo se arma cada operación.</p>' +
       '<div class="brP" id="brPre"></div>' +
       '<div class="ctl"><label>Pata A (long: la comprás)<select id="brA1"></select></label><label>Pata B (long: la vendés)<select id="brB1"></select></label><label>Ratio<select id="brOp"><option value="dif">A − B ($)</option><option value="pct">A ÷ B − 1 (%)</option></select></label>' +
-      '<label>Gráfico<select id="brTf"><option value="in">Intradiario (5 min)</option><option value="d">Diario</option></select></label><label id="brWl">Período<select id="brW"><option value="60">60 ruedas</option><option value="120">120 ruedas</option><option value="250">250 ruedas</option><option value="0">Todo</option></select></label></div>' +
+      '<label>Gráfico<select id="brTf"><option value="in">Intradiario (5 min)</option><option value="d">Diario</option></select></label><label id="brWl">Período<select id="brW"></select></label></div>' +
       '<div class="brL" style="margin-top:16px"><div><p class="note" id="brT" style="margin:0 0 6px;color:var(--tx);font-weight:600"></p><div style="position:relative;height:420px"><canvas id="brCh"></canvas></div><p class="note" id="brN" style="margin-top:8px"></p></div>' +
       '<div><div class="bx"><h5 id="brH">Ahora</h5><div class="brV" id="brV"></div><div class="brS" id="brE"></div></div>' +
-      '<div class="bx"><h5>Patas</h5><table class="rt" id="brLg"></table><p class="brS" id="brLn" style="margin-top:6px"></p></div>' +
-      '<div class="bx"><h5 id="brSt">En el gráfico</h5><div class="st" id="brSs"></div></div>' +
-      '<div class="bx hw"><h5>Cómo se arma</h5><div id="brHw"></div></div></div></div></div>' +
+      '<div class="bx"><h5 id="brSt">En el gráfico</h5><div class="st" id="brSs"></div></div></div></div>' +
+      '<div class="brL2"><div class="bx"><h5>Patas</h5><table class="rt" id="brLg"></table></div><div class="bx hw"><h5>Cómo se arma</h5><div id="brHw"></div></div></div></div>' +
+      '<div class="card" id="brSim" style="margin-top:24px"><p style="margin:0;color:var(--tx);font-size:18px;font-weight:700">Simulador de resultado</p><p class="note" style="margin-top:4px">Armá la operación con los nominales de cada pata y mirá cuánto ganás o perdés según dónde cierre el ratio. Entrás cruzando las puntas de hoy; si los dólares de las dos patas no son iguales, el resultado también depende de cuánto se mueva el dólar.</p>' +
+      '<div class="ctl"><label>Operación<select id="bsD"><option value="L">Long (comprás A, vendés B)</option><option value="S">Short (vendés A, comprás B)</option></select></label><label><span id="bsAl">Pata A</span><input type="number" id="bsA" min="0" step="1"></label><label><span id="bsBl">Pata B</span><input type="number" id="bsB" min="0" step="1"></label>' +
+      '<label>Si el dólar se mueve (%)<input type="number" id="bsM" step="0.5"></label><label>Cierre del ratio<input type="number" id="bsR" step="0.1"></label><button type="button" class="brEq" id="bsEq">Igualar dólares de las dos patas</button></div>' +
+      '<p class="brS" id="bsU" style="margin-top:8px"></p>' +
+      '<div class="brL brL3" style="margin-top:12px"><div><div style="position:relative;height:340px"><canvas id="bsCh"></canvas></div><p class="note" id="bsN" style="margin-top:8px"></p></div><div><div class="bx"><h5>Si cierra en <span id="bsRv"></span></h5><div class="brV" id="bsV"></div><div class="brS" id="bsVu"></div></div></div></div><div class="bx" style="margin-top:16px"><h5>Escenarios</h5><div style="overflow-x:auto"><table class="rt" id="bsT"></table></div></div></div>' +
       '<div class="card" id="brB" style="margin-top:24px"><p style="margin:0;color:var(--tx);font-size:18px;font-weight:700">Todos los ratios ahora</p><p class="note" style="margin-top:4px">Cada ratio armado con el precio de ahora, a qué nivel entrás long y short cruzando las puntas, y dónde está contra sus últimas 120 ruedas (cierres). Tocá una fila para verla arriba.</p>' +
       '<div style="overflow:auto;margin-top:12px"><table class="rt" id="brAll"></table></div></div>';
     var on = function (id, fn) { document.getElementById(id).onchange = function () { fn(this.value); save(); draw(); }; };
-    on('brA1', function (v) { ST.a = v; ST.p = ''; }); on('brB1', function (v) { ST.b = v; ST.p = ''; }); on('brOp', function (v) { ST.op = v; ST.p = ''; }); on('brTf', function (v) { ST.tf = v; }); on('brW', function (v) { ST.w = +v; });
-    root.addEventListener('click', function (e) { var b = e.target.closest('[data-pre]'); if (!b) return; var P = PRE.filter(function (x) { return x[0] === b.getAttribute('data-pre'); })[0]; if (!P) return; ST.p = P[0]; ST.a = P[2]; ST.b = P[3]; ST.op = P[4]; save(); draw(); if (b.tagName === 'TR') document.getElementById('brA').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    on('brA1', function (v) { ST.a = v; ST.p = ''; SIM.r = null; }); on('brB1', function (v) { ST.b = v; ST.p = ''; SIM.r = null; }); on('brOp', function (v) { ST.op = v; ST.p = ''; SIM.r = null; }); on('brTf', function (v) { ST.tf = v; }); on('brW', function (v) { if (ST.tf === 'd') ST.w = +v; else ST.wi = +v; });
+    var sv = function (k) { return function () { var v = this.value === '' ? null : +this.value; if (k === 'd') SIM.d = this.value; else if (k === 'a') SIM.n[ST.a] = v; else if (k === 'b') SIM.n[ST.b] = v; else if (k === 'm') SIM.m = v || 0; else SIM.r = v; saveSim(); simDraw(); }; };
+    ['d', 'a', 'b', 'm', 'r'].forEach(function (k) { var el = document.getElementById('bs' + k.toUpperCase()); el.oninput = sv(k); el.onchange = sv(k); });
+    document.getElementById('bsEq').onclick = function () { var ua = usdOf(ST.a, SIM.n[ST.a]); if (ua > 0) { SIM.n[ST.b] = Math.round(nomOf(ST.b, ua)); saveSim(); simDraw(true); } };
+    root.addEventListener('click', function (e) { var b = e.target.closest('[data-pre]'); if (!b) return; var P = PRE.filter(function (x) { return x[0] === b.getAttribute('data-pre'); })[0]; if (!P) return; if (ST.p !== P[0]) SIM.r = null; ST.p = P[0]; ST.a = P[2]; ST.b = P[3]; ST.op = P[4]; save(); draw(); if (b.tagName === 'TR') document.getElementById('brA').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     return true;
   }
   function draw() {
@@ -5743,7 +5751,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var pre = PRE.filter(function (x) { return x[0] === ST.p; })[0];
       document.getElementById('brPre').innerHTML = PRE.map(function (p) { return '<button data-pre="' + p[0] + '" class="' + (p[0] === ST.p ? 'on' : '') + '">' + p[1] + '</button>'; }).join('');
       document.getElementById('brA1').innerHTML = opts(ST.a); document.getElementById('brB1').innerHTML = opts(ST.b);
-      document.getElementById('brOp').value = ST.op; document.getElementById('brTf').value = ST.tf; document.getElementById('brW').value = String(ST.w); document.getElementById('brWl').style.display = ST.tf === 'd' ? '' : 'none';
+      document.getElementById('brOp').value = ST.op; document.getElementById('brTf').value = ST.tf; document.getElementById('brW').innerHTML = (ST.tf === 'd' ? [[10, '10 ruedas'], [20, '20 ruedas'], [40, '40 ruedas'], [60, '60 ruedas'], [120, '120 ruedas'], [250, '250 ruedas'], [0, 'Todo']] : [[1, 'Última rueda'], [2, 'Últimas 2 ruedas']]).map(function (o) { return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join(''); document.getElementById('brW').value = String(ST.tf === 'd' ? ST.w : ST.wi || 2);
       var name = pre ? pre[1] : label(ST.a) + (ST.op === 'dif' ? ' − ' : ' ÷ ') + label(ST.b);
       // ahora
       var LA = live(ST.a), LB = live(ST.b), v = comb(LA.last, LB.last), lo = comb(LA.ask, LB.bid), sh = comb(LA.bid, LB.ask);
@@ -5752,10 +5760,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       document.getElementById('brE').innerHTML = (lo != null ? 'Entrás <b>long</b> a ' + fmtV(lo) + ' · <b>short</b> a ' + fmtV(sh) : 'Sin puntas de las dos patas para el long y el short') + '<br>' + label(ST.a) + ': ' + nf(LA.last, 2) + ' · ' + label(ST.b) + ': ' + nf(LB.last, 2);
       var lg = LA.legs.concat(LB.legs);
       document.getElementById('brLg').innerHTML = '<thead><tr><th class="l">Ticker</th><th>Compra</th><th>Venta</th><th>Último</th></tr></thead><tbody>' + lg.map(function (r) { var d = r[3] > 1000 ? 1 : 2; return '<tr><td class="l"><b>' + r[0] + '</b></td><td style="color:var(--ok)">' + nf(r[1], d) + '</td><td style="color:var(--bad)">' + nf(r[2], d) + '</td><td>' + nf(r[3], d) + '</td></tr>'; }).join('') + '</tbody>';
-      var vts = TJ.vivo && TJ.vivo.ts ? String(TJ.vivo.ts) : '';
-      document.getElementById('brLn').textContent = 'Un ratio no tiene caja de puntas propia: estas son las de cada pata. Bonos: data912 en vivo. Futuros: foto de Primary' + (vts ? ' de las ' + vts.slice(11, 16) : '') + ' y su última operación.';
       document.getElementById('brHw').innerHTML = pre ? '<p>' + pre[5].replace(/^([^:]+):/, '<b>$1</b>:') + '</p><p>' + pre[6].replace(/^([^:(]+)[:(]/, function (m0, a) { return '<b>' + a + '</b>' + m0.slice(-1); }) + '</p>' :
         '<p><b>Long</b>: comprás ' + label(ST.a) + ' y vendés ' + label(ST.b) + '; ganás si el ratio sube.</p><p><b>Short</b>: vendés ' + label(ST.a) + ' y comprás ' + label(ST.b) + '; ganás si baja.</p>';
+      // escenarios del simulador: cierres del período elegido (120 ruedas si el gráfico es intradiario)
+      var DA = daily(ST.a), DB = daily(ST.b), dds = Object.keys(DA).filter(function (d) { return DB[d] != null && d < nowAR().d; }).sort().slice(-(ST.tf === 'd' && ST.w ? ST.w : ST.tf === 'd' ? 1e6 : 120)), dys = dds.map(function (d) { return comb(DA[d], DB[d]); }).filter(function (y) { return y != null; });
+      var dn = dys.length, dmean = dn ? dys.reduce(function (a, y) { return a + y; }, 0) / dn : null, dsd = dn > 1 ? Math.sqrt(dys.reduce(function (a, y) { return a + (y - dmean) * (y - dmean); }, 0) / (dn - 1)) : null, dmn = dn ? Math.min.apply(null, dys) : null, dmx = dn ? Math.max.apply(null, dys) : null;
       // gráfico
       var S = series(), ys = S.map(function (p) { return p.y; }), n = ys.length, mean = n ? ys.reduce(function (s, y) { return s + y; }, 0) / n : null, sd = n > 1 ? Math.sqrt(ys.reduce(function (s, y) { return s + (y - mean) * (y - mean); }, 0) / (n - 1)) : null;
       var last = n ? ys[n - 1] : null, pct = n ? Math.round(ys.filter(function (y) { return y < last; }).length / n * 100) : null;
@@ -5774,8 +5783,70 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         plugins: { legend: { display: false }, tooltip: { filter: function (it) { return !it.dataset.$aux; }, callbacks: { title: function (it) { return it.length ? byX[it[0].parsed.x] || '' : ''; }, label: function (c) { return name + ': ' + fmtV(c.parsed.y); } } } },
         scales: { x: { type: 'linear', min: xs.length ? xs[0] : 0, max: xs.length ? xs[xs.length - 1] : 1, ticks: { color: mu, maxTicksLimit: 8, callback: function (v) { var l = byX[Math.round(v)]; return l ? (ST.tf === 'd' ? l.slice(0, 5) + '/' + l.slice(8, 10) : l) : ''; } }, grid: { display: false }, border: { color: bd } },
           y: { ticks: { color: mu, callback: function (v) { return ST.op === 'dif' ? nf(v, Math.abs(v) < 10 ? 1 : 0) : nf(v, 1) + '%'; } }, grid: { color: function (c) { return c.tick && c.tick.value === 0 ? 'rgba(161,161,170,.6)' : 'rgba(161,161,170,.12)'; } }, border: { display: false } } } } });
+      SST = { mean: dmean, sd: dsd, mn: dmn, mx: dmx, n: dn }; simDraw(true);
       all();
     } catch (e) { console.error('brecha y canje', e); document.getElementById('brT').textContent = 'Error: ' + e.message; }
+  }
+  /* ---------- simulador: resultado en pesos según dónde cierre el ratio ---------- */
+  var SIM = { d: 'L', n: {}, m: 0, r: null }, SST = {}, CS = null;
+  try { Object.assign(SIM, JSON.parse(localStorage.getItem('brfSim1') || '{}')); } catch (e) { }
+  var saveSim = function () { try { localStorage.setItem('brfSim1', JSON.stringify({ d: SIM.d, n: SIM.n, m: SIM.m })); } catch (e) { } };
+  var kindOf = function (id) { return id === 'OFI' ? 'ofi' : id.slice(0, 4) === 'FUT:' ? 'fut' : 'bono'; };
+  var usdPx = function (id) { var p = id.split(':'), Q = (window.PXQ || {})[p[1] + (p[0] === 'MEP' ? 'D' : 'C')] || {}; return Q.c > 0 ? Q.c : Q.ask > 0 ? Q.ask : null; }; // precio en dólares del bono, por 100 VN
+  function usdOf(id, n) { // los dólares que mueve la pata con esos nominales
+    if (!(n > 0)) return 0; var k = kindOf(id); if (k === 'fut') return n * 1000; if (k === 'ofi') return n;
+    var px = usdPx(id); return px ? n * px / 100 : 0;
+  }
+  function nomOf(id, usd) { var k = kindOf(id); if (k === 'fut') return usd / 1000; if (k === 'ofi') return usd; var px = usdPx(id); return px ? usd / (px / 100) : 0; }
+  var unitOf = function (id) { var k = kindOf(id); return k === 'fut' ? 'contratos de US$ 1.000' : k === 'ofi' ? 'dólares' : 'VN de ' + id.split(':')[1] + ' (y de ' + id.split(':')[1] + (id[0] === 'M' ? 'D' : 'C') + ')'; };
+  var defNom = function (id) { var k = kindOf(id); return k === 'fut' ? 10 : k === 'ofi' ? 10000 : Math.round(nomOf(id, 10000) / 100) * 100 || 10000; };
+  function simDraw(full) {
+    var el = document.getElementById('bsCh'); if (!el || !isAct()) return;
+    if (SIM.n[ST.a] == null) SIM.n[ST.a] = defNom(ST.a); if (SIM.n[ST.b] == null) SIM.n[ST.b] = defNom(ST.b);
+    var LA = live(ST.a), LB = live(ST.b), L = SIM.d !== 'S', sgn = L ? 1 : -1;
+    var A0 = (L ? LA.ask : LA.bid) || LA.last, B0 = (L ? LB.bid : LB.ask) || LB.last, Bm = LB.last || B0;
+    var uA = usdOf(ST.a, SIM.n[ST.a]), uB = usdOf(ST.b, SIM.n[ST.b]), R0 = comb(A0, B0), Rm = comb(LA.last, LB.last), dv = ST.op === 'dif';
+    if (full) { // los campos se reescriben solo al redibujar todo (si no, se pisa lo que se está escribiendo)
+      document.getElementById('bsD').value = L ? 'L' : 'S'; document.getElementById('bsA').value = SIM.n[ST.a]; document.getElementById('bsB').value = SIM.n[ST.b]; document.getElementById('bsM').value = SIM.m || 0;
+      document.getElementById('bsR').value = SIM.r != null ? SIM.r : ''; document.getElementById('bsR').placeholder = SST.mean != null ? nf(SST.mean, 2).replace(',', '.') : '';
+      document.getElementById('bsAl').textContent = 'Pata A: ' + label(ST.a) + ' (' + unitOf(ST.a) + ')'; document.getElementById('bsBl').textContent = 'Pata B: ' + label(ST.b) + ' (' + unitOf(ST.b) + ')';
+    }
+    var nt = document.getElementById('bsN'), vv = document.getElementById('bsV');
+    if (!(A0 > 0) || !(B0 > 0) || R0 == null) { vv.textContent = '—'; nt.textContent = 'Faltan precios de alguna de las dos patas.'; if (CS) { CS.destroy(); CS = null; } return; }
+    var mis = Math.abs(uA - uB) > 0.005 * Math.max(uA, uB);
+    document.getElementById('bsU').innerHTML = (L ? 'Comprás' : 'Vendés') + ' <b>US$ ' + nf(uA, 0) + '</b> de ' + label(ST.a) + ' a ' + nf(A0, 2) + ' y ' + (L ? 'vendés' : 'comprás') + ' <b>US$ ' + nf(uB, 0) + '</b> de ' + label(ST.b) + ' a ' + nf(B0, 2) + '. Entrás ' + (L ? 'long' : 'short') + ' a <b>' + fmtV(R0) + '</b>' +
+      (mis ? ' · <span style="color:var(--ac)">quedás ' + (uA > uB ? 'comprado' : 'vendido') + ' en US$ ' + nf(Math.abs(uA - uB), 0) + ' netos: el resultado depende del dólar</span>' : ' · cubierto: el nivel del dólar no cambia el resultado');
+    var pnl = function (R1, mv) { // el dólar (la pata B) se mueve mv% desde el precio de hoy y A queda a la distancia del ratio; long gana si A sube más que B, short al revés
+ var B1 = Bm * (1 + (mv || 0) / 100), A1 = dv ? B1 + R1 : B1 * (1 + R1 / 100); return sgn * (uA * (A1 - A0) - uB * (B1 - B0)); };
+    var cap = Math.max(uA, uB) * Bm, R1 = SIM.r != null && isFinite(SIM.r) ? SIM.r : SST.mean != null ? SST.mean : Rm, mv = SIM.m || 0, P1 = pnl(R1, mv);
+    document.getElementById('bsRv').textContent = fmtV(R1) + (mv ? ' y el dólar ' + sg(mv, 1) + '%' : '');
+    vv.innerHTML = '<span style="color:' + (P1 >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + (P1 >= 0 ? '+' : '−') + '$ ' + nf(Math.abs(P1), 0) + '</span>';
+    document.getElementById('bsVu').textContent = (P1 >= 0 ? '+' : '−') + 'US$ ' + nf(Math.abs(P1) / Bm, 0) + ' · ' + sg(P1 / cap * 100, 2) + '% sobre US$ ' + nf(Math.max(uA, uB), 0) + (SIM.r == null ? ' · cierre: el promedio del período (cambialo arriba)' : '');
+    // escenarios
+    var sc = [];
+    if (SST.mean != null) sc.push(['Vuelve al promedio', SST.mean]);
+    if (SST.sd) { sc.push(['Promedio + 1σ', SST.mean + SST.sd], ['Promedio − 1σ', SST.mean - SST.sd]); }
+    if (SST.mn != null) sc.push(['Mínimo del período', SST.mn], ['Máximo del período', SST.mx]);
+    if (dv) sc.push(['Brecha en cero', 0]);
+    sc.push(['Queda donde está', Rm]);
+    var mvS = Math.abs(mv) || 5, $f = function (v) { return (v >= 0 ? '+' : '−') + '$ ' + nf(Math.abs(v), 0); };
+    document.getElementById('bsT').innerHTML = '<thead><tr><th class="l">Si el ratio…</th><th>Cierra en</th><th>' + (mis ? 'Dólar igual' : 'Resultado') + '</th>' + (mis ? '<th>Dólar ' + sg(mvS, 1) + '%</th><th>Dólar ' + sg(-mvS, 1) + '%</th>' : '') + '</tr></thead><tbody>' + sc.map(function (c) { var v = pnl(c[1], 0); return '<tr class="' + (v >= 0 ? 'up' : 'dn') + '"><td class="l">' + c[0] + '</td><td>' + fmtV(c[1]) + '</td><td><b>' + $f(v) + '</b></td>' + (mis ? '<td>' + $f(pnl(c[1], mvS)) + '</td><td>' + $f(pnl(c[1], -mvS)) + '</td>' : '') + '</tr>'; }).join('') + '</tbody>';
+    // gráfico: resultado contra el cierre del ratio
+    var lo = Math.min(R0, Rm, SST.mn != null ? SST.mn : R0, R1), hi = Math.max(R0, Rm, SST.mx != null ? SST.mx : R0, R1), pad = (hi - lo) * 0.15 || Math.abs(R0) * 0.05 || 1; lo -= pad; hi += pad;
+    var line = function (m) { var o = []; for (var i = 0; i <= 80; i++) { var x = lo + (hi - lo) * i / 80; o.push({ x: x, y: pnl(x, m) }); } return o; };
+    var ac = css('--ac') || '#ffc542', mu = css('--mu'), bd = css('--bd'), ok = css('--ok') || '#2fd4a7', bad = css('--bad') || '#ff5c7a';
+    var sets = [{ label: mv && mis ? 'Dólar sin cambio' : 'Resultado', data: line(0), borderColor: ac, borderWidth: 2.5, pointRadius: 0, fill: { target: { value: 0 }, above: 'rgba(47,212,167,.10)', below: 'rgba(255,92,122,.10)' } }];
+    if (mis) sets.push({ label: 'Dólar ' + sg(mvS, 1) + '%', data: line(mvS), borderColor: mu, borderWidth: 1.5, borderDash: [6, 4], pointRadius: 0 }, { label: 'Dólar ' + sg(-mvS, 1) + '%', data: line(-mvS), borderColor: mu, borderWidth: 1.5, borderDash: [2, 3], pointRadius: 0 });
+    sets.push({ label: 'Tu escenario', data: [{ x: R1, y: P1 }], type: 'scatter', backgroundColor: P1 >= 0 ? ok : bad, borderColor: css('--tx'), borderWidth: 2, pointRadius: 6, pointHoverRadius: 7 });
+    var VL = { id: 'bsVl', afterDatasetsDraw: function (ch) { var x = ch.scales.x, a = ch.chartArea, c = ch.ctx; c.save(); c.font = '11px Inter, system-ui, sans-serif'; c.textBaseline = 'top';
+      [[R0, 'Entrada ' + fmtV(R0)], [SST.mean, 'Promedio']].forEach(function (v, i) { if (v[0] == null || v[0] < lo || v[0] > hi) return; var px = x.getPixelForValue(v[0]); c.strokeStyle = 'rgba(161,161,170,.6)'; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(px, a.top); c.lineTo(px, a.bottom); c.stroke(); c.setLineDash([]); c.fillStyle = mu; var rt = px + 4 + c.measureText(v[1]).width > a.right; c.textAlign = rt ? 'right' : 'left'; c.fillText(v[1], rt ? px - 4 : px + 4, a.top + 2 + i * 14); });
+      c.restore(); } };
+    if (CS) { try { CS.destroy(); } catch (e) { } }
+    CS = new Chart(el.getContext('2d'), { type: 'line', data: { datasets: sets }, plugins: [VL], options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      plugins: { legend: { display: mis, labels: { color: mu, boxWidth: 10, boxHeight: 10, font: { size: 12 } } }, tooltip: { callbacks: { title: function (it) { return it.length ? 'Ratio en ' + fmtV(it[0].parsed.x) : ''; }, label: function (c) { var y = c.parsed.y; return c.dataset.label + ': ' + (y >= 0 ? '+' : '−') + '$ ' + nf(Math.abs(y), 0); } } } },
+      scales: { x: { type: 'linear', min: lo, max: hi, title: { display: true, text: 'Dónde cierra el ratio (' + (dv ? 'pesos por dólar' : '%') + ')', color: mu, font: { size: 12 } }, ticks: { color: mu, font: { size: 12 }, maxTicksLimit: 9, callback: function (v) { return dv ? nf(v, Math.abs(v) < 10 ? 1 : 0) : nf(v, 1) + '%'; } }, grid: { color: 'rgba(161,161,170,.10)' } },
+        y: { title: { display: true, text: 'Resultado ($)', color: mu, font: { size: 12 } }, ticks: { color: mu, font: { size: 12 }, callback: function (v) { var a = Math.abs(v); return (v < 0 ? '−' : '') + (a >= 1e6 ? nf(a / 1e6, 1) + ' M' : a >= 1e3 ? nf(a / 1e3, 0) + ' mil' : nf(a, 0)); } }, grid: { color: function (c) { return c.tick && c.tick.value === 0 ? 'rgba(161,161,170,.6)' : 'rgba(161,161,170,.10)'; } }, border: { display: false } } } } });
+    nt.textContent = 'Resultado al cerrar las dos patas al precio del escenario (sin volver a cruzar las puntas), en pesos. ' + (kindOf(ST.a) === 'fut' || kindOf(ST.b) === 'fut' ? 'Los futuros ajustan la diferencia por día; ' : '') + 'no incluye comisiones, garantías ni lo que rinden los pesos o los dólares mientras está armada.';
   }
   function all() { // la tabla con todos los ratios armados
     var keep = { a: ST.a, b: ST.b, op: ST.op }, rows = PRE.map(function (p) {
