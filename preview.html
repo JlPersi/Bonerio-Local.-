@@ -7514,7 +7514,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var CONVO = '<option value="tna2">TNA 180/360 (semestral)</option><option value="tea">TEA</option>', SPO = function (v) { return '<option value="D"' + (v === 'D' ? ' selected' : '') + '>MEP (especie D)</option><option value="C"' + (v === 'C' ? ' selected' : '') + '>Cable (especie C)</option>'; };
   tab.innerHTML =
     '<div class="card sx" id="thY">' + head('thY', 'Rendimiento histórico por bono', 'La tasa de cada día de los bonos que elijas, cada uno en su unidad: dólares y dólar linked en TIR en dólares, CER en TIR real, tasa fija en TIR nominal y TAMAR y duales en margen sobre TAMAR.') +
-    '<div class="ctl sxc" style="margin-bottom:12px"><label>Desde<input type="date" id="thFrom"></label><label>Precio de los bonos en dólares<select id="thSp" style="min-width:190px">' + SPO(ST.sp) + '</select></label><label>Expresar la tasa en<select id="thConv" style="min-width:190px">' + CONVO + '</select></label><label>Agregar bono<select id="thAdd" style="min-width:190px"></select></label><label>Agrupar por familia<select id="thGrp" style="min-width:190px" title="Junta los bonos elegidos de una familia (o de todas) en una línea gruesa con el promedio, día por día; las demás familias quedan con sus bonos sueltos"></select></label><label id="thGhL">Bonos agrupados<select id="thGh" style="min-width:150px"><option value="">Difuminados</option><option value="1">Ocultos</option></select></label></div>' +
+    '<div class="ctl sxc" style="margin-bottom:12px"><label>Desde<input type="date" id="thFrom"></label><label>Precio de los bonos en dólares<select id="thSp" style="min-width:190px">' + SPO(ST.sp) + '</select></label><label>Expresar la tasa en<select id="thConv" style="min-width:190px">' + CONVO + '</select></label><label>Agregar bono<select id="thAdd" style="min-width:190px"></select></label><label>Agregar familia<select id="thAddF" style="min-width:190px" title="Toda la familia en una sola línea con su promedio, día por día, y sus bonos difuminados detrás"></select></label></div>' +
     '<div id="thChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div><div class="chart-wrap" style="height:440px"><canvas id="thYC"></canvas></div><p class="note" id="thYN" style="margin-top:10px"></p></div>' +
     '<div class="card sx" id="thF" style="margin-top:24px">' + head('thF', 'Tasas forward entre pares de bonos', 'La tasa implícita entre el vencimiento de un bono corto y uno largo, día por día: lo que el mercado cobra por estirar del primero al segundo. Se pueden cruzar familias. La línea punteada es el promedio del período y la franja sombreada, ±1 desvío estándar.') +
     '<div class="ctl sxc" style="margin-bottom:12px"><label>Desde<input type="date" id="thFromF"></label><label>Bono corto<select id="thFA" style="min-width:190px"></select></label><label>Bono largo<select id="thFB" style="min-width:190px"></select></label><button class="act" id="thFAdd">Agregar par</button><label>Precio de los bonos en dólares<select id="thFSp" style="min-width:190px">' + SPO(ST.fsp) + '</select></label></div>' +
@@ -7568,16 +7568,17 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var PRE = [['CER 27/28', 'TZX27', 'TZX28'], ['Bonar 27/28', 'AO27', 'AO28'], ['TAMAR 27/28', 'TMG27', 'TMG28'], ['Global 29/30', 'GD29', 'GD30'], ['Bonar 29/30', 'AL29', 'AL30'], ['Global 30/35', 'GD30', 'GD35'], ['CER 26/27', 'TZXD6', 'TZXD7']];
 
   function opts(G, withFam) { return FORD.filter(function (f) { return G[f].length; }).map(function (f) { return '<optgroup label="' + FN[f] + '">' + G[f].map(function (o) { return '<option value="' + o.k + '">' + o.k + ' · vence ' + dfull(o.mat) + '</option>'; }).join('') + '</optgroup>'; }).join(''); }
-  var FCV = { usd: '--c-usd', cer: '--c-cer', tamar: '--c-tam', fija: '--c-fija', dual: '--c-dual', dl: '--c-dl' }, famCol = function (f) { return css(FCV[f] || '--c-s3') || '#a1a1aa'; }; // agrupado: cada familia en su color
-  if (ST.grp === true) ST.grp = 'all'; else if (typeof ST.grp !== 'string') ST.grp = ''; // antes era un sí / no
-  var inG = function (f) { return ST.grp === 'all' || ST.grp === f; }; // la familia va agrupada
-  var colY = function (k, i) { return inG(famK(k)) ? famCol(famK(k)) : PAL[i % PAL.length]; };
+  /* familias agregadas enteras: una línea con el promedio y sus bonos difuminados. Los duales van en dos grupos porque no comparten unidad
+     (los TAMAR / CER en margen sobre TAMAR; el de tasa fija / TAMAR en TIR) */
+  var FCV = { usd: '--c-usd', cer: '--c-cer', tamar: '--c-tam', fija: '--c-fija', dual: '--c-dual', dualt: '--c-dual', dl: '--c-dl' }, famCol = function (g) { return css(FCV[g] || '--c-s3') || '#a1a1aa'; };
+  var GN = { usd: 'Bonares y Globales', cer: 'CER', tamar: 'TAMAR', fija: 'Tasa fija', dual: 'Duales TAMAR', dualt: 'Duales tasa fija / TAMAR', dl: 'Dólar linked' }, GORD = ['usd', 'cer', 'tamar', 'fija', 'dual', 'dualt', 'dl'];
+  var gk = function (k) { var f = famK(k); return f === 'dual' && !margin(k) ? 'dualt' : f; };
+  var members = function (G, g) { return (G[g === 'dualt' ? 'dual' : g] || []).filter(function (o) { return gk(o.k) === g; }).map(function (o) { return o.k; }); };
+  ST.fams = (Array.isArray(ST.fams) ? ST.fams : []).filter(function (g) { return GN[g]; }); delete ST.grp; delete ST.gh; // grp / gh: el agrupado anterior
   function chipsY() {
-    var fs = FORD.filter(function (f) { return ST.sel.some(function (k) { return famK(k) === f; }); }), g = $('thGrp');
-    if (ST.grp && ST.grp !== 'all' && fs.indexOf(ST.grp) < 0) ST.grp = ''; // ya no queda ningún bono de esa familia
-    g.innerHTML = '<option value="">No agrupar</option>' + (fs.length > 1 ? '<option value="all">Todas las familias</option>' : '') + fs.map(function (f) { return '<option value="' + f + '">' + (fs.length > 1 ? 'Solo ' : '') + FN[f] + '</option>'; }).join('');
-    g.value = ST.grp === 'all' && fs.length === 1 ? fs[0] : ST.grp; $('thGh').value = ST.gh ? '1' : ''; $('thGhL').style.display = ST.grp ? '' : 'none';
-    $('thChips').innerHTML = (ST.sel.map(function (k, i) { return pill('thx', 'data-k="' + k + '" title="Quitar"', colY(k, i), k + ' <span style="color:var(--mu);font-weight:400">' + unitOf(k) + '</span>', true, true); }).join('') + (ST.sel.length > 3 ? '<button class="thxall" style="cursor:pointer;padding:5px 12px;border-radius:999px;border:1px dashed var(--bd);background:transparent;color:var(--mu);font:500 12.5px Inter,system-ui,sans-serif">Quitar todos</button>' : '')) || '<span class="note" style="margin:0">Elegí bonos en "Agregar bono".</span>'; }
+    var G = universe(bxDayNum(ST.from)), all = ST.sel.length + ST.fams.length;
+    $('thChips').innerHTML = (ST.sel.map(function (k, i) { return pill('thx', 'data-k="' + k + '" title="Quitar"', PAL[i % PAL.length], k + ' <span style="color:var(--mu);font-weight:400">' + unitOf(k) + '</span>', true, true); }).join('') +
+      ST.fams.map(function (g) { var n = members(G, g).length; return pill('thxf', 'data-g="' + g + '" title="Quitar la familia"', famCol(g), 'Promedio ' + GN[g] + ' <span style="color:var(--mu);font-weight:400">' + n + (n === 1 ? ' bono' : ' bonos') + '</span>', true, true); }).join('') + (all > 3 ? '<button class="thxall" style="cursor:pointer;padding:5px 12px;border-radius:999px;border:1px dashed var(--bd);background:transparent;color:var(--mu);font:500 12.5px Inter,system-ui,sans-serif">Quitar todos</button>' : '')) || '<span class="note" style="margin:0">Elegí un bono en "Agregar bono" o una familia entera en "Agregar familia".</span>'; }
   function chipsF() {
     $('thPairs').innerHTML = ST.pairs.map(function (p, i) { return pill('thpx', 'data-i="' + i + '" title="Quitar el par"', PAL[i % PAL.length], p[0] + ' → ' + p[1], true, true); }).join('') || '<span class="note" style="margin:0">Agregá un par o tocá uno de los armados.</span>';
     $('thPre').innerHTML = PRE.filter(function (p) { return famK(p[1]) && famK(p[2]); }).map(function (p) { var on = ST.pairs.some(function (q) { return pkey(q) === pkey(ord(p[1], p[2])); }); return '<button class="thpre" data-a="' + p[1] + '" data-b="' + p[2] + '" style="cursor:pointer;padding:4px 11px;border-radius:999px;border:1px solid ' + (on ? 'var(--acc,#ffc542)' : 'var(--bd)') + ';background:' + (on ? 'rgba(255,197,66,.14)' : 'transparent') + ';color:' + (on ? 'var(--tx)' : 'var(--mu)') + ';font:500 12.5px Inter,system-ui,sans-serif">' + (on ? '✓ ' : '+ ') + p[0] + '</button>'; }).join('');
@@ -7616,29 +7617,28 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var line = function (lbl, data, c) { return { label: lbl, data: data, borderColor: c, backgroundColor: c, borderWidth: 1.8, pointRadius: 0, pointHoverRadius: 5, spanGaps: true, tension: 0.2 }; };
 
   function renderY() {
-    var from = bxDayNum(ST.from), sets = [], miss = [], grp = {}, vs = [], yb = null;
+    var from = bxDayNum(ST.from), sets = [], miss = [], vs = [], yb = null, G = universe(from);
+    var pts = function (k) { var m = margin(k); return series(k, isUsd(k) ? ST.sp : '', from).map(function (r) { return { x: r.t, y: m ? r.m * 100 : conv(r.y) }; }).filter(function (p) { return p.y != null && isFinite(p.y) && Math.abs(p.y) < 200; }); };
     ST.sel.forEach(function (k, i) {
-      var S = series(k, isUsd(k) ? ST.sp : '', from), m = margin(k);
-      var d = S.map(function (r) { return { x: r.t, y: m ? r.m * 100 : conv(r.y) }; }).filter(function (p) { return p.y != null && isFinite(p.y) && Math.abs(p.y) < 200; });
+      var d = pts(k), mt = matOf(k);
       if (!d.length) { miss.push(k); return; }
-      var f = famK(k), mt = matOf(k); if (inG(f)) { (grp[f] = grp[f] || []).push({ k: k, d: d }); return; }
       d.forEach(function (p) { if (mt - p.x >= 90) vs.push(p.y); }); // la escala también sigue a los bonos sueltos
       sets.push(line(k + (isUsd(k) ? ' contra ' + (ST.sp === 'C' ? 'Cable' : 'MEP') : '') + ' (' + unitOf(k) + ')', d, PAL[i % PAL.length]));
     });
-    FORD.forEach(function (f) { // agrupado: el promedio de la familia, día por día, con sus bonos difuminados detrás
-      var L = grp[f]; if (!L) return; var c = famCol(f), ts = {}, avg = [], ix = sets.length;
+    ST.fams.forEach(function (g) { // familia entera: el promedio, día por día, con sus bonos difuminados detrás
+      var L = members(G, g).map(function (k) { return { k: k, d: pts(k) }; }).filter(function (o) { return o.d.length; }); if (!L.length) { miss.push(GN[g]); return; } var c = famCol(g), ts = {}, avg = [], ix = sets.length;
       L.forEach(function (o) { o.d.forEach(function (p) { ts[p.x] = 1; }); o.j = 0; o.mat = matOf(o.k); });
       Object.keys(ts).map(Number).sort(function (a, b) { return a - b; }).forEach(function (t) { // a un bono sin dato ese día le vale su último dato de hasta una semana antes (no entra antes de su primer dato ni después del último)
         var sm = 0, n = 0; L.forEach(function (o) { while (o.j + 1 < o.d.length && o.d[o.j + 1].x <= t) o.j++; var p = o.d[o.j]; if (p.x <= t && t - p.x <= 7 && t <= o.d[o.d.length - 1].x && o.mat - t >= 90) { sm += p.y; n++; } }); // en sus últimos 90 días la tasa de un bono salta mucho: no entra al promedio
         if (n) avg.push({ x: t, y: sm / n, n: n });
       });
-      var a = line('Promedio ' + FN[f] + ' (' + unitOf(L[0].k) + ', ' + L.length + (L.length === 1 ? ' bono' : ' bonos') + ')', avg, c); a.borderWidth = 3; a.$avg = 1; sets.push(a);
-      L.forEach(function (o) { if (ST.gh) return; var b = line(o.k, o.d, hexA(c, 0.4)); b.$aux = 1; b.$of = ix; b.borderWidth = 1; b.borderDash = [4, 3]; b.pointHoverRadius = 0; b.order = 2; sets.push(b); o.d.forEach(function (p) { if (o.mat - p.x >= 90) vs.push(p.y); }); });
+      var a = line('Promedio ' + GN[g] + ' (' + unitOf(L[0].k) + ', ' + L.length + (L.length === 1 ? ' bono' : ' bonos') + ')', avg, c); a.borderWidth = 3; a.$avg = 1; sets.push(a);
+      L.forEach(function (o) { var b = line(o.k, o.d, hexA(c, 0.4)); b.$aux = 1; b.$of = ix; b.borderWidth = 1; b.borderDash = [4, 3]; b.pointHoverRadius = 0; b.order = 2; sets.push(b); o.d.forEach(function (p) { if (o.mat - p.x >= 90) vs.push(p.y); }); });
       avg.forEach(function (p) { vs.push(p.y); });
     });
-    if (vs.length && (ST.grp || ST.sel.length >= 4)) { vs.sort(function (a, b) { return a - b; }); var q = function (z) { return vs[Math.min(vs.length - 1, Math.floor(z * (vs.length - 1)))]; }, lo = q(0.02), hi = q(0.98), pd = Math.max(0.5, (hi - lo) * 0.08), st = [1, 2, 5, 10, 20, 50].filter(function (z) { return (hi - lo + 2 * pd) / z <= 6; })[0] || 100; yb = [Math.floor((lo - pd) / st) * st, Math.ceil((hi + pd) / st) * st, st]; } // bordes redondos: si no, quedan marcas como 10,5% al lado de 10,0% // agrupado o con muchos bonos: la escala sigue a los promedios y al grueso de los bonos (los saltos de algún bono corto, en sus últimos días, quedan cortados)
+    if (vs.length && (ST.fams.length || ST.sel.length >= 4)) { vs.sort(function (a, b) { return a - b; }); var q = function (z) { return vs[Math.min(vs.length - 1, Math.floor(z * (vs.length - 1)))]; }, lo = q(0.02), hi = q(0.98), pd = Math.max(0.5, (hi - lo) * 0.08), st = [1, 2, 5, 10, 20, 50].filter(function (z) { return (hi - lo + 2 * pd) / z <= 6; })[0] || 100; yb = [Math.floor((lo - pd) / st) * st, Math.ceil((hi + pd) / st) * st, st]; } // bordes redondos: si no, quedan marcas como 10,5% al lado de 10,0% // agrupado o con muchos bonos: la escala sigue a los promedios y al grueso de los bonos (los saltos de algún bono corto, en sus últimos días, quedan cortados)
     mk('thYC', sets, (ST.conv === 'tea' ? 'TEA' : 'TNA 180/360') + ' o margen (%)', function (c) { return c.dataset.label + ': ' + fm(c.parsed.y, 2) + '%' + (c.dataset.$avg && c.raw && c.raw.n ? ' · ' + c.raw.n + (c.raw.n === 1 ? ' bono' : ' bonos') : ''); }, null, yb);
-    $('thYN').textContent = (ST.grp && ST.sel.length ? 'Agrupado por familia: la línea gruesa es el promedio simple de la tasa de los bonos elegidos de cada familia (en su unidad), día por día' + (ST.gh ? '' : '; las punteadas son cada bono') + '. Si a un bono le falta un día, se usa su último dato de hasta una semana antes; en sus últimos 90 días antes del vencimiento no entra al promedio (su tasa salta mucho).' + (sets.filter(function (d) { return !d.$aux; }).length <= 12 ? ' Tocá la familia en la leyenda para ocultarla.' : '') + ' ' : '') + (miss.length ? 'Sin precios desde esa fecha: ' + miss.join(', ') + '.' : '');
+    $('thYN').textContent = (ST.fams.length ? 'Familias: la línea gruesa es el promedio simple de la tasa de todos los bonos de la familia con precio desde esa fecha (en su unidad), día por día; las punteadas difuminadas son cada uno. Si a un bono le falta un día, se usa su último dato de hasta una semana antes; en sus últimos 90 días antes del vencimiento no entra al promedio (su tasa salta mucho).' + (sets.filter(function (d) { return !d.$aux; }).length <= 12 ? ' Tocá la familia en la leyenda para ocultarla.' : '') + ' ' : '') + (miss.length ? 'Sin precios desde esa fecha: ' + miss.join(', ') + '.' : '');
   }
   function renderF() {
     var from = bxDayNum(ST.from), sets = [], bad = [], rows = [], spn = function (k) { return isUsd(k) ? ST.fsp : ''; };
@@ -7771,7 +7771,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   function render() {
     if (typeof Chart === 'undefined') return;
     var from = bxDayNum(ST.from), G = universe(from), all = opts(G);
-    $('thAdd').innerHTML = '<option value="">Elegí un bono…</option><optgroup label="Toda una familia">' + FORD.filter(function (f) { return G[f].length; }).map(function (f) { return '<option value="@' + f + '">Todos los de ' + FN[f] + ' (' + G[f].length + ')</option>'; }).join('') + '</optgroup>' + all;
+    $('thAdd').innerHTML = '<option value="">Elegí un bono…</option>' + all;
+    $('thAddF').innerHTML = '<option value="">Elegí una familia…</option>' + GORD.map(function (g) { var n = members(G, g).length, on = ST.fams.indexOf(g) >= 0; return n ? '<option value="' + g + '"' + (on ? ' disabled' : '') + '>' + (on ? '✓ ' : '') + GN[g] + ' (' + n + (n === 1 ? ' bono' : ' bonos') + ')</option>' : ''; }).join('');
     var fa = $('thFA').value, fb = $('thFB').value; $('thFA').innerHTML = all; $('thFB').innerHTML = all; $('thFA').value = fa || 'TZX27'; $('thFB').value = fb || 'TZX28';
     chipsY(); chipsF();
     try { renderY(); } catch (e) { console.error('tasas históricas', e); }
@@ -7787,13 +7788,13 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   $('thBEui').onchange = $('thBEud').onchange = function () { ST.beu = this.value; save(); later(); };
   $('thRCf').onchange = function () { ST.rcf = this.value; save(); later(); };
   $('thConv').onchange = function () { ST.conv = this.value; save(); later(); };
-  $('thAdd').onchange = function () { var k = this.value; this.value = ''; if (!k) return; var L = k.charAt(0) === '@' ? (universe(bxDayNum(ST.from))[k.slice(1)] || []).map(function (o) { return o.k; }) : [k], n = 0; L.forEach(function (x) { if (ST.sel.indexOf(x) < 0) { ST.sel.push(x); n++; } }); if (n) { save(); later(); } };
-  $('thGrp').onchange = function () { ST.grp = this.value; save(); later(); };
-  $('thGh').onchange = function () { ST.gh = !!this.value; save(); later(); };
+  $('thAdd').onchange = function () { var k = this.value; if (k && ST.sel.indexOf(k) < 0) { ST.sel.push(k); save(); later(); } this.value = ''; };
+  $('thAddF').onchange = function () { var g = this.value; if (g && ST.fams.indexOf(g) < 0) { ST.fams.push(g); save(); later(); } this.value = ''; };
   $('thFAdd').onclick = function () { var a = $('thFA').value, b = $('thFB').value; if (!a || !b || a === b) return; var p = ord(a, b); if (matOf(p[0]) === matOf(p[1])) { $('thFN').textContent = a + ' y ' + b + ' vencen el mismo día: no hay forward entre ellos.'; return; } if (!ST.pairs.some(function (x) { return pkey(x) === pkey(p); })) ST.pairs.push(p); $('thFA').value = p[0]; $('thFB').value = p[1]; save(); later(); };
   document.addEventListener('click', function (e) {
     var go = e.target.closest('.psgo [data-go]'); if (go) { var sid = go.getAttribute('data-sec'); window.switchTab(go.getAttribute('data-go')); setTimeout(function () { var el = document.getElementById(sid); if (el) try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) {} }, 350); return; }
-    if (e.target.closest('.thxall')) { ST.sel = []; save(); later(); return; }
+    if (e.target.closest('.thxall')) { ST.sel = []; ST.fams = []; save(); later(); return; }
+    var cf = e.target.closest('.thxf'); if (cf) { ST.fams = ST.fams.filter(function (g) { return g !== cf.getAttribute('data-g'); }); save(); later(); return; }
     var c = e.target.closest('.thx'); if (c) { ST.sel = ST.sel.filter(function (k) { return k !== c.getAttribute('data-k'); }); save(); later(); return; }
     var bt = e.target.closest('.thbet'); if (bt) { var m = +bt.getAttribute('data-m'), j = ST.beT.indexOf(m); if (j >= 0) { if (ST.beT.length > 1) ST.beT.splice(j, 1); } else ST.beT.push(m); save(); later(); return; }
     var rc = e.target.closest('.thrc'); if (rc) { var k = rc.getAttribute('data-k'), L = ST.rcSel[ST.rcf] || [], i = L.indexOf(k); if (i >= 0) { if (L.length > 1) L.splice(i, 1); } else { L.push(k); if (L.length > 5) L.shift(); } ST.rcSel[ST.rcf] = L; save(); later(); return; }
