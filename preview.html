@@ -5588,221 +5588,213 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
 /*@@DOL_END@@*/
 /*@@BRF_START@@*/
 /* =====================================================================
-   PESTAÑA BRECHA Y CANJE: operaciones con el MEP, el cable y el futuro de dólar
-   1) brecha contra el futuro: el MEP y el CCL de un bono (AL30 o GD30) contra un futuro de dólar de A3, y el canje
-   brecha MEP = (bono en pesos ÷ bono en MEP) ÷ futuro − 1; brecha CCL igual con el cable; canje = MEP ÷ cable − 1 (el CCL contra el MEP).
-   Long brecha: comprás MEP (comprás el bono en pesos y lo vendés en dólares) y vendés el futuro; ganás si el MEP sube más que el futuro.
-   Datos: en vivo, data912 (window.PXQ) para el bono y data/tasas.json (vivo.fut, foto de Primary cada 10 minutos) para el futuro;
-   intradiario, data/intra_bonos.json (bonos cada 3 minutos) y data/intra.json (operaciones de los futuros cada 5);
-   historia, data/volumen.json (cierres del bono) y data/tasas.json (fut: ajuste de cada contrato, desde 2025).
-   2) canje por bono: MEP, CCL y canje de cada Bonar y Global con sus puntas (data912), para elegir por dónde pasar de MEP a cable o al revés.
-   3) MEP y CCL sintéticos a plazo: MEP × (1 + caución en pesos × d / 365) ÷ (1 + caución en dólares × d / 365), con la caución de BYMA
-      de cada plazo (data/tasas.json, vivo.bcau), contra el futuro de dólar llevado a ese plazo.
+   PESTAÑA BRECHA Y CANJE (por ahora solo en preview): ratios entre dos patas sintéticas, como en las pantallas de trading
+   Patas: MEP y CCL de cada bono (precio en pesos ÷ precio en dólares MEP o cable), futuros de dólar de A3 y el oficial (A3500).
+   Ratio = A − B (en pesos por dólar) o A ÷ B − 1 (en %). Long ratio: comprás A y vendés B; short: al revés.
+   Datos: en vivo, data912 (window.PXQ) y la foto de Primary (data/tasas.json, vivo.fut, cada 10 minutos);
+   intradiario, data/intra_bonos.json (bonos, últimas 2 ruedas) y data/intra.json (operaciones de los futuros);
+   diario, data/volumen.json (cierres de los bonos, desde 2023), data/tasas.json (ajuste de los futuros, desde 2025) y data/dolar.json (A3500).
    ===================================================================== */
 ;(function () {
   var root = document.getElementById('brc'); if (!root) return;
   var X = window.PSX || {}, css = X.css || function (n) { return getComputedStyle(document.body).getPropertyValue(n).trim(); };
   var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d == null ? 0 : d, maximumFractionDigits: d == null ? 0 : d }); };
-  var pc = function (v, d) { return v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : '') + nf(v * 100, d == null ? 2 : d) + '%'; };
+  var sg = function (v, d) { return v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v), d); };
   var fr = function (s) { return s.split('-').reverse().join('/'); }, hm = function (m) { return Math.floor(m / 60) + ':' + ('0' + Math.round(m % 60)).slice(-2); };
   var isAct = function () { return root.classList.contains('active'); };
   var MES = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-  var code = function (s) { var m = /^DLR\/([A-Z]{3})(\d{2})$/.exec(s || ''); return m ? 'DLR' + ('0' + (MES.indexOf(m[1]) + 1)).slice(-2) + '20' + m[2] : null; }; // DLR/OCT26 → DLR102026, como lo guarda la historia
-  var C_MEP = '#5cc8ff', C_CCL = '#c9a0ff', C_CAN = '#ff8fb3';
-  var KEY = 'brfSt1', ST = { b: 'AL30', c: 'front', v: 'hoy', w: 120 };
+  var code = function (s) { var m = /^DLR\/([A-Z]{3})(\d{2})$/.exec(s || ''); return m ? 'DLR' + ('0' + (MES.indexOf(m[1]) + 1)).slice(-2) + '20' + m[2] : null; }; // DLR/OCT26 → DLR102026 (la historia)
+  var BONOS = ['AL30', 'GD30', 'AL29', 'GD29', 'AL35', 'GD35', 'AE38', 'GD38', 'AL41', 'GD41', 'GD46'];
+  // los ratios armados: [id, nombre, A, B, op, qué hacés en el long, qué hacés en el short]
+  var PRE = [
+    ['bm', 'Brecha MEP vs futuro', 'MEP:AL30', 'FUT:1', 'dif', 'Long brecha: comprás MEP (comprás AL30 en pesos y vendés AL30D) y vendés el futuro. Ganás si el MEP sube más que el futuro; conviene cuando la brecha está comprimida (cerca de cero o negativa).', 'Short brecha («fundir la brecha»): vendés MEP (comprás AL30D y vendés AL30 en pesos), colocás los pesos y comprás el futuro. Ganás si la brecha se cierra; conviene cuando está alta.'],
+    ['bc', 'Brecha CCL vs futuro', 'CCL:AL30', 'FUT:1', 'dif', 'Long: comprás cable (comprás AL30 en pesos y vendés AL30C) y vendés el futuro. Ganás si el CCL sube más que el futuro.', 'Short: vendés cable y comprás el futuro. Ganás si la brecha del cable se cierra.'],
+    ['ca', 'Canje AL30 (CCL vs MEP)', 'CCL:AL30', 'MEP:AL30', 'pct', 'Long canje: pasás de MEP a cable (comprás AL30 con MEP y lo vendés por cable). Conviene cuando el canje está cerca de cero o negativo.', 'Short canje: pasás de cable a MEP (comprás AL30C y vendés AL30D) y cobrás el canje. Conviene cuando está alto contra su historia.'],
+    ['cg', 'Canje GD30 (CCL vs MEP)', 'CCL:GD30', 'MEP:GD30', 'pct', 'Long canje con GD30: pasás de MEP a cable por el Global.', 'Short canje con GD30: pasás de cable a MEP por el Global.'],
+    ['mm', 'MEP AL30 vs MEP GD30', 'MEP:AL30', 'MEP:GD30', 'pct', 'Long: el MEP de AL30 está más barato de lo habitual contra el de GD30: comprás dólares por AL30 y los vendés por GD30.', 'Short: al revés, comprás MEP por GD30 y lo vendés por AL30.'],
+    ['cc', 'CCL AL30 vs CCL GD30', 'CCL:AL30', 'CCL:GD30', 'pct', 'Long: comprás cable por AL30 y lo vendés por GD30.', 'Short: comprás cable por GD30 y lo vendés por AL30.'],
+    ['bo', 'Brecha MEP vs oficial', 'MEP:AL30', 'OFI', 'pct', 'Long: comprás MEP contra el oficial (por ejemplo, dejás de comprar al oficial y comprás MEP) cuando la brecha está baja.', 'Short: vendés MEP y comprás oficial cuando la brecha está alta.'],
+    ['ps', 'Pase entre futuros (2.º vs 1.º)', 'FUT:2', 'FUT:1', 'dif', 'Long pase: comprás el segundo futuro y vendés el primero. Ganás si la tasa implícita entre los dos sube.', 'Short pase: vendés el segundo y comprás el primero.']
+  ];
+  var KEY = 'brfSt2', ST = { p: 'bm', a: 'MEP:AL30', b: 'FUT:1', op: 'dif', tf: 'in', w: 120 };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
   var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
-  var TJ = null, IJ = null, IB = null, VD = null, ldT = 0, loading = false, CH = null;
+  var TJ = null, IJ = null, IB = null, VD = null, DJ = null, ldT = 0, loading = false, CH = null;
   var j = function (u) { return fetch(u + '?v=' + Math.floor(Date.now() / 6e4), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
-  function load(force) { // los json de la rueda se vuelven a pedir cada 3 minutos (la corrida de GitHub los sube cada 10)
+  function load(force) { // los json de la rueda se vuelven a pedir cada 3 minutos
     if (loading || (!force && TJ && Date.now() - ldT < 18e4)) return; loading = true;
     var vol = new Promise(function (ok) { if (VD) ok(VD); else if (window.VOLX && window.VOLX.raw) window.VOLX.raw(ok); else j('data/volumen.json').then(ok); });
-    Promise.all([j('data/tasas.json'), j('data/intra.json'), j('data/intra_bonos.json'), vol]).then(function (r) {
-      loading = false; ldT = Date.now(); if (r[0]) TJ = r[0]; if (r[1]) IJ = r[1]; if (r[2]) IB = r[2]; if (r[3]) VD = r[3]; draw();
+    Promise.all([j('data/tasas.json'), j('data/intra.json'), j('data/intra_bonos.json'), vol, DJ ? DJ : j('data/dolar.json')]).then(function (r) {
+      loading = false; ldT = Date.now(); if (r[0]) TJ = r[0]; if (r[1]) IJ = r[1]; if (r[2]) IB = r[2]; if (r[3]) VD = r[3]; if (r[4]) DJ = r[4]; draw();
     });
   }
   var nowAR = function () { var f = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()), g = {}; f.forEach(function (p) { g[p.type] = p.value; }); return { d: g.year + '-' + g.month + '-' + g.day, m: (+g.hour % 24) * 60 + (+g.minute) }; };
   var vivoFut = function () { return ((TJ && TJ.vivo && TJ.vivo.fut) || []).filter(function (r) { return /^DLR\/[A-Z]{3}\d{2}$/.test(r[0]) && r[1]; }).sort(function (a, c) { return a[1] < c[1] ? -1 : 1; }); };
-  function cur(d) { // el contrato elegido, o el más cercano que no venció a esa fecha
-    if (ST.c !== 'front') return ST.c;
-    var L = vivoFut().filter(function (r) { return r[1] >= d; }); return L.length ? L[0][0] : null;
+  var vtoOf = function (nm) { var r = vivoFut().filter(function (x) { return x[0] === nm; })[0]; if (r) return r[1]; var m = /^DLR\/([A-Z]{3})(\d{2})$/.exec(nm); if (!m) return ''; var mo = MES.indexOf(m[1]) + 1, y = 2000 + +m[2], last = new Date(Date.UTC(y, mo, 0)).getUTCDate(); return y + '-' + ('0' + mo).slice(-2) + '-' + last; };
+  function futName(id, d) { // FUT:1 y FUT:2: el primero y el segundo contrato que no vencieron a esa fecha; si no, el contrato pedido
+    var n = id.slice(4); if (!/^\d$/.test(n)) return n;
+    var names = {}; vivoFut().forEach(function (r) { names[r[0]] = 1; }); if (IJ && IJ[d] && IJ[d].fut) Object.keys(IJ[d].fut).forEach(function (k) { if (/^DLR\//.test(k)) names[k] = 1; });
+    var L = Object.keys(names).filter(function (k) { return vtoOf(k) >= d; }).sort(function (a, c) { return vtoOf(a) < vtoOf(c) ? -1 : 1; }); return L[+n - 1] || null;
   }
-  function frontCode(d) { // en la historia: el contrato con el vencimiento más cercano desde esa fecha
-    var rows = (TJ.fut || {})[d] || [], b = null; rows.forEach(function (r) { if (/^DLR\d{6}$/.test(r[0]) && r[1] >= d && r[2] > 0 && (!b || r[1] < b[1])) b = r; }); return b;
-  }
+  var label = function (id) { if (id === 'OFI') return 'Oficial (A3500)'; var p = id.split(':'); return p[0] === 'FUT' ? (/^\d$/.test(p[1]) ? (p[1] === '1' ? '1.er futuro' : '2.º futuro') + ' (' + (futName(id, nowAR().d) || '—') + ')' : p[1]) : p[0] + ' ' + p[1]; };
 
-  /* ---------- las patas en vivo ---------- */
-  function legs() {
-    var q = window.PXQ || {}, b = ST.b, t = nowAR(), td = t.d, o = {}, ib = IB && (IB[td] ? IB[td] : null);
-    [b, b + 'D', b + 'C'].forEach(function (s) {
-      var Q = q[s], lst = ib && ib[s] && ib[s].length ? ib[s][ib[s].length - 1][1] : null;
-      o[s] = { bid: Q && Q.bid > 0 ? Q.bid : null, ask: Q && Q.ask > 0 ? Q.ask : null, last: Q && Q.c > 0 ? Q.c : lst };
-    });
-    var fn = cur(td), row = vivoFut().filter(function (r) { return r[0] === fn; })[0], F = { s: fn, bid: null, ask: null, last: null, ts: null };
-    if (row) { var vt = String(TJ.vivo.ts || ''), vm = /T(\d\d):(\d\d)/.exec(vt), vd = vt.slice(0, 10); F.bid = row[2]; F.ask = row[3]; F.last = row[4] || row[5]; F.ts = vd === td && vm ? +vm[1] * 60 + +vm[2] : null;
-      var tr = IJ && IJ[td] && IJ[td].fut && IJ[td].fut[fn]; if (tr && tr.length && (F.ts == null || tr[tr.length - 1][0] > F.ts)) { F.last = tr[tr.length - 1][1]; F.ts = tr[tr.length - 1][0]; } // la última operación, si es más nueva que la foto
-      if (vd !== td) F.bid = F.ask = null; // la foto es de otra rueda: sus puntas ya no valen
+  /* ---------- cada pata: en vivo, intradiario y diario ---------- */
+  function live(id) { // {bid: lo que cobrás si la vendés, ask: lo que pagás si la comprás, last, legs}
+    var q = window.PXQ || {}, t = nowAR();
+    if (id === 'OFI') { var sp = TJ && TJ.vivo && TJ.vivo.spot; return { bid: null, ask: null, last: sp || null, legs: [['Oficial (' + (TJ && TJ.vivo && TJ.vivo.spotF === 'A3' ? 'A3' : 'mayorista') + ')', null, null, sp]] }; }
+    var p = id.split(':');
+    if (p[0] === 'FUT') {
+      var nm = futName(id, t.d), row = vivoFut().filter(function (r) { return r[0] === nm; })[0], o = { bid: null, ask: null, last: null, legs: [] }; if (!row) return o;
+      var vt = String(TJ.vivo.ts || ''), hoy = vt.slice(0, 10) === t.d, tr = IJ && IJ[t.d] && IJ[t.d].fut && IJ[t.d].fut[nm];
+      o.bid = hoy ? row[2] : null; o.ask = hoy ? row[3] : null; o.last = tr && tr.length ? tr[tr.length - 1][1] : row[4] || row[5]; o.legs = [[nm, o.bid, o.ask, o.last]]; return o;
     }
-    o.F = F; return o;
+    var k = p[1], P = q[k] || {}, D = q[k + (p[0] === 'MEP' ? 'D' : 'C')] || {}, ok = P.bid > 0 && P.ask > 0 && D.bid > 0 && D.ask > 0;
+    return { bid: ok ? P.bid / D.ask : null, ask: ok ? P.ask / D.bid : null, last: P.c > 0 && D.c > 0 ? P.c / D.c : null, legs: [[k, P.bid, P.ask, P.c], [k + (p[0] === 'MEP' ? 'D' : 'C'), D.bid, D.ask, D.c]] };
   }
-  function ratios(P, D, C, F) {
-    return { mep: P > 0 && D > 0 && F > 0 ? P / D / F - 1 : null, ccl: P > 0 && C > 0 && F > 0 ? P / C / F - 1 : null, can: D > 0 && C > 0 ? D / C - 1 : null };
+  function daily(id) { // {fecha: valor} al cierre
+    var out = {};
+    if (id === 'OFI') { var A = (DJ && DJ.A3500) || {}; Object.keys(A).forEach(function (d) { if (A[d] > 0) out[d] = A[d]; }); return out; }
+    var p = id.split(':');
+    if (p[0] === 'FUT') { if (!TJ || !TJ.fut) return out; var n = p[1];
+      Object.keys(TJ.fut).forEach(function (d) { var rows = (TJ.fut[d] || []).filter(function (r) { return /^DLR\d{6}$/.test(r[0]) && r[2] > 0 && r[1] >= d; }).sort(function (a, c) { return a[1] < c[1] ? -1 : 1; });
+        var r = /^\d$/.test(n) ? rows[+n - 1] : rows.filter(function (x) { return x[0] === code(n); })[0]; if (r) out[d] = r[2]; });
+      return out; }
+    if (!VD) return out;
+    var cl = function (t) { var o = VD.t[t], m = {}, acc = 0; if (o) for (var i = 0; i < o.i.length; i++) { acc += o.i[i]; if (o.c[i] > 0) m[VD.dates[acc]] = o.c[i]; } return m; };
+    var P = cl(p[1]), D = cl(p[1] + (p[0] === 'MEP' ? 'D' : 'C')); Object.keys(P).forEach(function (d) { if (D[d] > 0) out[d] = P[d] / D[d]; }); return out;
   }
+  function intra(id, d) { // [[minuto, valor]] de esa rueda
+    if (id === 'OFI') return [];
+    var p = id.split(':');
+    if (p[0] === 'FUT') { var nm = futName(id, d), tr = nm && IJ && IJ[d] && IJ[d].fut && IJ[d].fut[nm]; return (tr || []).map(function (x) { return [x[0], x[1]]; }); }
+    var ib = IB && IB[d]; if (!ib) return [];
+    var P = ib[p[1]] || [], D = ib[p[1] + (p[0] === 'MEP' ? 'D' : 'C')] || [], i = 0, k = 0, a = null, b = null, out = [], ms = {};
+    P.concat(D).forEach(function (x) { ms[x[0]] = 1; });
+    Object.keys(ms).map(Number).sort(function (x, y) { return x - y; }).forEach(function (m) { while (i < P.length && P[i][0] <= m) a = P[i++][1]; while (k < D.length && D[k][0] <= m) b = D[k++][1]; if (a > 0 && b > 0) out.push([m, a / b]); });
+    return out;
+  }
+  var comb = function (a, b) { return a == null || b == null || !(a > 0) || !(b > 0) ? null : ST.op === 'dif' ? a - b : (a / b - 1) * 100; };
+  var unit = function () { return ST.op === 'dif' ? ' $' : '%'; }, fmtV = function (v) { return v == null ? '—' : ST.op === 'dif' ? sg(v, 2) : sg(v, 2) + '%'; };
 
-  /* ---------- series ---------- */
-  function hist() { // cierre de cada rueda: bono (data/volumen.json) y ajuste del futuro (data/tasas.json)
-    var out = []; if (!VD || !TJ || !TJ.fut) return out;
-    var cl = function (t) { var o = VD.t[t], m = {}, acc = 0; if (o) for (var k = 0; k < o.i.length; k++) { acc += o.i[k]; if (o.c[k] > 0) m[VD.dates[acc]] = o.c[k]; } return m; };
-    var P = cl(ST.b), D = cl(ST.b + 'D'), C = cl(ST.b + 'C'), want = ST.c === 'front' ? null : code(ST.c);
-    Object.keys(TJ.fut).sort().forEach(function (d) {
-      var r = want ? ((TJ.fut[d] || []).filter(function (x) { return x[0] === want; })[0]) : frontCode(d); if (!r || !(r[2] > 0) || !(P[d] > 0)) return;
-      var z = ratios(P[d], D[d], C[d], r[2]); z.d = d; z.k = r[0]; out.push(z);
+  function series() { // la serie del ratio que se grafica: [{x, y, lab}]
+    var t = nowAR();
+    if (ST.tf === 'd') {
+      var A = daily(ST.a), B = daily(ST.b), ds = Object.keys(A).filter(function (d) { return B[d] != null; }).sort();
+      if (ST.w) ds = ds.slice(-ST.w);
+      return ds.map(function (d, i) { return { x: i, y: comb(A[d], B[d]), lab: fr(d) }; });
+    }
+    // intradiario: cada 5 minutos, cada serie con su último dato; las ruedas guardadas, una al lado de la otra
+    var days = Object.keys(IB || {}).concat(Object.keys(IJ || {})).filter(function (d, i, a) { return a.indexOf(d) === i && d <= t.d; }).sort().slice(-2), out = [], x = 0;
+    var LA = live(ST.a), LB = live(ST.b);
+    days.forEach(function (d) {
+      var a = intra(ST.a, d), b = intra(ST.b, d); if (d === t.d && t.m >= 630 && t.m <= 1020) { if (LA.last) a.push([t.m, LA.last]); if (LB.last) b.push([t.m, LB.last]); }
+      if (ST.b === 'OFI') { var sp = TJ && TJ.vivo && TJ.vivo.spot && String(TJ.vivo.ts || '').slice(0, 10) === d ? TJ.vivo.spot : (DJ && DJ.A3500 && DJ.A3500[d]); if (sp) b = [[600, sp]]; }
+      if (!a.length || !b.length) return;
+      var m0 = Math.max(630, Math.min(a[0][0], b[0][0])), m1 = Math.min(1020, Math.max(a[a.length - 1][0], b[b.length - 1][0])), i = 0, k = 0, va = null, vb = null;
+      for (var m = Math.ceil(m0 / 5) * 5; m <= m1 + 4; m += 5) {
+        while (i < a.length && a[i][0] <= m) va = a[i++][1]; while (k < b.length && b[k][0] <= m) vb = b[k++][1];
+        var y = comb(va, vb); if (y != null) out.push({ x: x, y: y, lab: d.slice(8, 10) + '/' + d.slice(5, 7) + ' ' + hm(Math.min(m, m1)) });
+        x++;
+      }
+      x += 6; // un hueco entre ruedas
     });
     return out;
   }
-  function intra(td, L) { // la rueda de hoy (o la última guardada): cada serie sigue con su último dato hasta el siguiente
-    var ib = IB && IB[td], fut = IJ && IJ[td] && IJ[td].fut, fn = cur(td), S = {}, mins = {}, b = ST.b;
-    [[b, 'P'], [b + 'D', 'D'], [b + 'C', 'C']].forEach(function (x) { S[x[1]] = ((ib && ib[x[0]]) || []).slice(); });
-    S.F = ((fut && fut[fn]) || []).map(function (p) { return [p[0], p[1]]; });
-    if (L) { var m = nowAR().m; if (nowAR().d === td) { if (L[b].last > 0) S.P.push([m, L[b].last]); if (L[b + 'D'].last > 0) S.D.push([m, L[b + 'D'].last]); if (L[b + 'C'].last > 0) S.C.push([m, L[b + 'C'].last]); if (L.F.last > 0 && L.F.ts != null) S.F.push([L.F.ts, L.F.last]); } }
-    Object.keys(S).forEach(function (k) { S[k].sort(function (a, c) { return a[0] - c[0]; }); S[k].forEach(function (p) { mins[p[0]] = 1; }); });
-    var at = { P: 0, D: 0, C: 0, F: 0 }, v = {}, out = [];
-    Object.keys(mins).map(Number).sort(function (a, c) { return a - c; }).forEach(function (m) {
-      Object.keys(S).forEach(function (k) { while (at[k] < S[k].length && S[k][at[k]][0] <= m) { v[k] = S[k][at[k]][1]; at[k]++; } });
-      var z = ratios(v.P, v.D, v.C, v.F); z.m = m; if (z.mep != null || z.ccl != null || z.can != null) out.push(z);
-    });
-    return { fn: fn, pts: out };
-  }
 
   /* ---------- pantalla ---------- */
-  function dl(id, nm, tt) { return '<button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'' + id + '\', \'' + nm + '\')" title="' + tt + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button>'; }
+  function opts(sel) {
+    var g = function (t, L) { return '<optgroup label="' + t + '">' + L.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === sel ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</optgroup>'; };
+    return g('MEP', BONOS.map(function (k) { return ['MEP:' + k, 'MEP ' + k]; })) + g('CCL', BONOS.map(function (k) { return ['CCL:' + k, 'CCL ' + k]; })) +
+      g('Futuros de dólar', [['FUT:1', '1.er futuro'], ['FUT:2', '2.º futuro']].concat(vivoFut().map(function (r) { return ['FUT:' + r[0], r[0] + ' · vence ' + fr(r[1])]; }))) + g('Oficial', [['OFI', 'Oficial (A3500)']]);
+  }
   function ensure() {
-    if (document.getElementById('bfCh')) return true;
-    var HD = 'display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;flex-wrap:nowrap';
-    var head = function (id, t, sub) { return '<div style="' + HD + '"><div style="min-width:0;flex:1 1 0"><p style="margin:0;color:var(--tx);font-size:18px;font-weight:700">' + t + '</p><p class="note" style="margin-top:4px">' + sub + '</p></div>' + dl(id, 'Brecha_canje_' + id, 'Descargar en HD') + '</div>'; };
+    if (document.getElementById('brCh')) return true;
     root.innerHTML = '<style>' +
-      '#brc .card{margin-bottom:24px}#brc .rs{border-top:1px solid var(--bd);margin-top:14px;padding-top:14px}#brc .rc{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}#brc .rc select{width:200px}' +
-      '#brc .rchips{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}#brc .rchip{flex:1 1 calc(33% - 9px);min-width:220px;box-sizing:border-box;border:1px solid var(--bd);border-radius:10px;padding:10px 14px;background:var(--bg)}' +
-      '#brc .rchip small{display:block;color:var(--mu);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}#brc .rchip b{font-size:19px;font-variant-numeric:tabular-nums}#brc .rchip span{display:block;color:var(--mu);font-size:12px;margin-top:2px}' +
-      '#brc .rg{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:18px}@media(max-width:1000px){#brc .rg{grid-template-columns:minmax(0,1fr)}}#brc .sc{overflow:auto}' +
-      '#brc .rt{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}#brc .rt th,#brc .rt td{padding:6px 9px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--bd)}#brc .rt th{font-size:12px;background:var(--card);color:var(--mu)}#brc .rt td.l,#brc .rt th.l{text-align:left}' +
-      '#brc .rt tr.hi td{background:rgba(52,211,153,.10)}#brc .rt tr.lo td{background:rgba(255,107,139,.09)}#brc .tg{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11.5px;font-weight:700;margin-left:6px}#brc .tg.up{background:rgba(52,211,153,.16);color:var(--ok)}#brc .tg.dn{background:rgba(255,107,139,.14);color:var(--bad)}' +
-      '#brc .hl{color:var(--mu);font-size:14px;line-height:1.6;margin:14px 0 0}#brc .hl p{margin:0 0 6px}#brc .hl ul{margin:4px 0 0;padding-left:20px}#brc .hl li{margin:3px 0}#brc .hl b{color:var(--tx)}@media(max-width:700px){#brc .hl{font-size:13px}#brc .rc select{width:160px}}' +
+      '#brc .brL{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px}@media(max-width:1100px){#brc .brL{grid-template-columns:minmax(0,1fr)}}' +
+      '#brc .brP{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}#brc .brP button{cursor:pointer;padding:6px 12px;border-radius:999px;border:1px solid var(--bd);background:transparent;color:var(--mu);font:600 12.5px Inter,system-ui,sans-serif}#brc .brP button.on{border-color:var(--ac);color:var(--tx);background:rgba(255,197,66,.12)}' +
+      '#brc .ctl{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:10px}#brc .ctl select{min-width:170px}' +
+      '#brc .brV{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}#brc .brS{color:var(--mu);font-size:12.5px;margin-top:4px}' +
+      '#brc .bx{border:1px solid var(--bd);border-radius:12px;padding:12px 14px;background:var(--bg);margin-bottom:12px}#brc .bx h5{margin:0 0 8px;font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px}' +
+      '#brc .rt{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}#brc .rt th,#brc .rt td{padding:5px 7px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--bd)}#brc .rt th{color:var(--mu);font-size:11.5px;font-weight:600}#brc .rt td.l,#brc .rt th.l{text-align:left}' +
+      '#brc .rt tr.on td{background:rgba(255,197,66,.10)}#brc .rt tbody tr{cursor:pointer}#brc .rt tbody tr:hover td{background:rgba(161,161,170,.08)}#brc .st{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:13px}#brc .st span{color:var(--mu)}#brc .st b{text-align:right;font-variant-numeric:tabular-nums}' +
+      '#brc .hw p{margin:0 0 8px;font-size:13px;line-height:1.5;color:var(--mu)}#brc .hw b{color:var(--tx)}' +
       '</style>' +
-      '<div class="card" id="bfA">' + head('bfA', 'Brecha contra el futuro', 'El MEP y el cable de un bono contra el futuro de dólar oficial: long brecha (comprás MEP y vendés futuro) o short brecha (al revés), y el canje.') +
-      '<div class="rc rs"><label>Bono<select id="bfB"><option value="AL30">AL30</option><option value="GD30">GD30</option></select></label><label>Futuro de dólar<select id="bfC"></select></label>' +
-      '<label>Gráfico<select id="bfV"><option value="hoy">La rueda de hoy</option><option value="hist">Historia (cierres)</option></select></label>' +
-      '<label id="bfWL">Período<select id="bfW"><option value="60">60 ruedas</option><option value="120">120 ruedas</option><option value="250">250 ruedas</option><option value="0">Desde 2025</option></select></label></div>' +
-      '<p class="note" id="bfSub" style="margin-top:10px"></p><div class="rchips" id="bfChips"></div>' +
-      '<div class="rg" style="margin-top:18px"><div style="position:relative;height:340px"><canvas id="bfCh"></canvas></div><div><div class="sc"><table class="rt" id="bfLegs"></table></div><p class="note" id="bfN" style="margin-top:10px"></p></div></div>' +
-      '<div class="hl"><p><b>Cómo se lee</b></p><ul>' +
-      '<li><b>Brecha MEP contra el futuro</b>: el MEP del bono (precio en pesos ÷ precio en dólares MEP) dividido por el futuro de dólar oficial elegido, menos 1; al lado, la misma diferencia en pesos por dólar (MEP − futuro). <b>Brecha CCL</b>: lo mismo con el cable. <b>Canje</b>: cuánto más caro está el cable que el MEP (MEP ÷ cable − 1), no depende del futuro.</li>' +
-      '<li><b>Long brecha</b>: comprás MEP (comprás el bono en pesos y lo vendés en dólares) y vendés el futuro: ganás si la brecha sube. <b>Short brecha</b>: al revés (vendés MEP y comprás el futuro): ganás si baja. <b>Long canje</b>: pasás de MEP a cable (comprás el bono con MEP y lo vendés por cable): ganás si el canje sube.</li>' +
-      '<li>Los valores de <b>long</b> y <b>short</b> salen de las puntas: el nivel al que entrarías pagando la venta y vendiendo a la compra en cada pata (las del bono, de data912; las del futuro, de la última foto de Primary). La diferencia con el valor del medio es lo que te cuesta cruzar las puntas.</li>' +
-      '<li>El futuro trae el costo de tiempo hasta su vencimiento, así que la brecha contra un contrato largo da más baja que contra uno corto. En la historia, «el más cercano» va rotando de contrato: el día que vence uno y se pasa al siguiente la brecha cae de un salto. La historia usa el ajuste diario del futuro y el cierre del bono; el intradiario, la última operación de cada pata.</li></ul></div></div>' +
-      '<div class="card" id="bfK">' + head('bfK', 'Canje por bono', 'El MEP, el cable y el canje de cada Bonar y Global con sus puntas: por cuál conviene pasar de MEP a cable y por cuál traer los dólares de vuelta.') +
-      '<p class="note" id="bfKn" style="margin:10px 0 0;color:var(--tx)"></p><div class="sc" style="margin-top:12px"><table class="rt" id="bfKt"></table></div>' +
-      '<div class="hl"><ul><li><b>MEP</b> y <b>CCL</b>: precio en pesos ÷ precio en dólares MEP (especie D) o cable (especie C), con el último operado. <b>Canje</b>: MEP ÷ cable − 1 (cuánto más caro está el cable).</li>' +
-      '<li><b>Comprar MEP</b>: lo que te cuesta un dólar MEP si comprás el bono en pesos (pagás la venta) y lo vendés en dólares (cobrás la compra). <b>Comprar cable</b>: lo mismo con la especie C.</li>' +
-      '<li><b>Pasar de MEP a cable</b> (long canje): comprás el bono con MEP (pagás la venta de la D) y lo vendés por cable (cobrás la compra de la C); el porcentaje es el canje que pagás en el pase. <b>Traer cable a MEP</b> (short canje): al revés; el porcentaje es el canje que cobrás. En verde el mejor bono para cada lado. Los bonos con poco volumen pueden tener puntas que no alcanzan para un monto grande.</li></ul></div></div>' +
-      '<div class="card" id="bfS">' + head('bfS', 'MEP y CCL sintéticos a plazo', 'Tomás caución en pesos, comprás MEP y lo colocás en caución en dólares: el MEP a plazo que sale de las dos tasas, contra el futuro de dólar al mismo plazo.') +
-      '<div class="sc" style="margin-top:12px"><table class="rt" id="bfSt"></table></div><p class="note" id="bfSn" style="margin-top:10px"></p>' +
-      '<div class="hl"><ul><li><b>MEP a plazo</b> = MEP × (1 + caución en pesos × días ÷ 365) ÷ (1 + caución en dólares MEP × días ÷ 365); el <b>CCL a plazo</b>, igual con la caución en dólares cable. Es el dólar que te queda asegurado a ese plazo si financiás la compra con caución en pesos y ponés los dólares a caución.</li>' +
-      '<li><b>Futuro al plazo</b>: el futuro de dólar llevado a esa fecha, entre el oficial de hoy y el contrato que vence después (interpolado en línea recta). <b>Brecha a plazo</b>: MEP a plazo ÷ futuro al plazo − 1; si es más baja que la brecha de contado, el mercado espera que la brecha se cierre.</li>' +
-      '<li>Las tasas son las últimas de la caución de BYMA de cada plazo (TNA, en la foto de la rueda cada 10 minutos). Sin operaciones en dólares a ese plazo no se calcula.</li></ul></div></div>';
+      '<div class="card" id="brA"><p style="margin:0;color:var(--tx);font-size:18px;font-weight:700">Ratios de brecha y canje</p><p class="note" style="margin-top:4px">Dos patas sintéticas (MEP, CCL, futuro u oficial) y su ratio en el tiempo: dónde está hoy contra su historia, a qué nivel entrás long o short y cómo se arma cada operación.</p>' +
+      '<div class="brP" id="brPre"></div>' +
+      '<div class="ctl"><label>Pata A (long: la comprás)<select id="brA1"></select></label><label>Pata B (long: la vendés)<select id="brB1"></select></label><label>Ratio<select id="brOp"><option value="dif">A − B ($)</option><option value="pct">A ÷ B − 1 (%)</option></select></label>' +
+      '<label>Gráfico<select id="brTf"><option value="in">Intradiario (5 min)</option><option value="d">Diario</option></select></label><label id="brWl">Período<select id="brW"><option value="60">60 ruedas</option><option value="120">120 ruedas</option><option value="250">250 ruedas</option><option value="0">Todo</option></select></label></div>' +
+      '<div class="brL" style="margin-top:16px"><div><p class="note" id="brT" style="margin:0 0 6px;color:var(--tx);font-weight:600"></p><div style="position:relative;height:420px"><canvas id="brCh"></canvas></div><p class="note" id="brN" style="margin-top:8px"></p></div>' +
+      '<div><div class="bx"><h5 id="brH">Ahora</h5><div class="brV" id="brV"></div><div class="brS" id="brE"></div></div>' +
+      '<div class="bx"><h5>Patas</h5><table class="rt" id="brLg"></table><p class="brS" id="brLn" style="margin-top:6px"></p></div>' +
+      '<div class="bx"><h5 id="brSt">En el gráfico</h5><div class="st" id="brSs"></div></div>' +
+      '<div class="bx hw"><h5>Cómo se arma</h5><div id="brHw"></div></div></div></div></div>' +
+      '<div class="card" id="brB" style="margin-top:24px"><p style="margin:0;color:var(--tx);font-size:18px;font-weight:700">Todos los ratios ahora</p><p class="note" style="margin-top:4px">Cada ratio armado con el precio de ahora, a qué nivel entrás long y short cruzando las puntas, y dónde está contra sus últimas 120 ruedas (cierres). Tocá una fila para verla arriba.</p>' +
+      '<div style="overflow:auto;margin-top:12px"><table class="rt" id="brAll"></table></div></div>';
     var on = function (id, fn) { document.getElementById(id).onchange = function () { fn(this.value); save(); draw(); }; };
-    on('bfB', function (v) { ST.b = v; }); on('bfC', function (v) { ST.c = v; }); on('bfV', function (v) { ST.v = v; }); on('bfW', function (v) { ST.w = +v; });
+    on('brA1', function (v) { ST.a = v; ST.p = ''; }); on('brB1', function (v) { ST.b = v; ST.p = ''; }); on('brOp', function (v) { ST.op = v; ST.p = ''; }); on('brTf', function (v) { ST.tf = v; }); on('brW', function (v) { ST.w = +v; });
+    root.addEventListener('click', function (e) { var b = e.target.closest('[data-pre]'); if (!b) return; var P = PRE.filter(function (x) { return x[0] === b.getAttribute('data-pre'); })[0]; if (!P) return; ST.p = P[0]; ST.a = P[2]; ST.b = P[3]; ST.op = P[4]; save(); draw(); if (b.tagName === 'TR') document.getElementById('brA').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     return true;
   }
-  function chip(t, v, s, col) { return '<div class="rchip"><small>' + t + '</small><b style="color:' + col + '">' + v + '</b><span>' + s + '</span></div>'; }
   function draw() {
     if (!isAct() || typeof Chart === 'undefined' || !ensure()) return;
-    load(); var t = nowAR();
-    var fs = vivoFut(), sel = document.getElementById('bfC');
-    sel.innerHTML = '<option value="front">El más cercano (va rotando)</option>' + fs.map(function (r) { return '<option value="' + r[0] + '">' + r[0] + ' · vence ' + fr(r[1]) + '</option>'; }).join('');
-    if (ST.c !== 'front' && !fs.some(function (r) { return r[0] === ST.c; }) && fs.length) ST.c = 'front';
-    sel.value = ST.c; document.getElementById('bfB').value = ST.b; document.getElementById('bfV').value = ST.v; document.getElementById('bfW').value = String(ST.w); document.getElementById('bfWL').style.display = ST.v === 'hist' ? '' : 'none';
-    if (!TJ || !VD) { document.getElementById('bfSub').textContent = 'Cargando los futuros y los bonos…'; return; }
-    var L = legs(), b = ST.b, P = L[b], D = L[b + 'D'], C = L[b + 'C'], F = L.F, now = ratios(P.last, D.last, C.last, F.last);
-    var lo = { mep: P.ask && D.bid && F.bid ? P.ask / D.bid / F.bid - 1 : null, ccl: P.ask && C.bid && F.bid ? P.ask / C.bid / F.bid - 1 : null, can: D.ask && C.bid ? D.ask / C.bid - 1 : null }; // entrar long: pagás la venta y vendés a la compra
-    var sh = { mep: P.bid && D.ask && F.ask ? P.bid / D.ask / F.ask - 1 : null, ccl: P.bid && C.ask && F.ask ? P.bid / C.ask / F.ask - 1 : null, can: D.bid && C.ask ? D.bid / C.ask - 1 : null };
-    var H = hist(), Hp = H.filter(function (z) { return z.d < t.d; }), prev = Hp.length ? Hp[Hp.length - 1] : null, W = ST.w ? Hp.slice(-ST.w) : Hp;
-    var pctl = function (k, v) { var a = W.map(function (z) { return z[k]; }).filter(function (x) { return x != null; }); if (v == null || a.length < 20) return ''; var n = a.filter(function (x) { return x < v; }).length; return ' · percentil ' + Math.round(n / a.length * 100) + ' de ' + a.length + ' ruedas'; };
-    var sub = function (k) { return (lo[k] != null ? 'Long ' + pc(lo[k]) + ' · short ' + pc(sh[k]) : 'Sin puntas en vivo') + (prev && prev[k] != null ? ' · cierre anterior ' + pc(prev[k]) : '') + pctl(k, now[k]); };
-    var ps = function (v) { return v == null || !isFinite(v) ? '' : ' <i style="font-style:normal;font-size:13px;color:var(--mu);font-weight:600">' + (v >= 0 ? '+' : '−') + '$ ' + nf(Math.abs(v), 2) + '</i>'; }; // la misma brecha en pesos por dólar (MEP − futuro), como la miden muchas pantallas
-    document.getElementById('bfChips').innerHTML = chip('Brecha MEP vs ' + (F.s || 'futuro'), pc(now.mep) + ps(P.last / D.last - F.last), sub('mep'), C_MEP) + chip('Brecha CCL vs ' + (F.s || 'futuro'), pc(now.ccl) + ps(P.last / C.last - F.last), sub('ccl'), C_CCL) + chip('Canje (CCL vs MEP)', pc(now.can) + ps(P.last / C.last - P.last / D.last), sub('can'), C_CAN);
-    var row = function (s, o, d) { return '<tr><td class="l"><b>' + s + '</b></td><td>' + nf(o.bid, d) + '</td><td>' + nf(o.ask, d) + '</td><td>' + nf(o.last, d) + '</td></tr>'; };
-    document.getElementById('bfLegs').innerHTML = '<thead><tr><th class="l">Pata</th><th>Compra</th><th>Venta</th><th>Último</th></tr></thead><tbody>' + row(b, P, 2) + row(b + 'D', D, 2) + row(b + 'C', C, 2) + row(F.s || 'Futuro', F, 1) + '</tbody>';
-    var vts = TJ.vivo && TJ.vivo.ts ? String(TJ.vivo.ts) : '';
-    document.getElementById('bfN').textContent = 'Bono: data912 en vivo (puntas y último). Futuro: puntas de la última foto de Primary' + (vts ? ' (' + fr(vts.slice(0, 10)) + ' ' + vts.slice(11, 16) + ')' : '') + ' y su última operación' + (F.ts != null ? ' (' + hm(F.ts) + ')' : '') + '. MEP implícito ' + nf(P.last / D.last, 2) + ' · CCL ' + nf(P.last / C.last, 2) + (F.last ? ' · futuro ' + nf(F.last, 1) : '') + '.';
-    // gráfico
-    if (CH) { try { CH.destroy(); } catch (e) { } CH = null; }
-    var tx = css('--tx'), mu = css('--mu'), bd = css('--bd'), sets, xs, ttl;
-    var ds = function (lbl, data, col) { return { label: lbl, data: data, borderColor: col, backgroundColor: col, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.15, spanGaps: true }; };
-    if (ST.v === 'hoy') {
-      var td = t.d; if (!(IB && IB[td] && IB[td][b])) { var ks = Object.keys(IB || {}).filter(function (d) { return IB[d][b]; }).sort(); td = ks.length ? ks[ks.length - 1] : td; }
-      var I = intra(td, td === t.d ? L : null), pt = I.pts, mp = function (k) { return pt.filter(function (z) { return z[k] != null; }).map(function (z) { return { x: z.m, y: z[k] * 100 }; }); };
-      sets = [ds('Brecha MEP vs ' + (I.fn || 'futuro'), mp('mep'), C_MEP), ds('Brecha CCL vs ' + (I.fn || 'futuro'), mp('ccl'), C_CCL), ds('Canje', mp('can'), C_CAN)];
-      xs = { type: 'linear', ticks: { color: mu, maxTicksLimit: 8, callback: function (v) { return hm(v); } }, grid: { display: false }, border: { color: bd } };
-      ttl = 'Rueda del ' + fr(td) + (td === t.d ? ' (hoy)' : '') + ', cada 3 minutos';
-      if (!pt.length) ttl += ': todavía no hay datos';
-    } else {
-      var Hw = ST.w ? H.slice(-ST.w) : H, lab = Hw.map(function (z) { return z.d; });
-      sets = [ds('Brecha MEP', Hw.map(function (z, i) { return { x: i, y: z.mep == null ? null : z.mep * 100 }; }), C_MEP), ds('Brecha CCL', Hw.map(function (z, i) { return { x: i, y: z.ccl == null ? null : z.ccl * 100 }; }), C_CCL), ds('Canje', Hw.map(function (z, i) { return { x: i, y: z.can == null ? null : z.can * 100 }; }), C_CAN)];
-      xs = { type: 'linear', min: 0, max: Math.max(1, lab.length - 1), ticks: { color: mu, maxTicksLimit: 8, callback: function (v) { var d = lab[Math.round(v)]; return d ? d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(2, 4) : ''; } }, grid: { display: false }, border: { color: bd } };
-      sets.forEach(function (s) { s.$lab = lab; s.$k = Hw.map(function (z) { return z.k; }); });
-      ttl = 'Cierre de cada rueda contra ' + (ST.c === 'front' ? 'el futuro más cercano' : ST.c) + ' (ajuste)';
-    }
-    document.getElementById('bfSub').textContent = ttl + '.';
-    CH = new Chart(document.getElementById('bfCh').getContext('2d'), { type: 'line', data: { datasets: sets }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { labels: { color: tx, usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8 } },
-        tooltip: { callbacks: { title: function (it) { if (!it.length) return ''; var d = it[0].dataset; return d.$lab ? fr(d.$lab[it[0].parsed.x]) + ' · ' + d.$k[it[0].parsed.x].replace(/^DLR(\d\d)\d\d(\d\d)$/, function (_, m, y) { return 'DLR/' + MES[+m - 1] + y; }) : hm(it[0].parsed.x); }, label: function (c) { return c.dataset.label + ': ' + pc(c.parsed.y / 100); } } } },
-      scales: { x: xs, y: { ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: function (c) { return c.tick && c.tick.value === 0 ? 'rgba(161,161,170,.6)' : 'rgba(161,161,170,.12)'; } }, border: { display: false } } } } });
-    try { canje(); } catch (e) { console.error('canje por bono', e); }
-    try { sint(L); } catch (e) { console.error('sintéticos a plazo', e); }
+    load();
+    if (!TJ || !VD) { document.getElementById('brT').textContent = 'Cargando los bonos y los futuros…'; return; }
+    try {
+      var pre = PRE.filter(function (x) { return x[0] === ST.p; })[0];
+      document.getElementById('brPre').innerHTML = PRE.map(function (p) { return '<button data-pre="' + p[0] + '" class="' + (p[0] === ST.p ? 'on' : '') + '">' + p[1] + '</button>'; }).join('');
+      document.getElementById('brA1').innerHTML = opts(ST.a); document.getElementById('brB1').innerHTML = opts(ST.b);
+      document.getElementById('brOp').value = ST.op; document.getElementById('brTf').value = ST.tf; document.getElementById('brW').value = String(ST.w); document.getElementById('brWl').style.display = ST.tf === 'd' ? '' : 'none';
+      var name = pre ? pre[1] : label(ST.a) + (ST.op === 'dif' ? ' − ' : ' ÷ ') + label(ST.b);
+      // ahora
+      var LA = live(ST.a), LB = live(ST.b), v = comb(LA.last, LB.last), lo = comb(LA.ask, LB.bid), sh = comb(LA.bid, LB.ask);
+      document.getElementById('brH').textContent = name;
+      document.getElementById('brV').innerHTML = fmtV(v) + (ST.op === 'dif' && v != null && LB.last ? ' <span style="font-size:15px;color:var(--mu);font-weight:600">' + sg(v / LB.last * 100, 2) + '%</span>' : '');
+      document.getElementById('brE').innerHTML = (lo != null ? 'Entrás <b>long</b> a ' + fmtV(lo) + ' · <b>short</b> a ' + fmtV(sh) : 'Sin puntas de las dos patas para el long y el short') + '<br>' + label(ST.a) + ': ' + nf(LA.last, 2) + ' · ' + label(ST.b) + ': ' + nf(LB.last, 2);
+      var lg = LA.legs.concat(LB.legs);
+      document.getElementById('brLg').innerHTML = '<thead><tr><th class="l">Ticker</th><th>Compra</th><th>Venta</th><th>Último</th></tr></thead><tbody>' + lg.map(function (r) { var d = r[3] > 1000 ? 1 : 2; return '<tr><td class="l"><b>' + r[0] + '</b></td><td style="color:var(--ok)">' + nf(r[1], d) + '</td><td style="color:var(--bad)">' + nf(r[2], d) + '</td><td>' + nf(r[3], d) + '</td></tr>'; }).join('') + '</tbody>';
+      var vts = TJ.vivo && TJ.vivo.ts ? String(TJ.vivo.ts) : '';
+      document.getElementById('brLn').textContent = 'Un ratio no tiene caja de puntas propia: estas son las de cada pata. Bonos: data912 en vivo. Futuros: foto de Primary' + (vts ? ' de las ' + vts.slice(11, 16) : '') + ' y su última operación.';
+      document.getElementById('brHw').innerHTML = pre ? '<p>' + pre[5].replace(/^([^:]+):/, '<b>$1</b>:') + '</p><p>' + pre[6].replace(/^([^:(]+)[:(]/, function (m0, a) { return '<b>' + a + '</b>' + m0.slice(-1); }) + '</p>' :
+        '<p><b>Long</b>: comprás ' + label(ST.a) + ' y vendés ' + label(ST.b) + '; ganás si el ratio sube.</p><p><b>Short</b>: vendés ' + label(ST.a) + ' y comprás ' + label(ST.b) + '; ganás si baja.</p>';
+      // gráfico
+      var S = series(), ys = S.map(function (p) { return p.y; }), n = ys.length, mean = n ? ys.reduce(function (s, y) { return s + y; }, 0) / n : null, sd = n > 1 ? Math.sqrt(ys.reduce(function (s, y) { return s + (y - mean) * (y - mean); }, 0) / (n - 1)) : null;
+      var last = n ? ys[n - 1] : null, pct = n ? Math.round(ys.filter(function (y) { return y < last; }).length / n * 100) : null;
+      document.getElementById('brT').textContent = name + ' · ' + (ST.tf === 'd' ? 'cierre de cada rueda' : 'cada 5 minutos') + ' (' + (ST.op === 'dif' ? 'pesos por dólar' : '%') + ')';
+      document.getElementById('brSt').textContent = ST.tf === 'd' ? 'En el gráfico (' + n + ' ruedas)' : 'En el gráfico (intradiario)';
+      var mn = n ? Math.min.apply(null, ys) : null, mx = n ? Math.max.apply(null, ys) : null;
+      document.getElementById('brSs').innerHTML = n ? '<span>Último</span><b>' + fmtV(last) + '</b><span>Promedio</span><b>' + fmtV(mean) + '</b><span>Desvío (±1σ)</span><b>' + (ST.op === 'dif' ? nf(sd, 2) : nf(sd, 2) + '%') + '</b><span>Mínimo / máximo</span><b>' + fmtV(mn) + ' / ' + fmtV(mx) + '</b><span>Percentil del último</span><b>' + pct + '</b><span>Contra el promedio</span><b>' + (sd ? sg((last - mean) / sd, 1) + ' σ' : '—') + '</b>' : '<span>Sin datos para este ratio en el período.</span>';
+      document.getElementById('brN').textContent = (ST.tf === 'd' ? 'Cierres: bonos desde 2023 (data/volumen.json), futuros desde 2025 (ajuste diario), oficial A3500. Con «1.er futuro», cada día se toma el contrato más cercano que no venció: el día que rota, el ratio salta.' : 'Intradiario: los bonos cada 3 minutos (lo que guarda la rueda) y la última operación de cada futuro; cada serie sigue con su último dato hasta el siguiente.') + ' La línea punteada es el promedio y la franja, ±1 desvío.';
+      if (CH) { try { CH.destroy(); } catch (e) { } CH = null; }
+      var mu = css('--mu'), tx = css('--tx'), bd = css('--bd'), ac = css('--ac') || '#ffc542', labs = S.map(function (p) { return p.lab; }), xs = S.map(function (p) { return p.x; });
+      var band = function (k) { return S.map(function (p) { return { x: p.x, y: mean + k * sd }; }); };
+      var sets = [{ label: name, data: S.map(function (p) { return { x: p.x, y: p.y }; }), borderColor: ac, backgroundColor: ac, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.15, spanGaps: false, order: 1 }];
+      if (sd) sets.push({ label: '+1σ', data: band(1), borderColor: 'rgba(161,161,170,.35)', borderWidth: 1, borderDash: [4, 4], pointRadius: 0, fill: '+1', backgroundColor: 'rgba(161,161,170,.08)', $aux: 1, order: 3 }, { label: '−1σ', data: band(-1), borderColor: 'rgba(161,161,170,.35)', borderWidth: 1, borderDash: [4, 4], pointRadius: 0, fill: false, $aux: 1, order: 3 }, { label: 'Promedio', data: band(0), borderColor: 'rgba(161,161,170,.75)', borderWidth: 1.2, borderDash: [6, 4], pointRadius: 0, fill: false, $aux: 1, order: 2 });
+      var byX = {}; S.forEach(function (p) { byX[p.x] = p.lab; });
+      CH = new Chart(document.getElementById('brCh').getContext('2d'), { type: 'line', data: { datasets: sets }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'nearest', axis: 'x', intersect: false },
+        plugins: { legend: { display: false }, tooltip: { filter: function (it) { return !it.dataset.$aux; }, callbacks: { title: function (it) { return it.length ? byX[it[0].parsed.x] || '' : ''; }, label: function (c) { return name + ': ' + fmtV(c.parsed.y); } } } },
+        scales: { x: { type: 'linear', min: xs.length ? xs[0] : 0, max: xs.length ? xs[xs.length - 1] : 1, ticks: { color: mu, maxTicksLimit: 8, callback: function (v) { var l = byX[Math.round(v)]; return l ? (ST.tf === 'd' ? l.slice(0, 5) + '/' + l.slice(8, 10) : l) : ''; } }, grid: { display: false }, border: { color: bd } },
+          y: { ticks: { color: mu, callback: function (v) { return ST.op === 'dif' ? nf(v, Math.abs(v) < 10 ? 1 : 0) : nf(v, 1) + '%'; } }, grid: { color: function (c) { return c.tick && c.tick.value === 0 ? 'rgba(161,161,170,.6)' : 'rgba(161,161,170,.12)'; } }, border: { display: false } } } } });
+      all();
+    } catch (e) { console.error('brecha y canje', e); document.getElementById('brT').textContent = 'Error: ' + e.message; }
   }
-  /* ---------- canje por bono ---------- */
-  var BONOS = ['AL29', 'AL30', 'AL35', 'AE38', 'AL41', 'GD29', 'GD30', 'GD35', 'GD38', 'GD41', 'GD46', 'AN29', 'AO27', 'AO28'];
-  function canje() {
-    var q = window.PXQ || {}, rows = [];
-    BONOS.forEach(function (k) {
-      var P = q[k], D = q[k + 'D'], C = q[k + 'C']; if (!(P && D && C && P.c > 0 && D.c > 0 && C.c > 0)) return;
-      var ok = function (o) { return o.bid > 0 && o.ask > 0; }, pt = ok(P) && ok(D) && ok(C);
-      rows.push({ k: k, mep: P.c / D.c, ccl: P.c / C.c, can: D.c / C.c - 1, bm: pt ? P.ask / D.bid : null, bc: pt ? P.ask / C.bid : null, out: pt ? D.ask / C.bid - 1 : null, inn: pt ? D.bid / C.ask - 1 : null,
-        vol: ((D.v || 0) * D.c + (C.v || 0) * C.c) / 100 });
+  function all() { // la tabla con todos los ratios armados
+    var keep = { a: ST.a, b: ST.b, op: ST.op }, rows = PRE.map(function (p) {
+      ST.a = p[2]; ST.b = p[3]; ST.op = p[4];
+      var LA = live(p[2]), LB = live(p[3]), v = comb(LA.last, LB.last), A = daily(p[2]), B = daily(p[3]), ds = Object.keys(A).filter(function (d) { return B[d] != null && d < nowAR().d; }).sort().slice(-120), ys = ds.map(function (d) { return comb(A[d], B[d]); });
+      var n = ys.length, m = n ? ys.reduce(function (s, y) { return s + y; }, 0) / n : null, sd = n > 1 ? Math.sqrt(ys.reduce(function (s, y) { return s + (y - m) * (y - m); }, 0) / (n - 1)) : null;
+      return { p: p, v: v, lo: comb(LA.ask, LB.bid), sh: comb(LA.bid, LB.ask), prev: n ? ys[n - 1] : null, m: m, z: sd && v != null ? (v - m) / sd : null, pc: n && v != null ? Math.round(ys.filter(function (y) { return y < v; }).length / n * 100) : null, f: fmtV };
     });
-    var best = function (f, mx) { var a = rows.filter(function (r) { return r[f] != null && r.vol >= 5e4; }); a.sort(function (x, y) { return mx ? y[f] - x[f] : x[f] - y[f]; }); return a[0] || null; }; // con al menos US$ 50 mil operados entre D y C
-    var bO = best('out'), bI = best('inn', true), bM = best('bm'), bC = best('bc'), tag = function (r, b, t, cls) { return b && r.k === b.k ? '<span class="tg ' + cls + '">' + t + '</span>' : ''; };
-    rows.sort(function (a, b) { return a.can - b.can; });
-    document.getElementById('bfKt').innerHTML = rows.length ? '<thead><tr><th class="l">Bono</th><th>MEP</th><th>CCL</th><th>Canje</th><th>Comprar MEP</th><th>Comprar cable</th><th>Pasar MEP → cable (pagás)</th><th>Traer cable → MEP (cobrás)</th><th>Vol. D + C (US$)</th></tr></thead><tbody>' + rows.map(function (r) {
-      return '<tr><td class="l"><b>' + r.k + '</b></td><td>' + nf(r.mep, 2) + '</td><td>' + nf(r.ccl, 2) + '</td><td><b>' + pc(r.can) + '</b></td><td>' + nf(r.bm, 2) + tag(r, bM, 'más barato', 'up') + '</td><td>' + nf(r.bc, 2) + tag(r, bC, 'más barato', 'up') + '</td>' +
-        '<td>' + pc(r.out) + tag(r, bO, 'mejor', 'up') + '</td><td>' + pc(r.inn) + tag(r, bI, 'mejor', 'up') + '</td><td>' + nf(r.vol / 1e6, 1) + ' M</td></tr>';
-    }).join('') + '</tbody>' : '<tbody><tr><td class="l">Sin precios en vivo de data912 todavía.</td></tr></tbody>';
-    document.getElementById('bfKn').innerHTML = rows.length ? 'Ordenados por canje, de menor a mayor.' + (bO ? ' Para pasar de MEP a cable conviene <b>' + bO.k + '</b> (comprás ' + bO.k + 'D y vendés ' + bO.k + 'C, pagás ' + nf(bO.out * 100, 2) + '% de canje).' : '') + (bI ? ' Para traer cable a MEP, <b>' + bI.k + '</b> (comprás ' + bI.k + 'C y vendés ' + bI.k + 'D, cobrás ' + nf(bI.inn * 100, 2) + '%).' : '') : '';
-  }
-
-  /* ---------- MEP y CCL sintéticos a plazo ---------- */
-  function sint(L) {
-    var bc = TJ && TJ.vivo && TJ.vivo.bcau, el = document.getElementById('bfSt'), b = ST.b, P = L[b].last, MEP = P / L[b + 'D'].last, CCL = P / L[b + 'C'].last, t = nowAR(), d0 = Date.parse(t.d + 'T00:00:00Z') / 864e5;
-    var spot = (TJ.vivo && TJ.vivo.spot) || null, fs = vivoFut().map(function (r) { return [Date.parse(r[1] + 'T00:00:00Z') / 864e5 - d0, r[4] || r[5], r[0]]; }).filter(function (x) { return x[0] >= 0 && x[1] > 0; });
-    var futAt = function (d) { var pts = (spot > 0 ? [[0, spot, 'oficial']] : []).concat(fs); for (var i = 1; i < pts.length; i++) if (pts[i][0] >= d) { var a = pts[i - 1], c = pts[i]; return { v: a[1] + (c[1] - a[1]) * (d - a[0]) / Math.max(1, c[0] - a[0]), k: c[2] }; } return null; };
-    var tna = function (cur, d) { var r = ((bc && bc[cur]) || []).filter(function (x) { return x[0] === d; })[0]; return r ? (r[3] || r[5] || null) : null; }; // la última; si no, el promedio ponderado
-    var ds = ((bc && bc.ARS) || []).map(function (x) { return x[0]; }).filter(function (d) { return tna('USD', d) != null || tna('EXT', d) != null; });
-    var nowM = MEP / (futAt(0) ? futAt(0).v : NaN) - 1;
-    if (!ds.length || !(MEP > 0)) { el.innerHTML = '<tbody><tr><td class="l">Todavía no hay caución en dólares en la foto de la rueda.</td></tr></tbody>'; document.getElementById('bfSn').textContent = ''; return; }
-    el.innerHTML = '<thead><tr><th class="l">Plazo</th><th>Caución $</th><th>Caución US$ MEP</th><th>Caución US$ cable</th><th>MEP a plazo</th><th>CCL a plazo</th><th>Futuro al plazo</th><th>Brecha MEP a plazo</th><th>Brecha CCL a plazo</th></tr></thead><tbody>' + ds.map(function (d) {
-      var ra = tna('ARS', d), ru = tna('USD', d), re = tna('EXT', d), f = futAt(d), fM = ra != null && ru != null ? MEP * (1 + ra / 100 * d / 365) / (1 + ru / 100 * d / 365) : null, fC = ra != null && re != null ? CCL * (1 + ra / 100 * d / 365) / (1 + re / 100 * d / 365) : null;
-      return '<tr><td class="l"><b>' + d + (d === 1 ? ' día' : ' días') + '</b></td><td>' + nf(ra, 2) + '%</td><td>' + (ru == null ? '—' : nf(ru, 2) + '%') + '</td><td>' + (re == null ? '—' : nf(re, 2) + '%') + '</td><td>' + nf(fM, 2) + '</td><td>' + nf(fC, 2) + '</td><td>' + (f ? nf(f.v, 2) : '—') + '</td><td><b>' + (f && fM ? pc(fM / f.v - 1) : '—') + '</b></td><td>' + (f && fC ? pc(fC / f.v - 1) : '—') + '</td></tr>';
+    ST.a = keep.a; ST.b = keep.b; ST.op = keep.op;
+    var f = function (r, v) { return v == null ? '—' : r.p[4] === 'dif' ? sg(v, 2) : sg(v, 2) + '%'; };
+    var lect = function (r) { if (r.z == null) return '—'; return r.z >= 1 ? '<span style="color:var(--bad)">alto: mira el short</span>' : r.z <= -1 ? '<span style="color:var(--ok)">bajo: mira el long</span>' : 'en su rango'; };
+    document.getElementById('brAll').innerHTML = '<thead><tr><th class="l">Ratio</th><th>Ahora</th><th>Long a</th><th>Short a</th><th>Cierre anterior</th><th>Promedio 120</th><th>Percentil</th><th>σ</th><th class="l">Lectura</th></tr></thead><tbody>' + rows.map(function (r) {
+      return '<tr data-pre="' + r.p[0] + '" class="' + (r.p[0] === ST.p ? 'on' : '') + '"><td class="l"><b>' + r.p[1] + '</b></td><td><b>' + f(r, r.v) + '</b></td><td>' + f(r, r.lo) + '</td><td>' + f(r, r.sh) + '</td><td>' + f(r, r.prev) + '</td><td>' + f(r, r.m) + '</td><td>' + (r.pc == null ? '—' : r.pc) + '</td><td>' + (r.z == null ? '—' : sg(r.z, 1)) + '</td><td class="l">' + lect(r) + '</td></tr>';
     }).join('') + '</tbody>';
-    var bts = String(TJ.vivo.bts || TJ.vivo.ts || '');
-    document.getElementById('bfSn').textContent = 'Con el MEP y el CCL de ' + b + ' (' + nf(MEP, 2) + ' y ' + nf(CCL, 2) + '), la caución de BYMA de la foto' + (bts ? ' del ' + fr(bts.slice(0, 10)) + ' ' + bts.slice(11, 16) : '') + ' y el oficial' + (spot ? ' de ' + nf(spot, 2) + ' (' + (TJ.vivo.spotF === 'A3' ? 'A3' : 'mayorista') + ')' : '') + '. Brecha MEP de contado contra el oficial: ' + pc(nowM) + '.';
   }
-
   var _sw = window.switchTab;
   window.switchTab = function (id) { _sw(id); if (id === 'brc') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; setTimeout(draw, 60); } };
   var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(draw, 60); };
   setInterval(function () { if (isAct()) draw(); }, 30000);
-  if (isAct()) setTimeout(draw, 300);
 })();
 /*@@BRF_END@@*/
 /*@@TCOR_START@@*/
@@ -8082,7 +8074,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     tcor: 'Caución en pesos, MEP y cable, Lecaps cortas y plazo fijo: dónde dejar la liquidez.',
     tfut: 'Dólar futuro y futuros de caución: tasa implícita, devaluación esperada, volumen y forwards.',
     sint: 'Dólar sintético (Lecap + compra de futuro) y Lecap sintética (dollar linked + venta de futuro), contra el bono del mismo plazo.',
-    brc: 'Long y short brecha contra el futuro, canje por bono y MEP sintético a plazo: dónde operar el MEP y el cable.',
+    brc: 'Ratios de brecha y canje: MEP, CCL, futuros y oficial, contra su historia y con el nivel de entrada long y short.',
     thist: 'La tasa de cada bono día por día y las forwards entre pares.',
     lic: 'El resultado de cada licitación del Tesoro y el próximo llamado.'
   };
@@ -8867,7 +8859,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 #bono .pl button:disabled{opacity:.35;cursor:default}
 #bono .bnCh{position:relative;height:300px}
 #bono .bnCv{position:relative;height:280px}
-#bono .bnFc{position:relative;height:200px;margin-bottom:12px}
+#bono .bnFc{position:relative;height:clamp(220px,17vw,340px);margin-bottom:12px}
 #bono .bnPy{position:relative;height:190px;margin-top:6px}
 #bono .bnE{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 30px;font-size:12.5px;color:var(--mu)}
 #bono .bnNt{font-size:11.5px;color:var(--mu);margin:8px 0 0}
@@ -9125,6 +9117,12 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 
   /* ---------- dibujo ---------- */
   var kill = function (id) { if (CH[id]) { CH[id].destroy(); delete CH[id]; } };
+  var mkC = function (ctx, cfg) { // los gráficos de la ficha, con la letra de sus tablas: ejes, títulos de eje y leyenda en Inter de 12 px (11 en el celular)
+    var o = cfg.options = cfg.options || {}, f = function () { return { family: 'Inter, system-ui, -apple-system, sans-serif', size: window.matchMedia('(max-width: 700px)').matches ? 11 : 12 }; }, sc = o.scales || {};
+    Object.keys(sc).forEach(function (k) { var a = sc[k]; a.ticks = Object.assign({}, a.ticks, { font: f }); if (a.title) a.title = Object.assign({}, a.title, { font: f }); });
+    o.plugins = o.plugins || {}; var lg = o.plugins.legend = o.plugins.legend || {}; lg.labels = Object.assign({}, lg.labels, { font: f, boxWidth: 10, boxHeight: 10 });
+    return new Chart(ctx, cfg);
+  };
   var symOf = function () { return K + SP; };
   var qOf = function () { return (window.PXQ || {})[symOf()] || {}; };
   var ruedaHoy = function () { try { var f = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()), g = {}; f.forEach(function (p) { g[p.type] = p.value; }); return g.weekday !== 'Sat' && g.weekday !== 'Sun' && (+g.hour % 24) * 60 + (+g.minute) >= 630; } catch (e) { return true; } }; // ya arrancó la rueda de hoy (10:30 hora Argentina, días hábiles)
@@ -9152,8 +9150,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
           '<div><small>Valor técnico</small><b>' + (T.vt != null ? fm(T.vt, 2) : '—') + '</b><span>' + (T.par != null ? 'paridad ' + pc(T.par, 1) : 'se conoce al pago') + '</span></div>' +
           '<div><small>Próximo pago</small><b>' + (nx ? dmy(nx.t) : '—') + '</b><span>' + (nx ? (usd ? 'US$ ' : '$ ') + fm(nx.total, 2) + ' c/100 VN' : '&nbsp;') + '</span></div>' +
         '</div></div>' +
-      '<div class="bnG"><div class="card" data-norf id="bnCPr"><div class="bnBar"><div><p class="qh">Precio</p><p class="qs" id="bnChS">&nbsp;</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start"><div class="pl" id="bnRng">' +
-          [['in', 'Hoy'], ['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['1a', '1A'], ['max', 'Todo']].map(function (x) { return '<button type="button" data-r="' + x[0] + '" class="' + (RNG === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div><div class="pl" id="bnFrq">' +
+      '<div class="bnG"><div class="card" data-norf id="bnCPr"><div class="bnBar"><div><p class="qh">Precio</p><p class="qs" id="bnChS">&nbsp;</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start"><div class="pl" id="bnRng" data-html2canvas-ignore="true">' +
+          [['in', 'Hoy'], ['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['1a', '1A'], ['max', 'Todo']].map(function (x) { return '<button type="button" data-r="' + x[0] + '" class="' + (RNG === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div><div class="pl" id="bnFrq" data-html2canvas-ignore="true">' +
           [['d', 'Diario'], ['w', 'Semanal'], ['m', 'Mensual']].map(function (x) { return '<button type="button" data-q="' + x[0] + '" class="' + (FRQ === x[0] ? 'on' : '') + '"' + (RNG === 'in' ? ' disabled' : '') + '>' + x[1] + '</button>'; }).join('') + '</div>' + dlb('bnCPr', 'Precio') + '</div></div>' +
           '<div class="bnCh"><canvas id="bnChC"></canvas><div class="bnE" id="bnChE"></div></div><p class="bnNt" id="bnChN"></p></div>' +
         '<div data-norf class="card" id="bnCPu"><div class="bnH"><div><p class="qh">Puntas</p><p class="qs" id="bnPuS">' + esc(symOf()) + ' · data912, cada 30 segundos</p></div>' + dlb('bnCPu', 'Puntas') + '</div><div id="bnBk"></div></div></div>' +
@@ -9168,7 +9166,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
         '<div data-norf class="card" id="bnCCu"><div class="bnH"><div><p class="qh">En su curva</p><p class="qs" id="bnCvS">&nbsp;</p></div>' + dlb('bnCCu', 'Curva') + '</div><div class="bnCv"><canvas id="bnCvC"></canvas></div><p class="bnNt" id="bnCvN"></p></div></div>' +
       '<div class="bnG2"><div class="card" data-norf id="bnCCa"><div class="bnH"><div><p class="qh">Calculadora</p><p class="qs">Cambiá el precio o la TIR y se recalcula todo; los nominales escalan el monto y los cobros.</p></div>' + dlb('bnCCa', 'Calculadora') + '</div>' +
           '<div class="bnCalc"><label>Precio (' + (usd ? 'US$' : '$') + ' c/100 VN)<input type="number" step="0.01" id="bnCp"></label><label>' + esc(tlS) + ' (%)<input type="number" step="0.01" id="bnCy"></label><label>Nominales (VN)<input type="number" step="1" min="0" id="bnCn"></label></div>' +
-          '<div class="bnRes" id="bnCr"></div><p class="bnNt"><button type="button" class="bnLink" id="bnCx">Volver al precio de mercado</button></p><div class="bnPy"><canvas id="bnPyC"></canvas></div></div>' +
+          '<div class="bnRes" id="bnCr"></div><p class="bnNt" data-html2canvas-ignore="true"><button type="button" class="bnLink" id="bnCx">Volver al precio de mercado</button></p><div class="bnPy"><canvas id="bnPyC"></canvas></div></div>' +
         '<div data-norf class="card" id="bnCSe"><div class="bnH"><div><p class="qh">Sensibilidad</p><p class="qs">Cuánto cambia el precio si la TIR se mueve, desde el precio de la calculadora.</p></div>' + dlb('bnCSe', 'Sensibilidad') + '</div><div style="overflow-x:auto"><table class="bnT" id="bnSe"></table></div><p class="bnNt" id="bnSeN"></p></div></div>' +
       '<div data-norf class="card" id="bnCFl"><div class="bnH"><div><p class="qh">Flujo de fondos</p><p class="qs" id="bnFlS">&nbsp;</p></div>' + dlb('bnCFl', 'Flujos') + '</div><div class="bnFc"><canvas id="bnFlC"></canvas></div><div class="bnTw"><table class="bnT" id="bnFl"></table></div><p class="bnNt" id="bnFlN"></p></div>';
     drawLive(); drawChart(); drawCurve(r); calc(r, T);
@@ -9224,7 +9222,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     }
     var col = FAM[MAP[K].grp][1], mu = css('--mu'), bd = css('--bd');
     var ctx = cv.getContext('2d'), gr = ctx.createLinearGradient(0, 0, 0, cv.clientHeight || 300); gr.addColorStop(0, col + '40'); gr.addColorStop(1, col + '00');
-    CH.ch = new Chart(ctx, { type: 'line', data: { datasets: [{ data: pts, borderColor: col, backgroundColor: gr, fill: true, borderWidth: 2, pointRadius: FRQ !== 'd' && R !== 'in' && pts.length < 60 ? 2.5 : 0, pointBackgroundColor: col, pointHoverRadius: 4, tension: 0.15, stepped: R === 'in' ? 'before' : false }] },
+    CH.ch = mkC(ctx, { type: 'line', data: { datasets: [{ data: pts, borderColor: col, backgroundColor: gr, fill: true, borderWidth: 2, pointRadius: FRQ !== 'd' && R !== 'in' && pts.length < 60 ? 2.5 : 0, pointBackgroundColor: col, pointHoverRadius: 4, tension: 0.15, stepped: R === 'in' ? 'before' : false }] },
       options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'nearest', axis: 'x', intersect: false },
         plugins: { legend: { display: false }, tooltip: { displayColors: false, callbacks: { title: function (c) { return R === 'in' ? lbl(c[0].parsed.x) + ' hs' : tip(c[0].parsed.x); }, label: function (c) { return unit + fm(c.parsed.y, 2); } } } },
         scales: { x: { type: 'linear', min: pts[0].x, max: pts[pts.length - 1].x, ticks: { color: mu, maxTicksLimit: 7, includeBounds: false, stepSize: R === 'in' ? 60 : Math.max(1, Math.ceil((pts.length - 1) / 6)), maxRotation: 0, callback: function (v) { return lbl(v); } }, grid: { display: false } }, y: { position: 'left', ticks: { color: mu, maxTicksLimit: 6, callback: function (v) { return fm0(v, v >= 1000 ? 0 : 2); } }, grid: { color: bd } } } } });
@@ -9252,7 +9250,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var dif = f && me ? (me.y - f(me.x)) * 100 : null, out = usd && me && fit.indexOf(me) < 0;
     document.getElementById('bnCvN').innerHTML = dif == null ? (P.length < 3 ? 'Hay pocos bonos de esta familia para ajustar una curva.' : '') : '<b class="' + (dif > 0 ? 'up' : 'dn') + '">' + sgn(dif, 0) + ' pb</b> ' + (dif > 0 ? 'por encima' : 'por debajo') + ' de la curva ajustada: ' + (Math.abs(dif) < 15 ? 'rinde en línea con sus pares.' : dif > 0 ? 'rinde más que sus pares de plazo parecido (barato contra la curva).' : 'rinde menos que sus pares de plazo parecido (caro contra la curva).') + (out ? ' No entra al ajuste' + (me.x < 1.1 ? ' (duración menor a 1,1)' : ' (Bonar nuevo, fuera de la reestructuración)') + ', igual que en Globales / Bonares.' : '');
     var LAB = { id: 'bnLab', afterDatasetsDraw: function (ch) { var m = ch.getDatasetMeta(1); if (!m || !m.data[0]) return; var p = m.data[0], c = ch.ctx; c.save(); c.font = '700 12px Inter, system-ui, sans-serif'; c.fillStyle = tx; c.textAlign = 'center'; c.fillText(r.k, p.x, p.y - 12); c.restore(); } };
-    CH.cv = new Chart(cv.getContext('2d'), { type: 'scatter', data: { datasets: [
+    CH.cv = mkC(cv.getContext('2d'), { type: 'scatter', data: { datasets: [
         { data: P.filter(function (p) { return p.k !== r.k; }), backgroundColor: col + '66', borderColor: col + '99', pointRadius: 4, pointHoverRadius: 6 },
         { data: me ? [me] : [], backgroundColor: col, borderColor: tx, borderWidth: 2, pointRadius: 7, pointHoverRadius: 8 },
         { type: 'line', data: lines, borderColor: col, borderWidth: 1.5, borderDash: [5, 4], pointRadius: 0, fill: false, tension: 0 } ] },
@@ -9287,7 +9285,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var cv = document.getElementById('bnPyC'); if (!cv || typeof Chart === 'undefined' || y == null) return; kill('py');
     var col = FAM[r.grp][1], mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), pts = [], u = r.grp === 'usd' ? 'US$ ' : '$ ';
     for (var i = -30; i <= 30; i++) { var yy = y + i / 1000; if (yy > -0.9) pts.push({ x: yy * 100, y: pvAt(fl, s, yy) * kq }); }
-    CH.py = new Chart(cv.getContext('2d'), { type: 'scatter', data: { datasets: [{ data: [{ x: y * 100, y: P }], backgroundColor: col, borderColor: tx, borderWidth: 2, pointRadius: 6 }, { type: 'line', data: pts, borderColor: col, borderWidth: 2, pointRadius: 0, fill: false }] },
+    CH.py = mkC(cv.getContext('2d'), { type: 'scatter', data: { datasets: [{ data: [{ x: y * 100, y: P }], backgroundColor: col, borderColor: tx, borderWidth: 2, pointRadius: 6 }, { type: 'line', data: pts, borderColor: col, borderWidth: 2, pointRadius: 0, fill: false }] },
       options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return 'TIR ' + fm(c.parsed.x, 2) + '% · ' + u + fm(c.parsed.y, 2); } } } },
         scales: { x: { type: 'linear', min: pts[0].x, max: pts[pts.length - 1].x, ticks: { color: mu, maxTicksLimit: 7, includeBounds: false, callback: function (v) { return fm0(v, 0) + '%'; } }, grid: { color: bd }, title: { display: true, text: 'Precio según la TIR (±3 puntos)', color: mu } }, y: { ticks: { color: mu, maxTicksLimit: 5, callback: function (v) { return fm0(v, v >= 1000 ? 0 : 1); } }, grid: { color: bd } } } } });
   }
@@ -9316,7 +9314,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     if (!cv || typeof Chart === 'undefined') return; kill('fl');
     var col = FAM[r.grp][1], mu = css('--mu'), bd = css('--bd'), L = rows.map(function (x) { return dmy(x.t).slice(3); });
     var ds = split ? [{ label: 'Renta', data: rows.map(function (x) { return x.renta; }), backgroundColor: col + '99', borderRadius: 3, stack: 's', maxBarThickness: 64 }, { label: 'Amortización', data: rows.map(function (x) { return x.amort; }), backgroundColor: col, borderRadius: 3, stack: 's', maxBarThickness: 64 }] : [{ label: 'Pago', data: rows.map(function (x) { return x.total; }), backgroundColor: col, borderRadius: 3, maxBarThickness: 64 }];
-    CH.fl = new Chart(cv.getContext('2d'), { type: 'bar', data: { labels: L, datasets: ds }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: split, labels: { color: mu, boxWidth: 10 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + u + fm(c.parsed.y, 4); } } } }, scales: { x: { stacked: true, ticks: { color: mu, maxTicksLimit: 14 }, grid: { display: false } }, y: { stacked: true, ticks: { color: mu, callback: function (v) { return fm0(v, Math.abs(v - Math.round(v)) < 1e-9 ? 0 : 1); } }, grid: { color: bd }, title: { display: true, text: (usd ? 'US$' : '$') + ' cada 100 VN', color: mu } } } } });
+    CH.fl = mkC(cv.getContext('2d'), { type: 'bar', data: { labels: L, datasets: ds }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: split, labels: { color: mu, boxWidth: 10 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + u + fm(c.parsed.y, 4); } } } }, scales: { x: { stacked: true, ticks: { color: mu, maxTicksLimit: 14 }, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { color: mu, callback: function (v) { return fm0(v, Math.abs(v - Math.round(v)) < 1e-9 ? 0 : 1); } }, grid: { color: bd }, title: { display: true, text: (usd ? 'US$' : '$') + ' cada 100 VN', color: mu } } } } });
   }
 
   /* ---------- eventos de la ficha ---------- */

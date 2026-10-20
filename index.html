@@ -8643,7 +8643,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 #bono .pl button:disabled{opacity:.35;cursor:default}
 #bono .bnCh{position:relative;height:300px}
 #bono .bnCv{position:relative;height:280px}
-#bono .bnFc{position:relative;height:200px;margin-bottom:12px}
+#bono .bnFc{position:relative;height:clamp(220px,17vw,340px);margin-bottom:12px}
 #bono .bnPy{position:relative;height:190px;margin-top:6px}
 #bono .bnE{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 30px;font-size:12.5px;color:var(--mu)}
 #bono .bnNt{font-size:11.5px;color:var(--mu);margin:8px 0 0}
@@ -8901,6 +8901,12 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 
   /* ---------- dibujo ---------- */
   var kill = function (id) { if (CH[id]) { CH[id].destroy(); delete CH[id]; } };
+  var mkC = function (ctx, cfg) { // los gráficos de la ficha, con la letra de sus tablas: ejes, títulos de eje y leyenda en Inter de 12 px (11 en el celular)
+    var o = cfg.options = cfg.options || {}, f = function () { return { family: 'Inter, system-ui, -apple-system, sans-serif', size: window.matchMedia('(max-width: 700px)').matches ? 11 : 12 }; }, sc = o.scales || {};
+    Object.keys(sc).forEach(function (k) { var a = sc[k]; a.ticks = Object.assign({}, a.ticks, { font: f }); if (a.title) a.title = Object.assign({}, a.title, { font: f }); });
+    o.plugins = o.plugins || {}; var lg = o.plugins.legend = o.plugins.legend || {}; lg.labels = Object.assign({}, lg.labels, { font: f, boxWidth: 10, boxHeight: 10 });
+    return new Chart(ctx, cfg);
+  };
   var symOf = function () { return K + SP; };
   var qOf = function () { return (window.PXQ || {})[symOf()] || {}; };
   var ruedaHoy = function () { try { var f = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()), g = {}; f.forEach(function (p) { g[p.type] = p.value; }); return g.weekday !== 'Sat' && g.weekday !== 'Sun' && (+g.hour % 24) * 60 + (+g.minute) >= 630; } catch (e) { return true; } }; // ya arrancó la rueda de hoy (10:30 hora Argentina, días hábiles)
@@ -8928,8 +8934,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
           '<div><small>Valor técnico</small><b>' + (T.vt != null ? fm(T.vt, 2) : '—') + '</b><span>' + (T.par != null ? 'paridad ' + pc(T.par, 1) : 'se conoce al pago') + '</span></div>' +
           '<div><small>Próximo pago</small><b>' + (nx ? dmy(nx.t) : '—') + '</b><span>' + (nx ? (usd ? 'US$ ' : '$ ') + fm(nx.total, 2) + ' c/100 VN' : '&nbsp;') + '</span></div>' +
         '</div></div>' +
-      '<div class="bnG"><div class="card" data-norf id="bnCPr"><div class="bnBar"><div><p class="qh">Precio</p><p class="qs" id="bnChS">&nbsp;</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start"><div class="pl" id="bnRng">' +
-          [['in', 'Hoy'], ['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['1a', '1A'], ['max', 'Todo']].map(function (x) { return '<button type="button" data-r="' + x[0] + '" class="' + (RNG === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div><div class="pl" id="bnFrq">' +
+      '<div class="bnG"><div class="card" data-norf id="bnCPr"><div class="bnBar"><div><p class="qh">Precio</p><p class="qs" id="bnChS">&nbsp;</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start"><div class="pl" id="bnRng" data-html2canvas-ignore="true">' +
+          [['in', 'Hoy'], ['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['1a', '1A'], ['max', 'Todo']].map(function (x) { return '<button type="button" data-r="' + x[0] + '" class="' + (RNG === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div><div class="pl" id="bnFrq" data-html2canvas-ignore="true">' +
           [['d', 'Diario'], ['w', 'Semanal'], ['m', 'Mensual']].map(function (x) { return '<button type="button" data-q="' + x[0] + '" class="' + (FRQ === x[0] ? 'on' : '') + '"' + (RNG === 'in' ? ' disabled' : '') + '>' + x[1] + '</button>'; }).join('') + '</div>' + dlb('bnCPr', 'Precio') + '</div></div>' +
           '<div class="bnCh"><canvas id="bnChC"></canvas><div class="bnE" id="bnChE"></div></div><p class="bnNt" id="bnChN"></p></div>' +
         '<div data-norf class="card" id="bnCPu"><div class="bnH"><div><p class="qh">Puntas</p><p class="qs" id="bnPuS">' + esc(symOf()) + ' · data912, cada 30 segundos</p></div>' + dlb('bnCPu', 'Puntas') + '</div><div id="bnBk"></div></div></div>' +
@@ -8944,7 +8950,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
         '<div data-norf class="card" id="bnCCu"><div class="bnH"><div><p class="qh">En su curva</p><p class="qs" id="bnCvS">&nbsp;</p></div>' + dlb('bnCCu', 'Curva') + '</div><div class="bnCv"><canvas id="bnCvC"></canvas></div><p class="bnNt" id="bnCvN"></p></div></div>' +
       '<div class="bnG2"><div class="card" data-norf id="bnCCa"><div class="bnH"><div><p class="qh">Calculadora</p><p class="qs">Cambiá el precio o la TIR y se recalcula todo; los nominales escalan el monto y los cobros.</p></div>' + dlb('bnCCa', 'Calculadora') + '</div>' +
           '<div class="bnCalc"><label>Precio (' + (usd ? 'US$' : '$') + ' c/100 VN)<input type="number" step="0.01" id="bnCp"></label><label>' + esc(tlS) + ' (%)<input type="number" step="0.01" id="bnCy"></label><label>Nominales (VN)<input type="number" step="1" min="0" id="bnCn"></label></div>' +
-          '<div class="bnRes" id="bnCr"></div><p class="bnNt"><button type="button" class="bnLink" id="bnCx">Volver al precio de mercado</button></p><div class="bnPy"><canvas id="bnPyC"></canvas></div></div>' +
+          '<div class="bnRes" id="bnCr"></div><p class="bnNt" data-html2canvas-ignore="true"><button type="button" class="bnLink" id="bnCx">Volver al precio de mercado</button></p><div class="bnPy"><canvas id="bnPyC"></canvas></div></div>' +
         '<div data-norf class="card" id="bnCSe"><div class="bnH"><div><p class="qh">Sensibilidad</p><p class="qs">Cuánto cambia el precio si la TIR se mueve, desde el precio de la calculadora.</p></div>' + dlb('bnCSe', 'Sensibilidad') + '</div><div style="overflow-x:auto"><table class="bnT" id="bnSe"></table></div><p class="bnNt" id="bnSeN"></p></div></div>' +
       '<div data-norf class="card" id="bnCFl"><div class="bnH"><div><p class="qh">Flujo de fondos</p><p class="qs" id="bnFlS">&nbsp;</p></div>' + dlb('bnCFl', 'Flujos') + '</div><div class="bnFc"><canvas id="bnFlC"></canvas></div><div class="bnTw"><table class="bnT" id="bnFl"></table></div><p class="bnNt" id="bnFlN"></p></div>';
     drawLive(); drawChart(); drawCurve(r); calc(r, T);
@@ -9000,7 +9006,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     }
     var col = FAM[MAP[K].grp][1], mu = css('--mu'), bd = css('--bd');
     var ctx = cv.getContext('2d'), gr = ctx.createLinearGradient(0, 0, 0, cv.clientHeight || 300); gr.addColorStop(0, col + '40'); gr.addColorStop(1, col + '00');
-    CH.ch = new Chart(ctx, { type: 'line', data: { datasets: [{ data: pts, borderColor: col, backgroundColor: gr, fill: true, borderWidth: 2, pointRadius: FRQ !== 'd' && R !== 'in' && pts.length < 60 ? 2.5 : 0, pointBackgroundColor: col, pointHoverRadius: 4, tension: 0.15, stepped: R === 'in' ? 'before' : false }] },
+    CH.ch = mkC(ctx, { type: 'line', data: { datasets: [{ data: pts, borderColor: col, backgroundColor: gr, fill: true, borderWidth: 2, pointRadius: FRQ !== 'd' && R !== 'in' && pts.length < 60 ? 2.5 : 0, pointBackgroundColor: col, pointHoverRadius: 4, tension: 0.15, stepped: R === 'in' ? 'before' : false }] },
       options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'nearest', axis: 'x', intersect: false },
         plugins: { legend: { display: false }, tooltip: { displayColors: false, callbacks: { title: function (c) { return R === 'in' ? lbl(c[0].parsed.x) + ' hs' : tip(c[0].parsed.x); }, label: function (c) { return unit + fm(c.parsed.y, 2); } } } },
         scales: { x: { type: 'linear', min: pts[0].x, max: pts[pts.length - 1].x, ticks: { color: mu, maxTicksLimit: 7, includeBounds: false, stepSize: R === 'in' ? 60 : Math.max(1, Math.ceil((pts.length - 1) / 6)), maxRotation: 0, callback: function (v) { return lbl(v); } }, grid: { display: false } }, y: { position: 'left', ticks: { color: mu, maxTicksLimit: 6, callback: function (v) { return fm0(v, v >= 1000 ? 0 : 2); } }, grid: { color: bd } } } } });
@@ -9028,7 +9034,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var dif = f && me ? (me.y - f(me.x)) * 100 : null, out = usd && me && fit.indexOf(me) < 0;
     document.getElementById('bnCvN').innerHTML = dif == null ? (P.length < 3 ? 'Hay pocos bonos de esta familia para ajustar una curva.' : '') : '<b class="' + (dif > 0 ? 'up' : 'dn') + '">' + sgn(dif, 0) + ' pb</b> ' + (dif > 0 ? 'por encima' : 'por debajo') + ' de la curva ajustada: ' + (Math.abs(dif) < 15 ? 'rinde en línea con sus pares.' : dif > 0 ? 'rinde más que sus pares de plazo parecido (barato contra la curva).' : 'rinde menos que sus pares de plazo parecido (caro contra la curva).') + (out ? ' No entra al ajuste' + (me.x < 1.1 ? ' (duración menor a 1,1)' : ' (Bonar nuevo, fuera de la reestructuración)') + ', igual que en Globales / Bonares.' : '');
     var LAB = { id: 'bnLab', afterDatasetsDraw: function (ch) { var m = ch.getDatasetMeta(1); if (!m || !m.data[0]) return; var p = m.data[0], c = ch.ctx; c.save(); c.font = '700 12px Inter, system-ui, sans-serif'; c.fillStyle = tx; c.textAlign = 'center'; c.fillText(r.k, p.x, p.y - 12); c.restore(); } };
-    CH.cv = new Chart(cv.getContext('2d'), { type: 'scatter', data: { datasets: [
+    CH.cv = mkC(cv.getContext('2d'), { type: 'scatter', data: { datasets: [
         { data: P.filter(function (p) { return p.k !== r.k; }), backgroundColor: col + '66', borderColor: col + '99', pointRadius: 4, pointHoverRadius: 6 },
         { data: me ? [me] : [], backgroundColor: col, borderColor: tx, borderWidth: 2, pointRadius: 7, pointHoverRadius: 8 },
         { type: 'line', data: lines, borderColor: col, borderWidth: 1.5, borderDash: [5, 4], pointRadius: 0, fill: false, tension: 0 } ] },
@@ -9063,7 +9069,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var cv = document.getElementById('bnPyC'); if (!cv || typeof Chart === 'undefined' || y == null) return; kill('py');
     var col = FAM[r.grp][1], mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), pts = [], u = r.grp === 'usd' ? 'US$ ' : '$ ';
     for (var i = -30; i <= 30; i++) { var yy = y + i / 1000; if (yy > -0.9) pts.push({ x: yy * 100, y: pvAt(fl, s, yy) * kq }); }
-    CH.py = new Chart(cv.getContext('2d'), { type: 'scatter', data: { datasets: [{ data: [{ x: y * 100, y: P }], backgroundColor: col, borderColor: tx, borderWidth: 2, pointRadius: 6 }, { type: 'line', data: pts, borderColor: col, borderWidth: 2, pointRadius: 0, fill: false }] },
+    CH.py = mkC(cv.getContext('2d'), { type: 'scatter', data: { datasets: [{ data: [{ x: y * 100, y: P }], backgroundColor: col, borderColor: tx, borderWidth: 2, pointRadius: 6 }, { type: 'line', data: pts, borderColor: col, borderWidth: 2, pointRadius: 0, fill: false }] },
       options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return 'TIR ' + fm(c.parsed.x, 2) + '% · ' + u + fm(c.parsed.y, 2); } } } },
         scales: { x: { type: 'linear', min: pts[0].x, max: pts[pts.length - 1].x, ticks: { color: mu, maxTicksLimit: 7, includeBounds: false, callback: function (v) { return fm0(v, 0) + '%'; } }, grid: { color: bd }, title: { display: true, text: 'Precio según la TIR (±3 puntos)', color: mu } }, y: { ticks: { color: mu, maxTicksLimit: 5, callback: function (v) { return fm0(v, v >= 1000 ? 0 : 1); } }, grid: { color: bd } } } } });
   }
@@ -9092,7 +9098,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     if (!cv || typeof Chart === 'undefined') return; kill('fl');
     var col = FAM[r.grp][1], mu = css('--mu'), bd = css('--bd'), L = rows.map(function (x) { return dmy(x.t).slice(3); });
     var ds = split ? [{ label: 'Renta', data: rows.map(function (x) { return x.renta; }), backgroundColor: col + '99', borderRadius: 3, stack: 's', maxBarThickness: 64 }, { label: 'Amortización', data: rows.map(function (x) { return x.amort; }), backgroundColor: col, borderRadius: 3, stack: 's', maxBarThickness: 64 }] : [{ label: 'Pago', data: rows.map(function (x) { return x.total; }), backgroundColor: col, borderRadius: 3, maxBarThickness: 64 }];
-    CH.fl = new Chart(cv.getContext('2d'), { type: 'bar', data: { labels: L, datasets: ds }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: split, labels: { color: mu, boxWidth: 10 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + u + fm(c.parsed.y, 4); } } } }, scales: { x: { stacked: true, ticks: { color: mu, maxTicksLimit: 14 }, grid: { display: false } }, y: { stacked: true, ticks: { color: mu, callback: function (v) { return fm0(v, Math.abs(v - Math.round(v)) < 1e-9 ? 0 : 1); } }, grid: { color: bd }, title: { display: true, text: (usd ? 'US$' : '$') + ' cada 100 VN', color: mu } } } } });
+    CH.fl = mkC(cv.getContext('2d'), { type: 'bar', data: { labels: L, datasets: ds }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: split, labels: { color: mu, boxWidth: 10 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + u + fm(c.parsed.y, 4); } } } }, scales: { x: { stacked: true, ticks: { color: mu, maxTicksLimit: 14 }, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { color: mu, callback: function (v) { return fm0(v, Math.abs(v - Math.round(v)) < 1e-9 ? 0 : 1); } }, grid: { color: bd }, title: { display: true, text: (usd ? 'US$' : '$') + ' cada 100 VN', color: mu } } } } });
   }
 
   /* ---------- eventos de la ficha ---------- */
