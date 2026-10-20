@@ -664,6 +664,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('tcor')">Mercado de dinero</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('tfut')">Futuros</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('sint')">Sintéticos</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('brc')">Brecha y canje</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('thist')">Tasas históricas</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('expi')">Inflación implícita</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('expd')">Devaluación implícita</button>
@@ -830,6 +831,7 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="tcor" class="tab-content"></div>
 <div id="tfut" class="tab-content"></div>
 <div id="sint" class="tab-content"></div>
+<div id="brc" class="tab-content"></div>
 <div id="bono" class="tab-content"></div>
 <div id="fav" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
@@ -5583,6 +5585,330 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   setInterval(function () { if (!isAct()) return; adrT = 0; if (ST.live) render(); else { adr(); may(); } }, 30000);
 })();
 /*@@DOL_END@@*/
+/*@@BRF_START@@*/
+/* =====================================================================
+   PESTAÑA BRECHA Y CANJE: ratios entre dos patas sintéticas, como en las pantallas de trading
+   Patas: MEP y CCL de cada bono (precio en pesos ÷ precio en dólares MEP o cable), futuros de dólar de A3 y el oficial (A3500).
+   Ratio = A − B (en pesos por dólar) o A ÷ B − 1 (en %). Long ratio: comprás A y vendés B; short: al revés.
+   Datos: en vivo, data912 (window.PXQ) y la foto de Primary (data/tasas.json, vivo.fut, cada 10 minutos);
+   intradiario, data/intra_bonos.json (bonos, últimas 2 ruedas) y data/intra.json (operaciones de los futuros);
+   diario, data/volumen.json (cierres de los bonos, desde 2023), data/tasas.json (ajuste de los futuros, desde 2025) y data/dolar.json (A3500).
+   ===================================================================== */
+;(function () {
+  var root = document.getElementById('brc'); if (!root) return;
+  var dlb = function (id, name, tt) { return '<button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'' + id + '\', \'' + name + '\')" title="' + tt + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button>'; };
+  var X = window.PSX || {}, css = X.css || function (n) { return getComputedStyle(document.body).getPropertyValue(n).trim(); };
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d == null ? 0 : d, maximumFractionDigits: d == null ? 0 : d }); };
+  var sg = function (v, d) { return v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v), d); };
+  var fr = function (s) { return s.split('-').reverse().join('/'); }, hm = function (m) { return Math.floor(m / 60) + ':' + ('0' + Math.round(m % 60)).slice(-2); };
+  var isAct = function () { return root.classList.contains('active'); };
+  var MES = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+  var code = function (s) { var m = /^DLR\/([A-Z]{3})(\d{2})$/.exec(s || ''); return m ? 'DLR' + ('0' + (MES.indexOf(m[1]) + 1)).slice(-2) + '20' + m[2] : null; }; // DLR/OCT26 → DLR102026 (la historia)
+  var BONOS = ['AL30', 'GD30', 'AL29', 'GD29', 'AL35', 'GD35', 'AE38', 'GD38', 'AL41', 'GD41', 'GD46'];
+  // los ratios armados: [id, nombre, A, B, op, qué hacés en el long, qué hacés en el short]
+  var PRE = [
+    ['bm', 'Brecha MEP vs futuro', 'MEP:AL30', 'FUT:1', 'dif', 'Long brecha: comprás MEP (comprás AL30 en pesos y vendés AL30D) y vendés el futuro. Ganás si el MEP sube más que el futuro; conviene cuando la brecha está comprimida (cerca de cero o negativa).', 'Short brecha («fundir la brecha»): vendés MEP (comprás AL30D y vendés AL30 en pesos), colocás los pesos y comprás el futuro. Ganás si la brecha se cierra; conviene cuando está alta.'],
+    ['bc', 'Brecha CCL vs futuro', 'CCL:AL30', 'FUT:1', 'dif', 'Long: comprás cable (comprás AL30 en pesos y vendés AL30C) y vendés el futuro. Ganás si el CCL sube más que el futuro.', 'Short: vendés cable y comprás el futuro. Ganás si la brecha del cable se cierra.'],
+    ['ca', 'Canje AL30 (CCL vs MEP)', 'CCL:AL30', 'MEP:AL30', 'pct', 'Long canje: pasás de MEP a cable (comprás AL30 con MEP y lo vendés por cable). Conviene cuando el canje está cerca de cero o negativo.', 'Short canje: pasás de cable a MEP (comprás AL30C y vendés AL30D) y cobrás el canje. Conviene cuando está alto contra su historia.'],
+    ['cg', 'Canje GD30 (CCL vs MEP)', 'CCL:GD30', 'MEP:GD30', 'pct', 'Long canje con GD30: pasás de MEP a cable por el Global.', 'Short canje con GD30: pasás de cable a MEP por el Global.'],
+    ['mm', 'MEP AL30 vs MEP GD30', 'MEP:AL30', 'MEP:GD30', 'pct', 'Long: el MEP de AL30 está más barato de lo habitual contra el de GD30: comprás dólares por AL30 y los vendés por GD30.', 'Short: al revés, comprás MEP por GD30 y lo vendés por AL30.'],
+    ['cc', 'CCL AL30 vs CCL GD30', 'CCL:AL30', 'CCL:GD30', 'pct', 'Long: comprás cable por AL30 y lo vendés por GD30.', 'Short: comprás cable por GD30 y lo vendés por AL30.'],
+    ['bo', 'Brecha MEP vs oficial', 'MEP:AL30', 'OFI', 'pct', 'Long: comprás MEP contra el oficial (por ejemplo, dejás de comprar al oficial y comprás MEP) cuando la brecha está baja.', 'Short: vendés MEP y comprás oficial cuando la brecha está alta.'],
+    ['ps', 'Pase entre futuros (2.º vs 1.º)', 'FUT:2', 'FUT:1', 'dif', 'Long pase: comprás el segundo futuro y vendés el primero. Ganás si la tasa implícita entre los dos sube.', 'Short pase: vendés el segundo y comprás el primero.']
+  ];
+  var KEY = 'brfSt2', ST = { p: 'bm', a: 'MEP:AL30', b: 'FUT:1', op: 'dif', tf: 'in', w: 120, hw: 120 };
+  try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
+  var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
+  var TJ = null, IJ = null, IB = null, VD = null, DJ = null, ldT = 0, loading = false, CH = null;
+  var j = function (u) { return fetch(u + '?v=' + Math.floor(Date.now() / 6e4), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
+  function load(force) { // los json de la rueda se vuelven a pedir cada 3 minutos
+    if (loading || (!force && TJ && Date.now() - ldT < 18e4)) return; loading = true;
+    var vol = new Promise(function (ok) { if (VD) ok(VD); else if (window.VOLX && window.VOLX.raw) window.VOLX.raw(ok); else j('data/volumen.json').then(ok); });
+    Promise.all([j('data/tasas.json'), j('data/intra.json'), j('data/intra_bonos.json'), vol, DJ ? DJ : j('data/dolar.json')]).then(function (r) {
+      loading = false; ldT = Date.now(); if (r[0]) TJ = r[0]; if (r[1]) IJ = r[1]; if (r[2]) IB = r[2]; if (r[3]) VD = r[3]; if (r[4]) DJ = r[4]; draw();
+    });
+  }
+  var nowAR = function () { var f = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()), g = {}; f.forEach(function (p) { g[p.type] = p.value; }); return { d: g.year + '-' + g.month + '-' + g.day, m: (+g.hour % 24) * 60 + (+g.minute) }; };
+  var vivoFut = function () { return ((TJ && TJ.vivo && TJ.vivo.fut) || []).filter(function (r) { return /^DLR\/[A-Z]{3}\d{2}$/.test(r[0]) && r[1]; }).sort(function (a, c) { return a[1] < c[1] ? -1 : 1; }); };
+  var vtoOf = function (nm) { var r = vivoFut().filter(function (x) { return x[0] === nm; })[0]; if (r) return r[1]; var m = /^DLR\/([A-Z]{3})(\d{2})$/.exec(nm); if (!m) return ''; var mo = MES.indexOf(m[1]) + 1, y = 2000 + +m[2], last = new Date(Date.UTC(y, mo, 0)).getUTCDate(); return y + '-' + ('0' + mo).slice(-2) + '-' + last; };
+  function futName(id, d) { // FUT:1 y FUT:2: el primero y el segundo contrato que no vencieron a esa fecha; si no, el contrato pedido
+    var n = id.slice(4); if (!/^\d$/.test(n)) return n;
+    var names = {}; vivoFut().forEach(function (r) { names[r[0]] = 1; }); if (IJ && IJ[d] && IJ[d].fut) Object.keys(IJ[d].fut).forEach(function (k) { if (/^DLR\//.test(k)) names[k] = 1; });
+    var L = Object.keys(names).filter(function (k) { return vtoOf(k) >= d; }).sort(function (a, c) { return vtoOf(a) < vtoOf(c) ? -1 : 1; }); return L[+n - 1] || null;
+  }
+  var label = function (id) { if (id === 'OFI') return 'Oficial (A3500)'; var p = id.split(':'); return p[0] === 'FUT' ? (/^\d$/.test(p[1]) ? (p[1] === '1' ? '1.er futuro' : '2.º futuro') + ' (' + (futName(id, nowAR().d) || '—') + ')' : p[1]) : p[0] + ' ' + p[1]; };
+
+  /* ---------- cada pata: en vivo, intradiario y diario ---------- */
+  function live(id) { // {bid: lo que cobrás si la vendés, ask: lo que pagás si la comprás, last, legs}
+    var q = window.PXQ || {}, t = nowAR();
+    if (id === 'OFI') { var sp = TJ && TJ.vivo && TJ.vivo.spot; return { bid: null, ask: null, last: sp || null, legs: [['Oficial (' + (TJ && TJ.vivo && TJ.vivo.spotF === 'A3' ? 'A3' : 'mayorista') + ')', null, null, sp]] }; }
+    var p = id.split(':');
+    if (p[0] === 'FUT') {
+      var nm = futName(id, t.d), row = vivoFut().filter(function (r) { return r[0] === nm; })[0], o = { bid: null, ask: null, last: null, legs: [] }; if (!row) return o;
+      var vt = String(TJ.vivo.ts || ''), hoy = vt.slice(0, 10) === t.d, tr = IJ && IJ[t.d] && IJ[t.d].fut && IJ[t.d].fut[nm];
+      o.bid = hoy ? row[2] : null; o.ask = hoy ? row[3] : null; o.last = tr && tr.length ? tr[tr.length - 1][1] : row[4] || row[5]; o.legs = [[nm, o.bid, o.ask, o.last]]; return o;
+    }
+    var k = p[1], P = q[k] || {}, D = q[k + (p[0] === 'MEP' ? 'D' : 'C')] || {}, ok = P.bid > 0 && P.ask > 0 && D.bid > 0 && D.ask > 0;
+    return { bid: ok ? P.bid / D.ask : null, ask: ok ? P.ask / D.bid : null, last: P.c > 0 && D.c > 0 ? P.c / D.c : null, legs: [[k, P.bid, P.ask, P.c], [k + (p[0] === 'MEP' ? 'D' : 'C'), D.bid, D.ask, D.c]] };
+  }
+  function daily(id) { // {fecha: valor} al cierre
+    var out = {};
+    if (id === 'OFI') { var A = (DJ && DJ.A3500) || {}; Object.keys(A).forEach(function (d) { if (A[d] > 0) out[d] = A[d]; }); return out; }
+    var p = id.split(':');
+    if (p[0] === 'FUT') { if (!TJ || !TJ.fut) return out; var n = p[1];
+      Object.keys(TJ.fut).forEach(function (d) { var rows = (TJ.fut[d] || []).filter(function (r) { return /^DLR\d{6}$/.test(r[0]) && r[2] > 0 && r[1] >= d; }).sort(function (a, c) { return a[1] < c[1] ? -1 : 1; });
+        var r = /^\d$/.test(n) ? rows[+n - 1] : rows.filter(function (x) { return x[0] === code(n); })[0]; if (r) out[d] = r[2]; });
+      return out; }
+    if (!VD) return out;
+    var cl = function (t) { var o = VD.t[t], m = {}, acc = 0; if (o) for (var i = 0; i < o.i.length; i++) { acc += o.i[i]; if (o.c[i] > 0) m[VD.dates[acc]] = o.c[i]; } return m; };
+    var P = cl(p[1]), D = cl(p[1] + (p[0] === 'MEP' ? 'D' : 'C')); Object.keys(P).forEach(function (d) { if (D[d] > 0) out[d] = P[d] / D[d]; }); return out;
+  }
+  function intra(id, d) { // [[minuto, valor]] de esa rueda
+    if (id === 'OFI') return [];
+    var p = id.split(':');
+    if (p[0] === 'FUT') { var nm = futName(id, d), tr = nm && IJ && IJ[d] && IJ[d].fut && IJ[d].fut[nm]; return (tr || []).map(function (x) { return [x[0], x[1]]; }); }
+    var ib = IB && IB[d]; if (!ib) return [];
+    var P = ib[p[1]] || [], D = ib[p[1] + (p[0] === 'MEP' ? 'D' : 'C')] || [], i = 0, k = 0, a = null, b = null, out = [], ms = {};
+    P.concat(D).forEach(function (x) { ms[x[0]] = 1; });
+    Object.keys(ms).map(Number).sort(function (x, y) { return x - y; }).forEach(function (m) { while (i < P.length && P[i][0] <= m) a = P[i++][1]; while (k < D.length && D[k][0] <= m) b = D[k++][1]; if (a > 0 && b > 0) out.push([m, a / b]); });
+    return out;
+  }
+  var comb = function (a, b) { return a == null || b == null || !(a > 0) || !(b > 0) ? null : ST.op === 'dif' ? a - b : (a / b - 1) * 100; };
+  var unit = function () { return ST.op === 'dif' ? ' $' : '%'; }, fmtV = function (v) { return v == null ? '—' : ST.op === 'dif' ? (v < 0 ? '−' : '+') + '$ ' + nf(Math.abs(v), 2) : sg(v, 2) + '%'; };
+  var tickF = function (pct) { return function (v, i, T) { var st = T && T.length > 1 ? Math.abs(T[1].value - T[0].value) : 1, d = st < 0.095 ? 2 : st < 0.95 ? 1 : 0; return (pct ? '' : '') + nf(v, d) + (pct ? '%' : ''); }; }; // los decimales según el paso del eje: en intradiario, 0,52% / 0,54%
+
+  function series() { // la serie del ratio que se grafica: [{x, y, lab}]
+    var t = nowAR();
+    if (ST.tf === 'd') {
+      var A = daily(ST.a), B = daily(ST.b), ds = Object.keys(A).filter(function (d) { return B[d] != null; }).sort();
+      if (ST.w) ds = ds.slice(-ST.w);
+      return ds.map(function (d, i) { return { x: i, y: comb(A[d], B[d]), lab: fr(d) }; });
+    }
+    // intradiario: cada 5 minutos, cada serie con su último dato; las ruedas guardadas, una al lado de la otra
+    var days = Object.keys(IB || {}).concat(Object.keys(IJ || {})).filter(function (d, i, a) { return a.indexOf(d) === i && d <= t.d; }).sort().slice(-(ST.wi || 2)), out = [], x = 0;
+    var LA = live(ST.a), LB = live(ST.b);
+    days.forEach(function (d) {
+      var a = intra(ST.a, d), b = intra(ST.b, d); if (d === t.d && t.m >= 630 && t.m <= 1020) { if (LA.last) a.push([t.m, LA.last]); if (LB.last) b.push([t.m, LB.last]); }
+      if (ST.b === 'OFI') { var sp = TJ && TJ.vivo && TJ.vivo.spot && String(TJ.vivo.ts || '').slice(0, 10) === d ? TJ.vivo.spot : (DJ && DJ.A3500 && DJ.A3500[d]); if (sp) b = [[600, sp]]; }
+      if (!a.length || !b.length) return;
+      var m0 = Math.max(630, Math.min(a[0][0], b[0][0])), m1 = Math.min(1020, Math.max(a[a.length - 1][0], b[b.length - 1][0])), i = 0, k = 0, va = null, vb = null;
+      for (var m = Math.ceil(m0 / 5) * 5; m <= m1 + 4; m += 5) {
+        while (i < a.length && a[i][0] <= m) va = a[i++][1]; while (k < b.length && b[k][0] <= m) vb = b[k++][1];
+        var y = comb(va, vb); if (y != null) out.push({ x: x, y: y, lab: d.slice(8, 10) + '/' + d.slice(5, 7) + ' ' + hm(Math.min(m, m1)) });
+        x++;
+      }
+      x += 6; // un hueco entre ruedas
+    });
+    return out;
+  }
+
+  /* ---------- pantalla ---------- */
+  function opts(sel) {
+    var g = function (t, L) { return '<optgroup label="' + t + '">' + L.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === sel ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</optgroup>'; };
+    return g('MEP', BONOS.map(function (k) { return ['MEP:' + k, 'MEP ' + k]; })) + g('CCL', BONOS.map(function (k) { return ['CCL:' + k, 'CCL ' + k]; })) +
+      g('Futuros de dólar', [['FUT:1', '1.er futuro'], ['FUT:2', '2.º futuro']].concat(vivoFut().map(function (r) { return ['FUT:' + r[0], r[0] + ' · vence ' + fr(r[1])]; }))) + g('Oficial', [['OFI', 'Oficial (A3500)']]);
+  }
+  function ensure() {
+    if (document.getElementById('brCh')) return true;
+    root.innerHTML = '<style>' +
+      '#brc .brL{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px}@media(max-width:1100px){#brc .brL{grid-template-columns:minmax(0,1fr)}}' +
+      '#brc .brP{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}#brc .brP button{cursor:pointer;padding:6px 12px;border-radius:999px;border:1px solid var(--bd);background:transparent;color:var(--mu);font:600 12.5px Inter,system-ui,sans-serif}#brc .brP button.on{border-color:var(--ac);color:var(--tx);background:rgba(255,197,66,.12)}' +
+      '#brc .ctl{display:flex;flex-wrap:wrap;gap:16px 20px;align-items:flex-start;margin-top:14px}#brc .ctl label{display:flex;flex-direction:column;gap:7px}#brc .ctl .brEq{align-self:flex-end;margin-bottom:1px}#brc #bsT tbody tr{cursor:pointer}#brc #bsT tr.on td{background:rgba(255,197,66,.12)}#brc .ctl select{min-width:170px}' +
+      '#brc .brV{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}#brc .brS{color:var(--mu);font-size:12.5px;margin-top:4px}' +
+      '#brc .bx{border:1px solid var(--bd);border-radius:12px;padding:12px 14px;background:var(--bg);margin-bottom:12px}#brc .bx h5{margin:0 0 8px;font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px}' +
+      '#brc .rt{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}#brc .rt th,#brc .rt td{padding:5px 7px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--bd)}#brc .rt th{color:var(--mu);font-size:11.5px;font-weight:600}#brc .rt td.l,#brc .rt th.l{text-align:left}' +
+      '#brc .rt tr.on td{background:rgba(255,197,66,.10)}#brc .rt tbody tr{cursor:pointer}#brc .rt tbody tr:hover td{background:rgba(161,161,170,.08)}#brc .st{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:13px}#brc .st span{color:var(--mu)}#brc .st b{text-align:right;font-variant-numeric:tabular-nums}' +
+      '#brc #brHw{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:600px){#brc #brHw{grid-template-columns:1fr}}#brc .hwS{border-radius:10px;padding:10px 12px;background:rgba(161,161,170,.05);border-top:3px solid var(--ok)}#brc .hwS.hwR{border-top-color:var(--bad)}#brc .hwS h6{margin:0 0 8px;font-size:14px;color:var(--tx)}#brc .hwS h6 span{font-weight:500;color:var(--mu);font-size:12px}#brc .hwS ol{margin:0 0 10px;padding-left:18px;font-size:13px;line-height:1.55;color:var(--tx)}#brc .hwS ol b{font-weight:700}#brc .hwS dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:12.5px}#brc .hwS dt{color:var(--mu)}#brc .hwS dd{margin:0;color:var(--tx)}#brc .hwS dd.hot{color:var(--ac);font-weight:600}' +
+      '#brc .brL2{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:18px;margin-top:16px}#brc .brL2 .bx{margin:0}@media(max-width:900px){#brc .brL2{grid-template-columns:minmax(0,1fr)}}#brc .ctl input{width:150px}#brc .bsR1{display:grid;grid-template-columns:minmax(220px,280px) minmax(0,1fr) minmax(0,1fr) auto;align-items:stretch}#brc .bsR1 label{min-width:0;justify-content:space-between}#brc .bsR1 input,#brc .bsR1 select,#brc .ctl.bsR1 #bsD{width:100%;min-width:0}#brc .bsR1 .brEq{align-self:end;height:40px}@media(max-width:900px){#brc .bsR1{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#brc .bsR1>label:first-child,#brc .bsR1 .brEq{grid-column:1/-1}}#brc .bsR2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px 18px;margin-top:14px}@media(max-width:800px){#brc .bsR2{grid-template-columns:minmax(0,1fr)}}#brc .bsK{border:1px solid var(--bd);border-radius:12px;padding:12px 16px;display:flex;flex-direction:column;gap:6px;min-width:0}#brc .bsK .bsKh{display:flex;flex-direction:row;text-align:left;justify-content:space-between;align-items:center;gap:12px;color:var(--tx);font-weight:600;font-size:14px}#brc .bsK .bsKh input{width:120px;text-align:right;flex:none}#brc input.bsSl{width:100%;max-width:none;margin:10px 0 6px;border:0}#brc .bsK small.brS{margin:0;line-height:1.45}#brc .ctl #bsD{min-width:250px}#brc .bsCw{position:relative;height:clamp(380px,42vw,640px)}#brc .bsRes{display:flex;align-items:center;gap:28px;flex-wrap:wrap;margin:0}#brc .bsRes h5{margin:0 0 4px}#brc .bsRes .brS{flex:1;min-width:220px;max-width:640px}#brc .brEq{cursor:pointer;padding:9px 12px;border-radius:10px;border:1px solid var(--bd);background:transparent;color:var(--tx);font:600 12.5px Inter,system-ui,sans-serif}#brc .rt tr.up td b{color:var(--ok)}#brc .rt tr.dn td b{color:var(--bad)}' +
+      '</style>' +
+      '<div class="card sx" id="brA"><div class="sxh"><div style="min-width:0"><p class="qh">Ratios de brecha y canje</p><p class="qs">Dos patas sintéticas (MEP, CCL, futuro u oficial) y su ratio en el tiempo: dónde está hoy contra su historia, a qué nivel entrás long o short y cómo se arma cada operación.</p></div><div class="sxb">' + dlb('brA', 'Bonerio_Brecha_Canje_Ratio', 'Descargar el ratio en HD') + '</div></div>' +
+      '<div class="brP" id="brPre"></div>' +
+      '<div class="ctl"><label>Pata A (long: la comprás)<select id="brA1"></select></label><label>Pata B (long: la vendés)<select id="brB1"></select></label><label>Ratio<select id="brOp"><option value="dif">A − B ($)</option><option value="pct">A ÷ B − 1 (%)</option></select></label>' +
+      '<label id="brWl">Período<select id="brW"><optgroup label="Intradiario, cada 5 minutos"><option value="i1">Hoy</option><option value="i2">Últimas 2 ruedas</option></optgroup><optgroup label="Diario, al cierre"><option value="d5">5 ruedas</option><option value="d10">10 ruedas</option><option value="d20">20 ruedas</option><option value="d40">40 ruedas</option><option value="d60">60 ruedas</option><option value="d120">120 ruedas</option><option value="d250">250 ruedas</option><option value="d0">Todo</option></optgroup></select></label></div>' +
+      '<div class="brL" style="margin-top:16px"><div><p class="note" id="brT" style="margin:0 0 6px;color:var(--tx);font-weight:600"></p><div style="position:relative;height:500px"><canvas id="brCh"></canvas></div><p class="note" id="brN" style="margin-top:8px"></p></div>' +
+      '<div><div class="bx"><h5 id="brH">Ahora</h5><div class="brV" id="brV"></div><div class="brS" id="brE"></div></div>' +
+      '<div class="bx"><h5 id="brSt">En el gráfico</h5><div class="st" id="brSs"></div></div></div></div>' +
+      '<div class="brL2"><div class="bx"><h5>Patas</h5><table class="rt" id="brLg"></table></div><div class="bx hw"><h5>Cómo se arma</h5><div id="brHw"></div></div></div></div>' +
+      '<div class="card sx" id="brSim" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Simulador de resultado</p><p class="qs">Armá la operación con los nominales de cada pata y mirá cuánto ganás o perdés según dónde cierre el ratio. Entrás cruzando las puntas de hoy; si los dólares de las dos patas no son iguales, el resultado también depende de cuánto se mueva el dólar.</p></div><div class="sxb">' + dlb('brSim', 'Bonerio_Brecha_Canje_Simulador', 'Descargar el simulador en HD') + '</div></div>' +
+      '<div class="ctl bsR1"><label>Operación<select id="bsD"><option value="L">Long (comprás A, vendés B)</option><option value="S">Short (vendés A, comprás B)</option></select></label><label><span id="bsAl">Pata A</span><input type="number" id="bsA" min="0" step="1"></label><label><span id="bsBl">Pata B</span><input type="number" id="bsB" min="0" step="1"></label><button type="button" class="brEq" id="bsEq" data-html2canvas-ignore="true">Igualar dólares de las dos patas</button></div>' +
+      '<p class="brS" id="bsU" style="margin-top:10px"></p>' +
+      '<div class="bsR2"><div class="bsK"><label class="bsKh" for="bsR"><span id="bsRl">¿Dónde cierra el ratio?</span><input type="number" id="bsR" step="0.1"></label><input type="range" id="bsRs" class="bsSl" data-html2canvas-ignore="true" aria-label="Dónde cierra el ratio"><small id="bsRh" class="brS"></small></div>' +
+      '<div class="bsK"><label class="bsKh" for="bsM"><span>Si el dólar se mueve (%)</span><input type="number" id="bsM" step="0.5"></label><input type="range" id="bsMs" class="bsSl" data-html2canvas-ignore="true" min="-20" max="20" step="0.5" aria-label="Si el dólar se mueve"><small id="bsMh" class="brS"></small></div></div>' +
+      '<div style="margin-top:16px"><div class="bx bsRes"><div><h5 id="bsRv"></h5><div class="brV" id="bsV"></div></div><div class="brS" id="bsVu"></div></div><p class="note" id="bsTt" style="margin:14px 0 6px;color:var(--tx);font-weight:600"></p><div class="bsCw"><canvas id="bsCh" style="cursor:crosshair"></canvas></div><p class="note" id="bsN" style="margin-top:8px"></p></div><div class="bx" style="margin-top:16px"><h5>Escenarios</h5><div style="overflow-x:auto"><table class="rt" id="bsT"></table></div></div></div>' +
+      '<div class="card sx" id="brB" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Todos los ratios ahora</p><p class="qs">Cada ratio armado con el precio de ahora, a qué nivel entrás long y short cruzando las puntas, y dónde está contra sus cierres del horizonte elegido. Tocá una fila para verla arriba.</p></div><div class="sxb">' + dlb('brB', 'Bonerio_Brecha_Canje_Todos', 'Descargar la tabla de ratios en HD') + '</div></div><div class="ctl" style="margin-top:10px"><label>Comparar contra<select id="brAw"><option value="5">5 ruedas</option><option value="10">10 ruedas</option><option value="20">20 ruedas</option><option value="40">40 ruedas</option><option value="60">60 ruedas</option><option value="120">120 ruedas</option><option value="250">250 ruedas</option><option value="0">Todo el historial</option></select></label></div>' +
+      '<div style="overflow:auto;margin-top:12px"><table class="rt" id="brAll"></table></div></div>';
+    var on = function (id, fn) { document.getElementById(id).onchange = function () { fn(this.value); save(); draw(); }; };
+    on('brA1', function (v) { ST.a = v; ST.p = ''; SIM.r = null; }); on('brB1', function (v) { ST.b = v; ST.p = ''; SIM.r = null; }); on('brOp', function (v) { ST.op = v; ST.p = ''; SIM.r = null; }); on('brW', function (v) { if (v[0] === 'd') { ST.tf = 'd'; ST.w = +v.slice(1); } else { ST.tf = 'in'; ST.wi = +v.slice(1); } });
+    var sv = function (k) { return function () { var v = this.value === '' ? null : +this.value; if (k === 'd') SIM.d = this.value; else if (k === 'a') SIM.n[ST.a] = v; else if (k === 'b') SIM.n[ST.b] = v; else if (k === 'm') SIM.m = v || 0; else { SIM.r = v; SIM.rl = 'Tu cierre'; } saveSim(); simDraw(); }; };
+    ['d', 'a', 'b', 'm', 'r'].forEach(function (k) { var el = document.getElementById('bs' + k.toUpperCase()); if (k === 'd') el.onchange = sv(k); else el.oninput = sv(k); }); // los números, solo al escribir: el change al salir del campo rehace la tabla y se come el clic en un escenario
+    document.getElementById('bsMs').oninput = function () { SIM.m = +this.value; document.getElementById('bsM').value = SIM.m; saveSim(); simDraw(); };
+    document.getElementById('bsRs').oninput = function () { SIM.r = +this.value; SIM.rl = 'Tu cierre'; document.getElementById('bsR').value = Math.round(SIM.r * 100) / 100; saveSim(); simDraw(); };
+    on('brAw', function (v) { ST.hw = +v; });
+    document.getElementById('bsEq').onclick = function () { var ua = usdOf(ST.a, SIM.n[ST.a]); if (ua > 0) { SIM.n[ST.b] = Math.round(nomOf(ST.b, ua)); saveSim(); simDraw(true); } };
+    document.getElementById('bsT').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-sc]'); if (!tr) return; var c = SIMSC[+tr.getAttribute('data-sc')]; if (!c) return; SIM.r = c[1]; SIM.rl = c[0]; simDraw(true); });
+    root.addEventListener('click', function (e) { var b = e.target.closest('[data-pre]'); if (!b) return; var P = PRE.filter(function (x) { return x[0] === b.getAttribute('data-pre'); })[0]; if (!P) return; if (ST.p !== P[0]) SIM.r = null; ST.p = P[0]; ST.a = P[2]; ST.b = P[3]; ST.op = P[4]; save(); draw(); if (b.tagName === 'TR') document.getElementById('brA').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    return true;
+  }
+  function draw() {
+    if (!isAct() || typeof Chart === 'undefined' || !ensure()) return;
+    load();
+    if (!TJ || !VD) { document.getElementById('brT').textContent = 'Cargando los bonos y los futuros…'; return; }
+    try {
+      var pre = PRE.filter(function (x) { return x[0] === ST.p; })[0];
+      document.getElementById('brPre').innerHTML = PRE.map(function (p) { return '<button data-pre="' + p[0] + '" class="' + (p[0] === ST.p ? 'on' : '') + '">' + p[1] + '</button>'; }).join('');
+      document.getElementById('brA1').innerHTML = opts(ST.a); document.getElementById('brB1').innerHTML = opts(ST.b);
+      document.getElementById('brOp').value = ST.op; document.getElementById('brW').value = ST.tf === 'd' ? 'd' + ST.w : 'i' + (ST.wi || 2);
+      var name = pre ? pre[1] : label(ST.a) + (ST.op === 'dif' ? ' − ' : ' ÷ ') + label(ST.b);
+      // ahora
+      var LA = live(ST.a), LB = live(ST.b), v = comb(LA.last, LB.last), lo = comb(LA.ask, LB.bid), sh = comb(LA.bid, LB.ask);
+      document.getElementById('brH').textContent = name;
+      document.getElementById('brV').innerHTML = fmtV(v) + (ST.op === 'dif' && v != null && LB.last ? ' <span style="font-size:15px;color:var(--mu);font-weight:600">' + sg(v / LB.last * 100, 2) + '%</span>' : '');
+      document.getElementById('brE').innerHTML = (lo != null ? 'Entrás <b>long</b> a ' + fmtV(lo) + ' · <b>short</b> a ' + fmtV(sh) : 'Sin puntas de las dos patas para el long y el short') + '<br>' + label(ST.a) + ': ' + nf(LA.last, 2) + ' · ' + label(ST.b) + ': ' + nf(LB.last, 2);
+      var lg = LA.legs.concat(LB.legs);
+      document.getElementById('brLg').innerHTML = '<thead><tr><th class="l">Ticker</th><th>Compra</th><th>Venta</th><th>Último</th></tr></thead><tbody>' + lg.map(function (r) { var d = r[3] > 1000 ? 1 : 2; return '<tr><td class="l"><b>' + r[0] + '</b></td><td style="color:var(--ok)">' + nf(r[1], d) + '</td><td style="color:var(--bad)">' + nf(r[2], d) + '</td><td>' + nf(r[3], d) + '</td></tr>'; }).join('') + '</tbody>';
+      // escenarios del simulador: cierres del período elegido (120 ruedas si el gráfico es intradiario)
+      var DA = daily(ST.a), DB = daily(ST.b), dds = Object.keys(DA).filter(function (d) { return DB[d] != null && d < nowAR().d; }).sort().slice(-(ST.tf === 'd' && ST.w ? ST.w : ST.tf === 'd' ? 1e6 : 120)), dys = dds.map(function (d) { return comb(DA[d], DB[d]); }).filter(function (y) { return y != null; });
+      var dn = dys.length, dmean = dn ? dys.reduce(function (a, y) { return a + y; }, 0) / dn : null, dsd = dn > 1 ? Math.sqrt(dys.reduce(function (a, y) { return a + (y - dmean) * (y - dmean); }, 0) / (dn - 1)) : null, dmn = dn ? Math.min.apply(null, dys) : null, dmx = dn ? Math.max.apply(null, dys) : null;
+      // cómo se arma: los pasos de cada pata, para el long y para el short
+      var stp = function (id, buy) { var p = id.split(':'), k = p[1], c = p[0] === 'MEP' ? 'D' : 'C', usd = p[0] === 'MEP' ? 'dólares MEP' : 'dólares cable';
+        if (id === 'OFI') return [buy ? 'Comprás dólar oficial (el A3500 es la referencia)' : 'Vendés dólar oficial (el A3500 es la referencia)'];
+        if (p[0] === 'FUT') return [(buy ? 'Comprás' : 'Vendés') + ' el futuro <b>' + (futName(id, nowAR().d) || label(id)) + '</b>'];
+        return buy ? ['Comprás <b>' + k + '</b> en pesos', 'Vendés <b>' + k + c + '</b>: te quedan ' + usd] : ['Comprás <b>' + k + c + '</b> con ' + usd, 'Vendés <b>' + k + '</b> en pesos: te quedan pesos']; };
+      var kd = function (id) { return id === 'OFI' ? 'o' : id.slice(0, 4) === 'FUT:' ? 'f' : 'b'; }, fam = ST.p === 'ca' || ST.p === 'cg' ? 'canje' : ST.p === 'ps' ? 'pase' : ST.p === 'bm' || ST.p === 'bc' || ST.p === 'bo' ? 'brecha' : '';
+      var pctNow = dn && v != null ? Math.round(dys.filter(function (y) { return y < v; }).length / dn * 100) : null, per = ST.tf === 'd' && ST.w ? ST.w + ' ruedas' : ST.tf === 'd' ? 'todo el historial' : '120 ruedas';
+      var side = function (L) {
+        var st = stp(ST.a, L).concat(stp(ST.b, !L)); if (!L && kd(ST.a) === 'b' && kd(ST.b) === 'f') st.splice(2, 0, 'Colocás los pesos en caución o Lecap mientras está armada');
+        var lv = L ? lo : sh, hot = pctNow != null && (L ? pctNow <= 25 : pctNow >= 75);
+        return '<div class="hwS ' + (L ? 'hwL' : 'hwR') + '"><h6>' + (L ? 'Long' : 'Short') + (fam ? ' ' + fam : '') + (!L && fam === 'brecha' ? ' <span>«fundir la brecha»</span>' : '') + '</h6><ol>' + st.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ol>' +
+          '<dl><dt>Ganás si</dt><dd>' + (ST.op === 'dif' ? label(ST.a) + ' − ' + label(ST.b) : 'el ' + (fam || 'ratio')) + ' ' + (L ? 'sube' : 'baja') + (fam === 'brecha' ? (L ? ' (la brecha se agranda)' : ' (la brecha se achica)') : fam === 'canje' ? (L ? ' (el canje se agranda)' : ' (el canje se achica)') : '') + '</dd>' +
+          '<dt>Entrás hoy a</dt><dd><b>' + fmtV(lv) + '</b></dd><dt>Conviene</dt><dd' + (hot ? ' class="hot"' : '') + '>con el ratio ' + (L ? 'bajo' : 'alto') + ' contra su historia' + (pctNow != null ? '; hoy (' + fmtV(v) + ') está en el percentil ' + pctNow + ' de los cierres de ' + per : '') + '</dd></dl></div>';
+      };
+      document.getElementById('brHw').innerHTML = side(true) + side(false);
+      // gráfico
+      var S = series(), ys = S.map(function (p) { return p.y; }), n = ys.length, mean = n ? ys.reduce(function (s, y) { return s + y; }, 0) / n : null, sd = n > 1 ? Math.sqrt(ys.reduce(function (s, y) { return s + (y - mean) * (y - mean); }, 0) / (n - 1)) : null;
+      var last = n ? ys[n - 1] : null, pct = n ? Math.round(ys.filter(function (y) { return y < last; }).length / n * 100) : null;
+      document.getElementById('brT').textContent = name + ' · ' + (ST.tf === 'd' ? 'cierre de cada rueda' : 'cada 5 minutos') + ' (' + (ST.op === 'dif' ? 'pesos por dólar' : '%') + ')';
+      document.getElementById('brSt').textContent = ST.tf === 'd' ? 'En el gráfico (' + n + ' ruedas)' : 'En el gráfico (intradiario)';
+      var mn = n ? Math.min.apply(null, ys) : null, mx = n ? Math.max.apply(null, ys) : null;
+      document.getElementById('brSs').innerHTML = n ? '<span>Último</span><b>' + fmtV(last) + '</b><span>Promedio</span><b>' + fmtV(mean) + '</b><span>Desvío (±1σ)</span><b>' + (ST.op === 'dif' ? nf(sd, 2) : nf(sd, 2) + '%') + '</b><span>Mínimo / máximo</span><b>' + fmtV(mn) + ' / ' + fmtV(mx) + '</b><span>Percentil del último</span><b>' + pct + '</b><span>Contra el promedio</span><b>' + (sd ? sg((last - mean) / sd, 1) + ' σ' : '—') + '</b>' : '<span>Sin datos para este ratio en el período.</span>';
+      document.getElementById('brN').textContent = (ST.tf === 'd' ? 'Cierres: bonos desde 2023 (data/volumen.json), futuros desde 2025 (ajuste diario), oficial A3500. Con «1.er futuro», cada día se toma el contrato más cercano que no venció: el día que rota, el ratio salta.' : 'Intradiario: los bonos cada 3 minutos (lo que guarda la rueda) y la última operación de cada futuro; cada serie sigue con su último dato hasta el siguiente.') + ' La línea punteada es el promedio y la franja, ±1 desvío.';
+      if (CH) { try { CH.destroy(); } catch (e) { } CH = null; }
+      var mu = css('--mu'), tx = css('--tx'), bd = css('--bd'), ac = css('--ac') || '#ffc542', labs = S.map(function (p) { return p.lab; }), xs = S.map(function (p) { return p.x; });
+      var band = function (k) { return S.map(function (p) { return { x: p.x, y: mean + k * sd }; }); };
+      var sets = [{ label: name, data: S.map(function (p) { return { x: p.x, y: p.y }; }), borderColor: ac, backgroundColor: ac, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.15, spanGaps: false, order: 1 }];
+      if (sd) sets.push({ label: '+1σ', data: band(1), borderColor: 'rgba(161,161,170,.35)', borderWidth: 1, borderDash: [4, 4], pointRadius: 0, fill: '+1', backgroundColor: 'rgba(161,161,170,.08)', $aux: 1, order: 3 }, { label: '−1σ', data: band(-1), borderColor: 'rgba(161,161,170,.35)', borderWidth: 1, borderDash: [4, 4], pointRadius: 0, fill: false, $aux: 1, order: 3 }, { label: 'Promedio', data: band(0), borderColor: 'rgba(161,161,170,.75)', borderWidth: 1.2, borderDash: [6, 4], pointRadius: 0, fill: false, $aux: 1, order: 2 });
+      var byX = {}; S.forEach(function (p) { byX[p.x] = p.lab; });
+      CH = new Chart(document.getElementById('brCh').getContext('2d'), { type: 'line', data: { datasets: sets }, options: { devicePixelRatio: Math.max(2, window.devicePixelRatio || 1), responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'nearest', axis: 'x', intersect: false },
+        plugins: { legend: { display: false }, tooltip: { filter: function (it) { return !it.dataset.$aux; }, callbacks: { title: function (it) { return it.length ? byX[it[0].parsed.x] || '' : ''; }, label: function (c) { return name + ': ' + fmtV(c.parsed.y); } } } },
+        scales: { x: { type: 'linear', min: xs.length ? xs[0] : 0, max: xs.length ? xs[xs.length - 1] : 1, ticks: { color: mu, maxTicksLimit: 8, callback: function (v) { var l = byX[Math.round(v)]; return l ? (ST.tf === 'd' ? l.slice(0, 5) + '/' + l.slice(8, 10) : l) : ''; } }, grid: { display: false }, border: { color: bd } },
+          y: { ticks: { color: mu, callback: tickF(ST.op !== 'dif') }, grid: { color: function (c) { return c.tick && c.tick.value === 0 ? 'rgba(161,161,170,.6)' : 'rgba(161,161,170,.12)'; } }, border: { display: false } } } } });
+      SST = { mean: dmean, sd: dsd, mn: dmn, mx: dmx, n: dn, per: ST.tf === 'd' ? (ST.w ? ST.w + ' ruedas' : 'todo el historial') : '120 ruedas' }; simDraw(true);
+      all();
+    } catch (e) { console.error('brecha y canje', e); document.getElementById('brT').textContent = 'Error: ' + e.message; }
+  }
+  /* ---------- simulador: resultado en pesos según dónde cierre el ratio ---------- */
+  var SIM = { d: 'L', n: {}, m: 0, r: null, rl: '' }, SST = {}, CS = null, SIMSC = [];
+  try { Object.assign(SIM, JSON.parse(localStorage.getItem('brfSim1') || '{}')); } catch (e) { }
+  var saveSim = function () { try { localStorage.setItem('brfSim1', JSON.stringify({ d: SIM.d, n: SIM.n, m: SIM.m })); } catch (e) { } };
+  var kindOf = function (id) { return id === 'OFI' ? 'ofi' : id.slice(0, 4) === 'FUT:' ? 'fut' : 'bono'; };
+  var usdPx = function (id) { var p = id.split(':'), Q = (window.PXQ || {})[p[1] + (p[0] === 'MEP' ? 'D' : 'C')] || {}; return Q.c > 0 ? Q.c : Q.ask > 0 ? Q.ask : null; }; // precio en dólares del bono, por 100 VN
+  function usdOf(id, n) { // los dólares que mueve la pata con esos nominales
+    if (!(n > 0)) return 0; var k = kindOf(id); if (k === 'fut') return n * 1000; if (k === 'ofi') return n;
+    var px = usdPx(id); return px ? n * px / 100 : 0;
+  }
+  function nomOf(id, usd) { var k = kindOf(id); if (k === 'fut') return usd / 1000; if (k === 'ofi') return usd; var px = usdPx(id); return px ? usd / (px / 100) : 0; }
+  var unitOf = function (id) { var k = kindOf(id); return k === 'fut' ? 'contratos de US$ 1.000' : k === 'ofi' ? 'dólares' : 'VN'; };
+  var defNom = function (id) { var k = kindOf(id); return k === 'fut' ? 10 : k === 'ofi' ? 10000 : Math.round(nomOf(id, 10000) / 100) * 100 || 10000; };
+  function simDraw(full) {
+    var el = document.getElementById('bsCh'); if (!el || !isAct()) return;
+    if (SIM.n[ST.a] == null) SIM.n[ST.a] = defNom(ST.a); if (SIM.n[ST.b] == null) SIM.n[ST.b] = defNom(ST.b);
+    var LA = live(ST.a), LB = live(ST.b), L = SIM.d !== 'S', sgn = L ? 1 : -1;
+    var A0 = (L ? LA.ask : LA.bid) || LA.last, B0 = (L ? LB.bid : LB.ask) || LB.last, Bm = LB.last || B0;
+    var uA = usdOf(ST.a, SIM.n[ST.a]), uB = usdOf(ST.b, SIM.n[ST.b]), R0 = comb(A0, B0), Rm = comb(LA.last, LB.last), dv = ST.op === 'dif';
+    if (full) { // los campos se reescriben solo al redibujar todo (si no, se pisa lo que se está escribiendo)
+      document.getElementById('bsD').value = L ? 'L' : 'S'; document.getElementById('bsA').value = SIM.n[ST.a]; document.getElementById('bsB').value = SIM.n[ST.b]; document.getElementById('bsM').value = SIM.m || 0;
+      document.getElementById('bsR').value = SIM.r != null ? Math.round(SIM.r * 100) / 100 : ''; document.getElementById('bsR').placeholder = SST.mean != null ? nf(SST.mean, 2).replace(',', '.') : '';
+      document.getElementById('bsRl').textContent = '¿Dónde cierra el ratio? (' + (dv ? '$ por dólar' : '%') + ')';
+      document.getElementById('bsAl').textContent = 'Pata A: ' + label(ST.a) + ' (' + unitOf(ST.a) + ')'; document.getElementById('bsBl').textContent = 'Pata B: ' + label(ST.b) + ' (' + unitOf(ST.b) + ')';
+    }
+    var nt = document.getElementById('bsN'), vv = document.getElementById('bsV');
+    if (!(A0 > 0) || !(B0 > 0) || R0 == null) { vv.textContent = '—'; nt.textContent = 'Faltan precios de alguna de las dos patas.'; if (CS) { CS.destroy(); CS = null; } return; }
+    var mis = Math.abs(uA - uB) > 0.005 * Math.max(uA, uB);
+    document.getElementById('bsU').innerHTML = (L ? 'Comprás' : 'Vendés') + ' <b>US$ ' + nf(uA, 0) + '</b> de ' + label(ST.a) + ' a ' + nf(A0, 2) + ' y ' + (L ? 'vendés' : 'comprás') + ' <b>US$ ' + nf(uB, 0) + '</b> de ' + label(ST.b) + ' a ' + nf(B0, 2) + '. Entrás ' + (L ? 'long' : 'short') + ' a <b>' + fmtV(R0) + '</b>' +
+      (mis ? ' · <span style="color:var(--ac)">quedás ' + (uA > uB ? 'comprado' : 'vendido') + ' en US$ ' + nf(Math.abs(uA - uB), 0) + ' netos: el resultado depende del dólar</span>' : ' · cubierto: el nivel del dólar no cambia el resultado');
+    var pnl = function (R1, mv) { // el dólar (la pata B) se mueve mv% desde el precio de hoy y A queda a la distancia del ratio; long gana si A sube más que B, short al revés
+ var B1 = Bm * (1 + (mv || 0) / 100), A1 = dv ? B1 + R1 : B1 * (1 + R1 / 100); return sgn * (uA * (A1 - A0) - uB * (B1 - B0)); };
+    var cap = Math.max(uA, uB) * Bm, mv = SIM.m || 0, mvS = Math.abs(mv) || 5, $f = function (v) { return (v >= 0 ? '+' : '−') + '$ ' + nf(Math.abs(v), 0); };
+    // escenarios
+    var sc = [];
+    var pr = ' (' + SST.per + ')'; if (SST.mean != null) sc.push(['Vuelve al promedio' + pr, SST.mean]);
+    if (SST.sd) { sc.push(['Promedio + 1σ' + pr, SST.mean + SST.sd], ['Promedio − 1σ' + pr, SST.mean - SST.sd]); }
+    if (SST.mn != null) sc.push(['Mínimo' + pr, SST.mn], ['Máximo' + pr, SST.mx]);
+    if (dv) sc.push(['Brecha en cero', 0]);
+    sc.push(['Queda donde está', Rm]);
+    var R1 = SIM.r != null && isFinite(SIM.r) ? SIM.r : SST.mean != null ? SST.mean : Rm, RL = SIM.r != null && isFinite(SIM.r) ? SIM.rl || 'Tu cierre' : SST.mean != null ? 'Vuelve al promedio' + pr : 'Queda donde está', P1 = pnl(R1, mv);
+    document.getElementById('bsRv').textContent = RL + ': cierra en ' + fmtV(R1) + (mv ? ', dólar ' + sg(mv, 1) + '%' : '');
+    vv.innerHTML = '<span style="color:' + (P1 >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + $f(P1) + '</span>';
+    document.getElementById('bsVu').textContent = (P1 >= 0 ? '+' : '−') + 'US$ ' + nf(Math.abs(P1) / Bm, 0) + ' · ' + sg(P1 / cap * 100, 2) + '% sobre US$ ' + nf(Math.max(uA, uB), 0) + '. Tocá un escenario de la tabla o un punto del gráfico para cambiarlo.';
+    document.getElementById('bsRh').textContent = 'Hoy ' + fmtV(Rm) + (SST.mean != null ? ' · promedio de ' + SST.per + ' (cierres) ' + fmtV(SST.mean) : '') + '. Vacío: ese promedio.';
+    document.getElementById('bsT').innerHTML = '<thead><tr><th class="l">Si el ratio…</th><th>Cierra en</th><th>' + (mis ? 'Dólar igual' : 'Resultado') + '</th>' + (mis ? '<th>Dólar ' + sg(mvS, 1) + '%</th><th>Dólar ' + sg(-mvS, 1) + '%</th>' : '') + '</tr></thead><tbody>' + sc.map(function (c, i) { var v = pnl(c[1], 0), on = Math.abs(c[1] - R1) < 0.006 && RL === c[0]; return '<tr data-sc="' + i + '" class="' + (v >= 0 ? 'up' : 'dn') + (on ? ' on' : '') + '"><td class="l">' + c[0] + '</td><td>' + fmtV(c[1]) + '</td><td><b>' + $f(v) + '</b></td>' + (mis ? '<td>' + $f(pnl(c[1], mvS)) + '</td><td>' + $f(pnl(c[1], -mvS)) + '</td>' : '') + '</tr>'; }).join('') + '</tbody>';
+    SIMSC = sc;
+    // gráfico: resultado contra el cierre del ratio. El eje va de promedio −2,5σ a +2,5σ (y siempre incluye la entrada, hoy y el escenario elegido)
+    var pts = [R0, Rm, R1]; if (SST.sd) pts.push(SST.mean - 2.5 * SST.sd, SST.mean + 2.5 * SST.sd); else if (SST.mn != null) pts.push(SST.mn, SST.mx);
+    var lo = Math.min.apply(null, pts), hi = Math.max.apply(null, pts), pad = (hi - lo) * 0.06 || Math.abs(R0) * 0.05 || 1; lo -= pad; hi += pad;
+    // ruedita del cierre: su recorrido no depende del cierre elegido, así no salta mientras se arrastra
+    var sp = pts.slice(0, 2).concat(pts.slice(3)), slo = Math.min.apply(null, sp), shi = Math.max.apply(null, sp), spd = (shi - slo) * 0.06 || Math.abs(R0) * 0.05 || 1, rs = document.getElementById('bsRs'), stp0 = dv ? 0.05 : 0.01;
+    rs.min = Math.floor((slo - spd) / stp0) * stp0; rs.max = Math.ceil((shi + spd) / stp0) * stp0; rs.step = stp0; rs.value = R1;
+    var ms = document.getElementById('bsMs'); ms.value = mv;
+    document.getElementById('bsMh').innerHTML = 'Es el dólar de la pata B, <b>' + label(ST.b) + '</b> (hoy ' + nf(Bm, 2) + '); ' + label(ST.a) + ' lo acompaña a la distancia del ratio. ' + (mis ? 'Con las patas desiguales cambia el resultado.' : 'Con las patas igualadas no cambia el resultado.');
+    var line = function (m) { var o = []; for (var i = 0; i <= 120; i++) { var x = lo + (hi - lo) * i / 120; o.push({ x: x, y: pnl(x, m) }); } return o; };
+    var ac = css('--ac') || '#ffc542', mu = css('--mu'), tx = css('--tx'), ok = css('--ok') || '#2fd4a7', bad = css('--bad') || '#ff5c7a';
+    var be = (function () { var f0 = pnl(lo, mv), f1 = pnl(hi, mv); return f1 !== f0 ? lo + (0 - f0) * (hi - lo) / (f1 - f0) : null; })(); // dónde empatás (con el movimiento del dólar elegido)
+    var sets = [{ label: mis ? (mv ? 'Dólar ' + sg(mv, 1) + '%' : 'Dólar igual') : 'Resultado', data: line(mv), borderColor: ac, borderWidth: 2.5, pointRadius: 0, fill: { target: { value: 0 }, above: 'rgba(47,212,167,.10)', below: 'rgba(255,92,122,.10)' }, order: 2 }];
+    if (mis) sets.push({ label: 'Si el dólar sube ' + nf(mvS, 1) + '%', data: line(mv === mvS ? 0 : mvS), borderColor: 'rgba(161,161,170,.7)', borderWidth: 1.3, borderDash: [6, 4], pointRadius: 0, order: 3 }, { label: 'Si el dólar baja ' + nf(mvS, 1) + '%', data: line(mv === -mvS ? 0 : -mvS), borderColor: 'rgba(161,161,170,.7)', borderWidth: 1.3, borderDash: [2, 3], pointRadius: 0, order: 3 });
+    if (mis && mv) { sets[1].label = mv === mvS ? 'Dólar igual' : sets[1].label; sets[2].label = mv === -mvS ? 'Dólar igual' : sets[2].label; }
+    sets.push({ label: RL, data: [{ x: R1, y: P1 }], type: 'scatter', backgroundColor: P1 >= 0 ? ok : bad, borderColor: tx, borderWidth: 2, pointRadius: 7, pointHoverRadius: 8, order: 0 });
+    if (be != null && be >= lo && be <= hi) sets.push({ label: 'Empate', data: [{ x: be, y: 0 }], type: 'scatter', backgroundColor: tx, borderColor: tx, pointRadius: 4, pointHoverRadius: 5, order: 1 });
+    var VL = { id: 'bsVl', afterDatasetsDraw: function (ch) { var x = ch.scales.x, y = ch.scales.y, a = ch.chartArea, c = ch.ctx, row = 0; c.save(); c.font = '13px Inter, system-ui, sans-serif'; c.textBaseline = 'top';
+      var vline = function (v, txt, col, dash) { if (v == null || v < lo || v > hi) return; var px = x.getPixelForValue(v); c.strokeStyle = col; c.setLineDash(dash); c.beginPath(); c.moveTo(px, a.top); c.lineTo(px, a.bottom); c.stroke(); c.setLineDash([]); c.fillStyle = mu; var w = c.measureText(txt).width, rt = px + 4 + w > a.right; c.textAlign = rt ? 'right' : 'left'; c.textBaseline = 'bottom'; c.fillText(txt, rt ? px - 4 : px + 4, a.bottom - 2 - 15 * row++); c.textBaseline = 'top'; };
+      vline(Rm, 'Hoy ' + fmtV(Rm), 'rgba(161,161,170,.45)', [2, 3]); vline(SST.mean, 'Promedio ' + SST.per + ' ' + fmtV(SST.mean), 'rgba(161,161,170,.6)', [5, 4]);
+      // el escenario elegido: línea hasta el eje y su resultado
+      var p1x = x.getPixelForValue(R1), p1y = y.getPixelForValue(P1); c.strokeStyle = P1 >= 0 ? ok : bad; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(p1x, a.bottom); c.lineTo(p1x, p1y); c.lineTo(a.left, p1y); c.stroke(); c.setLineDash([]);
+      c.font = '600 14px Inter, system-ui, sans-serif'; var t1 = RL + ': ' + $f(P1), w1 = c.measureText(t1).width, lx = Math.min(Math.max(p1x - w1 / 2, a.left + 4), a.right - w1 - 4), ly = P1 >= 0 ? p1y - 26 : p1y + 12; c.textAlign = 'left'; c.fillStyle = P1 >= 0 ? ok : bad; c.fillText(t1, lx, Math.max(a.top + 2, Math.min(ly, a.bottom - 16)));
+      if (be != null && be >= lo && be <= hi) { var bx = x.getPixelForValue(be), by = y.getPixelForValue(0); c.font = '13px Inter, system-ui, sans-serif'; c.fillStyle = tx; var tb = 'Empatás en ' + fmtV(be), wb = c.measureText(tb).width; c.textAlign = 'left'; c.fillText(tb, Math.min(Math.max(bx - wb / 2, a.left + 4), a.right - wb - 4), by + 8); }
+      // dónde se gana y dónde se pierde
+      var up = pnl(hi, mv) > pnl(lo, mv); c.font = '700 13.5px Inter, system-ui, sans-serif'; c.fillStyle = ok; c.textAlign = up ? 'right' : 'left'; var zy = y.getPixelForValue(0), cl = function (v) { return Math.max(a.top + 4, Math.min(v, a.bottom - 18)); }; c.fillText('Ganás', up ? a.right - 6 : a.left + 6, cl(zy - 22)); c.fillStyle = bad; c.textAlign = up ? 'left' : 'right'; c.fillText('Perdés', up ? a.left + 6 : a.right - 6, cl(zy + 8));
+      c.restore(); } };
+    if (CS) { try { CS.destroy(); } catch (e) { } }
+    document.getElementById('bsTt').textContent = 'Resultado en pesos según dónde cierre ' + (dv ? label(ST.a) + ' − ' + label(ST.b) : label(ST.a) + ' contra ' + label(ST.b));
+    CS = new Chart(el.getContext('2d'), { type: 'line', data: { datasets: sets }, plugins: [VL], options: { devicePixelRatio: Math.max(2, window.devicePixelRatio || 1), responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      onClick: function (e, it, ch) { var v = ch.scales.x.getValueForPixel(e.x); if (v == null || !isFinite(v)) return; SIM.r = Math.round(v * 100) / 100; SIM.rl = 'Tu cierre'; setTimeout(function () { simDraw(true); }, 0); }, // fuera del evento: el gráfico se rehace
+      plugins: { legend: { display: mis, labels: { color: mu, boxWidth: 10, boxHeight: 10, font: { size: 13 }, filter: function (l) { return l.datasetIndex < (mis ? 3 : 1); } } }, tooltip: { filter: function (it) { return it.datasetIndex < (mis ? 3 : 1); }, callbacks: { title: function (it) { return it.length ? 'Si cierra en ' + fmtV(it[0].parsed.x) : ''; }, label: function (c) { return (mis ? c.dataset.label + ': ' : '') + $f(c.parsed.y); }, footer: function () { return 'Tocá para elegir este cierre'; } } } },
+      scales: { x: { type: 'linear', min: lo, max: hi, title: { display: true, text: 'Dónde cierra ' + (dv ? 'el ratio, en pesos por dólar (' + label(ST.a) + ' − ' + label(ST.b) + ')' : 'el ratio, en % (' + label(ST.a) + ' ÷ ' + label(ST.b) + ' − 1)'), color: mu, font: { size: 13 } }, ticks: { color: mu, font: { size: 13 }, maxTicksLimit: 9, callback: function (v, k, T) { var t = tickF(!dv)(v, k, T); return (v > 0 ? '+' : '') + t; } }, grid: { color: 'rgba(161,161,170,.08)' } },
+        y: { title: { display: true, text: 'Ganancia o pérdida ($)', color: mu, font: { size: 13 } }, ticks: { color: mu, font: { size: 13 }, callback: function (v) { var a = Math.abs(v); return (v < 0 ? '−' : v > 0 ? '+' : '') + (a >= 1e6 ? nf(a / 1e6, 1) + ' M' : a >= 1e3 ? nf(a / 1e3, 0) + ' mil' : nf(a, 0)); } }, grid: { color: function (c) { return c.tick && c.tick.value === 0 ? 'rgba(161,161,170,.7)' : 'rgba(161,161,170,.08)'; }, lineWidth: function (c) { return c.tick && c.tick.value === 0 ? 1.5 : 1; } }, border: { display: false } } } } });
+    nt.textContent = 'Resultado al cerrar las dos patas al precio del escenario (sin volver a cruzar las puntas), en pesos. ' + (kindOf(ST.a) === 'fut' || kindOf(ST.b) === 'fut' ? 'Los futuros ajustan la diferencia por día; ' : '') + 'no incluye comisiones, garantías ni lo que rinden los pesos o los dólares mientras está armada. Los escenarios usan los cierres diarios de ' + SST.per + (ST.tf === 'd' ? ' (el período elegido arriba).' : ': el gráfico de arriba es intradiario y su promedio es otro.');
+  }
+  function all() { // la tabla con todos los ratios armados
+    document.getElementById('brAw').value = String(ST.hw == null ? 120 : ST.hw);
+    var keep = { a: ST.a, b: ST.b, op: ST.op }, rows = PRE.map(function (p) {
+      ST.a = p[2]; ST.b = p[3]; ST.op = p[4];
+      var LA = live(p[2]), LB = live(p[3]), v = comb(LA.last, LB.last), A = daily(p[2]), B = daily(p[3]), ds = Object.keys(A).filter(function (d) { return B[d] != null && d < nowAR().d; }).sort().slice(-(ST.hw || 1e6)), ys = ds.map(function (d) { return comb(A[d], B[d]); });
+      var n = ys.length, m = n ? ys.reduce(function (s, y) { return s + y; }, 0) / n : null, sd = n > 1 ? Math.sqrt(ys.reduce(function (s, y) { return s + (y - m) * (y - m); }, 0) / (n - 1)) : null;
+      return { p: p, v: v, lo: comb(LA.ask, LB.bid), sh: comb(LA.bid, LB.ask), prev: n ? ys[n - 1] : null, m: m, z: sd && v != null ? (v - m) / sd : null, pc: n && v != null ? Math.round(ys.filter(function (y) { return y < v; }).length / n * 100) : null, f: fmtV };
+    });
+    ST.a = keep.a; ST.b = keep.b; ST.op = keep.op;
+    var f = function (r, v) { return v == null ? '—' : r.p[4] === 'dif' ? (v < 0 ? '−' : '+') + '$ ' + nf(Math.abs(v), 2) : sg(v, 2) + '%'; };
+    var lect = function (r) { if (r.z == null) return '—'; return r.z >= 1 ? '<span style="color:var(--bad)">alto: mira el short</span>' : r.z <= -1 ? '<span style="color:var(--ok)">bajo: mira el long</span>' : 'en su rango'; };
+    document.getElementById('brAll').innerHTML = '<thead><tr><th class="l">Ratio</th><th>Ahora</th><th>Long a</th><th>Short a</th><th>Cierre anterior</th><th>Promedio ' + (ST.hw ? ST.hw + ' ruedas' : 'todo') + '</th><th>Percentil</th><th>σ</th><th class="l">Lectura</th></tr></thead><tbody>' + rows.map(function (r) {
+      return '<tr data-pre="' + r.p[0] + '" class="' + (r.p[0] === ST.p ? 'on' : '') + '"><td class="l"><b>' + r.p[1] + '</b></td><td><b>' + f(r, r.v) + '</b></td><td>' + f(r, r.lo) + '</td><td>' + f(r, r.sh) + '</td><td>' + f(r, r.prev) + '</td><td>' + f(r, r.m) + '</td><td>' + (r.pc == null ? '—' : r.pc) + '</td><td>' + (r.z == null ? '—' : sg(r.z, 1)) + '</td><td class="l">' + lect(r) + '</td></tr>';
+    }).join('') + '</tbody>';
+  }
+  var _sw = window.switchTab;
+  window.switchTab = function (id) { _sw(id); if (id === 'brc') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; setTimeout(draw, 60); } };
+  var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(draw, 60); };
+  setInterval(function () { if (isAct()) draw(); }, 30000);
+})();
+/*@@BRF_END@@*/
 /*@@TCOR_START@@*/
 /* =====================================================================
    PESTAÑAS MERCADO DE DINERO (#tcor) Y FUTUROS (#tfut)
@@ -7069,7 +7395,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
    - por sección (botón XLSX junto al de imagen), por pestaña o todo el libro
    ===================================================================== */
 ;(function () {
-  var TAB_NAMES = { tabla: 'Tabla_Retornos', desglose: 'Flujos_TotalReturn', curva: 'Curva_Spreads', pesos: 'Pesos', vard: 'Variacion_diaria', port: 'Portfolio', fav: 'Favoritos', rot: 'Rotacion', vol: 'Volumen', dol: 'Dolar' };
+  var TAB_NAMES = { brc: 'Brecha_canje', tabla: 'Tabla_Retornos', desglose: 'Flujos_TotalReturn', curva: 'Curva_Spreads', pesos: 'Pesos', vard: 'Variacion_diaria', port: 'Portfolio', fav: 'Favoritos', rot: 'Rotacion', vol: 'Volumen', dol: 'Dolar' };
   var TABLE_NAMES = { pfAll: 'Portfolio_bonos', pfTab: 'Portfolio', pfKrT: 'Portfolio_KRD', pfStress: 'Portfolio_stress', pfGrpT: 'Portfolio_grupos', pfVarT: 'Portfolio_VaR', dxTab: 'Dolar_ruedas', dxVar: 'Dolar_variaciones', vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', vlRot: 'Volumen_flujo', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', psFwT1: 'Fija_tasas_implicitas', psFwT2: 'CER_tasas_implicitas', psFwT3: 'TAMAR_margen_implicito', psFwT4: 'DL_tasas_implicitas', psOptT: 'Duales_valor_opcion', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
 
   function parse(raw) {
@@ -7853,6 +8179,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     tcor: P('<circle cx="12" cy="13" r="8"/><path d="M12 13V9M9 2h6M12 2v3"/>'),
     tfut: P('<path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>'),
     sint: P('<circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/>'),
+    brc: P('<path d="M7 7h11l-3-3M17 17H6l3 3"/>'),
     lic: P('<path d="M14 3 21 10M11 6l7 7M4 21l7-7M8 10l6 6M12.5 4.5l7 7-3 3-7-7z"/>'),
     menu: P('<path d="M4 6h16M4 12h16M4 18h16"/>'),
     col: P('<path d="m15 18-6-6 6-6"/>')
@@ -7873,6 +8200,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     tcor: 'Caución en pesos, MEP y cable, Lecaps cortas y plazo fijo: dónde dejar la liquidez.',
     tfut: 'Dólar futuro y futuros de caución: tasa implícita, devaluación esperada, volumen y forwards.',
     sint: 'Dólar sintético (Lecap + compra de futuro) y Lecap sintética (dollar linked + venta de futuro), contra el bono del mismo plazo.',
+    brc: 'Ratios de brecha y canje: MEP, CCL, futuros y oficial, contra su historia y con el nivel de entrada long y short.',
     thist: 'La tasa de cada bono día por día y las forwards entre pares.',
     lic: 'El resultado de cada licitación del Tesoro y el próximo llamado.'
   };
@@ -7888,7 +8216,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var CAR = P('<path d="m9 6 6 6-6 6"/>').replace('<svg ', '<svg class="sn-car" '), has = function (id) { return id === 'home' || TB.some(function (t) { return t[0] === id; }); };
   var GR = [['home', 'Inicio'], ['dash', 'Dashboard'], ['port', 'Portfolio'], ['fav', 'Favoritos'], { g: 'usd', t: 'Bonos en dólares', ic: 'curva', it: [['curva', 'Globales y Bonares'], ['tabla', 'Tabla de retornos'], ['desglose', 'Flujos y total return', 'usd']] },
     { g: 'ars', t: 'Bonos en pesos', ic: 'pesos', it: [['pesos', 'Curva Pesos'], ['desglose', 'Flujos y total return', 'ars'], ['lic', 'Licitaciones']] },
-    { g: 'mkt', t: 'Mercado del día', ic: 'vard', it: [['vard', 'Variación diaria'], ['vol', 'Volumen'], ['rot', 'Rotación']] }, ['dol', 'Dólar'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'],
+    { g: 'mkt', t: 'Mercado del día', ic: 'vard', it: [['vard', 'Variación diaria'], ['vol', 'Volumen'], ['rot', 'Rotación']] }, ['dol', 'Dólar'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['brc', 'Brecha y canje'],
     { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards']] },
     { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, ['cons', 'Consultame']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
