@@ -3281,7 +3281,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   } };
   var GR = '#34d399', RD = '#ff6b8b';
   function fairChart(id, ref, S, spec, cap, dualMode, gmap, model, ax) {
-    var FCOL = css({ c1: '--c-fija', c2: '--c-cer', c3: '--c-tam', c4: '--c-dl', c5: '--c-dual', b2: '--c-cer', b3: '--c-tam', b4: '--c-dl' }[ref] || '--c-s1') || css('--c-s1'); // la curva va en el color de su familia
+    var FCOL = css('--tx'); // la curva va en el color del texto (blanco / negro según el tema): con el color de la familia se confundía con el verde de los baratos (CER) o el rojo de los caros (TAMAR)
     var args = [].slice.call(arguments), scOff = !!SCOFF[ref], hasSc = !!gmap; if (scOff) gmap = null; // la leyenda prende y apaga la capa de tu escenario
     ax = ax || 'plazo'; var yrs = ax === 'md', xOf = function (o) { return xaxVal(ax, o.d, o.mac, o.mdur); }, xtol = yrs ? 0.003 : 1;
     var fitX = function (pts, m) { var u = yrs ? 365 : 1, q = fairFit(pts.map(function (p) { return { x: p.x * u, y: p.y, k: p.k }; }), m); return !q || u === 1 ? q : { f: function (x) { return q.f(x * u); }, sigma: q.sigma, res: q.res, name: q.name }; }; // las formas de la curva están pensadas en días
@@ -4394,7 +4394,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       f = q ? { f: function (x) { return q.f(x * u); }, x0: Math.min.apply(null, gp.map(function (p) { return p.x; })), x1: Math.max.apply(null, gp.map(function (p) { return p.x; })) } : null;
     }
     var sets = [];
-    if (f) { var x0 = f.x0, x1 = f.x1, N = 70, cu = []; for (var i = 0; i <= N; i++) { var xx = x0 * Math.pow(x1 / x0, i / N); cu.push({ x: xx, y: f.f(xx) }); } sets.push({ type: 'line', label: 'Curva', data: cu, borderColor: css({ fija: '--c-fija', cer: '--c-cer', tamar: '--c-tam', dl: '--c-dl', dual: '--c-dual', Local: '--c-s2' }[A.grp] || '--c-s1'), borderWidth: 2.5, pointRadius: 0, fill: false, order: 4 }); }
+    if (f) { var x0 = f.x0, x1 = f.x1, N = 70, cu = []; for (var i = 0; i <= N; i++) { var xx = x0 * Math.pow(x1 / x0, i / N); cu.push({ x: xx, y: f.f(xx) }); } sets.push({ type: 'line', label: 'Curva', data: cu, borderColor: tx, borderWidth: 2.5, pointRadius: 0, fill: false, order: 4 }); }
     var col = function (o) { return o.k === A.k ? '#ff6b8b' : o.k === Bb.k ? '#34d399' : '#a1a1aa'; };
     sets.push({ type: 'scatter', label: 'Bonos', role: 'p', data: pts, backgroundColor: list.map(col), borderColor: list.map(col), pointRadius: list.map(function (o) { return o.k === A.k || o.k === Bb.k ? 9 : 5; }), hoverRadius: 10, order: 1 });
     var LINK = { id: 'rtLink', afterDatasetsDraw: function (ch) { var m = null; ch.data.datasets.forEach(function (d, i) { if (d.role === 'p') m = ch.getDatasetMeta(i).data; }); if (!m) return; var ia = list.findIndex(function (o) { return o.k === A.k; }), ib = list.findIndex(function (o) { return o.k === Bb.k; }); if (ia < 0 || ib < 0) return;
