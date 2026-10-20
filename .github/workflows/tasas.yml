@@ -46,6 +46,7 @@ jobs:
             if bonos; then python3 scripts/save_intra_bonos.py || echo "save_intra_bonos falló"; fi
             python3 scripts/save_intra_bonos.py --copiar || true
             python3 scripts/save_tasas.py || echo "save_tasas falló"
+            if rueda; then python3 scripts/save_riesgo_vivo.py || echo "save_riesgo_vivo falló"; fi  # el riesgo país del día (Ámbito), por si el navegador no lo puede leer
             [ "$(ar +%H%M)" -ge 1730 ] && { python3 scripts/save_dolar.py || echo "save_dolar falló"; }  # el A3500 del día apenas lo publica el BCRA (el cierre diario llega tarde)
             if [ -n "$(git status --porcelain data)" ]; then
               git add data && git commit -q -m "tasas $(date -u +%F)" || true

@@ -877,13 +877,15 @@ window.curveFitUSD = function (pts, model, minN) {
   var nf = function (v, d) { return v.toLocaleString('es-AR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); };
   var dd = function (f) { return f.slice(8, 10) + '/' + f.slice(5, 7) + '/' + f.slice(0, 4); };
   function load() {
-    var iso = function (t) { return t.toISOString().slice(0, 10); }, t0 = new Date(Date.now() - 3 * 3600e3), ad = function (f) { var p = String(f || '').split('-'); return p.length === 3 && p[2].length === 4 ? p[2] + '-' + p[1] + '-' + p[0] : ''; }, an = function (v) { return parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); }; // Ámbito: fechas dd-mm-aaaa y números con coma
-    Promise.all([get(API), get(API + '/ultimo'), get('data/riesgo_pais.json'), get(AMB + 'historico-general/' + iso(new Date(t0 - 20 * 864e5)) + '/' + iso(new Date(+t0 + 864e5))), get(AMB + 'variacion')]).then(function (R) {
+    var iso = function (t) { return t.toISOString().slice(0, 10); }, t0 = new Date(Date.now() - 3 * 3600e3), ad = function (f) { var p = String(f || '').split('-'); return p.length === 3 && p[2].length === 4 ? p[2] + '-' + p[1] + '-' + p[0] : ''; }, an = function (v) { return parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); }, adr = function (f) { var q = /(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/.exec(String(f || '')); return q ? q[3] + '-' + ('0' + q[2]).slice(-2) + '-' + ('0' + q[1]).slice(-2) : ''; }; // Ámbito: fechas dd-mm-aaaa (en la variación, con la hora: «20-10-2026 - 11:05») y números con coma
+    Promise.all([get(API), get(API + '/ultimo'), get('data/riesgo_pais.json'), get(AMB + 'historico-general/' + iso(new Date(t0 - 20 * 864e5)) + '/' + iso(new Date(+t0 + 864e5))), get(AMB + 'variacion'), get('data/riesgo_vivo.json')]).then(function (R) {
       var m = {}, src = [], am = 0; LIVE = null;
       if (R[2] && R[2].d) { Object.keys(R[2].d).forEach(function (f) { m[f] = R[2].d[f]; }); src.push('histórico guardado cada noche'); }
       [R[0], R[1]].forEach(function (x) { if (!x) return; (Array.isArray(x) ? x : [x]).forEach(function (r) { var f = String(r && r.fecha || '').slice(0, 10), v = r && r.valor; if (f.length === 10 && v > 0) m[f] = v; }); });
       if (Array.isArray(R[3])) R[3].forEach(function (r) { var f = ad(r && r[0]), v = an(r && r[1]); if (f && v > 0 && m[f] == null) { m[f] = v; am = 1; } }); // las ruedas que ArgentinaDatos todavía no publicó
-      if (R[4]) { var lf = ad(R[4].fecha), lv = an(R[4].ultimo), wd = lf && new Date(lf + 'T12:00:00Z').getUTCDay(); if (lf && lv > 0 && wd > 0 && wd < 6 && !Object.keys(m).some(function (f) { return f >= lf; })) { m[lf] = lv; LIVE = lf; am = 1; } } // el dato del día, en vivo, hasta que ArgentinaDatos lo publique
+      var vivo = function (lf, lv) { var wd = lf && new Date(lf + 'T12:00:00Z').getUTCDay(); if (lf && lv > 0 && wd > 0 && wd < 6 && !Object.keys(m).some(function (f) { return f >= lf; })) { m[lf] = lv; LIVE = lf; am = 1; } };
+      if (R[4]) vivo(adr(R[4].fecha), an(R[4].ultimo)); // el dato del día, en vivo, hasta que ArgentinaDatos lo publique
+      if (R[5] && !LIVE) vivo(R[5].f, +R[5].v); // si el navegador no pudo leer a Ámbito: el que guarda la corrida de la rueda cada 10 minutos (data/riesgo_vivo.json)
       if (R[0] || R[1]) src.unshift('ArgentinaDatos'); if (am) src.push('Ámbito (' + (LIVE ? 'dato del día en vivo' : 'últimas ruedas') + ')');
       var k = Object.keys(m).sort(); S = k.map(function (f) { return [f, m[f]]; });
       window.RIESGO_PAIS = S; // también lo usa la portada
