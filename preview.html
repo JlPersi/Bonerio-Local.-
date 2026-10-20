@@ -5203,7 +5203,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     // gráfico
     var pts = [], em = bd.querySelector('#qvE'), lbl, R = RNG;
     if (R === 'in') {
-      var a = (IN.s[sym] || []).slice(); if (a.length && c0) a.unshift([630, c0[1], 1]);
+      var SV = window.BNIB ? window.BNIB(function () { if (ov && VIEW === 'tk' && RNG === 'in') draw(); }) : null, M0 = {}; // más lo que guardó la corrida de la rueda (data/intra_bonos.json)
+      var tdq = nowBA().d; ((SV && SV[tdq] && SV[tdq][sym]) || []).concat(IN.d === tdq ? IN.s[sym] || [] : []).forEach(function (p) { M0[p[0]] = p[1]; });
+      var a = Object.keys(M0).map(Number).sort(function (x, y) { return x - y; }).map(function (m) { return [m, M0[m]]; }); if (a.length && c0 && a[0][0] > 630) a.unshift([630, c0[1], 1]);
       pts = a.map(function (p) { return { x: p[0], y: p[1] }; }); lbl = function (m) { return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + Math.round(m % 60)).slice(-2); };
       if (pts.length < 2 && dyn) { R = '1m'; pts = []; bd.querySelector('.ch').insertAdjacentHTML('beforebegin', '<p class="nt">Todavía no hay intradiario de hoy para ' + esc(sym) + ': se arma con los precios en vivo mientras tenés la página abierta en la rueda (10:30 a 17 hs). Mientras tanto, el último mes.</p>'); }
       else if (pts.length < 2) em.textContent = 'El intradiario se arma con los precios en vivo mientras tenés la página abierta en la rueda (10:30 a 17 hs). Todavía no hay puntos de hoy para ' + sym + '.';
@@ -8721,6 +8723,13 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   });
 
   /* ---------- estado de la ficha ---------- */
+  var IB = null, IBt = 0, IBask = false; // data/intra_bonos.json: el intradiario que guarda la corrida de la rueda (cada 3 minutos)
+  function ibLoad(cb) {
+    if (IBask) return; IBask = true;
+    fetch('data/intra_bonos.json?v=' + Math.floor(Date.now() / 12e4), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : {}; }).catch(function () { return {}; })
+      .then(function (o) { IB = o && typeof o === 'object' ? o : {}; IBt = Date.now(); IBask = false; cb(); });
+  }
+  window.BNIB = function (cb) { if (!IB || Date.now() - IBt > 120000) ibLoad(cb); return IB; }; // también lo usa el panel Ticker del botón flotante
   var K = '', SP = '', RNG = '3m', FRQ = 'd', CH = {}, RAW = null, RAWask = false, CALC = { k: '', p: null, y: null, vn: 10000 };
   try { var st0 = JSON.parse(localStorage.getItem('bnSt1') || '{}'); if (st0.r) RNG = st0.r; if (st0.f) FRQ = st0.f; if (st0.vn > 0) CALC.vn = st0.vn; } catch (e) { }
   var saveSt = function () { try { localStorage.setItem('bnSt1', JSON.stringify({ r: RNG, f: FRQ, vn: CALC.vn })); } catch (e) { } };
@@ -8869,11 +8878,17 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var sym = symOf(), em = document.getElementById('bnChE'), nt = document.getElementById('bnChN'), sub = document.getElementById('bnChS'), unit = SP ? 'US$ ' : '$ ', pts = [], lbl, R = RNG;
     em.textContent = ''; nt.textContent = '';
     if (R === 'in') {
-      var IN = window.QVIN ? window.QVIN() : null, a = IN && IN.s[sym] ? IN.s[sym].slice() : [], pv = prevClose(sym);
-      if (a.length && pv) a.unshift([630, pv[1]]);
+      if (!IB || Date.now() - IBt > 120000) ibLoad(function () { if (root.classList.contains('active') && RNG === 'in') drawChart(); });
+      var IN = window.QVIN ? window.QVIN() : null, td = todayBA(), day = td, M = {};
+      ((IB && IB[td] && IB[td][sym]) || []).concat((IN && IN.d === td && IN.s[sym]) || []).forEach(function (p) { M[p[0]] = p[1]; }); // lo que guardó la rueda (data/intra_bonos.json) más lo que vio esta página
+      var a = Object.keys(M).map(Number).sort(function (x, y) { return x - y; }).map(function (m) { return [m, M[m]]; });
+      if (!a.length && IB) { var ds = Object.keys(IB).filter(function (d) { return d < td && IB[d][sym]; }).sort(); if (ds.length) { day = ds[ds.length - 1]; a = IB[day][sym].slice(); } } // fuera de la rueda: la anterior
+      var hh = hist(sym, K), pv = null; for (var i = hh.length - 1; i >= 0; i--) if (hh[i][0] < day) { pv = hh[i]; break; }
+      if (a.length && pv && a[0][0] > 630) a.unshift([630, pv[1]]);
       pts = a.map(function (p) { return { x: p[0], y: p[1] }; }); lbl = function (m) { return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + Math.round(m % 60)).slice(-2); };
-      sub.textContent = sym + ' · hoy, de 10:30 a 17 hs';
-      if (pts.length < 2) { em.textContent = 'El intradiario se arma con los precios en vivo mientras tenés la página abierta en la rueda (10:30 a 17 hs). Todavía no hay puntos de hoy para ' + sym + '.'; return; }
+      var v0 = pv ? pv[1] : pts.length ? pts[0].y : null, v1 = pts.length ? pts[pts.length - 1].y : null;
+      sub.innerHTML = esc(sym) + ' · ' + (day === td ? 'hoy' : 'rueda del ' + day.split('-').reverse().join('/')) + ', de 10:30 a 17 hs' + (v0 && v1 && pts.length > 1 ? ' · <span class="' + (v1 >= v0 ? 'up' : 'dn') + '">' + sgn((v1 / v0 - 1) * 100, 2) + '%</span>' : '');
+      if (pts.length < 2) { em.textContent = IB === null ? 'Cargando el intradiario…' : 'Todavía no hay operaciones de ' + sym + ' en la rueda.'; return; }
     } else {
       var h = hist(sym, K); if (!h.length) { em.textContent = RAW === null ? 'Cargando la historia…' : 'No hay cierres guardados de ' + sym + '.'; sub.textContent = sym; return; }
       var Q = qOf(), td = todayBA(); if (Q.c > 0 && h[h.length - 1][0] < td) h = h.concat([[td, Q.c]]);

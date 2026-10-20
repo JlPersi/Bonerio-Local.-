@@ -40,8 +40,11 @@ jobs:
           fin=$(( $(date +%s) + 320 * 60 ))
           ar() { TZ=America/Argentina/Buenos_Aires date "$@"; }
           rueda() { [ "$(ar +%u)" -le 5 ] && [ "$(ar +%H%M)" -ge 1000 ] && [ "$(ar +%H%M)" -le 2000 ]; }
+          bonos() { [ "$(ar +%u)" -le 5 ] && [ "$(ar +%H%M)" -ge 1030 ] && [ "$(ar +%H%M)" -le 1705 ]; }  # el intradiario de los bonos (data912): cada 3 minutos, se sube con cada foto
           foto() {
             git pull -q --rebase origin main || { git rebase --abort 2>/dev/null; git reset -q --hard origin/main; }
+            if bonos; then python3 scripts/save_intra_bonos.py || echo "save_intra_bonos falló"; fi
+            python3 scripts/save_intra_bonos.py --copiar || true
             python3 scripts/save_tasas.py || echo "save_tasas falló"
             [ "$(ar +%H%M)" -ge 1730 ] && { python3 scripts/save_dolar.py || echo "save_dolar falló"; }  # el A3500 del día apenas lo publica el BCRA (el cierre diario llega tarde)
             if [ -n "$(git status --porcelain data)" ]; then
@@ -67,5 +70,10 @@ jobs:
               gh workflow run tasas.yml --ref main -f cadena=1 && echo "relanzada" || echo "no se pudo relanzar"
               break
             fi
-            sleep $espera
+            hasta=$(( $(date +%s) + espera ))
+            while :; do  # la espera, de a 3 minutos: en el horario de los bonos, una foto de sus precios en cada tramo (queda fuera del repo hasta la próxima foto)
+              r=$(( hasta - $(date +%s) )); [ $r -le 0 ] && break
+              [ $r -gt 180 ] && r=180; sleep $r
+              if [ $(date +%s) -lt $(( hasta - 20 )) ] && bonos; then python3 scripts/save_intra_bonos.py >/dev/null || true; fi
+            done
           done
