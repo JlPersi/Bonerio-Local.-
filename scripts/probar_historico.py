@@ -9,7 +9,7 @@ try:
     T = h["X-Auth-Token"]
 except Exception as e:
     print("login falló:", type(e).__name__); raise SystemExit(0)
-SYMS = ["MERV - XMEV - S31L8 - 48hs", "MERV - XMEV - S31L8 - CI", "MERV - XMEV - S30N8 - 48hs", "MERV - XMEV - S28F9 - 48hs",
+SYMS = ["DLR/NOV26", "DLR/DIC24", "MERV - XMEV - AL30 - 24hs", "MERV - XMEV - S31L8 - 48hs", "MERV - XMEV - S31L8 - CI", "MERV - XMEV - S30N8 - 48hs", "MERV - XMEV - S28F9 - 48hs",
         "MERV - XMEV - S31O4 - 24hs", "MERV - XMEV - S31O4 - CI", "MERV - XMEV - S30J5 - 24hs", "MERV - XMEV - S31O6 - 24hs",
         "MERV - XMEV - PESOS - 1D", "MERV - XMEV - PESOS - 1D - 24hs"]
 RANGES = [("2018-07-01", "2018-07-31"), ("2023-01-02", "2023-01-31"), ("2024-10-01", "2024-10-31"), ("2025-07-01", "2025-07-10"), ("2026-10-01", "2026-10-20")]
@@ -21,6 +21,6 @@ for s in SYMS:
             j = json.loads(body); tr = j.get("trades") or []
             ds = sorted({str(t.get("datetime", ""))[:10] for t in tr})
             ex = tr[0] if tr else {}
-            print(s, a, "status", j.get("status"), "trades", len(tr), "dias", len(ds), ds[:1], ds[-1:], "campos", sorted(ex.keys())[:8])
+            print(s, a, "status", j.get("status"), str(j.get("description") or j.get("message") or "")[:120], "trades", len(tr), "dias", len(ds), ds[:1], ds[-1:], "campos", sorted(ex.keys())[:8])
         except Exception as e:
             print(s, a, "error", type(e).__name__, getattr(e, "code", ""))
