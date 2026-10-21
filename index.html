@@ -6537,10 +6537,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var oiOld = live && !S.fut.some(function (f) { var L = lv[f.s]; return L && L.raw && L.raw[6] != null && f.oi != null && L.raw[6] !== f.oi; }); // A3 publica el I.A. recién al cierre
       var x1 = function (v) { return v ? nf(v, 1) : '—'; }, cls = function (v) { return v > 0 ? 'up' : v < 0 ? 'dn' : 'mu'; };
       var h = '<thead><tr><th class="l">Contrato</th><th>Vence</th><th>Días</th>' + (live ? '<th>Compra</th><th>Venta</th>' : '') + '<th>Apertura</th><th>Mín.</th><th>Máx.</th><th' + (live ? ' class="lc"' : '') + '>Último</th>' + (live ? '<th>Ajuste anterior</th>' : '<th class="lc">Ajuste</th>') + '<th>Var. %</th><th>Volumen</th><th>I.A.</th><th>Var. I.A.</th><th>TNA</th><th>TEA</th><th>Dev. mensual</th></tr></thead><tbody>';
-      A(S.fut).forEach(function (f) {
+      var inF = {}; S.fut.forEach(function (f) { inF[f.s] = 1; });
+      A(S.fut).concat(live ? A(S.futV).filter(function (L) { return !inF[L.s]; }).map(function (L) { return { s: L.s, v: L.v, d: L.d, t: L.t, dev: L.dev, F: null, oi: null, raw: [] }; }) : []).forEach(function (f) { // un contrato que se listó hoy todavía no tiene ajuste anterior: entra con lo de la rueda
         var r = f.raw, L = lv[f.s], q = L ? L.raw : null, t = L && L.t != null ? L.t : f.t, dv = L && L.dev != null ? L.dev : f.dev, d = L ? L.d : f.d;
         var op, lo, hi, la, aj, ch, vol, oi, doi;
-        if (q) { op = q[8]; hi = q[9]; lo = q[10]; la = q[4]; aj = f.F; ch = la ? (la / f.F - 1) * 100 : null; vol = q[7]; oi = q[6]; doi = oi != null && f.oi != null ? oi - f.oi : null; if (oiOld) doi = r[10]; } // durante la rueda, el I.A. es el del cierre anterior: su variación es la de esa rueda
+        if (q) { op = q[8]; hi = q[9]; lo = q[10]; la = q[4]; aj = f.F; ch = la && f.F ? (la / f.F - 1) * 100 : null; vol = q[7]; oi = q[6]; doi = oi != null && f.oi != null ? oi - f.oi : null; if (oiOld && f.F) doi = r[10]; } // durante la rueda, el I.A. es el del cierre anterior: su variación es la de esa rueda
         else { op = r[6]; hi = r[7]; lo = r[8]; la = r[9]; aj = f.F; ch = prev[f.s] ? (f.F / prev[f.s] - 1) * 100 : null; vol = r[4]; oi = r[3]; doi = r[10]; }
         h += '<tr data-qv="' + f.s + '"><td class="l"><b>' + name(f.s) + '</b></td><td>' + fr(f.v) + '</td><td>' + d + '</td>' + (live ? '<td>' + x1(q && q[2]) + '</td><td>' + x1(q && q[3]) + '</td>' : '') +
           '<td>' + x1(op) + '</td><td>' + x1(lo) + '</td><td>' + x1(hi) + '</td><td' + (live ? ' class="lc"' : '') + '>' + x1(la) + '</td><td' + (live ? '' : ' class="lc"') + '>' + x1(aj) + '</td><td class="' + cls(ch) + '">' + (ch == null ? '—' : sg(ch, 2) + '%') + '</td>' +
