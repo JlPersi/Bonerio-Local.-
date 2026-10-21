@@ -6414,7 +6414,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
      ===================================================================== */
   (function () {
     var T = tab('tfut', render); if (!T) return;
-    var root = T.root, ST = { s: ['f90'], w: '1a', cv: 'tna', db: 'c', lec: false }, CH = {}, S = null, bTry = 0, lTry = 0, C_LC = '#5cc8ff';
+    var root = T.root, ST = { s: ['f90'], w: '1a', cv: 'tna', db: 'c', lec: false }, CH = {}, S = null, bTry = 0, lTry = 0, C_LC = '#ffc542';
     var SER = { f90: ['Tasa implícita a 3 meses', C_FUT, 'r'], dev: ['Devaluación mensual implícita', C_DEV, 'm'], fx: ['Dólar A3500', C_FX, '$'] };
     function html() {
       root.innerHTML = STYLE('#tfut') +
@@ -6511,7 +6511,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var fpts = (isT ? fp : dp2).filter(function (p) { return p.x >= FMIN; }), LL = ST.lec ? lecapsAll() : [], lf = null;
       if (LL.length) { // las Lecaps y Boncaps de Curva Pesos: TNA (o TEM, contra la devaluación mensual) por días al vencimiento
         var lpts = LL.filter(function (o) { return o.d >= 21 && o.d <= mx; }) /* sin las de menos de 3 semanas: a tan pocos días, un error chico de precio mueve mucho la tasa (como en Sintéticos) */.map(function (o) { return { x: o.d, y: isT ? o.tnas * 100 : (Math.pow(1 + o.tnas * o.d / 365, 30 / o.d) - 1) * 100, s: o.k, k: o.k }; });
-        if (lpts.length) { lf = fitL(lpts, C_LC); sets.unshift(lf); var lp = pt(C_LC); lp.pointStyle = 'rectRot'; lp.pointRadius = 5.5; sets.push(ds(isT ? 'Lecaps y Boncaps (TNA)' : 'Lecaps y Boncaps (TEM)', lpts, C_LC, lp)); }
+        if (lpts.length) { lf = fitL(lpts, C_LC); if (sets[0]) lf.fill = { target: 1, above: 'rgba(52,211,153,.13)', below: 'rgba(255,107,139,.13)' }; /* la distancia entre las dos curvas: verde si las Lecaps pagan más */ sets.unshift(lf); var lp = pt(C_LC); lp.pointStyle = 'rectRot'; lp.pointRadius = 5.5; sets.push(ds(isT ? 'Lecaps y Boncaps (TNA)' : 'Lecaps y Boncaps (TEM)', lpts, C_LC, lp)); }
         if (yr) yr = [Math.min(yr[0], Math.min.apply(null, lpts.map(function (p) { return p.y; })) - 0.3), Math.max(yr[1], Math.max.apply(null, lpts.map(function (p) { return p.y; })) + 0.3)];
       }
       var W = document.getElementById('tfLecW'); W.style.display = ST.lec ? '' : 'none';
