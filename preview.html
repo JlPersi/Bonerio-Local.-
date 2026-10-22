@@ -10262,7 +10262,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       } else if (fl.length) { // en pesos: TIR con el precio de ahora; TAMAR y BADLAR con lo publicado y la última tasa para adelante; dollar linked con el último A3500 (tipo de cambio constante)
         var fx = ixLast(IXS.fx), pf = o.t === 'tamar' || o.t === 'badlar' ? pesoFl(o, fl) : fl, pp = o.t === 'dl' ? (fx > 0 ? p / fx : null) : p;
         if (o.t === 'cer') { var k1 = cer10(s), k0 = cer10(dn(o.iss)); pp = k1 > 0 && k0 > 0 ? p / (k1 / k0) : null; } // CER: el precio sin el ajuste acumulado desde la emisión, contra los flujos sin ajustar (TIR real)
-        if (pf && pp > 0) { e.fl = fl = pf; e.tir = tirAt(fl, s, pp); }
+        if (pf && pp > 0) { e.fl = fl = pf; e.tir = tirAt(fl, s, pp); e.fm = p / pp; } // fm: pasa los flujos a pesos (CER de hoy o A3500 de hoy constantes)
         if (e.tir != null && (e.tir > 3 || e.tir < -0.5)) e.odd = true; var du2 = e.tir != null ? bxDur(fl, s, e.tir) : null; e.md = du2 ? du2.md : null; e.mac = du2 ? du2.mac : null;
       }
       e.wal = fl.length ? wal(fl, s) : null; e.lq = liq(e);
@@ -10409,7 +10409,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var usd = e.t === 'usd', ok = usd && e.tir != null && !e.odd, s = e.s, fl = e.fl || [], ccy = usd || e.t === 'dl' ? 'US$' : '$', mon = usd ? 'USD' : e.t === 'dl' ? 'USD (se paga en pesos al A3500)' : 'pesos';
     var kv = function (t, v, sub) { return '<div><small>' + t + '</small><b>' + v + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</div>'; };
     var h = '<div class="sxh"><div style="min-width:0"><p class="qh">' + e.k + ' <span class="mu" style="font-weight:500">' + e.sym + '</span>' + (e.em ? ' · ' + esc(e.em) : '') + '</p><p class="qs">Provincial ' + TN[e.t].toLowerCase() + (e.r != null ? ', cupón ' + nf(e.r, 2) + '%' : '') + ', emitida el ' + fr(e.iss) + ' y vence el ' + fr(e.mat) + '. Flujos en ' + mon + ' por 100 VN.</p></div><div class="sxb">' + xlb('fic', 'Excel: flujos y sensibilidad de este bono') + dlb('pvsF', 'Bonerio_ON_' + e.k) + '<button class="icon-btn" data-html2canvas-ignore="true" id="pvsFx" title="Cerrar" style="flex:none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div>';
-    if (usd) h += '<p style="margin:10px 0 0"><button class="act" type="button" onclick="if(window.pvsOpenF) window.pvsOpenF(\'' + e.k + '\')">Ver flujo y total return de ' + e.k + ' →</button></p>';
+    if (e.tir != null && !e.odd) h += '<p style="margin:10px 0 0"><button class="act" type="button" onclick="if(window.pvsOpenF) window.pvsOpenF(\'' + e.k + '\')">Ver flujo y total return de ' + e.k + ' →</button></p>';
     h += '<div class="fg">' + kv('Precio', nf(e.p, usd ? 2 : 0), e.live ? 'ahora' : 'cierre del ' + fr(C && C.d)) +
       kv('TIR', e.tir == null || e.odd ? '—' : nf(e.tir * 100, 2) + '%', usd ? 'en dólares, TEA' : e.t === 'dl' ? 'en dólares, A3500 constante' : 'en pesos, TEA') +
       (usd ? kv('TIR compra / venta', e.tirB != null ? nf(e.tirB * 100, 2) + '% / ' + nf(e.tirA * 100, 2) + '%' : '—', e.ba != null ? 'puntas: ' + nf(e.ba, 0) + ' pb' : 'sin puntas') + kv('Spread soberano', e.spr == null ? '—' : sg(e.spr, 0) + ' pb', 'contra los Globales') : '') +
@@ -10460,22 +10460,32 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       '#pvsf .kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:16px}#pvsf .kp div{border:1px solid var(--bd);border-radius:12px;padding:12px 14px;background:var(--bg)}#pvsf .kp small{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px}#pvsf .kp small i{width:9px;height:9px;border-radius:3px;display:inline-block}#pvsf .kp b{display:block;font-size:20px;margin-top:4px}#pvsf .kp span{font-size:12px;color:var(--mu)}' +
       '#pvsf .tw{overflow:auto;max-height:420px;margin-top:14px;border:1px solid var(--bd);border-radius:12px}#pvsf table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}#pvsf th{position:sticky;top:0;background:var(--card);text-align:right;padding:8px 10px;color:var(--mu);font-weight:600;font-size:12px;white-space:nowrap;border-bottom:1px solid var(--bd)}#pvsf th.l,#pvsf td.l{text-align:left}#pvsf td{text-align:right;padding:7px 10px;border-top:1px solid var(--bd);white-space:nowrap}#pvsf tr.pc td{opacity:.55}#pvsf #pvsfRt tbody tr{cursor:pointer}#pvsf #pvsfRt tbody tr:hover td{background:rgba(127,127,127,.06)}#pvsf .up{color:var(--ok)}#pvsf .dn{color:var(--bad)}#pvsf .mu{color:var(--mu)}' +
       '</style>' +
-      '<div class="card sx" id="pvsfC"><div class="sxh"><div style="min-width:0"><p class="qh">Flujo de caja proyectado · Provinciales hard dollar</p><p class="qs" id="pvsfSub">Lo que cobrás de un bono hasta la fecha de corte y hasta el vencimiento.</p></div><div class="sxb">' + xlb('flu', 'Excel: el flujo de este bono') + dlb('pvsfC', 'Bonerio_ON_flujo') + '</div></div>' +
-      '<div class="ctl"><label>Bono<select id="pvsfB"></select></label><label>Nominales (VN)<input type="number" id="pvsfV" value="100" min="1" step="100" style="width:130px"></label><label id="pvsfPL">Precio de compra (USD c/100 VN)<input type="number" id="pvsfP" step="0.01" style="width:170px"></label><label>Fecha de corte<input type="date" id="pvsfD" value="' + d1def + '"></label></div>' +
+      '<div class="card sx" id="pvsfC"><div class="sxh"><div style="min-width:0"><p class="qh" id="pvsfH">Flujo de caja proyectado · Provinciales hard dollar</p><p class="qs" id="pvsfSub">Lo que cobrás de un bono hasta la fecha de corte y hasta el vencimiento.</p></div><div class="sxb">' + xlb('flu', 'Excel: el flujo de este bono') + dlb('pvsfC', 'Bonerio_ON_flujo') + '</div></div>' +
+      '<div class="ctl"><label>Tipo<select id="pvsfTp"></select></label><label>Bono<select id="pvsfB"></select></label><label>Nominales (VN)<input type="number" id="pvsfV" value="100" min="1" step="100" style="width:130px"></label><label id="pvsfPL">Precio de compra (USD c/100 VN)<input type="number" id="pvsfP" step="0.01" style="width:170px"></label><label>Fecha de corte<input type="date" id="pvsfD" value="' + d1def + '"></label></div>' +
       '<div class="kp" id="pvsfS"></div><div style="position:relative;height:360px;margin-top:14px"><canvas id="pvsfCv"></canvas></div><p class="note" id="pvsfN" style="margin-top:8px"></p><div class="tw"><table id="pvsfT"></table></div></div>' +
-      '<div class="card sx" id="pvsfR" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Atribución del total return · Provinciales hard dollar</p><p class="qs">Ganancia hasta la fecha de corte de cada bono comprada hoy, separada en efecto capital (pull to par y amortizaciones) y cupones, con la TIR de hoy constante.</p></div><div class="sxb">' + xlb('atr', 'Excel: la tabla de atribución') + dlb('pvsfR', 'Bonerio_provinciales_total_return') + '</div></div>' +
+      '<div class="card sx" id="pvsfR" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh" id="pvsfRH">Atribución del total return · Provinciales hard dollar</p><p class="qs">Ganancia hasta la fecha de corte de cada bono comprada hoy, separada en efecto capital (pull to par y amortizaciones) y cupones, con la TIR de hoy constante.</p></div><div class="sxb">' + xlb('atr', 'Excel: la tabla de atribución') + dlb('pvsfR', 'Bonerio_provinciales_total_return') + '</div></div>' +
       '<div class="ctl"><label>Provincia<select id="pvsfE"><option value="">Todas</option></select></label><label>Liquidez<select id="pvsfL"><option value="op">Operaron en la última rueda</option><option value="all">Todas con precio</option></select></label><label>Ordenar por<select id="pvsfO"><option value="tot">Total return</option><option value="ann">Total return anualizado</option><option value="mat">Vencimiento</option></select></label></div>' +
       '<div style="position:relative;height:420px;margin-top:14px"><canvas id="pvsfRc"></canvas></div><div class="tw"><table id="pvsfRt"></table></div><p class="note" id="pvsfRn" style="margin-top:10px"></p></div>';
     ['pvsfB', 'pvsfV', 'pvsfP', 'pvsfD'].forEach(function (id) { $(id).addEventListener(id === 'pvsfB' || id === 'pvsfD' ? 'change' : 'input', function () { if (id === 'pvsfB') $('pvsfP').value = ''; drawF(); }); });
     ['pvsfE', 'pvsfL', 'pvsfO'].forEach(function (id) { $(id).onchange = drawR; });
+    $('pvsfTp').onchange = function () { FTP = this.value; $('pvsfB').value = ''; $('pvsfP').value = ''; $('pvsfE').value = ''; drawF(); };
     $('pvsfRt').onclick = function (e) { var tr = e.target.closest('tr[data-k]'); if (!tr) return; $('pvsfB').value = tr.getAttribute('data-k'); $('pvsfP').value = ''; drawF(); $('pvsfC').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   }
-  var USDR = function () { return ROWS.filter(function (e) { return e.t === 'usd' && e.tir != null && !e.odd && e.fl && e.fl.length; }); };
+  var FTP = 'usd', fOk = function (e) { return e.tir != null && !e.odd && e.fl && e.fl.length; };
+  var USDR = function () { return ROWS.filter(function (e) { return e.t === FTP && fOk(e); }); };
+  var fm = function (e) { return e.t === 'usd' ? 1 : e.fm || 1; }; // flujos → moneda de pago
+  var cuF = function () { return FTP === 'usd' ? 'US$ ' : '$ '; };
+  var fNote = function () { return FTP === 'usd' ? 'en dólares' : FTP === 'cer' ? 'en pesos, con el CER de hoy constante (la TIR es real)' : FTP === 'dl' ? 'en pesos, con el A3500 de hoy constante (la TIR es en dólares)' : FTP === 'tamar' || FTP === 'badlar' ? 'en pesos, con la ' + FTP.toUpperCase() + ' publicada y la última para adelante' : 'en pesos'; };
   var d1F = function () { var v = rootF && $('pvsfD').value; return v ? dn(v) : Math.floor(Date.now() / 864e5) + 365; };
   function drawF() {
     if (!rootF || !rootF.classList.contains('active')) return;
     if (!J) { load(); return; }
-    ROWS = rows(); var L = USDR(), sel = $('pvsfB'), cur = sel.value || (SEL && L.some(function (e) { return e.k === SEL; }) ? SEL : '');
+    ROWS = rows(); var tps = TIPOS.filter(function (t) { return ROWS.some(function (e) { return e.t === t[0] && fOk(e); }); });
+    if (!tps.some(function (t) { return t[0] === FTP; }) && tps.length) FTP = tps[0][0];
+    $('pvsfTp').innerHTML = tps.map(function (t) { return '<option value="' + t[0] + '"' + (t[0] === FTP ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('');
+    $('pvsfH').textContent = 'Flujo de caja proyectado · Provinciales ' + (FTP === 'usd' ? 'hard dollar' : TN[FTP]); $('pvsfRH').textContent = 'Atribución del total return · Provinciales ' + (FTP === 'usd' ? 'hard dollar' : TN[FTP]);
+    $('pvsfPL').firstChild.textContent = 'Precio de compra (' + (FTP === 'usd' ? 'USD' : '$') + ' c/100 VN)';
+    var L = USDR(), sel = $('pvsfB'), cur = sel.value || (SEL && L.some(function (e) { return e.k === SEL; }) ? SEL : '');
     var G = {}; L.forEach(function (e) { (G[e.em || 'Sin provincia identificada'] = G[e.em || 'Sin provincia identificada'] || []).push(e); });
     sel.innerHTML = Object.keys(G).sort(function (a, b) { return a === 'Sin provincia identificada' ? 1 : b === 'Sin provincia identificada' ? -1 : a.localeCompare(b, 'es'); }).map(function (n) { return '<optgroup label="' + esc(n) + '">' + G[n].sort(function (a, b) { return a.mat < b.mat ? -1 : 1; }).map(function (e) { return '<option value="' + e.k + '">' + e.k + ' · vence ' + fr(e.mat) + '</option>'; }).join('') + '</optgroup>'; }).join('');
     if (!cur || !L.some(function (e) { return e.k === cur; })) { var top = L.slice().sort(function (a, b) { return (b.v20 || 0) - (a.v20 || 0); })[0]; cur = top ? top.k : ''; }
@@ -10484,25 +10494,25 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     $('pvsfE').innerHTML = '<option value="">Todas</option>' + Object.keys(ems).sort(function (a, b) { return a.localeCompare(b, 'es'); }).map(function (n) { return '<option value="' + esc(n) + '"' + (n === ev ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('');
     drawR();
     if (CFF) { CFF.destroy(); CFF = null; }
-    if (!e) { $('pvsfS').innerHTML = ''; $('pvsfT').innerHTML = ''; $('pvsfN').textContent = 'No hay provinciales hard dollar con precio.'; return; }
-    var VN = Math.max(0, +$('pvsfV').value || 0), P = +$('pvsfP').value > 0 ? +$('pvsfP').value : e.p, d1 = d1F(), s = e.s, k = VN / 100, inv = P * k, usd = function (v) { return 'US$ ' + nf(v, 2); };
+    if (!e) { $('pvsfS').innerHTML = ''; $('pvsfT').innerHTML = ''; $('pvsfN').textContent = 'No hay provinciales de este tipo con precio.'; return; }
+    var VN = Math.max(0, +$('pvsfV').value || 0), P = +$('pvsfP').value > 0 ? +$('pvsfP').value : e.p, d1 = d1F(), s = e.s, M = fm(e), k = VN / 100, inv = P * k, CU = cuF(), usd = function (v) { return CU + nf(v, 2); };
     $('pvsfP').placeholder = nf(e.p, 2) + ' (' + (e.live ? 'ahora' : 'cierre') + ')';
-    var rs = e.res, acc = 0, R = e.fl.map(function (f) { var a = Math.max(0, f[1] - f[2]); rs -= a; acc += f[1] * k; return { t: f[0], r: f[2] * k, a: a * k, c: f[1] * k, acc: acc, res: Math.max(0, rs) * k, pre: f[0] <= d1 }; });
+    var rs = e.res, acc = 0, R = e.fl.map(function (f) { var a = Math.max(0, f[1] - f[2]); rs -= a; acc += f[1] * k * M; return { t: f[0], r: f[2] * k * M, a: a * k * M, c: f[1] * k * M, acc: acc, res: Math.max(0, rs) * k, pre: f[0] <= d1 }; });
     var sum = function (f, cut) { return R.reduce(function (x, r) { return x + (!cut || r.pre ? r[f] : 0); }, 0); };
-    var rC = sum('r', 1), aC = sum('a', 1), cC = sum('c', 1), tir = P === e.p ? e.tir : tirAt(e.fl, s, P);
+    var rC = sum('r', 1), aC = sum('a', 1), cC = sum('c', 1), tir = P === e.p ? e.tir : tirAt(e.fl, s, P / M);
     var kv = function (t, v, sub, c) { return '<div><small>' + (c ? '<i style="background:' + c + '"></i>' : '') + t + '</small><b>' + v + '</b><span>' + sub + '</span></div>'; }, cRen = css('--c-cup'), cAm = css('--c-cap');
-    $('pvsfS').innerHTML = kv('Inversión', usd(inv), 'VN ' + nf(VN) + ' a US$ ' + nf(P, 2) + ' c/100 · TIR ' + (tir != null ? nf(tir * 100, 2) + '%' : '—')) +
+    $('pvsfS').innerHTML = kv('Inversión', usd(inv), 'VN ' + nf(VN) + ' a ' + CU + nf(P, 2) + ' c/100 · TIR ' + (tir != null ? nf(tir * 100, 2) + '%' : '—')) +
       kv('Renta cobrada', usd(rC), 'al corte (' + fr(ds(d1)) + ') · hasta vto.: ' + usd(sum('r')), cRen) + kv('Amortización cobrada', usd(aC), 'al corte · hasta vto.: ' + usd(sum('a')), cAm) +
       kv('Total cobrado al corte', usd(cC), (inv > 0 ? nf(cC / inv * 100, 1) + '% de la inversión · ' : '') + 'hasta vto.: ' + usd(sum('c')));
     $('pvsfSub').textContent = e.k + (e.em ? ' (' + e.em + ')' : '') + ', especie ' + spLab(e) + ', vence el ' + fr(e.mat) + (e.r != null ? ', cupón ' + nf(e.r, 2) + '%' : '') + '. Lo que cobrás hasta el corte y hasta el vencimiento.';
     $('pvsfT').innerHTML = '<thead><tr><th class="l">Fecha</th><th>Renta</th><th>Amortización</th><th>Total</th><th>Acumulado</th><th>VN residual</th></tr></thead><tbody>' + R.map(function (r) { return '<tr' + (r.pre ? '' : ' class="pc"') + '><td class="l">' + fr(ds(r.t)) + '</td><td>' + usd(r.r) + '</td><td>' + (r.a > 0 ? usd(r.a) : '—') + '</td><td><b>' + usd(r.c) + '</b></td><td>' + usd(r.acc) + '</td><td>' + nf(r.res, 2) + '</td></tr>'; }).join('') + '</tbody>';
-    $('pvsfN').textContent = 'Flujos del prospecto para ' + nf(VN) + ' VN, en dólares. Más claros: los pagos después de la fecha de corte. El VN residual es el capital que queda por cobrar después de cada pago.';
+    $('pvsfN').textContent = 'Flujos del prospecto para ' + nf(VN) + ' VN, ' + fNote() + '. Más claros: los pagos después de la fecha de corte. El VN residual es el capital que queda por cobrar después de cada pago.';
     if (window.Chart) {
       var mu = css('--mu'), bd = css('--bd'), al = function (c, pre) { return pre ? c : c + '55'; };
       CFF = new Chart($('pvsfCv').getContext('2d'), { type: 'bar', data: { labels: R.map(function (r) { return new Date(r.t * 864e5).toLocaleDateString('es-AR', { month: 'short', year: '2-digit', timeZone: 'UTC' }); }), datasets: [
         { label: 'Renta', data: R.map(function (r) { return r.r; }), backgroundColor: R.map(function (r) { return al(cRen, r.pre); }), borderRadius: 4, maxBarThickness: 46, stack: 's' },
         { label: 'Amortización', data: R.map(function (r) { return r.a; }), backgroundColor: R.map(function (r) { return al(cAm, r.pre); }), borderRadius: 4, maxBarThickness: 46, stack: 's' }] },
-        options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { labels: { color: mu, boxWidth: 12 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': US$ ' + nf(c.raw, 2); } } } }, scales: { x: { stacked: true, ticks: { color: mu, autoSkip: true, maxRotation: 0 }, grid: { display: false } }, y: { stacked: true, ticks: { color: mu, callback: function (v) { return 'US$ ' + nf(v); } }, grid: { color: bd } } } } });
+        options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { labels: { color: mu, boxWidth: 12 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + CU + nf(c.raw, 2); } } } }, scales: { x: { stacked: true, ticks: { color: mu, autoSkip: true, maxRotation: 0 }, grid: { display: false } }, y: { stacked: true, ticks: { color: mu, callback: function (v) { return CU + nf(v); } }, grid: { color: bd } } } } });
     }
   }
   var ATR = [];
@@ -10510,17 +10520,17 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     if (!rootF) return; if (CFR) { CFR.destroy(); CFR = null; }
     var d1 = d1F(), em = $('pvsfE').value, lq = $('pvsfL').value, ob = $('pvsfO').value;
     ATR = USDR().filter(function (e) { return (!em || e.em === em) && (lq === 'all' || e.v > 0); }).map(function (e) {
-      var p = e.p, s = e.s, c = 0, a = 0, m = 0;
+      var M = fm(e), p = e.p / M, s = e.s, c = 0, a = 0, m = 0;
       e.fl.forEach(function (f) { if (f[0] <= d1) { c += f[1]; a += Math.max(0, f[1] - f[2]); } else m += f[1] / Math.pow(1 + e.tir, (f[0] - d1) / 365); });
       var cap = (m + a - p) / p, cup = (c - a) / p, tot = cap + cup, dd = Math.min(d1, dn(e.mat)) - s;
-      return { e: e, k: e.k, p: p, c: c, a: a, m: m, cap: cap, cup: cup, tot: tot, ann: dd > 0 ? Math.pow(1 + tot, 365 / dd) - 1 : null };
+      return { e: e, k: e.k, p: e.p, c: c * M, a: a * M, m: m * M, cap: cap, cup: cup, tot: tot, ann: dd > 0 ? Math.pow(1 + tot, 365 / dd) - 1 : null };
     }).sort(function (x, y) { return ob === 'mat' ? (x.e.mat < y.e.mat ? -1 : 1) : (y[ob] || 0) - (x[ob] || 0); });
-    var pc = function (v) { return v == null || !isFinite(v) ? '—' : sg(v * 100, 2) + '%'; }, cl = function (v) { return v > 0 ? 'up' : v < 0 ? 'dn' : ''; }, u = function (v) { return 'US$ ' + nf(v, 2); };
+    var pc = function (v) { return v == null || !isFinite(v) ? '—' : sg(v * 100, 2) + '%'; }, cl = function (v) { return v > 0 ? 'up' : v < 0 ? 'dn' : ''; }, u = function (v) { return cuF() + nf(v, 2); };
     $('pvsfRt').innerHTML = '<thead><tr><th class="l">Bono</th><th class="l">Provincia</th><th>Precio</th><th>TIR</th><th>Cupones</th><th>Amortización</th><th>Valor residual<br>(MTM salida)</th><th>PnL capital</th><th>PnL cupones</th><th>Total return</th><th>Anualizado</th></tr></thead><tbody>' +
       ATR.map(function (x) { return '<tr data-k="' + x.k + '"><td class="l"><b>' + x.k + '</b></td><td class="l">' + (esc(x.e.em) || '<span class="mu">—</span>') + '</td><td>' + u(x.p) + '</td><td>' + nf(x.e.tir * 100, 2) + '%</td><td class="up">+' + u(x.c - x.a) + '</td><td>' + (x.a > 0 ? '+' + u(x.a) : '—') + '</td><td>' + u(x.m) + '</td><td class="' + cl(x.cap) + '">' + pc(x.cap) + '</td><td class="up">' + pc(x.cup) + '</td><td class="' + cl(x.tot) + '"><b>' + pc(x.tot) + '</b></td><td class="' + cl(x.ann) + '">' + pc(x.ann) + '</td></tr>'; }).join('') + '</tbody>';
     var CHN = 40, show = ATR.length > CHN && !em ? ATR.slice().sort(function (x, y) { return (y.e.v20 || 0) - (x.e.v20 || 0); }).slice(0, CHN) : ATR;
     if (show !== ATR) { var ks = {}; show.forEach(function (x) { ks[x.k] = 1; }); show = ATR.filter(function (x) { return ks[x.k]; }); }
-    $('pvsfRn').textContent = 'Por 100 VN, comprando hoy a precio de mercado y vendiendo el ' + fr(ds(d1)) + ' a la TIR de hoy (sin reinvertir). Efecto capital = valor residual al corte + amortizaciones cobradas − precio; en las que amortizan, el capital devuelto se cuenta en el efecto capital. Anualizado hasta el corte o el vencimiento, lo que llegue antes.' + (show.length < ATR.length ? ' El gráfico muestra las ' + show.length + ' provinciales con más monto promedio; elegí una provincia para verlas todas. La tabla tiene las ' + ATR.length + '.' : '') + ' Tocá una fila para ver su flujo.';
+    $('pvsfRn').textContent = 'Por 100 VN, ' + fNote() + ', comprando hoy a precio de mercado y vendiendo el ' + fr(ds(d1)) + ' a la TIR de hoy (sin reinvertir). Efecto capital = valor residual al corte + amortizaciones cobradas − precio; en las que amortizan, el capital devuelto se cuenta en el efecto capital. Anualizado hasta el corte o el vencimiento, lo que llegue antes.' + (show.length < ATR.length ? ' El gráfico muestra las ' + show.length + ' provinciales con más monto promedio; elegí una provincia para verlas todas. La tabla tiene las ' + ATR.length + '.' : '') + ' Tocá una fila para ver su flujo.';
     if (window.Chart && show.length) {
       var mu = css('--mu'), bd = css('--bd');
       CFR = new Chart($('pvsfRc').getContext('2d'), { type: 'bar', data: { labels: show.map(function (x) { return x.k; }), datasets: [
@@ -10531,7 +10541,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
           scales: { x: { stacked: true, ticks: { color: mu, autoSkip: false, maxRotation: 60, font: { size: 10 } }, grid: { display: false } }, y: { stacked: true, ticks: { color: mu, callback: function (v) { return nf(v, 0) + '%'; } }, grid: { color: bd } } } } });
     }
   }
-  window.pvsOpenF = function (k) { load().then(function () { if (window.switchTab) window.switchTab('pvsf'); setTimeout(function () { ROWS = rows(); $('pvsfB').innerHTML = '<option value="' + k + '">' + k + '</option>'; $('pvsfB').value = k; $('pvsfP').value = ''; drawF(); }, 80); }); };
+  window.pvsOpenF = function (k) { load().then(function () { if (window.switchTab) window.switchTab('pvsf'); setTimeout(function () { ROWS = rows(); var r0 = ROWS.filter(function (x) { return x.k === k; })[0]; if (r0) FTP = r0.t; SEL = k; $('pvsfB').innerHTML = '<option value="' + k + '">' + k + '</option>'; $('pvsfB').value = k; $('pvsfP').value = ''; drawF(); }, 80); }); };
 
   /* ---------- para el buscador de arriba: encontrar provinciales por ticker (con o sin la letra de especie) o por provincia ---------- */
   var vdAsk = 0, matAsk = 0;
