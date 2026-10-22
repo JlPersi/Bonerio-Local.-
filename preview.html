@@ -671,6 +671,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('onsf')">ONs: flujos y total return</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('pvs')">Bonos provinciales</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('pvsf')">Provinciales: flujos y total return</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('acc')">Acciones</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('thist')">Tasas históricas</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('expi')">Inflación implícita</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('expd')">Devaluación implícita</button>
@@ -842,6 +843,7 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="onsf" class="tab-content"></div>
 <div id="pvs" class="tab-content"></div>
 <div id="pvsf" class="tab-content"></div>
+<div id="acc" class="tab-content"></div>
 <div id="bono" class="tab-content"></div>
 <div id="fav" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
@@ -8247,7 +8249,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     pvs: 'Bonos provinciales: TIR, duración y paridad con el precio en vivo, el spread contra los Globales y la curva de cada tipo.',
     pvsf: 'Flujo de fondos de cada bono provincial hard dollar y su total return hasta la fecha de corte, separado en capital y cupones.',
     thist: 'La tasa de cada bono día por día y las forwards entre pares.',
-    lic: 'El resultado de cada licitación del Tesoro y el próximo llamado.'
+    lic: 'El resultado de cada licitación del Tesoro y el próximo llamado.',
+    acc: 'Acciones del panel líder y general: precio en vivo, retornos, volatilidad, beta, sectores, valuación contra rentabilidad y ADRs.'
   };
 
   window.TABDESC = DESC; // lo usa el buscador de «Traer una sección»
@@ -8255,6 +8258,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var TB = [].slice.call(document.querySelectorAll('#topbar .tabs .tab-btn')).map(function (b) { var m = /switchTab\('([^']+)'\)/.exec(b.getAttribute('onclick') || ''); return m ? [m[1], b.textContent.trim()] : null; }).filter(Boolean);
   var ITEMS = [['home', 'Inicio']].concat(TB);
   var sn = document.createElement('aside'); sn.id = 'sideNav'; sn.setAttribute('data-html2canvas-ignore', 'true');
+  IC.acc = P('<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 6-7"/><path d="M16 7h4v4"/>');
   IC.dash = P('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>');
   IC.cons = P('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>');
   IC.exp = P('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'); IC.expi = IC.exp; IC.expd = IC.dol; IC.expf = IC.curva;
@@ -8264,7 +8268,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     { g: 'ars', t: 'Bonos en pesos', ic: 'pesos', it: [['pesos', 'Curva Pesos'], ['desglose', 'Flujos y total return', 'ars'], ['lic', 'Licitaciones']] },
     { g: 'ons', t: 'Obligaciones negociables', ic: 'ons', it: [['ons', 'Curva y tabla'], ['onsf', 'Flujos y total return']] },
     { g: 'pvs', t: 'Bonos provinciales', ic: 'pvs', it: [['pvs', 'Curva y tabla'], ['pvsf', 'Flujos y total return']] },
-    { g: 'mkt', t: 'Mercado del día', ic: 'vard', it: [['vard', 'Variación diaria'], ['vol', 'Volumen'], ['rot', 'Rotación']] }, ['dol', 'Dólar'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['brc', 'Brecha y canje'],
+    ['acc', 'Acciones'], { g: 'mkt', t: 'Mercado del día', ic: 'vard', it: [['vard', 'Variación diaria'], ['vol', 'Volumen'], ['rot', 'Rotación']] }, ['dol', 'Dólar'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['brc', 'Brecha y canje'],
     { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards']] },
     { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, ['cons', 'Consultame']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
@@ -9181,9 +9185,9 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var dmy = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
   var big = function (v) { return v == null || !isFinite(v) ? '—' : v >= 1e9 ? fm0(v / 1e9, 1) + ' mil M' : v >= 1e6 ? fm0(v / 1e6, v >= 1e7 ? 0 : 1) + ' M' : v >= 1e3 ? fm0(v / 1e3, 0) + ' mil' : fm0(v, 0); };
-  var FAM = { usd: ['Hard dollar', '#b8e986'], fija: ['Tasa fija', '#ffc542'], cer: ['CER', '#2fd4a7'], tamar: ['TAMAR', '#ff8fb3'], dl: ['Dólar linked', '#5cc8ff'], dual: ['Duales', '#c9a0ff'], on: ['Obligaciones negociables', '#f0abfc'], pv: ['Bonos provinciales', '#fdba74'] };
+  var FAM = { usd: ['Hard dollar', '#b8e986'], fija: ['Tasa fija', '#ffc542'], cer: ['CER', '#2fd4a7'], tamar: ['TAMAR', '#ff8fb3'], dl: ['Dólar linked', '#5cc8ff'], dual: ['Duales', '#c9a0ff'], on: ['Obligaciones negociables', '#f0abfc'], pv: ['Bonos provinciales', '#fdba74'], acc: ['Acciones', '#5cc8ff'] };
   FAM.on = ['Obligación negociable', '#f0abfc'];
-  var FV = { on: '--c-on', pv: '--c-pv', usd: '--c-usd', fija: '--c-fija', cer: '--c-cer', tamar: '--c-tam', dl: '--c-dl', dual: '--c-dual' };
+  var FV = { acc: '--ac', on: '--c-on', pv: '--c-pv', usd: '--c-usd', fija: '--c-fija', cer: '--c-cer', tamar: '--c-tam', dl: '--c-dl', dual: '--c-dual' };
 
   /* ---------- el universo: todos los bonos con precio y sus tasas de hoy (lo arma Portfolio) ---------- */
   var U = [], UT = 0, MAP = {};
@@ -9222,7 +9226,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     });
     if (window.ONSQ && q) window.ONSQ.find(q).forEach(function (o) { out.push({ r: { k: o.k, grp: 'on', tipo: 'ON ' + o.tn.toLowerCase() + (o.em ? ' · ' + o.em : ''), P: o.p, mat: o.mat, usd: o.usd }, s: o.s + 0.5, sp: '', on: 1 }); }); // ONs (sección Obligaciones negociables)
     if (window.PVSQ && q) window.PVSQ.find(q).forEach(function (o) { if (out.some(function (x) { return x.r.k === o.k; })) return; out.push({ r: { k: o.k, grp: 'pv', tipo: 'Provincial ' + o.tn.toLowerCase() + (o.em ? ' · ' + o.em : ''), P: o.p, mat: o.mat, usd: o.usd }, s: o.s + 0.5, sp: '', pv: 1 }); }); // bonos provinciales (su sección)
-    out.sort(function (a, b) { return a.s - b.s || a.r.mat - b.r.mat; });
+    if (window.ACCQ && q) window.ACCQ.find(q).forEach(function (o) { if (out.some(function (x) { return x.r.k === o.k; })) return; out.push({ r: { k: o.k, grp: 'acc', tipo: 'Acción · ' + o.sec, P: o.p }, s: o.s + 0.5, sp: '', ac: 1 }); }); // acciones (su sección)
+    out.sort(function (a, b) { return a.s - b.s || (a.r.mat || 0) - (b.r.mat || 0); });
     return out.slice(0, 40);
   }
   function lstDraw() {
@@ -9232,12 +9237,12 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     HITS.forEach(function (x, i) {
       var r = x.r, g = x.g || '';
       if (g && g !== g0) { g0 = g; h += '<div class="g">' + g + '</div>'; }
-      h += '<button type="button" role="option" class="it' + (i === SEL ? ' on' : '') + '" data-i="' + i + '" style="--fc:var(' + FV[r.grp] + ')"><i></i><b>' + esc(r.k + x.sp) + '</b><span>' + esc(r.tipo) + '</span><em>' + (r.grp === 'usd' || r.usd ? 'US$ ' : '$ ') + fm(r.P, 2) + '</em><small>' + FAM[r.grp][0] + ' · vence el ' + dmy(r.mat) + '</small></button>';
+      h += '<button type="button" role="option" class="it' + (i === SEL ? ' on' : '') + '" data-i="' + i + '" style="--fc:var(' + FV[r.grp] + ')"><i></i><b>' + esc(r.k + x.sp) + '</b><span>' + esc(r.tipo) + '</span><em>' + (r.grp === 'usd' || r.usd ? 'US$ ' : '$ ') + fm(r.P, 2) + '</em><small>' + FAM[r.grp][0] + (r.mat ? ' · vence el ' + dmy(r.mat) : ' · en vivo') + '</small></button>';
     });
     lst.innerHTML = h; lst.hidden = false;
   }
   var lstClose = function () { lst.hidden = true; };
-  function pickHit(i) { var x = HITS[i]; if (!x) return; lstClose(); inp.value = ''; inp.blur(); if (x.on) { window.ONSQ.open(x.r.k); return; } if (x.pv) { window.PVSQ.open(x.r.k); return; } open(x.r.k, x.sp || null); }
+  function pickHit(i) { var x = HITS[i]; if (!x) return; lstClose(); inp.value = ''; inp.blur(); if (x.on) { window.ONSQ.open(x.r.k); return; } if (x.pv) { window.PVSQ.open(x.r.k); return; } if (x.ac) { window.ACCQ.open(x.r.k); return; } open(x.r.k, x.sp || null); }
   inp.addEventListener('focus', function () { SEL = 0; lstDraw(); });
   inp.addEventListener('input', function () { SEL = 0; lstDraw(); });
   inp.addEventListener('keydown', function (e) {
@@ -10606,6 +10611,439 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   ['bmep', 'bccl'].forEach(function (id) { var b = document.getElementById(id); if (b) b.addEventListener('click', function () { SOVt = 0; if (isAct()) setTimeout(draw, 1500); }); });
   var _rm = window.refreshMarket; if (_rm) window.refreshMarket = function (b) { _rm(b); if (isAct()) { SOVt = 0; live(); } }; // el botón de actualizar de cada tarjeta
   setInterval(function () { if (isAct()) { SOVt = 0; live(); } }, 30000);
+})();
+</script>
+<script>
+/* =====================================================================
+   Acciones: panel líder y panel general de BYMA, y sus ADRs.
+   Cierres diarios en data/acciones/<TICKER>.json (scripts/save_acciones.py, data912 /historical/stocks), métricas de cada
+   acción (data/acciones/metricas.json: retornos, volatilidad, caída desde el máximo, beta y correlación contra el panel líder)
+   y ratios con los balances de la CNV (data/acciones/ratios.json). En vivo: data912 live/arg_stocks y live/usa_adrs (cada 30 s).
+   Lo que se calcula acá: medias móviles, retorno diario, volatilidad y beta móviles, desvío contra la media (z-score),
+   índices por sector (promedio simple de los retornos diarios) y el CCL implícito de cada ADR.
+   ===================================================================== */
+;(function () {
+  var root = document.getElementById('acc'); if (!root) return;
+  var css = function (n) { return getComputedStyle(document.body).getPropertyValue(n).trim(); };
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d == null ? 0 : d, maximumFractionDigits: d == null ? 0 : d }); };
+  var sg = function (v, d) { return v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v), d); };
+  var pc = function (v, d) { return v == null || !isFinite(v) ? '—' : sg(v * 100, d == null ? 1 : d) + '%'; };
+  var cl = function (v) { return v == null || !isFinite(v) || v === 0 ? '' : v > 0 ? ' class="up"' : ' class="dn"'; };
+  var fr = function (s) { return s ? s.split('-').reverse().join('/') : '—'; };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var big = function (v) { if (v == null || !isFinite(v)) return '—'; var a = Math.abs(v); return a >= 1e12 ? nf(v / 1e12, 1) + ' B' : a >= 1e9 ? nf(v / 1e9, 1) + ' MM' : a >= 1e6 ? nf(v / 1e6, 1) + ' M' : a >= 1e3 ? nf(v / 1e3, 0) + ' mil' : nf(v, 0); };
+  var isAct = function () { return root.classList.contains('active'); };
+  var $ = function (id) { return document.getElementById(id); };
+  var dlb = function (id, name) { return '<button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'' + id + '\', \'' + name + '\')" title="Descargar en HD"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>'; };
+
+  /* sectores (clasificación propia, editable) */
+  var SEC = [['ban', 'Bancos y financieras', '#5cc8ff', 'BBAR BMA GGAL SUPV VALO BHIP BPAT BYMA'], ['pet', 'Petróleo', '#ffc542', 'YPFD CAPX'],
+    ['ele', 'Electricidad', '#a3e635', 'CEPU PAMP CECO2 TRAN EDN'], ['gas', 'Gas', '#2dd4bf', 'TGSU2 TGNO4 METR DGCU2 GBAN CGPA2'],
+    ['mat', 'Materiales e industria', '#fb923c', 'ALUA TXAR LOMA HARG FERR RIGO CELU CARC GARO FIPL DOME LONG AGRO'],
+    ['agr', 'Agro y alimentos', '#c9a0ff', 'CRES CADO INVJ LEDE MOLA MOLI MORI SAMI SEMI INTR HAVA PATA'],
+    ['inm', 'Inmobiliario e infraestructura', '#f0abfc', 'IRSA CTIO GCDI POLL AUSO OEST'], ['tel', 'Telecomunicaciones y medios', '#f87171', 'TECO2 CVH GCLA'],
+    ['otr', 'Consumo y otros', '#94a3b8', 'GRIM MIRG BOLT RICH ROSE GAMI HSAT COME']];
+  var SOF = {}, SN = {}, SC = {}; SEC.forEach(function (s) { SN[s[0]] = s[1]; SC[s[0]] = s[2]; s[3].split(' ').forEach(function (t) { SOF[t] = s[0]; }); });
+  var secOf = function (t) { return SOF[t] || 'otr'; };
+  /* ADRs que cotizan en Nueva York: [ticker local, ADR, acciones locales por ADR] */
+  var ADRS = [['GGAL', 'GGAL', 10], ['YPFD', 'YPF', 1], ['PAMP', 'PAM', 25], ['BMA', 'BMA', 10], ['BBAR', 'BBAR', 3], ['SUPV', 'SUPV', 5], ['CEPU', 'CEPU', 10], ['EDN', 'EDN', 20],
+    ['TGSU2', 'TGS', 5], ['TECO2', 'TEO', 5], ['LOMA', 'LOMA', 5], ['CRES', 'CRESY', 10], ['IRSA', 'IRS', 10]];
+  var PER = [['1m', 'Un mes', 21], ['3m', '3 meses', 63], ['6m', '6 meses', 126], ['1a', 'Un año', 252], ['3a', '3 años', 756], ['5a', '5 años', 1260], ['max', 'Todo', 1e9]];
+  var PN = {}; PER.forEach(function (p) { PN[p[0]] = p[2]; });
+
+  var KEY = 'accSt1', ST = { pn: 'lider', mon: 'ars', q: '', sort: 'cap', dir: -1, sel: 'GGAL', per: '1a', ind: 'ret', cmp: 1, sA: 'ban', sB: 'ele', sp: '1a', rr: '1a' };
+  try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
+  var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
+  var IX = null, MT = null, RT = null, CCL = null, LV = {}, LA = {}, lvT = 0, FL = {}, CH = {}, ldP = null, err = null;
+  var j = function (u) { return fetch(u + '?v=' + Math.floor(Date.now() / 6e4), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
+
+  var S = '#acc ';
+  root.innerHTML = '<style>' +
+    S + '.ctl{display:flex;flex-wrap:wrap;gap:14px 18px;align-items:flex-end;margin-top:12px}' + S + '.ctl label{display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--mu)}' + S + '.ctl input[type=search]{width:170px}' +
+    S + '.seg{display:inline-flex;border:1px solid var(--bd);border-radius:9px;overflow:hidden}' + S + '.seg button{background:var(--bg);color:var(--mu);border:0;padding:8px 11px;font:inherit;font-size:12.5px;cursor:pointer}' + S + '.seg button.on{background:var(--ac);color:#fff;font-weight:700}' +
+    S + '.kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:16px}' + S + '.kp div{border:1px solid var(--bd);border-radius:12px;padding:12px 14px;background:var(--bg);min-width:0}' + S + '.kp small{display:block;font-size:11.5px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px}' + S + '.kp b{display:block;font-size:20px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' + S + '.kp span{font-size:12px;color:var(--mu)}' +
+    S + '.up{color:var(--ok)}' + S + '.dn{color:var(--bad)}' + S + '.cw{position:relative;height:clamp(320px,34vw,480px);margin-top:14px}' + S + '.cw2{position:relative;height:clamp(220px,22vw,300px);margin-top:12px}' +
+    S + '.tw{overflow:auto;max-height:640px;margin-top:12px;border:1px solid var(--bd);border-radius:12px}' + S + 'table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}' +
+    S + 'th{position:sticky;top:0;z-index:1;background:var(--card);text-align:right;padding:8px 9px;color:var(--mu);font-weight:600;font-size:11.5px;white-space:nowrap;cursor:pointer;user-select:none;border-bottom:1px solid var(--bd)}' + S + 'th.on{color:var(--tx)}' +
+    S + 'td{text-align:right;padding:7px 9px;border-bottom:1px solid var(--bd);white-space:nowrap}' + S + 'th:first-child,' + S + 'td:first-child,' + S + 'th.l,' + S + 'td.l{text-align:left}' + S + 'td:first-child{position:sticky;left:0;background:var(--card);font-weight:700}' +
+    S + 'tbody tr{cursor:pointer}' + S + 'tbody tr:hover td{background:var(--bg)}' + S + 'tr.sel td{background:rgba(92,200,255,.10)}' + S + '.sd{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}' +
+    S + '.hm{display:inline-block;min-width:54px;padding:2px 6px;border-radius:6px}' + S + '.f2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;margin-top:6px}@media(max-width:1000px){' + S + '.f2{grid-template-columns:minmax(0,1fr)}}' +
+    S + '.ctl select{min-width:190px}@media(max-width:700px){' + S + '.snm{display:none}' + S + '.ctl input[type=search]{width:100%}}' + S + '#accInd{min-width:280px;max-width:100%}' + S + 'h5{margin:14px 0 4px;font-size:13px;color:var(--mu);font-weight:600}' + S + '.chk{flex-direction:row!important;align-items:center;gap:7px!important;color:var(--tx)!important;padding-bottom:9px}' +
+    '</style>' +
+    '<div class="card sx" id="accT"><div class="sxh"><div style="min-width:0"><p class="qh">Acciones</p><p class="qs" id="accTs">Panel líder y panel general de BYMA, con el precio en vivo.</p></div><div class="sxb">' + dlb('accT', 'Bonerio_acciones') + '</div></div>' +
+    '<div class="ctl"><label>Panel<span class="seg" id="accPn"><button data-v="lider">Líder</button><button data-v="general">General</button><button data-v="all">Todas</button></span></label>' +
+    '<label>Moneda<span class="seg" id="accMon"><button data-v="ars">Pesos</button><button data-v="ccl">Dólar CCL</button></span></label>' +
+    '<label>Sector<select id="accSf"><option value="">Todos</option>' + SEC.map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('') + '</select></label>' +
+    '<label>Buscar<input type="search" id="accQ" placeholder="GGAL, YPF, bancos…"></label></div>' +
+    '<div class="kp" id="accK"></div><div class="tw"><table id="accTab"></table></div><p class="note" id="accTn" style="margin-top:8px"></p></div>' +
+
+    '<div class="card sx" id="accF" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh" id="accFh">Ficha</p><p class="qs" id="accFs"></p></div><div class="sxb">' + dlb('accF', 'Bonerio_accion') + '</div></div>' +
+    '<div class="ctl"><label>Acción<select id="accSel"></select></label>' +
+    '<label>Período<span class="seg" id="accPer">' + PER.map(function (p) { return '<button data-v="' + p[0] + '">' + p[0].replace('max', 'Todo') + '</button>'; }).join('') + '</span></label>' +
+    '<label class="chk"><input type="checkbox" id="accCmp"> Contra el panel líder</label></div>' +
+    '<div class="kp" id="accFk"></div><div class="cw"><canvas id="accCv"></canvas></div>' +
+    '<div class="ctl"><label>Indicador<select id="accInd"><option value="ret">Retorno diario (primera derivada)</option><option value="vol">Volatilidad móvil (20 y 60 ruedas)</option><option value="z">Desvío contra la media de 50 ruedas (z-score)</option><option value="dd">Caída desde el máximo</option><option value="beta">Beta y correlación móviles (120 ruedas)</option><option value="v">Volumen</option><option value="rat">P/E, P/VL y EV/EBITDA</option></select></label></div>' +
+    '<div class="cw2"><canvas id="accCv2"></canvas></div><p class="note" id="accFn" style="margin-top:8px"></p></div>' +
+
+    '<div class="card sx" id="accS" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Sectores</p><p class="qs">Retorno promedio de cada sector y la relación entre dos sectores en el tiempo.</p></div><div class="sxb">' + dlb('accS', 'Bonerio_acciones_sectores') + '</div></div>' +
+    '<div class="ctl"><label>Retorno<span class="seg" id="accSp"><button data-v="1m">1 mes</button><button data-v="3m">3 meses</button><button data-v="ytd">En el año</button><button data-v="1a">1 año</button></span></label></div>' +
+    '<div class="f2"><div><h5>Retorno promedio por sector</h5><div class="cw2" style="height:340px"><canvas id="accScv"></canvas></div></div><div><h5>Resumen por sector (medianas)</h5><div class="tw" style="max-height:340px;margin-top:0"><table id="accStab"></table></div></div></div>' +
+    '<div class="ctl" style="margin-top:20px"><label>Sector A<select id="accSa"></select></label><label>Sector B<select id="accSb"></select></label>' +
+    '<label>Período<span class="seg" id="accSper">' + PER.slice(1).map(function (p) { return '<button data-v="' + p[0] + '">' + p[0].replace('max', 'Todo') + '</button>'; }).join('') + '</span></label></div>' +
+    '<div class="cw2" style="height:clamp(260px,26vw,360px)"><canvas id="accRcv"></canvas></div><p class="note" id="accSn" style="margin-top:8px"></p></div>' +
+
+    '<div class="card sx" id="accR" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Riesgo contra retorno</p><p class="qs">Volatilidad anualizada y retorno de cada acción, por sector.</p></div><div class="sxb">' + dlb('accR', 'Bonerio_acciones_riesgo') + '</div></div>' +
+    '<div class="ctl"><label>Ventana<span class="seg" id="accRr"><button data-v="3m">3 meses (vol. 60 ruedas)</button><button data-v="1a">1 año (vol. 252 ruedas)</button></span></label></div>' +
+    '<div class="cw"><canvas id="accRrc"></canvas></div><p class="note" style="margin-top:8px">El tamaño del punto es la beta contra el panel líder. Tocá un punto para ver la ficha.</p></div>' +
+
+    '<div class="card sx" id="accV" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Valuación contra rentabilidad</p><p class="qs" id="accVs">Cada acción según su múltiplo y su rentabilidad, con el precio en vivo y la recta de regresión.</p></div><div class="sxb">' + dlb('accV', 'Bonerio_acciones_valuacion') + '</div></div>' +
+    '<div class="ctl"><label>Grupo<select id="accVg"><option value="ban">Bancos</option><option value="nof">No financieras</option><option value="all">Todas</option>' + SEC.filter(function (s) { return s[0] !== 'ban'; }).map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('') + '</select></label>' +
+    '<label>Múltiplo (eje X)<select id="accVx"><option value="pvl">Precio / valor libro</option><option value="pe">Precio / ganancias (P/E)</option><option value="ev">EV / EBITDA</option></select></label>' +
+    '<label>Rentabilidad (eje Y)<select id="accVy"><option value="roe">ROE</option><option value="me">Margen EBITDA</option><option value="mn">Margen neto</option></select></label></div>' +
+    '<div class="cw"><canvas id="accVc"></canvas></div><h5>Contra la recta: cuánto tendría que valer el múltiplo para la rentabilidad que tiene</h5><div class="tw" style="max-height:360px"><table id="accVt"></table></div><p class="note" id="accVn" style="margin-top:8px"></p></div>' +
+    '<div class="card sx" id="accA" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">ADRs</p><p class="qs">Las acciones argentinas en Nueva York y el dólar que surge de cada una.</p></div><div class="sxb">' + dlb('accA', 'Bonerio_ADRs') + '</div></div>' +
+    '<div class="kp" id="accAk"></div><div class="tw"><table id="accAtab"></table></div><p class="note" id="accAn" style="margin-top:8px"></p></div>';
+
+  var seg = function (id, k, fn) { var el = $(id); el.onclick = function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; ST[k] = b.getAttribute('data-v'); save(); segOn(); fn(); }; };
+  function segOn() { [['accPn', 'pn'], ['accMon', 'mon'], ['accPer', 'per'], ['accSp', 'sp'], ['accSper', 'sper'], ['accRr', 'rr']].forEach(function (x) { [].forEach.call($(x[0]).querySelectorAll('button'), function (b) { b.classList.toggle('on', b.getAttribute('data-v') === ST[x[1]]); }); }); }
+  if (!ST.sper) ST.sper = '1a';
+  seg('accPn', 'pn', table); seg('accMon', 'mon', drawAll); seg('accPer', 'per', ficha); seg('accSp', 'sp', sectors); seg('accSper', 'sper', ratioSec); seg('accRr', 'rr', scatter);
+  $('accQ').value = ST.q; $('accQ').oninput = function () { ST.q = this.value; save(); table(); };
+  $('accSf').value = ST.sf || ''; $('accSf').onchange = function () { ST.sf = this.value; save(); table(); };
+  $('accCmp').checked = !!ST.cmp; $('accCmp').onchange = function () { ST.cmp = this.checked ? 1 : 0; save(); ficha(); };
+  $('accInd').value = ST.ind; $('accInd').onchange = function () { ST.ind = this.value; save(); ficha(); };
+  $('accSel').onchange = function () { pick(this.value, 1); };
+  var opts = SEC.map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('') + '<option value="lider">Panel líder (índice)</option>';
+  $('accSa').innerHTML = opts; $('accSb').innerHTML = opts; $('accSa').value = ST.sA; $('accSb').value = ST.sB;
+  $('accSa').onchange = function () { ST.sA = this.value; save(); ratioSec(); }; $('accSb').onchange = function () { ST.sB = this.value; save(); ratioSec(); };
+  segOn();
+
+  /* ---------- datos ---------- */
+  function load() {
+    if (ldP) return ldP;
+    var vol = new Promise(function (ok) { if (window.VOLX && window.VOLX.raw) window.VOLX.raw(ok); else j('data/volumen.json').then(ok); });
+    ldP = Promise.all([j('data/acciones/index.json'), j('data/acciones/metricas.json'), j('data/acciones/ratios.json'), vol, j('data/acciones/saltos.json')]).then(function (r) {
+      IX = r[0]; MT = r[1]; RT = r[2] || { t: {} }; if (!IX || !MT) { err = 'No se pudieron leer los datos de acciones.'; return; }
+      splits(r[4] || []);
+      CCL = {}; var v = r[3]; // CCL de AL30 / AL30C por fecha (el mismo que usa metricas_acciones.py)
+      if (v && v.t) { var ser = function (tk) { var o = v.t[tk], out = {}, acc = 0; if (!o) return out; o.i.forEach(function (i, k) { acc += i; if (o.c[k] > 0) out[v.dates[acc]] = o.c[k]; }); return out; }; var a = ser('AL30'), c = ser('AL30C'); Object.keys(a).forEach(function (d) { if (c[d]) CCL[d] = a[d] / c[d]; }); }
+      $('accSel').innerHTML = IX.slice().sort(function (a, b) { return a.t.localeCompare(b.t); }).map(function (x) { return '<option value="' + x.t + '">' + x.t + ' · ' + SN[secOf(x.t)] + '</option>'; }).join('');
+      if (!IX.some(function (x) { return x.t === ST.sel; })) ST.sel = 'GGAL';
+    }).then(fixMet);
+    return ldP;
+  }
+  function file(t) { if (!FL[t]) FL[t] = j('data/acciones/' + t + '.json').then(function (d) { return adj(t, d && d.r ? d.r : []); }); return FL[t]; }
+  /* splits: el histórico de data912 no está ajustado. De data/acciones/saltos.json tomo los saltos que son un múltiplo casi exacto
+     (2:1 con 0,6% de margen, 3:1 o más con 5%) y ajusto los precios anteriores; si el salto se revierte a la rueda siguiente, es un dato malo y saco esa rueda. */
+  var SPL = {}, BAD = {};
+  function splits(sl) {
+    var L = {}; sl.forEach(function (s) {
+      if (!(s.c0 > 0 && s.c1 > 0)) return; var q = s.c0 / s.c1, inv = q < 1, z = inv ? 1 / q : q, k = Math.round(z);
+      if (!(k >= 3 && Math.abs(z / k - 1) < 0.05 || k === 2 && Math.abs(z / k - 1) < 0.006)) return; (L[s.t] = L[s.t] || []).push({ de: s.de, a: s.a, f: inv ? 1 / k : k });
+    });
+    Object.keys(L).forEach(function (t) { var a = L[t]; for (var i = 0; i < a.length; i++) { var n = a[i + 1]; if (n && n.de === a[i].a && Math.abs(Math.log(a[i].f * n.f)) < 0.1) { (BAD[t] = BAD[t] || {})[a[i].a] = 1; i++; continue; } (SPL[t] = SPL[t] || []).push([a[i].a, a[i].f]); } });
+  }
+  function adj(t, r) {
+    var B = BAD[t] || {}, S = SPL[t] || []; r = r.filter(function (x) { return !B[x[0]]; }); if (!S.length) return r;
+    return r.map(function (x) { var f = 1; S.forEach(function (s) { if (x[0] < s[0]) f *= s[1]; }); return f === 1 ? x : [x[0], x[1] == null ? null : x[1] / f, x[2] == null ? null : x[2] / f, x[3] == null ? null : x[3] / f, x[4] / f, x[5] == null ? null : x[5] * f]; });
+  }
+  function fixMet() { // métricas de las acciones con un split o un dato malo en el último año y medio, recalculadas con el precio ajustado
+    if (!MT) return; var lim = new Date(Date.now() - 550 * 864e5).toISOString().slice(0, 10), ts = [];
+    IX.forEach(function (x) { var hit = (SPL[x.t] || []).some(function (s) { return s[0] >= lim; }) || Object.keys(BAD[x.t] || {}).some(function (d) { return d >= lim; }); if (hit) ts.push(x); });
+    // el índice del panel líder (promedio simple de los retornos) también tiene el salto: lo corrijo con la parte de esa acción
+    ts.forEach(function (x) { if (x.panel !== 'lider') return; (SPL[x.t] || []).forEach(function (s) { if (s[0] < lim) return; var n = IX.filter(function (y) { return y.panel === 'lider' && y.desde <= s[0]; }).length || 21, f = Math.pow(s[1], 1 / n); ['ars', 'ccl'].forEach(function (m) { (MT.indice_lider[m] || []).forEach(function (p) { if (p[0] >= s[0]) p[1] *= f; }); }); }); });
+    return Promise.all(ts.map(function (x) { return file(x.t).then(function (r) { met(x.t, r); }); }));
+  }
+  function met(t, r) {
+    var I = { ars: {}, ccl: {} }; ['ars', 'ccl'].forEach(function (m) { (MT.indice_lider[m] || []).forEach(function (p) { I[m][p[0]] = p[1]; }); });
+    ['ars', 'ccl'].forEach(function (m) {
+      var px = []; r.forEach(function (x) { var c = x[4]; if (!(c > 0)) return; if (m === 'ccl') { if (!CCL[x[0]]) return; c /= CCL[x[0]]; } px.push([x[0], c]); });
+      var o = (MT.t[t] = MT.t[t] || {})[m] = (MT.t[t] || {})[m] || {}; if (px.length < 2) return; var N = px.length, last = px[N - 1][1], rt = function (n) { return N > n ? last / px[N - 1 - n][1] - 1 : null; };
+      var y0 = px.filter(function (p) { return p[0] < px[N - 1][0].slice(0, 4); }).pop();
+      o.precio = last; o.fecha = px[N - 1][0]; o.ret = { '1d': rt(1), '1s': rt(5), '1m': rt(21), '3m': rt(63), '1a': rt(252), ytd: y0 ? last / y0[1] - 1 : null };
+      var lr = px.map(function (p, i) { return i ? Math.log(p[1] / px[i - 1][1]) : null; }).slice(1), vv = function (n) { return lr.length >= n ? sd(lr.slice(-n)) * Math.sqrt(252) : null; };
+      o.vol = { '20': vv(20), '60': vv(60), '252': vv(252) };
+      var mx = 0; px.forEach(function (p) { mx = Math.max(mx, p[1]); }); o.dd_max = last / mx - 1;
+      var mm = 0, w = 0; px.slice(-252).forEach(function (p) { mm = Math.max(mm, p[1]); w = Math.min(w, p[1] / mm - 1); }); o.mdd_12m = w;
+      var X = [], Y = []; px.slice(-253).forEach(function (p, i, a) { if (!i) return; var i0 = I[m][a[i - 1][0]], i1 = I[m][p[0]]; if (i0 && i1) { X.push(Math.log(i1 / i0)); Y.push(Math.log(p[1] / a[i - 1][1])); } });
+      if (X.length > 60) { var ax = X.reduce(function (s, v) { return s + v; }, 0) / X.length, ay = Y.reduce(function (s, v) { return s + v; }, 0) / Y.length, cv = 0, vx = 0, vy = 0; X.forEach(function (x, i) { cv += (x - ax) * (Y[i] - ay); vx += (x - ax) * (x - ax); vy += (Y[i] - ay) * (Y[i] - ay); }); o.beta = cv / vx; o.corr = cv / Math.sqrt(vx * vy); }
+    });
+  }
+  function live() {
+    if (Date.now() - lvT < 25000) return Promise.resolve(); lvT = Date.now();
+    var g = function (u, into) { return fetch(u, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (rows) { (rows || []).forEach(function (r) { if (r && r.symbol) into[r.symbol] = { c: r.c, pct: r.pct_change, v: r.v, q: r.q_op, b: r.px_bid, a: r.px_ask }; }); }).catch(function () { }); };
+    return Promise.all([g('https://data912.com/live/arg_stocks', LV), g('https://data912.com/live/usa_adrs', LA)]);
+  }
+  setInterval(function () { if (isAct() && (typeof mktOpen !== 'function' || mktOpen())) live().then(function () { table(); adrs(); valua(); }); }, 30000);
+
+  /* ---------- tabla ---------- */
+  var cclNow = function () { var ks = Object.keys(CCL || {}).sort(); return ks.length ? CCL[ks[ks.length - 1]] : null; };
+  function row(x) {
+    var t = x.t, m = (MT.t[t] || {}), a = m[ST.mon] || {}, L = LV[t] || {}, R = (RT.t[t] || {}).ultimo || {}, fx = ST.mon === 'ccl' && m.ars && m.ccl && m.ccl.precio ? m.ars.precio / m.ccl.precio : 1;
+    var px = L.c > 0 ? L.c / fx : a.precio, d1 = L.c > 0 && L.pct != null ? L.pct / 100 : (a.ret || {})['1d'];
+    if (ST.mon === 'ccl') d1 = (a.ret || {})['1d']; // en dólares, la variación de la última rueda cerrada
+    var r = a.ret || {}, v = a.vol || {};
+    return { t: t, sec: secOf(t), panel: x.panel, px: px, d1: d1, live: L.c > 0, r1s: r['1s'], r1m: r['1m'], r3m: r['3m'], ytd: r.ytd, r1a: r['1a'], v20: v['20'], v252: v['252'], beta: a.beta, corr: a.corr, dd: a.dd_max,
+      vp: m.vol_prom_20, vh: L.v, cap: R.capitalizacion, pe: R.pe, pvl: R.pvl, ev: R.ev_ebitda, roe: R.roe, f: a.fecha };
+  }
+  var COLS = [['t', 'Acción'], ['sec', 'Sector', 'l'], ['px', 'Precio'], ['d1', 'Hoy'], ['r1s', '1 sem.'], ['r1m', '1 mes'], ['r3m', '3 meses'], ['ytd', 'En el año'], ['r1a', '1 año'],
+    ['v20', 'Vol. 20r'], ['v252', 'Vol. 1 año'], ['beta', 'Beta'], ['corr', 'Correl.'], ['dd', 'Desde máx.'], ['vh', 'Volumen hoy'], ['vp', 'Vol. prom. 20r'], ['cap', 'Capitalización'], ['pe', 'P/E'], ['pvl', 'P/VL'], ['ev', 'EV/EBITDA'], ['roe', 'ROE']];
+  var heat = function (v, s) { if (v == null || !isFinite(v)) return '—'; var a = Math.min(1, Math.abs(v) / s) * 0.32; return '<span class="hm" style="background:' + (v >= 0 ? 'rgba(52,211,153,' : 'rgba(255,107,139,') + a.toFixed(3) + ')">' + pc(v) + '</span>'; };
+  var ROWS = [];
+  function table() {
+    if (!MT) return;
+    var q = (ST.q || '').trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    ROWS = IX.filter(function (x) { return (ST.pn === 'all' || x.panel === ST.pn) && (!ST.sf || secOf(x.t) === ST.sf) && (!q || x.t.indexOf(q) >= 0 || SN[secOf(x.t)].toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').indexOf(q) >= 0); }).map(row);
+    var k = ST.sort, dir = ST.dir;
+    ROWS.sort(function (a, b) { var x = a[k], y = b[k]; if (k === 't' || k === 'sec') return dir * String(k === 'sec' ? SN[x] : x).localeCompare(String(k === 'sec' ? SN[y] : y)); if (x == null) return 1; if (y == null) return -1; return dir * (x - y); });
+    var u = ST.mon === 'ccl' ? 'US$ ' : '$ ';
+    $('accTab').innerHTML = '<thead><tr>' + COLS.map(function (c) { return '<th data-s="' + c[0] + '"' + (c[2] || c[0] === ST.sort ? ' class="' + (c[2] || '') + (c[0] === ST.sort ? ' on' : '') + '"' : '') + '>' + c[1] + (c[0] === ST.sort ? (dir > 0 ? ' ▲' : ' ▼') : '') + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      ROWS.map(function (r) {
+        return '<tr data-t="' + r.t + '"' + (r.t === ST.sel ? ' class="sel"' : '') + '><td>' + r.t + '</td><td class="l"><i class="sd" style="background:' + SC[r.sec] + '"></i><span class="snm">' + SN[r.sec] + '</span></td><td>' + u + nf(r.px, ST.mon === 'ccl' ? 3 : r.px < 100 ? 2 : 0) + '</td>' +
+          '<td' + cl(r.d1) + '>' + pc(r.d1, 2) + '</td><td>' + heat(r.r1s, .1) + '</td><td>' + heat(r.r1m, .2) + '</td><td>' + heat(r.r3m, .35) + '</td><td>' + heat(r.ytd, .6) + '</td><td>' + heat(r.r1a, .8) + '</td>' +
+          '<td>' + pc(r.v20, 0).replace('+', '') + '</td><td>' + pc(r.v252, 0).replace('+', '') + '</td><td>' + nf(r.beta, 2) + '</td><td>' + nf(r.corr, 2) + '</td><td' + cl(r.dd) + '>' + pc(r.dd, 0) + '</td>' +
+          '<td>' + big(r.vh) + '</td><td>' + big(r.vp) + '</td><td>' + (r.cap ? '$ ' + big(r.cap) : '—') + '</td><td>' + nf(r.pe, 1) + '</td><td>' + nf(r.pvl, 2) + '</td><td>' + nf(r.ev, 1) + '</td><td>' + pc(r.roe, 0) + '</td></tr>';
+      }).join('') + '</tbody>';
+    var lv = ROWS.filter(function (r) { return r.live && r.d1 != null; }), avg = lv.length ? lv.reduce(function (s, r) { return s + r.d1; }, 0) / lv.length : null;
+    var up = lv.filter(function (r) { return r.d1 > 0; }).length, dn = lv.filter(function (r) { return r.d1 < 0; }).length;
+    var best = lv.slice().sort(function (a, b) { return b.d1 - a.d1; }), vt = ROWS.reduce(function (s, r) { return s + (r.vh > 0 ? r.vh : 0); }, 0);
+    var il = MT.indice_lider && MT.indice_lider[ST.mon], ilr = function (n) { if (!il || il.length <= n) return null; return il[il.length - 1][1] / il[il.length - 1 - n][1] - 1; };
+    $('accK').innerHTML = '<div><small>Promedio del día</small><b' + cl(avg) + '>' + pc(avg, 2) + '</b><span>' + lv.length + ' acciones con precio de hoy</span></div>' +
+      '<div><small>Suben / bajan</small><b><span class="up" style="font-size:20px">' + up + '</span> / <span class="dn" style="font-size:20px">' + dn + '</span></b><span>amplitud del panel</span></div>' +
+      '<div><small>Mejor del día</small><b>' + (best[0] ? best[0].t + ' <span class="up" style="font-size:15px">' + pc(best[0].d1, 1) + '</span>' : '—') + '</b><span>' + (best.length > 1 ? 'peor: ' + best[best.length - 1].t + ' ' + pc(best[best.length - 1].d1, 1) : '') + '</span></div>' +
+      '<div><small>Panel líder, un mes</small><b' + cl(ilr(21)) + '>' + pc(ilr(21)) + '</b><span>en el año: ' + pc(ilr(ytdN(il))) + ' · un año: ' + pc(ilr(252)) + '</span></div>' +
+      '<div><small>Volumen de hoy</small><b>' + (vt ? big(vt) : '—') + '</b><span>suma de la tabla, en la unidad de data912</span></div>';
+    $('accTs').textContent = (ST.pn === 'lider' ? 'Panel líder' : ST.pn === 'general' ? 'Panel general' : 'Todas las acciones') + ' · ' + ROWS.length + ' acciones · ' + (ST.mon === 'ccl' ? 'en dólares CCL (AL30 / AL30C)' : 'en pesos');
+    $('accTn').innerHTML = 'Precio y variación de hoy en vivo (data912). Retornos, volatilidad (anualizada, de los retornos logarítmicos diarios), beta y correlación contra el panel líder (promedio simple de sus acciones, 252 ruedas) al cierre del ' + fr((MT.generado || '').slice(0, 10)) + '. Ratios con el último balance de la CNV (TTM). Tocá un encabezado para ordenar y una fila para ver la ficha.';
+  }
+  function ytdN(il) { if (!il || !il.length) return null; var y = il[il.length - 1][0].slice(0, 4), n = 0; for (var i = il.length - 1; i > 0 && il[i - 1][0].slice(0, 4) === y; i--) n++; return n + 1; }
+  $('accTab').onclick = function (e) {
+    var th = e.target.closest('th[data-s]');
+    if (th) { var k = th.getAttribute('data-s'); if (ST.sort === k) ST.dir = -ST.dir; else { ST.sort = k; ST.dir = k === 't' || k === 'sec' || k === 'pe' || k === 'pvl' || k === 'ev' ? 1 : -1; } save(); table(); return; }
+    var tr = e.target.closest('tr[data-t]'); if (tr) pick(tr.getAttribute('data-t'), 0, 1);
+  };
+  function pick(t, noScroll, scroll) { ST.sel = t; save(); $('accSel').value = t; table(); ficha(); if (scroll) setTimeout(function () { $('accF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60); }
+
+  /* ---------- gráficos ---------- */
+  var base = function () {
+    var tx = css('--mu') || '#8b95a7', gd = css('--bd') || 'rgba(128,128,128,.2)';
+    return { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: tx, boxWidth: 12, usePointStyle: true } }, tooltip: { mode: 'index', intersect: false } },
+      scales: { x: { ticks: { color: tx, maxTicksLimit: 8, maxRotation: 0, autoSkip: true }, grid: { display: false } }, y: { ticks: { color: tx }, grid: { color: gd } } } };
+  };
+  var mk = function (id, cfg) { if (CH[id]) CH[id].destroy(); CH[id] = new Chart($(id), cfg); return CH[id]; };
+  var ln = function (label, data, col, o) { return Object.assign({ type: 'line', label: label, data: data, borderColor: col, backgroundColor: col, borderWidth: 1.6, pointRadius: 0, tension: 0, spanGaps: true }, o || {}); };
+  var sma = function (a, n) { var o = [], s = 0, c = 0; for (var i = 0; i < a.length; i++) { s += a[i]; if (i >= n) s -= a[i - n]; o.push(i >= n - 1 ? s / n : null); } return o; };
+  var sd = function (a) { var n = a.length; if (n < 2) return null; var m = a.reduce(function (s, x) { return s + x; }, 0) / n; return Math.sqrt(a.reduce(function (s, x) { return s + (x - m) * (x - m); }, 0) / (n - 1)); };
+
+  function series(t) { // [[fecha, precio, volumen]] en la moneda elegida
+    return file(t).then(function (r) {
+      var out = [], L = LV[t], last = r.length ? r[r.length - 1][0] : null, today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+      r.forEach(function (x) { var c = x[4]; if (!(c > 0)) return; if (ST.mon === 'ccl') { if (!CCL[x[0]]) return; c = c / CCL[x[0]]; } out.push([x[0], c, x[5]]); });
+      if (L && L.c > 0 && last < today && ST.mon === 'ars') out.push([today, L.c, L.v]); // la rueda de hoy, en vivo
+      return out;
+    });
+  }
+  function idx() { var il = MT.indice_lider[ST.mon] || [], o = {}; il.forEach(function (x) { o[x[0]] = x[1]; }); return o; }
+
+  function ficha() {
+    if (!MT) return; var t = ST.sel, m = MT.t[t] || {}, a = m[ST.mon] || {}, R = (RT.t[t] || {}).ultimo || {}, u = ST.mon === 'ccl' ? 'US$ ' : '$ ';
+    $('accSel').value = t;
+    var ad = ADRS.filter(function (x) { return x[0] === t; })[0];
+    $('accFh').textContent = t + ' · ' + SN[secOf(t)]; $('accFs').textContent = (m.panel === 'lider' ? 'Panel líder' : 'Panel general') + (ad ? ' · ADR ' + ad[1] + ' (' + ad[2] + ' acciones por ADR)' : '') + ' · ' + (ST.mon === 'ccl' ? 'en dólares CCL' : 'en pesos');
+    series(t).then(function (s) {
+      var n = Math.min(s.length, PN[ST.per] || 252), need = n + 200, w = s.slice(-n), wx = s.slice(-Math.min(s.length, need));
+      var off = wx.length - w.length, cs = wx.map(function (x) { return x[1]; });
+      var m20 = sma(cs, 20).slice(off), m50 = sma(cs, 50).slice(off), m200 = sma(cs, 200).slice(off);
+      var lab = w.map(function (x) { return fr(x[0]); }), px = w.map(function (x) { return x[1]; });
+      var ds = [ln(t, px, css('--tx') || '#e5e7eb', { borderWidth: 2 }), ln('Media 20', m20, '#ffc542', { borderWidth: 1.1 }), ln('Media 50', m50, '#c9a0ff', { borderWidth: 1.1 }), ln('Media 200', m200, '#f87171', { borderWidth: 1.1, borderDash: [5, 4] })];
+      var o = base();
+      if (ST.cmp && w.length) { var I = idx(), b0 = null, p0 = px[0]; var ci = w.map(function (x) { var v = I[x[0]]; if (v == null) return null; if (b0 == null) b0 = v; return v / b0 * p0; }); ds.push(ln('Panel líder (misma base)', ci, '#94a3b8', { borderDash: [2, 3] })); }
+      o.plugins.tooltip.callbacks = { label: function (c) { return c.dataset.label + ': ' + u + nf(c.parsed.y, ST.mon === 'ccl' ? 3 : 2); } };
+      mk('accCv', { type: 'line', data: { labels: lab, datasets: ds }, options: o });
+      var p1 = px[px.length - 1], hi = Math.max.apply(null, px), lo = Math.min.apply(null, px), rp = px.length > 1 ? p1 / px[0] - 1 : null;
+      var lr = []; for (var i = 1; i < px.length; i++) lr.push(Math.log(px[i] / px[i - 1]));
+      var vp = sd(lr), sh = vp && lr.length ? (lr.reduce(function (s, x) { return s + x; }, 0) / lr.length * 252) / (vp * Math.sqrt(252)) : null;
+      $('accFk').innerHTML = '<div><small>Precio</small><b>' + u + nf(p1, ST.mon === 'ccl' ? 3 : 2) + '</b><span' + cl((LV[t] || {}).pct) + '>' + (LV[t] && LV[t].pct != null && ST.mon === 'ars' ? 'hoy ' + sg(LV[t].pct, 2) + '%' : 'al ' + fr(a.fecha)) + '</span></div>' +
+        '<div><small>Retorno del período</small><b' + cl(rp) + '>' + pc(rp) + '</b><span>máx. ' + nf(hi, ST.mon === 'ccl' ? 3 : 0) + ' · mín. ' + nf(lo, ST.mon === 'ccl' ? 3 : 0) + '</span></div>' +
+        '<div><small>Volatilidad del período</small><b>' + (vp ? nf(vp * Math.sqrt(252) * 100, 1) + '%' : '—') + '</b><span>anualizada · Sharpe simple ' + nf(sh, 2) + '</span></div>' +
+        '<div><small>Beta / correlación</small><b>' + nf(a.beta, 2) + ' <span style="font-size:14px">/ ' + nf(a.corr, 2) + '</span></b><span>contra el panel líder, 1 año</span></div>' +
+        '<div><small>Desde el máximo</small><b' + cl(a.dd_max) + '>' + pc(a.dd_max, 1) + '</b><span>peor caída en 12 meses: ' + pc(a.mdd_12m, 1) + '</span></div>' +
+        '<div><small>Ratios</small><b>' + (R.pe != null ? 'P/E ' + nf(R.pe, 1) : R.pvl != null ? 'P/VL ' + nf(R.pvl, 2) : '—') + '</b><span>' + (R.pvl != null ? 'P/VL ' + nf(R.pvl, 2) : '') + (R.ev_ebitda != null ? ' · EV/EBITDA ' + nf(R.ev_ebitda, 1) : '') + (R.roe != null ? ' · ROE ' + pc(R.roe, 0) : '') + (R.cierre_balance ? '' : 'sin balances cargados') + '</span></div>';
+      ind(t, s, w, lab, off, wx);
+    });
+  }
+  function ind(t, s, w, lab, off, wx) {
+    var o = base(), k = ST.ind, cs = wx.map(function (x) { return x[1]; }), ds = [], u = '%', note = '';
+    var lr = cs.map(function (c, i) { return i ? Math.log(c / cs[i - 1]) : null; });
+    var roll = function (n, f) { var out = []; for (var i = 0; i < cs.length; i++) { if (i < n) { out.push(null); continue; } out.push(f(i - n + 1, i)); } return out.slice(off); };
+    if (k === 'ret') {
+      var r = cs.map(function (c, i) { return i ? (c / cs[i - 1] - 1) * 100 : null; }).slice(off);
+      var sdv = sd(r.filter(function (x) { return x != null; }));
+      ds = [{ type: 'bar', label: 'Retorno diario (%)', data: r, backgroundColor: r.map(function (x) { return x >= 0 ? 'rgba(52,211,153,.75)' : 'rgba(255,107,139,.75)'; }), barPercentage: 1, categoryPercentage: 1 },
+        ln('+2 desvíos', r.map(function () { return 2 * sdv; }), '#94a3b8', { borderDash: [4, 4], borderWidth: 1 }), ln('−2 desvíos', r.map(function () { return -2 * sdv; }), '#94a3b8', { borderDash: [4, 4], borderWidth: 1 })];
+      var out = r.filter(function (x) { return x != null && Math.abs(x) > 2 * sdv; }).length;
+      note = 'La primera derivada del precio: la variación de cada rueda. Desvío diario del período ' + nf(sdv, 2) + '% (' + nf(sdv * Math.sqrt(252), 1) + '% anualizado); ' + out + ' ruedas fuera de ±2 desvíos.';
+    } else if (k === 'vol') {
+      var vf = function (n) { return roll(n, function (a, b) { return sd(lr.slice(a, b + 1)) * Math.sqrt(252) * 100; }); };
+      ds = [ln('Vol. 20 ruedas', vf(20), '#ffc542'), ln('Vol. 60 ruedas', vf(60), '#5cc8ff')]; note = 'Volatilidad anualizada: desvío de los retornos logarítmicos diarios × √252.';
+    } else if (k === 'z') {
+      var z = roll(50, function (a, b) { var x = cs.slice(a, b + 1), m = x.reduce(function (s, y) { return s + y; }, 0) / x.length, d = sd(x); return d ? (cs[b] - m) / d : null; });
+      ds = [ln('Desvíos contra la media de 50', z, css('--ac') || '#5cc8ff', { fill: { target: 'origin', above: 'rgba(52,211,153,.12)', below: 'rgba(255,107,139,.12)' } }), ln('+2', z.map(function () { return 2; }), '#94a3b8', { borderDash: [4, 4], borderWidth: 1 }), ln('−2', z.map(function () { return -2; }), '#94a3b8', { borderDash: [4, 4], borderWidth: 1 })]; u = '';
+      note = 'Cuántos desvíos está el precio por encima o por debajo de su media de 50 ruedas (como las bandas de Bollinger). Arriba de +2 o abajo de −2 es un extremo. Hoy: ' + nf(z[z.length - 1], 2) + '.';
+    } else if (k === 'dd') {
+      var mx = 0, dd = cs.map(function (c) { mx = Math.max(mx, c); return (c / mx - 1) * 100; }).slice(off);
+      ds = [ln('Caída desde el máximo', dd, '#ff6b8b', { fill: { target: 'origin', below: 'rgba(255,107,139,.15)' } })]; note = 'Distancia al máximo anterior (en el tramo de datos cargado), en %.';
+    } else if (k === 'beta') {
+      var I = idx(), ir = wx.map(function (x, i) { return i && I[x[0]] && I[wx[i - 1][0]] ? Math.log(I[x[0]] / I[wx[i - 1][0]]) : null; });
+      var bt = roll(120, function (a, b) { var X = [], Y = []; for (var i = a; i <= b; i++) if (lr[i] != null && ir[i] != null) { X.push(ir[i]); Y.push(lr[i]); } if (X.length < 60) return null; var mx = X.reduce(function (s, v) { return s + v; }, 0) / X.length, my = Y.reduce(function (s, v) { return s + v; }, 0) / Y.length, cv = 0, vx = 0, vy = 0; X.forEach(function (x, i) { cv += (x - mx) * (Y[i] - my); vx += (x - mx) * (x - mx); vy += (Y[i] - my) * (Y[i] - my); }); return [cv / vx, cv / Math.sqrt(vx * vy)]; });
+      ds = [ln('Beta', bt.map(function (x) { return x ? x[0] : null; }), '#ffc542'), ln('Correlación', bt.map(function (x) { return x ? x[1] : null; }), '#5cc8ff')]; u = '';
+      note = 'Beta y correlación de los retornos diarios contra el panel líder, en ventanas móviles de 120 ruedas.';
+    } else if (k === 'v') {
+      var vv = w.map(function (x) { return x[2]; }), v20 = sma(wx.map(function (x) { return x[2] || 0; }), 20).slice(off);
+      ds = [{ type: 'bar', label: 'Volumen', data: vv, backgroundColor: 'rgba(92,200,255,.55)', barPercentage: 1, categoryPercentage: 1 }, ln('Promedio 20 ruedas', v20, '#ffc542')]; u = 'v';
+      note = 'Volumen diario en la unidad de data912.';
+    } else if (k === 'rat') {
+      var Rs = (RT.t[t] || {}).serie || [], RM = {}; Rs.forEach(function (x) { RM[x[0]] = x; });
+      var col = function (i) { return w.map(function (x) { var r = RM[x[0]]; return r ? r[i] : null; }); };
+      ds = [ln('P/E', col(1), '#ffc542'), ln('P/VL', col(2), '#5cc8ff'), ln('EV/EBITDA', col(3), '#a3e635')]; u = '';
+      note = Rs.length ? 'Precio de cada día contra el último balance publicado a esa fecha (TTM).' : 'Esta acción todavía no tiene balances cargados: por ahora hay ratios del panel líder.';
+    }
+    o.plugins.tooltip.callbacks = { label: function (c) { var y = c.parsed.y; return c.dataset.label + ': ' + (u === 'v' ? big(y) : nf(y, 2) + u); } };
+    if (u === 'v') o.scales.y.ticks.callback = function (v) { return big(v); };
+    mk('accCv2', { type: 'line', data: { labels: lab, datasets: ds }, options: o });
+    $('accFn').textContent = note;
+  }
+
+  /* ---------- sectores ---------- */
+  var med = function (a) { a = a.filter(function (x) { return x != null && isFinite(x); }).sort(function (x, y) { return x - y; }); if (!a.length) return null; var h = a.length >> 1; return a.length % 2 ? a[h] : (a[h - 1] + a[h]) / 2; };
+  function sectors() {
+    if (!MT) return; var k = ST.sp, rs = [];
+    SEC.forEach(function (s) {
+      var ts = IX.filter(function (x) { return secOf(x.t) === s[0]; }).map(function (x) { return x.t; }), M = ts.map(function (t) { return (MT.t[t] || {})[ST.mon] || {}; }), Rr = ts.map(function (t) { return (RT.t[t] || {}).ultimo || {}; });
+      var rr = M.map(function (a) { return (a.ret || {})[k]; }).filter(function (x) { return x != null; });
+      rs.push({ s: s, n: ts.length, r: rr.length ? rr.reduce(function (a, b) { return a + b; }, 0) / rr.length : null, best: ts.map(function (t, i) { return [t, (M[i].ret || {})[k]]; }).filter(function (x) { return x[1] != null; }).sort(function (a, b) { return b[1] - a[1]; })[0],
+        vol: med(M.map(function (a) { return (a.vol || {})['252']; })), beta: med(M.map(function (a) { return a.beta; })), pe: med(Rr.map(function (r) { return r.pe > 0 ? r.pe : null; })), pvl: med(Rr.map(function (r) { return r.pvl; })), dd: med(M.map(function (a) { return a.dd_max; })) });
+    });
+    rs.sort(function (a, b) { return (b.r == null ? -9 : b.r) - (a.r == null ? -9 : a.r); });
+    var o = base(); o.indexAxis = 'y'; o.plugins.legend.display = false; o.interaction = { mode: 'nearest', intersect: true };
+    o.plugins.tooltip.callbacks = { label: function (c) { var x = rs[c.dataIndex]; return [nf(c.parsed.x, 1) + '% (promedio de ' + x.n + ' acciones)', x.best ? 'la mejor: ' + x.best[0] + ' ' + pc(x.best[1]) : '']; } };
+    o.scales.x.ticks.callback = function (v) { return v + '%'; }; o.scales.x.grid = { color: css('--bd') }; o.scales.y.grid = { display: false };
+    mk('accScv', { type: 'bar', data: { labels: rs.map(function (x) { return x.s[1]; }), datasets: [{ data: rs.map(function (x) { return x.r == null ? null : x.r * 100; }), backgroundColor: rs.map(function (x) { return x.s[2]; }), borderRadius: 4 }] }, options: o });
+    $('accStab').innerHTML = '<thead><tr><th class="l">Sector</th><th>Acciones</th><th>Vol. 1 año</th><th>Beta</th><th>Desde máx.</th><th>P/E</th><th>P/VL</th></tr></thead><tbody>' +
+      rs.map(function (x) { return '<tr data-sec="' + x.s[0] + '"><td><i class="sd" style="background:' + x.s[2] + '"></i>' + x.s[1] + '</td><td>' + x.n + '</td><td>' + pc(x.vol, 0).replace('+', '') + '</td><td>' + nf(x.beta, 2) + '</td><td' + cl(x.dd) + '>' + pc(x.dd, 0) + '</td><td>' + nf(x.pe, 1) + '</td><td>' + nf(x.pvl, 2) + '</td></tr>'; }).join('') + '</tbody>';
+    ratioSec();
+  }
+  $('accStab').onclick = function (e) { var tr = e.target.closest('tr[data-sec]'); if (!tr) return; ST.sf = tr.getAttribute('data-sec'); ST.pn = 'all'; $('accSf').value = ST.sf; save(); segOn(); table(); $('accT').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  var SX = {};
+  function secIdx(sk) { // índice del sector: promedio simple de los retornos logarítmicos diarios de sus acciones, en la moneda elegida
+    var key = sk + ST.mon; if (SX[key]) return SX[key];
+    if (sk === 'lider') { var il = MT.indice_lider[ST.mon] || []; return SX[key] = Promise.resolve(il.map(function (x) { return [x[0], x[1]]; })); }
+    var ts = IX.filter(function (x) { return secOf(x.t) === sk; }).map(function (x) { return x.t; });
+    return SX[key] = Promise.all(ts.map(function (t) { return file(t); })).then(function (fs) {
+      var R = {};
+      fs.forEach(function (r) { var p0 = null, d0 = null; r.forEach(function (x) { var c = x[4]; if (!(c > 0)) return; if (ST.mon === 'ccl') { if (!CCL[x[0]]) return; c /= CCL[x[0]]; } if (p0 && Math.abs(Math.log(c / p0)) < 0.5) (R[x[0]] = R[x[0]] || []).push(Math.log(c / p0)); p0 = c; d0 = x[0]; }); });
+      var ds = Object.keys(R).sort(), lv = 100;
+      return ds.map(function (d) { var a = R[d]; lv *= Math.exp(a.reduce(function (s, x) { return s + x; }, 0) / a.length); return [d, lv]; });
+    });
+  }
+  function ratioSec() {
+    if (!MT) return; var A = ST.sA, B = ST.sB, nA = A === 'lider' ? 'Panel líder' : SN[A], nB = B === 'lider' ? 'Panel líder' : SN[B];
+    Promise.all([secIdx(A), secIdx(B)]).then(function (r) {
+      var MB = {}; r[1].forEach(function (x) { MB[x[0]] = x[1]; }); var c = r[0].filter(function (x) { return MB[x[0]]; });
+      var n = Math.min(c.length, PN[ST.sper] || 252); c = c.slice(-n); if (!c.length) return;
+      var a0 = c[0][1], b0 = MB[c[0][0]], ia = c.map(function (x) { return x[1] / a0 * 100; }), ib = c.map(function (x) { return MB[x[0]] / b0 * 100; }), rt = ia.map(function (x, i) { return x / ib[i] * 100; });
+      var o = base(); o.scales.y1 = { position: 'right', ticks: { color: css('--mu') }, grid: { display: false } };
+      o.plugins.tooltip.callbacks = { label: function (q) { return q.dataset.label + ': ' + nf(q.parsed.y, 1); } };
+      var cA = A === 'lider' ? '#94a3b8' : SC[A], cB = B === 'lider' ? '#94a3b8' : SC[B];
+      mk('accRcv', { type: 'line', data: { labels: c.map(function (x) { return fr(x[0]); }), datasets: [ln(nA + ' (base 100)', ia, cA, { borderWidth: 1.2 }), ln(nB + ' (base 100)', ib, cB, { borderWidth: 1.2 }), ln('Ratio ' + nA + ' / ' + nB + ' (eje derecho)', rt, css('--tx') || '#e5e7eb', { borderWidth: 2.2, yAxisID: 'y1' })] }, options: o });
+      var last = rt[rt.length - 1];
+      $('accSn').textContent = 'Índices por sector: promedio simple de los retornos diarios de sus acciones (se descartan saltos de más de 50% en una rueda, por splits). En el período, ' + nA + ' ' + (last >= 100 ? 'le ganó' : 'perdió') + ' contra ' + nB + ' por ' + nf(Math.abs(last - 100), 1) + ' puntos. Los sectores son una clasificación propia.';
+    });
+  }
+
+  /* ---------- riesgo contra retorno ---------- */
+  function scatter() {
+    if (!MT) return; var w = ST.rr, vk = w === '3m' ? '60' : '252', rk = w === '3m' ? '3m' : '1a', pts = {};
+    IX.forEach(function (x) { var a = (MT.t[x.t] || {})[ST.mon]; if (!a || !a.vol || a.vol[vk] == null || !a.ret || a.ret[rk] == null) return; var s = secOf(x.t); (pts[s] = pts[s] || []).push({ x: a.vol[vk] * 100, y: a.ret[rk] * 100, r: Math.max(3, Math.min(14, (a.beta || .5) * 6)), t: x.t }); });
+    var o = base(); o.interaction = { mode: 'nearest', intersect: true };
+    o.scales.x = { type: 'linear', title: { display: true, text: 'Volatilidad anualizada (%)', color: css('--mu') }, ticks: { color: css('--mu') }, grid: { color: css('--bd') } };
+    o.scales.y.title = { display: true, text: 'Retorno ' + (rk === '3m' ? '3 meses' : '1 año') + ' (%)', color: css('--mu') };
+    o.plugins.tooltip.callbacks = { label: function (c) { var p = c.raw; return p.t + ': retorno ' + sg(p.y, 1) + '%, vol. ' + nf(p.x, 0) + '%'; } };
+    o.onClick = function (e, el) { if (el && el[0]) { var p = CH.accRrc.data.datasets[el[0].datasetIndex].data[el[0].index]; pick(p.t, 0, 1); } };
+    mk('accRrc', { type: 'bubble', data: { datasets: SEC.filter(function (s) { return pts[s[0]]; }).map(function (s) { return { label: s[1], data: pts[s[0]], backgroundColor: s[2] + 'aa', borderColor: s[2] }; }) }, options: o });
+  }
+
+  /* ---------- valuación contra rentabilidad (ROE vs. P/VL y otros), con el precio en vivo ---------- */
+  if (!ST.vg) { ST.vg = 'ban'; ST.vx = 'pvl'; ST.vy = 'roe'; }
+  $('accVg').value = ST.vg; $('accVx').value = ST.vx; $('accVy').value = ST.vy;
+  ['accVg', 'accVx', 'accVy'].forEach(function (id) { $(id).onchange = function () { ST[{ accVg: 'vg', accVx: 'vx', accVy: 'vy' }[id]] = this.value; save(); valua(); }; });
+  if (ST.vg === 'ban' && ST.vx === 'ev') ST.vx = 'pvl';
+  var LBL = { id: 'accLbl', afterDatasetsDraw: function (ch) { var c = ch.ctx; c.save(); c.font = '600 11.5px system-ui,sans-serif'; c.fillStyle = css('--tx') || '#ddd'; c.textAlign = 'center'; ch.data.datasets.forEach(function (d, i) { if (d.type === 'line') return; ch.getDatasetMeta(i).data.forEach(function (p, k) { var t = d.data[k] && d.data[k].t; if (t) c.fillText(t, p.x, p.y - 9); }); }); c.restore(); } };
+  function valua() {
+    if (!MT) return; var g = ST.vg, xk = ST.vx, yk = ST.vy, XN = { pvl: 'Precio / valor libro', pe: 'P/E', ev: 'EV / EBITDA' }, YN = { roe: 'ROE', me: 'Margen EBITDA', mn: 'Margen neto' };
+    if (g === 'ban' && (xk === 'ev' || yk !== 'roe')) { xk = xk === 'ev' ? 'pvl' : xk; yk = 'roe'; }
+    var P = [];
+    IX.forEach(function (x) {
+      var s = secOf(x.t); if (g === 'ban' ? s !== 'ban' : g === 'nof' ? s === 'ban' : g !== 'all' && s !== g) return;
+      var R = (RT.t[x.t] || {}).ultimo; if (!R) return; var m = (MT.t[x.t] || {}).ars || {}, L = LV[x.t] || {};
+      var f = L.c > 0 && m.precio > 0 && m.fecha === R.d ? L.c / m.precio : 1; // el ratio está al último cierre: lo llevo al precio de ahora
+      var xv = { pvl: R.pvl, pe: R.pe, ev: R.ev_ebitda }[xk], yv = { roe: R.roe, me: R.margen_ebitda, mn: R.margen_neto }[yk];
+      if (xv == null || yv == null || !(xv > 0) || xv > 80) return;
+      if (xk !== 'ev') xv *= f; else if (R.capitalizacion) xv = xv; // EV/EBITDA: sin ajustar (la deuda no cambia con el precio)
+      P.push({ x: xv, y: yv * 100, t: x.t, s: s, f: f });
+    });
+    var n = P.length, mx = 0, my = 0; P.forEach(function (p) { mx += p.x / n; my += p.y / n; });
+    var sxy = 0, sxx = 0, syy = 0; P.forEach(function (p) { sxy += (p.x - mx) * (p.y - my); sxx += (p.x - mx) * (p.x - mx); syy += (p.y - my) * (p.y - my); });
+    var b = sxx ? sxy / sxx : 0, a = my - b * mx, r2 = sxx && syy ? sxy * sxy / (sxx * syy) : null, xs = P.map(function (p) { return p.x; }), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+    var o = base(); o.interaction = { mode: 'nearest', intersect: true }; o.plugins.legend.display = false;
+    o.scales.x = { type: 'linear', title: { display: true, text: XN[xk], color: css('--mu') }, ticks: { color: css('--mu') }, grid: { color: css('--bd') } };
+    o.scales.y.title = { display: true, text: YN[yk] + ' (%)', color: css('--mu') }; o.scales.y.ticks.callback = function (v) { return v + '%'; };
+    o.plugins.tooltip.callbacks = { label: function (c) { var p = c.raw; return p.t ? p.t + ': ' + XN[xk] + ' ' + nf(p.x, 2) + ' · ' + YN[yk] + ' ' + nf(p.y, 1) + '%' : ''; } };
+    o.onClick = function (e, el) { if (el && el[0] && P[el[0].index] && el[0].datasetIndex === 0) pick(P[el[0].index].t, 0, 1); };
+    var ds = [{ type: 'scatter', data: P, pointRadius: 6, pointHoverRadius: 8, backgroundColor: P.map(function (p) { return SC[p.s]; }) }];
+    if (n >= 3) ds.push({ type: 'line', data: [{ x: x0, y: a + b * x0 }, { x: x1, y: a + b * x1 }], borderColor: css('--ac') || '#5cc8ff', borderWidth: 1.6, pointRadius: 0, borderDash: [6, 4] });
+    mk('accVc', { type: 'scatter', data: { datasets: ds }, options: o, plugins: [LBL] });
+    // múltiplo "justo" según la recta (x = (y - a) / b) y cuánto le falta o le sobra al precio
+    var T = P.map(function (p) { var fx = b ? (p.y - a) / b : null; return { p: p, fx: fx > 0 ? fx : null, up: fx > 0 ? fx / p.x - 1 : null }; }).sort(function (u, v) { return (v.up == null ? -9 : v.up) - (u.up == null ? -9 : u.up); });
+    $('accVt').innerHTML = '<thead><tr><th>Acción</th><th class="l">Sector</th><th>' + XN[xk] + '</th><th>' + YN[yk] + '</th><th>Múltiplo según la recta</th><th>Potencial</th></tr></thead><tbody>' +
+      T.map(function (r) { return '<tr data-t="' + r.p.t + '"><td>' + r.p.t + '</td><td class="l"><i class="sd" style="background:' + SC[r.p.s] + '"></i>' + SN[r.p.s] + '</td><td>' + nf(r.p.x, 2) + '</td><td>' + nf(r.p.y, 1) + '%</td><td>' + nf(r.fx, 2) + '</td><td' + cl(r.up) + '>' + pc(r.up, 0) + '</td></tr>'; }).join('') + '</tbody>';
+    $('accVs').textContent = n + ' acciones · ' + YN[yk] + ' = ' + nf(a, 1) + (b >= 0 ? ' + ' : ' − ') + nf(Math.abs(b), 2) + ' × ' + XN[xk] + (r2 != null ? ' · R² ' + nf(r2, 2) : '');
+    $('accVn').textContent = 'Rentabilidad y múltiplos con el último balance de la CNV (últimos 12 meses). P/VL y P/E con el precio en vivo; EV/EBITDA al último cierre. El potencial es lo que tendría que subir (o bajar) el precio para quedar sobre la recta: una referencia, no una recomendación. Por ahora hay balances del panel líder.';
+  }
+  $('accVt').onclick = function (e) { var tr = e.target.closest('tr[data-t]'); if (tr) pick(tr.getAttribute('data-t'), 0, 1); };
+
+  /* ---------- ADRs ---------- */
+  function adrs() {
+    if (!MT) return; var rows = [], cc = cclNow();
+    ADRS.forEach(function (x) {
+      var L = LV[x[0]] || {}, A = LA[x[1]] || {}, m = (MT.t[x[0]] || {}).ars || {}, loc = L.c > 0 ? L.c : m.precio, k = x[2];
+      if (cc && loc > 0 && A.c > 0) { var kk = A.c * cc / loc; if (Math.abs(Math.log(kk / k)) > 0.5 && kk >= 0.5) k = Math.round(kk); } // si la acción tuvo un split y el ratio cambió, lo deduzco del CCL
+      var imp = loc > 0 && A.c > 0 ? loc * k / A.c : null;
+      rows.push({ t: x[0], a: x[1], k: k, k0: k !== x[2], pa: A.c, va: A.pct, pl: loc, vl: L.pct, imp: imp, vu: A.v });
+    });
+    var ok = rows.filter(function (r) { return r.imp; }), mi = med(ok.map(function (r) { return r.imp; }));
+    $('accAk').innerHTML = '<div><small>CCL de los ADRs (mediana)</small><b>' + (mi ? '$ ' + nf(mi, 2) : '—') + '</b><span>' + ok.length + ' de ' + rows.length + ' ADRs con precio</span></div>' +
+      '<div><small>CCL de AL30 (último cierre)</small><b>' + (cc ? '$ ' + nf(cc, 2) : '—') + '</b><span>' + (mi && cc ? 'brecha ADR vs. AL30: ' + sg((mi / cc - 1) * 100, 2) + '%' : '') + '</span></div>' +
+      '<div><small>ADRs, promedio del día</small><b' + cl(med(ok.map(function (r) { return r.va; }))) + '>' + (ok.length ? sg(med(ok.map(function (r) { return r.va; })), 2) + '%' : '—') + '</b><span>mediana, en dólares</span></div>';
+    $('accAtab').innerHTML = '<thead><tr><th>Local</th><th class="l">ADR</th><th>Ratio</th><th>ADR (US$)</th><th>Var. ADR</th><th>Local ($)</th><th>Var. local</th><th>CCL implícito</th><th>vs. mediana</th>' + (cc ? '<th>vs. AL30</th>' : '') + '</tr></thead><tbody>' +
+      rows.map(function (r) { return '<tr data-t="' + r.t + '"><td>' + r.t + '</td><td class="l">' + r.a + '</td><td' + (r.k0 ? ' title="Ratio deducido del precio: no coincide con el registrado"' : '') + '>' + r.k + ':1' + (r.k0 ? '*' : '') + '</td><td>' + nf(r.pa, 2) + '</td><td' + cl(r.va) + '>' + (r.va != null ? sg(r.va, 2) + '%' : '—') + '</td><td>' + nf(r.pl, 2) + '</td><td' + cl(r.vl) + '>' + (r.vl != null ? sg(r.vl, 2) + '%' : '—') + '</td><td>' + (r.imp ? nf(r.imp, 2) : '—') + '</td><td' + cl(r.imp && mi ? r.imp / mi - 1 : null) + '>' + (r.imp && mi ? sg((r.imp / mi - 1) * 100, 2) + '%' : '—') + '</td>' + (cc ? '<td>' + (r.imp ? sg((r.imp / cc - 1) * 100, 2) + '%' : '—') + '</td>' : '') + '</tr>'; }).join('') + '</tbody>';
+    $('accAn').textContent = 'CCL implícito = precio local × acciones por ADR / precio del ADR. Si una acción tiene el CCL más alto que la mediana, está más cara en Buenos Aires que en Nueva York (conviene comprar el ADR); si lo tiene más bajo, más barata. Precios en vivo de data912 (usa_adrs y arg_stocks); fuera de horario, el último precio.';
+  }
+  $('accAtab').onclick = function (e) { var tr = e.target.closest('tr[data-t]'); if (tr) pick(tr.getAttribute('data-t'), 0, 1); };
+
+  function drawAll() { SX = {}; table(); ficha(); sectors(); scatter(); valua(); adrs(); }
+  function render() {
+    if (err) { $('accTs').textContent = err; return; }
+    load().then(function () { if (err) { $('accTs').textContent = err; return; } drawAll(); live().then(function () { table(); adrs(); valua(); ficha(); }); });
+  }
+  var _sw = window.switchTab; window.switchTab = function (id) { _sw(id); if (id === 'acc') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
+  /* para el buscador de arriba */
+  window.ACCQ = {
+    find: function (q) { if (!IX) { load(); return []; } q = String(q || '').toUpperCase(); var out = []; IX.forEach(function (x) { var s = x.t === q ? 0 : x.t.indexOf(q) === 0 ? 1 : -1; if (s < 0) ADRS.forEach(function (a) { if (a[0] === x.t && a[1].indexOf(q) === 0) s = 1; }); if (s >= 0) { var m = (MT.t[x.t] || {}).ars || {}, L = LV[x.t] || {}; out.push({ k: x.t, s: s, p: L.c > 0 ? L.c : m.precio, sec: SN[secOf(x.t)] }); } }); return out; },
+    open: function (t) { ST.sel = t; save(); if (window.switchTab) window.switchTab('acc'); setTimeout(function () { load().then(function () { pick(t, 0, 1); }); }, 80); }
+  };
+  load();
 })();
 </script>
 </body>
