@@ -4830,10 +4830,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var tab = document.getElementById('vlRot'), sm = document.getElementById('vlRotS'), a0 = M.a0, nn = n - a0, r0 = Math.max(0, a0 - ST.ref), nr = a0 - r0, lo = Math.max(0, r0 - 60);
     var refTxt = ST.ref === 1 ? 'la rueda anterior' : 'las ' + ST.ref + ' ruedas anteriores', fr = function (s) { return s.split('-').reverse().join('/'); };
     fxLine(M, nr, r0, refTxt);
-    var B2 = [], G = 0, Gr = 0, NT = 0, NR = 0, C = {}, F = {}, K = {}, cols = BK.map(function (b) { return b[0]; }), ex30 = false, SHV = 0;
+    var B2 = [], G = 0, Gr = 0, NT = 0, NR = 0, C = {}, F = {}, K = {}, cols = BK.map(function (b) { return b[0]; }), ex30 = false, SHV = 0, OTV = 0, NAV = 0, A30V = 0;
     list.forEach(function (e) {
-      if (e.fam === 'oth') return; // provinciales y bonos viejos (Discount, Par): pesan muy poco
-      if (e.base === 'AL30' && !ST.al30) { ex30 = true; return; } // dólar MEP y CCL: va en la línea del dólar
+      if (e.fam === 'oth') { for (var j0 = a0; j0 < n; j0++) OTV += e.M[j0]; return; } // provinciales y bonos viejos (Discount, Par): pesan muy poco
+      if (e.base === 'AL30' && !ST.al30) { ex30 = true; for (var j1 = a0; j1 < n; j1++) A30V += e.M[j1]; return; } // dólar MEP y CCL: va en la línea del dólar
       var mt = matOf(e), sh = function (i) { return mt != null && DN && mt - DN[i] < 30; }; // a menos de 30 días del vencimiento opera como efectivo: su precio casi no se mueve y cualquier centavo, con su volumen, parecería un flujo enorme
       var now = 0, ref = 0, i; for (i = a0; i < n; i++) { if (sh(i)) SHV += e.M[i]; else now += e.M[i]; } for (i = r0; i < a0; i++) if (!sh(i)) ref += e.M[i];
       if (!(now > 0)) return;
@@ -4851,7 +4851,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       B2.push({ e: e, now: now, ref: ref, net: net, rnet: rnet, bk: bk, px: pn ? px : null, z: pn && zs ? zs / Math.sqrt(pn) : null });
     });
     var na = B2.filter(function (x) { return x.bk === 'na'; }).reduce(function (a, x) { return a + x.now; }, 0), all = B2.reduce(function (a, x) { return a + x.now; }, 0);
-    if (na < 0.002 * all) B2 = B2.filter(function (x) { return x.bk !== 'na'; }); // especies sueltas sin vencimiento cargado que casi no operan: no hacen una columna
+    if (na < 0.002 * all) { NAV = na; B2 = B2.filter(function (x) { return x.bk !== 'na'; }); } // especies sueltas sin vencimiento cargado que casi no operan: no hacen una columna
     B2.forEach(function (x) { G += x.now; Gr += x.ref; NT += x.net; NR += x.rnet; [[C, x.e.fam + '|' + x.bk], [F, x.e.fam], [K, x.bk]].forEach(function (q) { var o = q[0][q[1]] || (q[0][q[1]] = { now: 0, ref: 0, net: 0, rnet: 0 }); o.now += x.now; o.ref += x.ref; o.net += x.net; o.rnet += x.rnet; }); });
     if (!(G > 0)) { tab.innerHTML = ''; sm.textContent = 'No hubo operaciones en el período con estos filtros.'; return; }
     if (K.na) cols.push('na');
@@ -4895,6 +4895,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     // bonos con más compra y más venta neta (el detalle va en las barras)
     var big = Math.max.apply(null, B2.map(function (x) { return Math.abs(x.net); })) || 1;
     var g = B2.filter(function (x) { return x.net > 0.02 * big; }).sort(function (a, b) { return b.net - a.net; }).slice(0, 8), l = B2.filter(function (x) { return x.net < -0.02 * big; }).sort(function (a, b) { return a.net - b.net; }).slice(0, 8).reverse(), bars = g.concat(l);
+    var exP = []; if (A30V > 0) exP.push(mon(A30V / nn) + ' de AL30 (va en la línea del dólar; se suma con «Incluir AL30»)'); if (SHV > 0) exP.push(mon(SHV / nn) + ' de bonos a menos de 30 días del vencimiento (operan como efectivo: su precio casi no se mueve)'); if (OTV + NAV > 0) exP.push(mon((OTV + NAV) / nn) + ' de otros (provinciales, bonos viejos y especies sin vencimiento cargado)');
+    if (exP.length) txt += ' No entran' + (nn > 1 ? ', por rueda,' : '') + ' ' + yjo(exP) + ': por eso este total es menor que el de arriba.';
     sm.textContent = txt + (ST.live && LIVEN ? (liveOpen() ? ' Incluye la rueda de hoy, en curso.' : ' Incluye la rueda de hoy.') : '');
     var cv4 = document.getElementById('vlCh4'), pre = function (x) { return nr > 0 && x.ref > 0 ? x.rnet / nr * nn : null; }, hasPre = bars.some(function (x) { return pre(x) != null; }); // el neto de antes de cada bono, llevado a las ruedas del período
     cv4.parentElement.style.height = hasPre ? '480px' : '440px';
@@ -8207,7 +8209,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     tfut: P('<path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>'),
     sint: P('<circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/>'),
     brc: P('<path d="M7 7h11l-3-3M17 17H6l3 3"/>'),
-    ons: P('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>'),
+    ons: P('<path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M15 9h3a2 2 0 0 1 2 2v10M2 21h20M8 7h3M8 11h3M8 15h3"/>'), // un edificio: deuda de empresas
     onsf: P('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
     lic: P('<path d="M14 3 21 10M11 6l7 7M4 21l7-7M8 10l6 6M12.5 4.5l7 7-3 3-7-7z"/>'),
     menu: P('<path d="M4 6h16M4 12h16M4 18h16"/>'),
