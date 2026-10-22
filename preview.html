@@ -9553,7 +9553,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var isAct = function () { return root.classList.contains('active'); };
   var dlb = function (id, name) { return '<button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'' + id + '\', \'' + name + '\')" title="Descargar en HD"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>'; };
   var TIPOS = [['usd', 'Hard dollar'], ['dl', 'Dollar linked'], ['tamar', 'TAMAR'], ['badlar', 'BADLAR'], ['cer', 'CER'], ['fija', 'Tasa fija']], TN = {}; TIPOS.forEach(function (t) { TN[t[0]] = t[1]; });
-  var KEY = 'onsSt1', ST = { tp: 'usd', sp: 'D', liq: 'op', ax: 'mdd', q: '', sort: 'v', dir: -1 };
+  var spG = function () { var b = document.getElementById('bccl'); return b && b.classList.contains('on') ? 'C' : 'D'; }; // especie: la del selector MEP / Cable de arriba
+  var KEY = 'onsSt1', ST = { tp: 'usd', liq: 'op', ax: 'mdd', q: '', sort: 'v', dir: -1 };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
   var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
   var J = null, C = null, LV = {}, lvT = null, CH = null, ROWS = [];
@@ -9567,7 +9568,6 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     '</style>' +
     '<div class="card sx" id="onsC"><div class="sxh"><div style="min-width:0"><p class="qh">Obligaciones negociables</p><p class="qs" id="onsSub">Curva y tabla de las ONs vigentes, con el precio en vivo.</p></div><div class="sxb">' + dlb('onsC', 'Bonerio_ONs_curva') + '</div></div>' +
     '<div class="ctl"><label>Tipo<select id="onsTp">' + TIPOS.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
-    '<label id="onsSpL">Especie<select id="onsSp"><option value="D">MEP (D)</option><option value="C">Cable (C)</option></select></label>' +
     '<label>Liquidez<select id="onsLiq"><option value="op">Operaron en la última rueda</option><option value="all">Todas con precio</option></select></label>' +
     '<label id="onsAxL">Eje X<select id="onsAx"><option value="mdd">Duración modificada (días)</option><option value="md">Duración modificada (años)</option><option value="plazo">Plazo (días)</option></select></label>' +
     '<label>Buscar<input type="search" id="onsQ" placeholder="YMC, TLC, VSC…"></label></div>' +
@@ -9576,8 +9576,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     '<div class="card sx" id="onsT" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Tabla de ONs</p><p class="qs" id="onsTs">Tocá un encabezado para ordenar.</p></div><div class="sxb">' + dlb('onsT', 'Bonerio_ONs_tabla') + '</div></div>' +
     '<div class="tw"><table id="onsTab"></table></div><p class="note" id="onsTn" style="margin-top:8px"></p></div>';
   var $ = function (id) { return document.getElementById(id); };
-  $('onsTp').value = ST.tp; $('onsSp').value = ST.sp; $('onsLiq').value = ST.liq; $('onsAx').value = ST.ax; $('onsQ').value = ST.q;
-  ['onsTp', 'onsSp', 'onsLiq', 'onsAx'].forEach(function (id) { $(id).onchange = function () { ST[{ onsTp: 'tp', onsSp: 'sp', onsLiq: 'liq', onsAx: 'ax' }[id]] = this.value; save(); draw(); }; });
+  $('onsTp').value = ST.tp; $('onsLiq').value = ST.liq; $('onsAx').value = ST.ax; $('onsQ').value = ST.q;
+  ['onsTp', 'onsLiq', 'onsAx'].forEach(function (id) { $(id).onchange = function () { ST[{ onsTp: 'tp', onsLiq: 'liq', onsAx: 'ax' }[id]] = this.value; save(); draw(); }; });
   $('onsQ').oninput = function () { ST.q = this.value; save(); draw(); };
   $('onsTab').onclick = function (e) { var th = e.target.closest('th[data-s]'); if (!th) return; var k = th.getAttribute('data-s'); if (ST.sort === k) ST.dir = -ST.dir; else { ST.sort = k; ST.dir = k === 'k' || k === 'mat' ? 1 : -1; } save(); table(); };
 
@@ -9594,9 +9594,9 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     if (!J) return [];
     var s = settle(), out = [], open = typeof mktStarted === 'function' ? mktStarted() : true;
     Object.keys(J.on).forEach(function (k) {
-      var o = J.on[k], usd = o.t === 'usd', sym = usd ? k + ST.sp : o.o, L = LV[sym], cl = C.px[sym], lvOk = L && L.c && open;
+      var o = J.on[k], usd = o.t === 'usd', sym = usd ? k + spG() : o.o, L = LV[sym], cl = C.px[sym], lvOk = L && L.c && open;
       var p = lvOk ? L.c : cl ? cl[0] : null, prev = cl ? cl[0] : null, ch = lvOk && L.pct != null ? L.pct : null;
-      var e = { k: k, sym: sym, t: o.t, mat: o.mat, r: o.r, res: o.res, p: p, ch: ch, v: lvOk ? L.v : cl ? cl[2] : 0, v20: cl ? cl[3] : null, n: lvOk ? L.n : null, live: !!lvOk, d: dn(o.mat) - s, bid: L && L.bid, ask: L && L.ask };
+      var e = { k: k, sym: sym, t: o.t, mat: o.mat, r: o.r, res: o.res, p: p, ch: ch, v: lvOk ? L.v * L.c / 100 : cl ? cl[2] : 0, v20: cl ? cl[3] : null, n: lvOk ? L.n : null, live: !!lvOk, d: dn(o.mat) - s, bid: L && L.bid, ask: L && L.ask };
       if (!(p > 0)) return;
       var fl = o.fl.map(function (f) { return [dn(f[0]), f[1], f[2]]; }).filter(function (f) { return f[0] > s; });
       if (usd && fl.length) {
@@ -9616,9 +9616,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   function draw() {
     if (!J) { load(); return; }
     ROWS = rows(); var R = ROWS.filter(vis), usd = ST.tp === 'usd';
-    $('onsSpL').style.display = usd ? '' : 'none';
     var lvN = R.filter(function (e) { return e.live; }).length;
-    $('onsSub').textContent = (usd ? 'ONs hard dollar en ' + (ST.sp === 'D' ? 'MEP (especie D)' : 'cable (especie C)') + ': TIR, duración y paridad con sus flujos y el precio de ' + (lvN ? 'ahora' : 'cierre') + '.' : 'ONs ' + TN[ST.tp] + ': precio en pesos y la TIR del último cierre (' + fr(C && C.d) + ').') + (lvT && lvN ? ' En vivo: ' + lvT.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) + '.' : '');
+    $('onsSub').textContent = (usd ? 'ONs hard dollar en ' + (spG() === 'D' ? 'MEP (especie D)' : 'cable (especie C)') + ': TIR, duración y paridad con sus flujos y el precio de ' + (lvN ? 'ahora' : 'cierre') + '.' : 'ONs ' + TN[ST.tp] + ': precio en pesos y la TIR del último cierre (' + fr(C && C.d) + ').') + (lvT && lvN ? ' En vivo: ' + lvT.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) + '.' : '');
     // indicadores
     var P = R.filter(function (e) { return e.tir != null && !e.odd && e.d >= 45 && xOf(e) > 0; }), med = function (a) { a = a.slice().sort(function (x, y) { return x - y; }); return a.length ? a[Math.floor(a.length / 2)] : null; };
     var tirs = P.map(function (e) { return e.tir; }), vt = R.reduce(function (a, e) { return a + (e.v || 0); }, 0), best = P.slice().sort(function (a, b) { return b.tir - a.tir; })[0];
@@ -9670,6 +9669,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var _sw = window.switchTab;
   window.switchTab = function (id) { _sw(id); if (id === 'ons') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; if (!J) load(); live(); setTimeout(draw, 60); } };
   var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(draw, 60); };
+  ['bmep', 'bccl'].forEach(function (id) { var b = document.getElementById(id); if (b) b.addEventListener('click', function () { if (isAct()) setTimeout(draw, 50); }); });
   setInterval(function () { if (isAct()) live(); }, 30000);
 })();
 </script>
