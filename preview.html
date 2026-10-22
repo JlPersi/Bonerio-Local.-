@@ -9568,7 +9568,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var KEY = 'onsSt1', ST = { tp: 'usd', liq: 'op', ax: 'mdd', vw: 'tir', q: '', sort: 'v', dir: -1 };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
   var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
-  var J = null, C = null, EM = {}, LV = {}, lvT = null, CH = null, CHF = null, CHE = null, ROWS = [], SEL = null, ldP = null;
+  var J = null, C = null, EM = {}, LV = {}, lvT = null, CH = null, CHF = null, CHE = null, CHS = null, ROWS = [], SEL = null, ldP = null;
   var j = function (u) { return fetch(u + '?v=' + Math.floor(Date.now() / 6e4), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
 
   root.innerHTML = '<style>' +
@@ -9589,6 +9589,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     '<label>Buscar<input type="search" id="onsQ" placeholder="YMC, YPF, Telecom…"></label></div>' +
     '<div class="kp" id="onsK"></div>' +
     '<div class="onsCw"><canvas id="onsCv"></canvas></div><p class="note" id="onsN" style="margin-top:8px"></p></div>' +
+    '<div class="card sx" id="onsSv" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Curva de ONs contra la curva soberana</p><p class="qs" id="onsSvS">Las dos curvas en dólares, con el spread entre ellas.</p></div><div class="sxb">' + dlb('onsSv', 'Bonerio_ONs_vs_soberanos') + '</div></div>' +
+    '<div class="kp" id="onsSvK"></div><div class="onsCw"><canvas id="onsSvC"></canvas></div><p class="note" id="onsSvN" style="margin-top:8px"></p></div>' +
     '<div class="card sx" id="onsF" style="margin-top:24px" hidden></div>' +
     '<div class="card sx" id="onsE" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Spread por empresa</p><p class="qs">Cuánto rinden por encima de los Globales las ONs hard dollar de cada empresa, a la misma duración. Tocá una empresa para filtrar.</p></div><div class="sxb">' + xlb('emp', 'Excel: la tabla de spread por empresa') + dlb('onsE', 'Bonerio_ONs_spread_empresa') + '</div></div>' +
     '<div style="position:relative;margin-top:14px" id="onsEw"><canvas id="onsEc"></canvas></div><div class="tw" style="max-height:420px"><table id="onsEt"></table></div><p class="note" id="onsEn" style="margin-top:8px"></p></div>' +
@@ -9688,7 +9690,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       (usd ? '<div><small>Spread mediano</small><b>' + (sprs.length ? sg(med(sprs), 0) + ' pb' : '—') + '</b><span>contra los Globales</span></div>' : '') +
       '<div><small>Mayor TIR</small><b>' + (best ? best.k : '—') + '</b><span>' + (best ? nf(best.tir * 100, 2) + '%' : '') + '</span></div>' +
       '<div><small>Monto operado</small><b>' + (vt ? (usd ? 'USD ' : '$ ') + nf(vt / 1e6, 1) + ' M' : '—') + '</b><span>' + (lvN ? 'en lo que va de hoy' : 'en el último cierre') + '</span></div>';
-    chart(P); byEm(); table(); ficha();
+    chart(P); chartSv(R); byEm(); table(); ficha();
   }
   function chart(P) {
     if (CH) { CH.destroy(); CH = null; } if (!window.Chart) return;
@@ -9717,6 +9719,36 @@ window.addEventListener('load', function(){ window.loadCloses(); });
         y: { title: { display: true, text: sp ? 'Spread contra los Globales (pb)' : ST.tp === 'usd' ? 'TIR en dólares (TEA, %)' : 'TIR del cierre (%)', color: mu }, ticks: { color: mu, callback: function (v) { return sp ? nf(v, 0) : nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
     var odd = ROWS.filter(function (e) { return vis(e) && e.odd; }).map(function (e) { return e.k; });
     $('onsN').textContent = (sp ? 'Spread = TIR de la ON menos la TIR de la curva de Globales (ajuste logarítmico, con el precio de ahora) a la misma duración modificada' + (sov() ? '; antes de ' + nf(sov().x0 / 365, 1) + ' años de duración, el más corto, y después de ' + nf(sov().x1 / 365, 1) + ', el más largo, la curva se toma plana' : '') + '. ' : '') + (fit && pts.length === 2 ? 'Con 2 ONs la curva logarítmica pasa por las dos. ' : fit ? 'Curva ' + fit.name.toLowerCase() + ' con las ONs del gráfico' + (nOut ? ' salvo ' + nOut + ' que se alejan más de 2 σ (no tiran la curva)' : '') + '; verde: rinde más que la curva (barata), rojo: menos (cara), blanco: sobre la curva (±¼ σ, σ = ' + nf(sd * k, 0) + ' pb). ' : 'Pocas ONs para ajustar una curva. ') + (odd.length ? 'Fuera del gráfico por precio o TIR fuera de escala: ' + odd.join(', ') + '. ' : '') + 'No se grafican las que vencen en menos de 45 días. Tocá un punto para ver la ficha. ' + 'Precios por 100 VN; data912 (en vivo) y BYMA (cierre).';
+  }
+  // curva de ONs (TIR) y curva de Globales en el mismo gráfico; el área entre las dos es el spread
+  function robFit(pts) {
+    var fo = function (q) { return q.length >= 2 ? window.curveFitUSD(q.map(function (p) { return { x: p.x, y: p.y }; }), 'log', 2) : null; }, f = fo(pts), n = 0;
+    if (f && pts.length >= 5) { var r = pts.map(function (p) { return p.y - f.f(p.x); }), sd = Math.sqrt(r.reduce(function (a, v) { return a + v * v; }, 0) / (r.length - 1)), core = pts.filter(function (p, i) { return Math.abs(r[i]) <= 2 * sd; }), f2 = fo(core); if (f2) { f = f2; n = pts.length - core.length; } }
+    return f ? { f: f.f, n: n } : null;
+  }
+  function chartSv(R) {
+    var box = $('onsSv'); if (CHS) { CHS.destroy(); CHS = null; }
+    var SV = sov(); if (ST.tp !== 'usd' || !SV || !window.Chart) { box.hidden = true; return; } box.hidden = false;
+    var mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), CO = '#f0abfc', CS = css('--c-usd') || '#b8e986';
+    var pts = R.filter(function (e) { return e.tir != null && !e.odd && e.d >= 45 && e.md > 0; }).map(function (e) { return { x: e.md * 365, y: e.tir * 100, k: e.k, e: e }; });
+    var fo = robFit(pts), sp = SV.pts.map(function (q) { return { x: q.x, y: q.y, k: q.k }; });
+    var xs = pts.map(function (p) { return p.x; }).concat(sp.map(function (p) { return p.x; })), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), G = [], O = [];
+    for (var i = 0; i <= 90; i++) { var x = x0 + (x1 - x0) * i / 90; G.push({ x: x, y: SV.f(x) }); if (fo) O.push({ x: x, y: fo.f(x) }); }
+    var sets = [
+      { type: 'scatter', label: 'ONs', data: pts, backgroundColor: CO, borderColor: CO, pointRadius: 4, hoverRadius: 7, order: 2 },
+      { type: 'scatter', label: 'Globales', data: sp, backgroundColor: CS, borderColor: CS, pointRadius: 6, pointStyle: 'rectRot', hoverRadius: 8, order: 2 },
+      { type: 'line', label: 'Curva soberana (Globales)', data: G, borderColor: CS, borderWidth: 2.5, pointRadius: 0, fill: false, order: 3 }];
+    if (fo) sets.push({ type: 'line', label: 'Curva de ONs' + (ST.em ? ' de ' + ST.em : ''), data: O, borderColor: CO, borderWidth: 2.5, pointRadius: 0, order: 3, fill: { target: 2, above: 'rgba(255,107,139,.13)', below: 'rgba(92,200,255,.13)' } });
+    var cy = G.concat(O).map(function (q) { return q.y; }), py = pts.map(function (q) { return q.y; }).concat(sp.map(function (q) { return q.y; })), ymn = Math.max(Math.min.apply(null, py), Math.min.apply(null, cy) - 4), ymx = Math.min(Math.max.apply(null, py), Math.max.apply(null, cy) + 4), nOff = pts.filter(function (q) { return q.y < ymn || q.y > ymx; }).length; // el eje sigue a las curvas: las ONs muy alejadas quedan afuera
+    var lab = { id: 'onsSvLab', afterDatasetsDraw: function (c) { var g = c.ctx; g.save(); g.font = '600 11px Inter, sans-serif'; g.textBaseline = 'middle'; [[1, sp, CS], [0, pts, tx]].forEach(function (z) { if (z[0] === 0 && pts.length > 30) return; var m = c.getDatasetMeta(z[0]); g.fillStyle = z[2]; m.data.forEach(function (el, i) { g.fillText(z[1][i].k, el.x + 8, el.y); }); }); g.restore(); } };
+    CHS = new Chart($('onsSvC').getContext('2d'), { data: { datasets: sets }, plugins: [lab], options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+      onClick: function (ev, els) { var el = els.filter(function (x) { return x.datasetIndex === 0; })[0]; if (el) pick(pts[el.index].k); },
+      plugins: { legend: { labels: { color: mu, boxWidth: 12, filter: function (it) { return it.datasetIndex >= 2; } } }, tooltip: { filter: function (it) { return it.datasetIndex <= 1; }, callbacks: { title: function (c) { var r = c[0].raw; return r.k + (r.e && r.e.em ? ' · ' + r.e.em : ''); }, label: function (c) { var r = c.raw; return ['TIR ' + nf(r.y, 2) + '% · MD ' + nf(r.x / 365, 2) + ' años', r.e && r.e.spr != null ? 'Spread contra los Globales: ' + sg(r.e.spr, 0) + ' pb' : '']; } } } },
+      scales: { x: { type: 'linear', title: { display: true, text: 'Duración modificada (días)', color: mu }, ticks: { color: mu }, grid: { color: bd } }, y: { min: Math.floor(ymn), max: Math.ceil(ymx), title: { display: true, text: 'TIR en dólares (TEA, %)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
+    var at = function (y) { var x = y * 365; return fo && x >= Math.min.apply(null, pts.map(function (p) { return p.x; })) && x <= Math.max.apply(null, pts.map(function (p) { return p.x; })) ? (fo.f(x) - SV.f(x)) * 100 : null; };
+    $('onsSvK').innerHTML = [1, 2, 3, 5].map(function (y) { var v = at(y); return '<div><small>Spread a ' + y + ' año' + (y > 1 ? 's' : '') + '</small><b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b><span>' + (v == null ? 'fuera del tramo de las ONs' : 'curva de ONs − curva soberana') + '</span></div>'; }).join('');
+    $('onsSvS').textContent = 'Curva de ' + (ST.em ? 'las ONs de ' + ST.em : 'las ONs hard dollar') + ' contra la de los Globales, las dos en ' + (spG() === 'D' ? 'MEP' : 'cable') + '; el área entre las dos es el spread.';
+    $('onsSvN').textContent = 'Las dos curvas son ajustes logarítmicos de TIR contra duración modificada' + (fo && fo.n ? '; la de ONs sin las ' + fo.n + ' que se alejan más de 2 σ' : '') + '. Rosa: las ONs rinden más que los Globales a esa duración; celeste: rinden menos. La curva soberana es plana antes del Global más corto (' + nf(SV.x0 / 365, 1) + ' años) y después del más largo (' + nf(SV.x1 / 365, 1) + ').' + (nOff ? ' ' + nOff + ' ON' + (nOff > 1 ? 's quedan' : ' queda') + ' fuera de la escala, lejos de las curvas (están en el gráfico de arriba).' : '') + ' Usa los mismos filtros de arriba (tipo, liquidez, empresa y búsqueda). Tocá una ON para ver su ficha.';
   }
   function byEm() {
     var box = $('onsE'); if (CHE) { CHE.destroy(); CHE = null; } if (ST.tp !== 'usd' || !sov()) { box.hidden = true; return; } box.hidden = false;
