@@ -8335,8 +8335,12 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       var dd = lastN(dl.d, 90), L = dd[dd.length - 1], Pv = dd[dd.length - 2], mp = function (x) { return x && x[1].mep && x[1].mep.AL30 && x[1].mep.AL30.close; }, cc = function (x) { return x && x[1].ccl && (x[1].ccl.vw || x[1].ccl.med); };
       var of = lastN(dl.A3500, 90), o1 = of.length ? of[of.length - 1][1] : null, o0 = of.length > 1 ? of[of.length - 2][1] : null;
       if (MAYD && MAYD.d > (of.length ? of[of.length - 1][0] : '') && (!L || MAYD.d >= L[0])) o1 = MAYD.v; // la brecha, contra el oficial de hoy
-      if (mp(L)) tile('mep', '$ ' + nf(mp(L), 2), chg(mp(L), mp(Pv)), o1 ? 'Brecha con el oficial: ' + nf((mp(L) / o1 - 1) * 100, 1) + '%' : '', dd.map(mp), '#5cc8ff');
-      if (cc(L)) tile('ccl', '$ ' + nf(cc(L), 2), chg(cc(L), cc(Pv)), mp(L) ? 'Canje con el MEP: ' + nf((cc(L) / mp(L) - 1) * 100, 1) + '%' : '', dd.map(cc), '#2fd4a7');
+      var q = window.PXQ || {}, qa = q.AL30, qd = q.AL30D, qc = q.AL30C, ok = function (x) { return x && x.c > 0; }, pv = function (x) { return x && x.pct != null && x.pct > -100 ? x.c / (1 + x.pct / 100) : null; };
+      var mN = mp(L), mP = mp(Pv), cN = cc(L), cP = cc(Pv); // en vivo (data912, cada 30 s): MEP = AL30 / AL30D y CCL = AL30 / AL30C, como en la pestaña Dólar; contra el cierre anterior
+      if (ok(qa) && ok(qd)) { mN = qa.c / qd.c; mP = pv(qa) && pv(qd) ? pv(qa) / pv(qd) : mP; }
+      if (ok(qa) && ok(qc)) { cN = qa.c / qc.c; cP = pv(qa) && pv(qc) ? pv(qa) / pv(qc) : null; }
+      if (mN) tile('mep', '$ ' + nf(mN, 2), chg(mN, mP), o1 ? 'Brecha con el oficial: ' + nf((mN / o1 - 1) * 100, 1) + '%' : '', dd.map(mp).concat(mN !== mp(L) ? [mN] : []), '#5cc8ff');
+      if (cN) tile('ccl', '$ ' + nf(cN, 2), chg(cN, cP), mN ? 'Canje con el MEP: ' + nf((cN / mN - 1) * 100, 1) + '%' : '', dd.map(cc).concat(cN !== cc(L) ? [cN] : []), '#2fd4a7');
       var ofD = of.length ? of[of.length - 1][0] : '', ofs = 'Comunicación A3500 · ' + dmy(ofD);
       if (MAYD && MAYD.d > ofD && (!L || MAYD.d >= L[0])) { o0 = o1; o1 = MAYD.v; ofs = 'Mayorista del ' + dmy(MAYD.d) + ' · el A3500 de hoy lo publica el BCRA a la noche'; } // sin el A3500 de hoy: el mayorista en vivo (Ámbito)
       if (o1) tile('ofi', '$ ' + nf(o1, 2), chg(o1, o0), ofs, of.map(function (x) { return x[1]; }).concat(MAYD && MAYD.d > ofD ? [MAYD.v] : []), '#5cc8ff');
@@ -8428,6 +8432,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     }).catch(function () { });
   }
   may(); setInterval(may, 120000);
+  setInterval(function () { if (home.classList.contains('active')) tiles(); }, 30000); // MEP y CCL con el precio en vivo
   var tt = window.toggleTheme; if (typeof tt === 'function') window.toggleTheme = function () { var r = tt.apply(this, arguments); setTimeout(render, 0); return r; };
   ['bmep', 'bccl'].forEach(function (id) { var b = $(id); if (b) b.addEventListener('click', function () { setTimeout(drawUSD, 50); }); });
   document.addEventListener('rpdata', function () { if (DATA) render(); });
