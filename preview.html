@@ -668,6 +668,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('sint')">Sintéticos</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('brc')">Brecha y canje</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('ons')">Obligaciones negociables</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('onsf')">ONs: flujos y total return</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('thist')">Tasas históricas</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('expi')">Inflación implícita</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('expd')">Devaluación implícita</button>
@@ -836,6 +837,7 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="sint" class="tab-content"></div>
 <div id="brc" class="tab-content"></div>
 <div id="ons" class="tab-content"></div>
+<div id="onsf" class="tab-content"></div>
 <div id="bono" class="tab-content"></div>
 <div id="fav" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
@@ -7400,7 +7402,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
    - por sección (botón XLSX junto al de imagen), por pestaña o todo el libro
    ===================================================================== */
 ;(function () {
-  var TAB_NAMES = { brc: 'Brecha_canje', ons: 'ONs', tabla: 'Tabla_Retornos', desglose: 'Flujos_TotalReturn', curva: 'Curva_Spreads', pesos: 'Pesos', vard: 'Variacion_diaria', port: 'Portfolio', fav: 'Favoritos', rot: 'Rotacion', vol: 'Volumen', dol: 'Dolar' };
+  var TAB_NAMES = { brc: 'Brecha_canje', ons: 'ONs', onsf: 'ONs_flujos_total_return', tabla: 'Tabla_Retornos', desglose: 'Flujos_TotalReturn', curva: 'Curva_Spreads', pesos: 'Pesos', vard: 'Variacion_diaria', port: 'Portfolio', fav: 'Favoritos', rot: 'Rotacion', vol: 'Volumen', dol: 'Dolar' };
   var TABLE_NAMES = { pfAll: 'Portfolio_bonos', pfTab: 'Portfolio', pfKrT: 'Portfolio_KRD', pfStress: 'Portfolio_stress', pfGrpT: 'Portfolio_grupos', pfVarT: 'Portfolio_VaR', dxTab: 'Dolar_ruedas', dxVar: 'Dolar_variaciones', vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', vlRot: 'Volumen_flujo', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', psFwT1: 'Fija_tasas_implicitas', psFwT2: 'CER_tasas_implicitas', psFwT3: 'TAMAR_margen_implicito', psFwT4: 'DL_tasas_implicitas', psOptT: 'Duales_valor_opcion', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
 
   function parse(raw) {
@@ -8186,6 +8188,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     sint: P('<circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/>'),
     brc: P('<path d="M7 7h11l-3-3M17 17H6l3 3"/>'),
     ons: P('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>'),
+    onsf: P('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
     lic: P('<path d="M14 3 21 10M11 6l7 7M4 21l7-7M8 10l6 6M12.5 4.5l7 7-3 3-7-7z"/>'),
     menu: P('<path d="M4 6h16M4 12h16M4 18h16"/>'),
     col: P('<path d="m15 18-6-6 6-6"/>')
@@ -8208,6 +8211,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     sint: 'Dólar sintético (Lecap + compra de futuro) y Lecap sintética (dollar linked + venta de futuro), contra el bono del mismo plazo.',
     brc: 'Ratios de brecha y canje: MEP, CCL, futuros y oficial, contra su historia y con el nivel de entrada long y short.',
     ons: 'Obligaciones negociables: TIR, duración y paridad con el precio en vivo, y la curva de cada tipo.',
+    onsf: 'Flujo de fondos de cada ON hard dollar y su total return hasta la fecha de corte, separado en capital y cupones.',
     thist: 'La tasa de cada bono día por día y las forwards entre pares.',
     lic: 'El resultado de cada licitación del Tesoro y el próximo llamado.'
   };
@@ -8223,7 +8227,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var CAR = P('<path d="m9 6 6 6-6 6"/>').replace('<svg ', '<svg class="sn-car" '), has = function (id) { return id === 'home' || TB.some(function (t) { return t[0] === id; }); };
   var GR = [['home', 'Inicio'], ['dash', 'Dashboard'], ['port', 'Portfolio'], ['fav', 'Favoritos'], { g: 'usd', t: 'Bonos en dólares', ic: 'curva', it: [['curva', 'Globales y Bonares'], ['tabla', 'Tabla de retornos'], ['desglose', 'Flujos y total return', 'usd']] },
     { g: 'ars', t: 'Bonos en pesos', ic: 'pesos', it: [['pesos', 'Curva Pesos'], ['desglose', 'Flujos y total return', 'ars'], ['lic', 'Licitaciones']] },
-    { g: 'mkt', t: 'Mercado del día', ic: 'vard', it: [['vard', 'Variación diaria'], ['vol', 'Volumen'], ['rot', 'Rotación']] }, ['dol', 'Dólar'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['brc', 'Brecha y canje'], { g: 'ons', t: 'Obligaciones negociables', ic: 'ons', it: [['ons', 'Curva y tabla']] },
+    { g: 'mkt', t: 'Mercado del día', ic: 'vard', it: [['vard', 'Variación diaria'], ['vol', 'Volumen'], ['rot', 'Rotación']] }, ['dol', 'Dólar'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['brc', 'Brecha y canje'], { g: 'ons', t: 'Obligaciones negociables', ic: 'ons', it: [['ons', 'Curva y tabla'], ['onsf', 'Flujos y total return']] },
     { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards']] },
     { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, ['cons', 'Consultame']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
@@ -9564,7 +9568,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var KEY = 'onsSt1', ST = { tp: 'usd', liq: 'op', ax: 'mdd', vw: 'tir', q: '', sort: 'v', dir: -1 };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
   var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
-  var J = null, C = null, EM = {}, LV = {}, lvT = null, CH = null, CHF = null, ROWS = [], SEL = null, ldP = null;
+  var J = null, C = null, EM = {}, LV = {}, lvT = null, CH = null, CHF = null, CHE = null, ROWS = [], SEL = null, ldP = null;
   var j = function (u) { return fetch(u + '?v=' + Math.floor(Date.now() / 6e4), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
 
   root.innerHTML = '<style>' +
@@ -9587,7 +9591,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     '<div class="onsCw"><canvas id="onsCv"></canvas></div><p class="note" id="onsN" style="margin-top:8px"></p></div>' +
     '<div class="card sx" id="onsF" style="margin-top:24px" hidden></div>' +
     '<div class="card sx" id="onsE" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Spread por empresa</p><p class="qs">Cuánto rinden por encima de los Globales las ONs hard dollar de cada empresa, a la misma duración. Tocá una empresa para filtrar.</p></div><div class="sxb">' + xlb('emp', 'Excel: la tabla de spread por empresa') + dlb('onsE', 'Bonerio_ONs_spread_empresa') + '</div></div>' +
-    '<div class="tw" style="max-height:420px"><table id="onsEt"></table></div><p class="note" id="onsEn" style="margin-top:8px"></p></div>' +
+    '<div style="position:relative;margin-top:14px" id="onsEw"><canvas id="onsEc"></canvas></div><div class="tw" style="max-height:420px"><table id="onsEt"></table></div><p class="note" id="onsEn" style="margin-top:8px"></p></div>' +
     '<div class="card sx" id="onsT" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Tabla de ONs</p><p class="qs" id="onsTs">Tocá un encabezado para ordenar y una fila para ver la ficha de la ON.</p></div><div class="sxb">' + xlb('tab', 'Excel: la tabla tal como se ve, con los filtros') + dlb('onsT', 'Bonerio_ONs_tabla') + '</div></div>' +
     '<div class="tw"><table id="onsTab"></table></div><p class="note" id="onsTn" style="margin-top:8px"></p></div>';
   var $ = function (id) { return document.getElementById(id); };
@@ -9605,7 +9609,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   function live() {
     return fetch('https://data912.com/live/arg_corp', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (rows) {
       if (!Array.isArray(rows)) return; var o = {}; rows.forEach(function (r) { if (r && r.symbol) o[r.symbol] = { c: r.c > 0 ? r.c : null, bid: r.px_bid > 0 ? r.px_bid : null, ask: r.px_ask > 0 ? r.px_ask : null, v: r.v > 0 ? r.v : 0, n: r.q_op > 0 ? r.q_op : 0, pct: typeof r.pct_change === 'number' ? r.pct_change : null }; });
-      LV = o; lvT = new Date(); if (isAct()) draw();
+      LV = o; lvT = new Date(); if (isAct()) draw(); else if (rootF && rootF.classList.contains('active')) drawF();
     }).catch(function () { });
   }
   function load() { if (!ldP) ldP = Promise.all([j('data/ons.json'), j('data/ons_cierre.json'), j('data/ons_emisores.json')]).then(function (r) { J = r[0]; C = r[1] || { px: {} }; EM = r[2] || {}; if (!J) ldP = null; else if (isAct()) draw(); }); return ldP; }
@@ -9715,12 +9719,19 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     $('onsN').textContent = (sp ? 'Spread = TIR de la ON menos la TIR de la curva de Globales (ajuste logarítmico, con el precio de ahora) a la misma duración modificada' + (sov() ? '; antes de ' + nf(sov().x0 / 365, 1) + ' años de duración, el más corto, y después de ' + nf(sov().x1 / 365, 1) + ', el más largo, la curva se toma plana' : '') + '. ' : '') + (fit && pts.length === 2 ? 'Con 2 ONs la curva logarítmica pasa por las dos. ' : fit ? 'Curva ' + fit.name.toLowerCase() + ' con las ONs del gráfico' + (nOut ? ' salvo ' + nOut + ' que se alejan más de 2 σ (no tiran la curva)' : '') + '; verde: rinde más que la curva (barata), rojo: menos (cara), blanco: sobre la curva (±¼ σ, σ = ' + nf(sd * k, 0) + ' pb). ' : 'Pocas ONs para ajustar una curva. ') + (odd.length ? 'Fuera del gráfico por precio o TIR fuera de escala: ' + odd.join(', ') + '. ' : '') + 'No se grafican las que vencen en menos de 45 días. Tocá un punto para ver la ficha. ' + 'Precios por 100 VN; data912 (en vivo) y BYMA (cierre).';
   }
   function byEm() {
-    var box = $('onsE'); if (ST.tp !== 'usd' || !sov()) { box.hidden = true; return; } box.hidden = false;
+    var box = $('onsE'); if (CHE) { CHE.destroy(); CHE = null; } if (ST.tp !== 'usd' || !sov()) { box.hidden = true; return; } box.hidden = false;
     var G = {}; ROWS.forEach(function (e) { if (e.t !== 'usd' || e.spr == null || e.d < 45 || !e.em || !(ST.liq === 'all' || e.v > 0)) return; (G[e.em] = G[e.em] || []).push(e); });
     var L = Object.keys(G).map(function (n) { var a = G[n]; return { n: n, c: a.length, s: med(a.map(function (e) { return e.spr; })), md: a.reduce(function (x, e) { return x + e.md; }, 0) / a.length, v: a.reduce(function (x, e) { return x + (e.v20 || 0); }, 0), lq: med(a.filter(function (e) { return e.lq != null; }).map(function (e) { return e.lq; })) }; }).sort(function (a, b) { return a.s - b.s; });
     $('onsEt').innerHTML = '<thead><tr><th class="l">Empresa</th><th>ONs</th><th>Spread mediano</th><th>MD promedio</th><th>Monto prom. 20 r.</th><th>Liquidez</th></tr></thead><tbody>' +
       L.map(function (g) { return '<tr data-em="' + esc(g.n) + '"' + (g.n === ST.em ? ' class="on"' : '') + '><td class="l"><b>' + esc(g.n) + '</b></td><td>' + g.c + '</td><td><b>' + sg(g.s, 0) + ' pb</b></td><td>' + nf(g.md, 2) + '</td><td>' + (g.v ? nf(g.v / 1e3, 0) + ' k' : '—') + '</td><td>' + lqTag(g.lq) + '</td></tr>'; }).join('') + '</tbody>';
-    $('onsEn').textContent = 'Spread mediano de las ONs de cada empresa' + (ST.liq === 'op' ? ' que operaron en la última rueda' : '') + ', en pb sobre la curva de Globales; de menor a mayor riesgo de crédito según el mercado. Monto en miles de dólares (suma de las ONs de la empresa). Liquidez: mediana del puntaje de sus ONs.';
+    if (window.Chart && L.length) { // barras horizontales: spread mediano por empresa, de menor a mayor
+      var mu = css('--mu'), bd = css('--bd'), tx = css('--tx'); $('onsEw').style.height = Math.max(220, 26 * L.length + 60) + 'px';
+      CHE = new Chart($('onsEc').getContext('2d'), { type: 'bar', data: { labels: L.map(function (g) { return g.n + ' (' + g.c + ')'; }), datasets: [{ label: 'Spread mediano (pb)', data: L.map(function (g) { return g.s; }), backgroundColor: L.map(function (g) { return g.n === ST.em ? '#f0abfc' : g.s >= 0 ? '#ff8fb3' : '#5cc8ff'; }), borderRadius: 3, maxBarThickness: 18 }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false, onClick: function (ev, els) { if (els[0]) { ST.em = L[els[0].index].n; save(); draw(); $('onsC').scrollIntoView({ behavior: 'smooth', block: 'start' }); } },
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { var g = L[c.dataIndex]; return ['Spread mediano: ' + sg(g.s, 0) + ' pb', g.c + ' ON' + (g.c > 1 ? 's' : '') + ' · MD promedio ' + nf(g.md, 2) + ' años']; } } } },
+          scales: { x: { title: { display: true, text: 'Spread contra los Globales (pb)', color: mu }, ticks: { color: mu }, grid: { color: bd } }, y: { ticks: { color: tx, autoSkip: false, font: { size: 11 } }, grid: { display: false } } } } });
+    }
+    $('onsEn').textContent = 'Spread mediano de las ONs de cada empresa' + (ST.liq === 'op' ? ' que operaron en la última rueda' : '') + ', en pb sobre la curva de Globales; de menor a mayor riesgo de crédito según el mercado (celeste: rinden menos que los Globales; rosa: más). Tocá una barra o una fila para filtrar por esa empresa. Monto en miles de dólares (suma de las ONs de la empresa). Liquidez: mediana del puntaje de sus ONs.';
   }
   function table() {
     var usd = ST.tp === 'usd', R = ROWS.filter(vis), k = ST.sort, d = ST.dir;
@@ -9746,6 +9757,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var usd = e.t === 'usd', ok = usd && e.tir != null && !e.odd, s = e.s, fl = e.fl || [], ccy = usd || e.t === 'dl' ? 'US$' : '$', mon = usd ? 'USD' : e.t === 'dl' ? 'USD (se paga en pesos al A3500)' : 'pesos';
     var kv = function (t, v, sub) { return '<div><small>' + t + '</small><b>' + v + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</div>'; };
     var h = '<div class="sxh"><div style="min-width:0"><p class="qh">' + e.k + ' <span class="mu" style="font-weight:500">' + e.sym + '</span>' + (e.em ? ' · ' + esc(e.em) : '') + '</p><p class="qs">ON ' + TN[e.t].toLowerCase() + (e.r != null ? ', cupón ' + nf(e.r, 2) + '%' : '') + ', emitida el ' + fr(e.iss) + ' y vence el ' + fr(e.mat) + '. Flujos en ' + mon + ' por 100 VN.</p></div><div class="sxb">' + xlb('fic', 'Excel: flujos y sensibilidad de esta ON') + dlb('onsF', 'Bonerio_ON_' + e.k) + '<button class="icon-btn" data-html2canvas-ignore="true" id="onsFx" title="Cerrar" style="flex:none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div>';
+    if (usd) h += '<p style="margin:10px 0 0"><button class="act" type="button" onclick="if(window.onsOpenF) window.onsOpenF(\'' + e.k + '\')">Ver flujo y total return de ' + e.k + ' →</button></p>';
     h += '<div class="fg">' + kv('Precio', nf(e.p, usd ? 2 : 0), e.live ? 'ahora' : 'cierre del ' + fr(C && C.d)) +
       kv('TIR', e.tir == null || e.odd ? '—' : nf(e.tir * 100, 2) + '%', usd ? 'en dólares, TEA' : 'de BYMA, del cierre') +
       (usd ? kv('TIR compra / venta', e.tirB != null ? nf(e.tirB * 100, 2) + '% / ' + nf(e.tirA * 100, 2) + '%' : '—', e.ba != null ? 'puntas: ' + nf(e.ba, 0) + ' pb' : 'sin puntas') + kv('Spread soberano', e.spr == null ? '—' : sg(e.spr, 0) + ' pb', 'contra los Globales') : '') +
@@ -9779,13 +9791,96 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var go = function () {
       if (typeof XLSX === 'undefined') return;
       var wb = XLSX.utils.book_new(), add = function (tb, nm) { if (!tb) return; var ws = XLSX.utils.table_to_sheet(tb, { raw: false }); XLSX.utils.book_append_sheet(wb, ws, nm.slice(0, 31)); };
-      if (w === 'tab') add($('onsTab'), 'ONs ' + TN[ST.tp] + (ST.em ? ' ' + ST.em : ''));
+      if (w === 'flu') add($('onsfT'), 'Flujo ' + $('onsfB').value);
+      else if (w === 'atr') add($('onsfRt'), 'Total return');
+      else if (w === 'tab') add($('onsTab'), 'ONs ' + TN[ST.tp] + (ST.em ? ' ' + ST.em : ''));
       else if (w === 'emp') add($('onsEt'), 'Spread por empresa');
       else { var t = $('onsF').querySelectorAll('table'); if (t.length > 1) { add(t[0], 'Sensibilidad ' + SEL); add(t[1], 'Flujos ' + SEL); } else add(t[0], 'Flujos ' + SEL); }
-      if (wb.SheetNames.length) XLSX.writeFile(wb, 'Bonerio_ONs_' + (w === 'fic' ? SEL : w === 'emp' ? 'spread_empresa' : TN[ST.tp].replace(/ /g, '_')) + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+      if (wb.SheetNames.length) XLSX.writeFile(wb, 'Bonerio_ONs_' + (w === 'flu' ? 'flujo_' + $('onsfB').value : w === 'atr' ? 'total_return' : w === 'fic' ? SEL : w === 'emp' ? 'spread_empresa' : TN[ST.tp].replace(/ /g, '_')) + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
     };
     if (typeof XLSX !== 'undefined') go(); else if (window.needLib) window.needLib(window.LIB_XLSX).then(go, function () { });
   };
+
+  /* ---------- subpestaña Flujos y total return (ONs hard dollar): flujo de una ON y atribución del total return hasta la fecha de corte ---------- */
+  var rootF = document.getElementById('onsf'), CFF = null, CFR = null;
+  if (rootF) {
+    var d1def = (function () { var g = document.getElementById('d1'); return g && g.value ? g.value : ds(Math.floor(Date.now() / 864e5) + 365); })();
+    rootF.innerHTML = '<style>#onsf .ctl{display:flex;flex-wrap:wrap;gap:14px 18px;align-items:flex-end;margin-top:12px}#onsf .ctl label{display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--mu)}' +
+      '#onsf .kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:16px}#onsf .kp div{border:1px solid var(--bd);border-radius:12px;padding:12px 14px;background:var(--bg)}#onsf .kp small{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px}#onsf .kp small i{width:9px;height:9px;border-radius:3px;display:inline-block}#onsf .kp b{display:block;font-size:20px;margin-top:4px}#onsf .kp span{font-size:12px;color:var(--mu)}' +
+      '#onsf .tw{overflow:auto;max-height:420px;margin-top:14px;border:1px solid var(--bd);border-radius:12px}#onsf table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}#onsf th{position:sticky;top:0;background:var(--card);text-align:right;padding:8px 10px;color:var(--mu);font-weight:600;font-size:12px;white-space:nowrap;border-bottom:1px solid var(--bd)}#onsf th.l,#onsf td.l{text-align:left}#onsf td{text-align:right;padding:7px 10px;border-top:1px solid var(--bd);white-space:nowrap}#onsf tr.pc td{opacity:.55}#onsf #onsfRt tbody tr{cursor:pointer}#onsf #onsfRt tbody tr:hover td{background:rgba(127,127,127,.06)}#onsf .up{color:var(--ok)}#onsf .dn{color:var(--bad)}#onsf .mu{color:var(--mu)}' +
+      '</style>' +
+      '<div class="card sx" id="onsfC"><div class="sxh"><div style="min-width:0"><p class="qh">Flujo de caja proyectado · ONs hard dollar</p><p class="qs" id="onsfSub">Lo que cobrás de una ON hasta la fecha de corte y hasta el vencimiento.</p></div><div class="sxb">' + xlb('flu', 'Excel: el flujo de esta ON') + dlb('onsfC', 'Bonerio_ON_flujo') + '</div></div>' +
+      '<div class="ctl"><label>ON<select id="onsfB"></select></label><label>Nominales (VN)<input type="number" id="onsfV" value="100" min="1" step="100" style="width:130px"></label><label id="onsfPL">Precio de compra (USD c/100 VN)<input type="number" id="onsfP" step="0.01" style="width:170px"></label><label>Fecha de corte<input type="date" id="onsfD" value="' + d1def + '"></label></div>' +
+      '<div class="kp" id="onsfS"></div><div style="position:relative;height:360px;margin-top:14px"><canvas id="onsfCv"></canvas></div><p class="note" id="onsfN" style="margin-top:8px"></p><div class="tw"><table id="onsfT"></table></div></div>' +
+      '<div class="card sx" id="onsfR" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Atribución del total return · ONs hard dollar</p><p class="qs">Ganancia hasta la fecha de corte de cada ON comprada hoy, separada en efecto capital (pull to par y amortizaciones) y cupones, con la TIR de hoy constante.</p></div><div class="sxb">' + xlb('atr', 'Excel: la tabla de atribución') + dlb('onsfR', 'Bonerio_ONs_total_return') + '</div></div>' +
+      '<div class="ctl"><label>Empresa<select id="onsfE"><option value="">Todas</option></select></label><label>Liquidez<select id="onsfL"><option value="op">Operaron en la última rueda</option><option value="all">Todas con precio</option></select></label><label>Ordenar por<select id="onsfO"><option value="tot">Total return</option><option value="ann">Total return anualizado</option><option value="mat">Vencimiento</option></select></label></div>' +
+      '<div style="position:relative;height:420px;margin-top:14px"><canvas id="onsfRc"></canvas></div><div class="tw"><table id="onsfRt"></table></div><p class="note" id="onsfRn" style="margin-top:10px"></p></div>';
+    ['onsfB', 'onsfV', 'onsfP', 'onsfD'].forEach(function (id) { $(id).addEventListener(id === 'onsfB' || id === 'onsfD' ? 'change' : 'input', function () { if (id === 'onsfB') $('onsfP').value = ''; drawF(); }); });
+    ['onsfE', 'onsfL', 'onsfO'].forEach(function (id) { $(id).onchange = drawR; });
+    $('onsfRt').onclick = function (e) { var tr = e.target.closest('tr[data-k]'); if (!tr) return; $('onsfB').value = tr.getAttribute('data-k'); $('onsfP').value = ''; drawF(); $('onsfC').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  }
+  var USDR = function () { return ROWS.filter(function (e) { return e.t === 'usd' && e.tir != null && !e.odd && e.fl && e.fl.length; }); };
+  var d1F = function () { var v = rootF && $('onsfD').value; return v ? dn(v) : Math.floor(Date.now() / 864e5) + 365; };
+  function drawF() {
+    if (!rootF || !rootF.classList.contains('active')) return;
+    if (!J) { load(); return; }
+    ROWS = rows(); var L = USDR(), sel = $('onsfB'), cur = sel.value || (SEL && L.some(function (e) { return e.k === SEL; }) ? SEL : '');
+    var G = {}; L.forEach(function (e) { (G[e.em || 'Sin empresa identificada'] = G[e.em || 'Sin empresa identificada'] || []).push(e); });
+    sel.innerHTML = Object.keys(G).sort(function (a, b) { return a === 'Sin empresa identificada' ? 1 : b === 'Sin empresa identificada' ? -1 : a.localeCompare(b, 'es'); }).map(function (n) { return '<optgroup label="' + esc(n) + '">' + G[n].sort(function (a, b) { return a.mat < b.mat ? -1 : 1; }).map(function (e) { return '<option value="' + e.k + '">' + e.k + ' · vence ' + fr(e.mat) + '</option>'; }).join('') + '</optgroup>'; }).join('');
+    if (!cur || !L.some(function (e) { return e.k === cur; })) { var top = L.slice().sort(function (a, b) { return (b.v20 || 0) - (a.v20 || 0); })[0]; cur = top ? top.k : ''; }
+    sel.value = cur; var e = L.filter(function (x) { return x.k === cur; })[0];
+    var ems = {}; L.forEach(function (x) { if (x.em) ems[x.em] = 1; }); var ev = $('onsfE').value;
+    $('onsfE').innerHTML = '<option value="">Todas</option>' + Object.keys(ems).sort(function (a, b) { return a.localeCompare(b, 'es'); }).map(function (n) { return '<option value="' + esc(n) + '"' + (n === ev ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('');
+    drawR();
+    if (CFF) { CFF.destroy(); CFF = null; }
+    if (!e) { $('onsfS').innerHTML = ''; $('onsfT').innerHTML = ''; $('onsfN').textContent = 'No hay ONs hard dollar con precio.'; return; }
+    var VN = Math.max(0, +$('onsfV').value || 0), P = +$('onsfP').value > 0 ? +$('onsfP').value : e.p, d1 = d1F(), s = e.s, k = VN / 100, inv = P * k, usd = function (v) { return 'US$ ' + nf(v, 2); };
+    $('onsfP').placeholder = nf(e.p, 2) + ' (' + (e.live ? 'ahora' : 'cierre') + ')';
+    var rs = e.res, acc = 0, R = e.fl.map(function (f) { var a = Math.max(0, f[1] - f[2]); rs -= a; acc += f[1] * k; return { t: f[0], r: f[2] * k, a: a * k, c: f[1] * k, acc: acc, res: Math.max(0, rs) * k, pre: f[0] <= d1 }; });
+    var sum = function (f, cut) { return R.reduce(function (x, r) { return x + (!cut || r.pre ? r[f] : 0); }, 0); };
+    var rC = sum('r', 1), aC = sum('a', 1), cC = sum('c', 1), tir = P === e.p ? e.tir : tirAt(e.fl, s, P);
+    var kv = function (t, v, sub, c) { return '<div><small>' + (c ? '<i style="background:' + c + '"></i>' : '') + t + '</small><b>' + v + '</b><span>' + sub + '</span></div>'; }, cRen = css('--c-cup'), cAm = css('--c-cap');
+    $('onsfS').innerHTML = kv('Inversión', usd(inv), 'VN ' + nf(VN) + ' a US$ ' + nf(P, 2) + ' c/100 · TIR ' + (tir != null ? nf(tir * 100, 2) + '%' : '—')) +
+      kv('Renta cobrada', usd(rC), 'al corte (' + fr(ds(d1)) + ') · hasta vto.: ' + usd(sum('r')), cRen) + kv('Amortización cobrada', usd(aC), 'al corte · hasta vto.: ' + usd(sum('a')), cAm) +
+      kv('Total cobrado al corte', usd(cC), (inv > 0 ? nf(cC / inv * 100, 1) + '% de la inversión · ' : '') + 'hasta vto.: ' + usd(sum('c')));
+    $('onsfSub').textContent = e.k + (e.em ? ' (' + e.em + ')' : '') + ', especie ' + e.sym.slice(-1) + ', vence el ' + fr(e.mat) + (e.r != null ? ', cupón ' + nf(e.r, 2) + '%' : '') + '. Lo que cobrás hasta el corte y hasta el vencimiento.';
+    $('onsfT').innerHTML = '<thead><tr><th class="l">Fecha</th><th>Renta</th><th>Amortización</th><th>Total</th><th>Acumulado</th><th>VN residual</th></tr></thead><tbody>' + R.map(function (r) { return '<tr' + (r.pre ? '' : ' class="pc"') + '><td class="l">' + fr(ds(r.t)) + '</td><td>' + usd(r.r) + '</td><td>' + (r.a > 0 ? usd(r.a) : '—') + '</td><td><b>' + usd(r.c) + '</b></td><td>' + usd(r.acc) + '</td><td>' + nf(r.res, 2) + '</td></tr>'; }).join('') + '</tbody>';
+    $('onsfN').textContent = 'Flujos del prospecto para ' + nf(VN) + ' VN, en dólares. Más claros: los pagos después de la fecha de corte. El VN residual es el capital que queda por cobrar después de cada pago.';
+    if (window.Chart) {
+      var mu = css('--mu'), bd = css('--bd'), al = function (c, pre) { return pre ? c : c + '55'; };
+      CFF = new Chart($('onsfCv').getContext('2d'), { type: 'bar', data: { labels: R.map(function (r) { return new Date(r.t * 864e5).toLocaleDateString('es-AR', { month: 'short', year: '2-digit', timeZone: 'UTC' }); }), datasets: [
+        { label: 'Renta', data: R.map(function (r) { return r.r; }), backgroundColor: R.map(function (r) { return al(cRen, r.pre); }), borderRadius: 4, maxBarThickness: 46, stack: 's' },
+        { label: 'Amortización', data: R.map(function (r) { return r.a; }), backgroundColor: R.map(function (r) { return al(cAm, r.pre); }), borderRadius: 4, maxBarThickness: 46, stack: 's' }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { labels: { color: mu, boxWidth: 12 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': US$ ' + nf(c.raw, 2); } } } }, scales: { x: { stacked: true, ticks: { color: mu, autoSkip: true, maxRotation: 0 }, grid: { display: false } }, y: { stacked: true, ticks: { color: mu, callback: function (v) { return 'US$ ' + nf(v); } }, grid: { color: bd } } } } });
+    }
+  }
+  var ATR = [];
+  function drawR() {
+    if (!rootF) return; if (CFR) { CFR.destroy(); CFR = null; }
+    var d1 = d1F(), em = $('onsfE').value, lq = $('onsfL').value, ob = $('onsfO').value;
+    ATR = USDR().filter(function (e) { return (!em || e.em === em) && (lq === 'all' || e.v > 0); }).map(function (e) {
+      var p = e.p, s = e.s, c = 0, a = 0, m = 0;
+      e.fl.forEach(function (f) { if (f[0] <= d1) { c += f[1]; a += Math.max(0, f[1] - f[2]); } else m += f[1] / Math.pow(1 + e.tir, (f[0] - d1) / 365); });
+      var cap = (m + a - p) / p, cup = (c - a) / p, tot = cap + cup, dd = Math.min(d1, dn(e.mat)) - s;
+      return { e: e, k: e.k, p: p, c: c, a: a, m: m, cap: cap, cup: cup, tot: tot, ann: dd > 0 ? Math.pow(1 + tot, 365 / dd) - 1 : null };
+    }).sort(function (x, y) { return ob === 'mat' ? (x.e.mat < y.e.mat ? -1 : 1) : (y[ob] || 0) - (x[ob] || 0); });
+    var pc = function (v) { return v == null || !isFinite(v) ? '—' : sg(v * 100, 2) + '%'; }, cl = function (v) { return v > 0 ? 'up' : v < 0 ? 'dn' : ''; }, u = function (v) { return 'US$ ' + nf(v, 2); };
+    $('onsfRt').innerHTML = '<thead><tr><th class="l">ON</th><th class="l">Empresa</th><th>Precio</th><th>TIR</th><th>Cupones</th><th>Amortización</th><th>Valor residual<br>(MTM salida)</th><th>PnL capital</th><th>PnL cupones</th><th>Total return</th><th>Anualizado</th></tr></thead><tbody>' +
+      ATR.map(function (x) { return '<tr data-k="' + x.k + '"><td class="l"><b>' + x.k + '</b></td><td class="l">' + (esc(x.e.em) || '<span class="mu">—</span>') + '</td><td>' + u(x.p) + '</td><td>' + nf(x.e.tir * 100, 2) + '%</td><td class="up">+' + u(x.c - x.a) + '</td><td>' + (x.a > 0 ? '+' + u(x.a) : '—') + '</td><td>' + u(x.m) + '</td><td class="' + cl(x.cap) + '">' + pc(x.cap) + '</td><td class="up">' + pc(x.cup) + '</td><td class="' + cl(x.tot) + '"><b>' + pc(x.tot) + '</b></td><td class="' + cl(x.ann) + '">' + pc(x.ann) + '</td></tr>'; }).join('') + '</tbody>';
+    var CHN = 40, show = ATR.length > CHN && !em ? ATR.slice().sort(function (x, y) { return (y.e.v20 || 0) - (x.e.v20 || 0); }).slice(0, CHN) : ATR;
+    if (show !== ATR) { var ks = {}; show.forEach(function (x) { ks[x.k] = 1; }); show = ATR.filter(function (x) { return ks[x.k]; }); }
+    $('onsfRn').textContent = 'Por 100 VN, comprando hoy a precio de mercado y vendiendo el ' + fr(ds(d1)) + ' a la TIR de hoy (sin reinvertir). Efecto capital = valor residual al corte + amortizaciones cobradas − precio; en las que amortizan, el capital devuelto se cuenta en el efecto capital. Anualizado hasta el corte o el vencimiento, lo que llegue antes.' + (show.length < ATR.length ? ' El gráfico muestra las ' + show.length + ' ONs con más monto promedio; elegí una empresa para verlas todas. La tabla tiene las ' + ATR.length + '.' : '') + ' Tocá una fila para ver su flujo.';
+    if (window.Chart && show.length) {
+      var mu = css('--mu'), bd = css('--bd');
+      CFR = new Chart($('onsfRc').getContext('2d'), { type: 'bar', data: { labels: show.map(function (x) { return x.k; }), datasets: [
+        { label: 'Efecto capital (pull to par y amortizaciones)', data: show.map(function (x) { return x.cap * 100; }), backgroundColor: css('--c-cap'), borderRadius: 3, maxBarThickness: 44, stack: 's' },
+        { label: 'Efecto cupones', data: show.map(function (x) { return x.cup * 100; }), backgroundColor: css('--c-cup'), borderRadius: 3, maxBarThickness: 44, stack: 's' }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, onClick: function (ev, els) { if (els[0]) { $('onsfB').value = show[els[0].index].k; $('onsfP').value = ''; drawF(); $('onsfC').scrollIntoView({ behavior: 'smooth', block: 'start' }); } },
+          plugins: { legend: { labels: { color: mu, boxWidth: 12 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + sg(c.raw, 2) + '%'; }, footer: function (c) { var x = show[c[0].dataIndex]; return 'Total: ' + sg(x.tot * 100, 2) + '% · anualizado ' + (x.ann != null ? sg(x.ann * 100, 2) + '%' : '—'); } } } },
+          scales: { x: { stacked: true, ticks: { color: mu, autoSkip: false, maxRotation: 60, font: { size: 10 } }, grid: { display: false } }, y: { stacked: true, ticks: { color: mu, callback: function (v) { return nf(v, 0) + '%'; } }, grid: { color: bd } } } } });
+    }
+  }
+  window.onsOpenF = function (k) { load().then(function () { if (window.switchTab) window.switchTab('onsf'); setTimeout(function () { ROWS = rows(); $('onsfB').innerHTML = '<option value="' + k + '">' + k + '</option>'; $('onsfB').value = k; $('onsfP').value = ''; drawF(); }, 80); }); };
 
   /* ---------- para el buscador de arriba: encontrar ONs por ticker (con o sin la letra de especie) o por empresa ---------- */
   window.ONSQ = {
@@ -9811,8 +9906,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var bq = document.getElementById('bnQ'); if (bq) bq.addEventListener('focus', function () { load(); }, { once: true });
 
   var _sw = window.switchTab;
-  window.switchTab = function (id) { _sw(id); if (id === 'ons') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; if (!J) load(); live(); setTimeout(draw, 60); } };
-  var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(draw, 60); };
+  window.switchTab = function (id) { _sw(id); if (id === 'ons' || id === 'onsf') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; if (!J) load(); live(); setTimeout(id === 'ons' ? draw : drawF, 60); } };
+  var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(draw, 60); else if (rootF && rootF.classList.contains('active')) setTimeout(drawF, 60); };
   ['bmep', 'bccl'].forEach(function (id) { var b = document.getElementById(id); if (b) b.addEventListener('click', function () { SOVt = 0; if (isAct()) setTimeout(draw, 1500); }); });
   var _rm = window.refreshMarket; if (_rm) window.refreshMarket = function (b) { _rm(b); if (isAct()) { SOVt = 0; live(); } }; // el botón de actualizar de cada tarjeta
   setInterval(function () { if (isAct()) { SOVt = 0; live(); } }, 30000);
