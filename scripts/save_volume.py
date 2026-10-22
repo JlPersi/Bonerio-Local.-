@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Guarda el volumen del día (arg_bonds + arg_notes de data912) en data/volumen.json.
+"""Guarda el volumen del día (arg_bonds + arg_notes + arg_corp de data912) en data/volumen.json.
+Las ONs (arg_corp) van en la lista "on": su especie sale de la última letra (O pesos, D MEP, C cable).
 Se corre después del cierre (GitHub Action). Idempotente: si corre dos veces el mismo día, pisa con el dato más completo.
 Detecta solo si el campo v de la API viene en nominal (VN) o en monto, comparando con el historial ya cargado.
 Para pruebas: SOURCE_FILE=bonds.json NOTES_FILE=notes.json FORCE_DATE=2026-10-07
@@ -10,6 +11,7 @@ from zoneinfo import ZoneInfo
 HERE = os.path.dirname(__file__)
 OUT = os.path.join(HERE, "..", "data", "volumen.json")
 URLS = ["https://data912.com/live/arg_bonds", "https://data912.com/live/arg_notes"]
+CORP = "https://data912.com/live/arg_corp"
 
 today = dt.datetime.now(ZoneInfo("America/Argentina/Buenos_Aires")).date()
 if os.environ.get("FORCE_DATE"):
@@ -35,6 +37,17 @@ else:
             print("no disponible:", u, e)
             if i == 0: sys.exit(1)
 
+corp = []
+if os.environ.get("CORP_FILE"):
+    corp = json.load(open(os.environ["CORP_FILE"]))
+elif not os.environ.get("SOURCE_FILE"):
+    try:
+        corp = get(CORP)
+    except Exception as e:
+        print("no disponible:", CORP, e)
+corp_syms = {r.get("symbol") for r in corp if r.get("symbol")}
+rows += corp
+
 live = {}
 for r in rows:
     s, c, v = r.get("symbol"), r.get("c"), r.get("v")
@@ -45,6 +58,7 @@ if len(live) < 20:
 
 # --- cargar historial (columnar -> {ticker: {s, d: {fecha: [v, e, c]}}}) ---
 db = json.load(open(OUT)) if os.path.exists(OUT) else {"dates": [], "t": {}}
+ons = set(db.get("on", [])) | {s for s in corp_syms if s in live}
 cur = {}
 for t, o in db["t"].items():
     acc, d = 0, {}
@@ -71,6 +85,7 @@ print("campo v interpretado como:", mode, "(%d tickers de comparación)" % len(d
 known = set(cur)
 def specie(sym):
     if sym in cur: return cur[sym]["s"]
+    if sym in corp_syms: return sym[-1] if sym[-1] in "DC" else "P"
     if sym[-1] in "DC" and sym[:-1] in live and sym[:-1] in cur: return sym[-1]
     return "P"
 n_new = 0
@@ -90,7 +105,7 @@ for t, o in sorted(cur.items()):
         v, e, c = o["d"][d]; I.append(idx[d] - prev); prev = idx[d]; V.append(v); E.append(e); C.append(c)
     t_out[t] = {"s": o["s"], "i": I, "v": V, "e": E, "c": C}
 with open(OUT, "w") as f:
-    json.dump({"dates": alld, "t": t_out}, f, separators=(",", ":"))
+    json.dump({"dates": alld, "t": t_out, "on": sorted(ons)}, f, separators=(",", ":"))
 # versión liviana con las últimas 30 ruedas (la portada y Rotación solo necesitan el promedio de 20 ruedas): mismo formato
 LITE = os.path.join(HERE, "..", "data", "volumen_lite.json")
 ld = alld[-30:]; lidx = {d: i for i, d in enumerate(ld)}; l_out = {}
@@ -101,5 +116,5 @@ for t, o in sorted(cur.items()):
         v, e, c = o["d"][d]; I.append(lidx[d] - prev); prev = lidx[d]; V.append(v); E.append(e); C.append(c)
     if I: l_out[t] = {"s": o["s"], "i": I, "v": V, "e": E, "c": C}
 with open(LITE, "w") as f:
-    json.dump({"dates": ld, "t": l_out}, f, separators=(",", ":"))
+    json.dump({"dates": ld, "t": l_out, "on": sorted(ons & set(l_out))}, f, separators=(",", ":"))
 print("guardado %s: %d tickers con volumen (%d nuevos), %d ruedas en el historial" % (ds, len(live), n_new, len(alld)))
