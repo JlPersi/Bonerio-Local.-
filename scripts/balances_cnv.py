@@ -21,7 +21,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "data", "acciones", "balances")
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36"}
 BASE = "https://www.cnv.gov.ar/SitioWeb"
-DESDE = "2023-09-30"
+DESDE = "2010-01-01"  # toda la historia que tenga la CNV en planillas estandarizadas
 VERSION = 2  # si cambia la forma de leer las planillas, se suben: los archivos de otra versión se rearman enteros
 
 # ticker: (CUIT, valor nominal por acción al cierre de los balances, mes de cierre del ejercicio, banco, moneda funcional)
