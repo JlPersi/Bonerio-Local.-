@@ -24,7 +24,11 @@ EMIS = {"BA37D": "Buenos Aires", "BB37D": "Buenos Aires", "BC37D": "Buenos Aires
         "ERF25": "Entre Ríos", "ERM33": "Entre Ríos", "ERE27": "Entre Ríos", "JUS22": "Jujuy",
         "NDT11": "Neuquén", "NDT25": "Neuquén", "NDG34": "Neuquén", "PMM29": "Mendoza", "PMA28": "Mendoza", "PMD26": "Mendoza", "PMM27": "Mendoza",
         "SA24D": "Salta", "SF27D": "Santa Fe", "SFD34": "Santa Fe", "SFN27": "Santa Fe", "TFU27": "Tierra del Fuego",
-        "BDC28": "Ciudad de Buenos Aires", "BDC33": "Ciudad de Buenos Aires", "BDC36": "Ciudad de Buenos Aires"}
+        "BDC28": "Ciudad de Buenos Aires", "BDC33": "Ciudad de Buenos Aires", "BDC36": "Ciudad de Buenos Aires",
+        "BAF27": "Municipalidad de Córdoba", "BAM27": "Municipalidad de Córdoba", "BAO27": "Municipalidad de Córdoba", "BAS27": "Municipalidad de Córdoba",
+        "BBD26": "Buenos Aires", "PBA27": "Buenos Aires", "PBA28": "Buenos Aires", "PBM27": "Buenos Aires", "PVC7O": "Banco Provincia de Buenos Aires",
+        "BGD26": "Río Negro", "RND25": "Río Negro", "BRA27": "Municipalidad de Río Cuarto", "RIF25": "La Rioja (bono verde)", "SJO35": "San Juan",
+        "BU2M7": "Chubut", "BU2N6": "Chubut", "BU3N6": "Chubut", "BU4N6": "Chubut", "BU5N6": "Chubut", "BUM27": "Chubut", "BUN26": "Chubut", "PUL26": "Chubut", "PUA36": "Chubut"}
 
 
 def main():
