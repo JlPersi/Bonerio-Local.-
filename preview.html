@@ -9629,7 +9629,22 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       LV = o; lvT = new Date(); if (isAct()) draw(); else if (rootF && rootF.classList.contains('active')) drawF();
     }).catch(function () { });
   }
-  function load() { if (!ldP) ldP = Promise.all([j('data/ons.json'), j('data/ons_cierre.json'), j('data/ons_emisores.json')]).then(function (r) { J = r[0]; C = r[1] || { px: {} }; EM = r[2] || {}; if (!J) ldP = null; else if (isAct()) draw(); }); return ldP; }
+  function load() { if (!ldP) ldP = Promise.all([j('data/ons.json'), j('data/ons_cierre.json'), j('data/ons_emisores.json'), j('data/indices.json'), j('data/tasas.json')]).then(function (r) { J = r[0]; C = r[1] || { px: {} }; EM = r[2] || {}; IXS = { tamar: ser(r[3] && r[3].TAMAR), fx: ser(r[3] && r[3].FX), badlar: ser(r[4] && r[4].badlar) }; if (!J) ldP = null; else if (isAct()) draw(); }); return ldP; }
+  // índices publicados (TAMAR, BADLAR y A3500, los que se guardan cada día): para la TIR en vivo de las ONs en pesos
+  var IXS = {};
+  function ser(o) { var k = Object.keys(o || {}).sort(); return k.length ? { d: k.map(dn), v: k.map(function (x) { return +o[x]; }) } : null; }
+  function ixLast(S) { return S ? S.v[S.v.length - 1] : null; }
+  function ixAvg(S, a, b) { // promedio de la tasa entre a y b (días); lo que todavía no se publicó va con la última publicada
+    if (!S) return null; var t = 0, n = 0, L = S.d[S.d.length - 1];
+    for (var i = S.d.length - 1; i >= 0 && S.d[i] >= a; i--) if (S.d[i] <= b) { t += S.v[i]; n++; }
+    if (b > L) { var m = Math.max(1, Math.round((b - Math.max(a, L)) * 5 / 7)); t += ixLast(S) * m; n += m; }
+    return n ? t / n : ixLast(S);
+  }
+  function pesoFl(o, fl) { // flujos de las ONs a tasa variable: índice (promedio del período, con 10 hábiles de rezago) + margen, sobre el residual, act/365
+    var S = IXS[o.t]; if (!S || o.r == null) return null; var prev = dn(o.lc), res = o.res, out = [];
+    for (var i = 0; i < fl.length; i++) { var f = fl[i], am = Math.max(0, f[1] - f[2]), r = ixAvg(S, prev - 14, f[0] - 14); if (r == null) return null; var it = res * (r + o.r) / 100 * (f[0] - prev) / (o.b || 365); out.push([f[0], am + it, it]); res -= am; prev = f[0]; }
+    return out;
+  }
 
   // curva soberana de referencia: Globales (ley NY) con el precio de ahora, TIR (%) en función de la duración modificada en días
   var SOV = null, SOVt = 0;
@@ -9656,6 +9671,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   }
   var lqTag = function (v) { return v == null ? '<span class="mu">—</span>' : '<span class="lq lq' + (v >= 66 ? 3 : v >= 33 ? 2 : 1) + '" title="Puntaje ' + v + ' de 100">' + (v >= 66 ? 'Alta' : v >= 33 ? 'Media' : 'Baja') + '</span>'; };
 
+  function tirTx() { var t = ST.tp, S = IXS[t]; return t === 'dl' ? 'la TIR en dólares con el último A3500 (' + nf(ixLast(IXS.fx), 2) + ', constante)' : S ? 'la TIR en pesos (TEA) con la ' + t.toUpperCase() + ' publicada hasta hoy y, para adelante, la última (' + nf(ixLast(S), 2) + '%) + el margen de cada ON' : 'la TIR en pesos (TEA) con sus flujos'; }
   function settle() { try { return window.settleDate(window.settleMode || 'T1'); } catch (e) { var d = new Date(); return Math.floor(d.getTime() / 864e5) + 1; } }
   function rows() {
     if (!J) return [];
@@ -9675,7 +9691,11 @@ window.addEventListener('load', function(){ window.loadCloses(); });
         if (e.bid && e.ask && e.ask >= e.bid) { e.tirB = tirAt(fl, s, e.bid * u); e.tirA = tirAt(fl, s, e.ask * u); if (e.tirB != null && e.tirA != null) e.ba = (e.tirB - e.tirA) * 1e4; }
         if (e.tir != null && (e.tir > 1.5 || e.tir < -0.5)) e.odd = true; // precio fuera de escala (operación suelta o VN distinto)
         if (SV && e.tir != null && !e.odd && e.md > 0) e.spr = (e.tir * 100 - SV.f(e.md * 365)) * 100;
-      } else { e.tir = cl ? cl[1] : null; e.tirCl = true; if (e.tir != null && (e.tir > 3 || e.tir < -0.5)) e.odd = true; var du2 = e.tir != null && fl.length ? bxDur(fl, s, e.tir) : null; e.md = du2 ? du2.md : null; e.mac = du2 ? du2.mac : null; }
+      } else if (fl.length) { // en pesos: TIR con el precio de ahora; TAMAR y BADLAR con lo publicado y la última tasa para adelante; dollar linked con el último A3500 (tipo de cambio constante)
+        var fx = ixLast(IXS.fx), pf = o.t === 'tamar' || o.t === 'badlar' ? pesoFl(o, fl) : fl, pp = o.t === 'dl' ? (fx > 0 ? p / fx : null) : p;
+        if (pf && pp > 0) { e.fl = fl = pf; e.tir = tirAt(fl, s, pp); }
+        if (e.tir != null && (e.tir > 3 || e.tir < -0.5)) e.odd = true; var du2 = e.tir != null ? bxDur(fl, s, e.tir) : null; e.md = du2 ? du2.md : null; e.mac = du2 ? du2.mac : null;
+      }
       e.wal = fl.length ? wal(fl, s) : null; e.lq = liq(e);
       out.push(e);
     });
@@ -9695,12 +9715,12 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     EMS = ems; ST.em = ST.em.filter(function (n) { return ems[n]; }); emUI();
     var R = ROWS.filter(vis);
     var lvN = R.filter(function (e) { return e.live; }).length;
-    $('onsSub').textContent = (usd ? 'ONs hard dollar en ' + (spG() === 'D' ? 'MEP (especie D)' : 'cable (especie C)') + ': TIR, duración y paridad con sus flujos y el precio de ' + (lvN ? 'ahora' : 'cierre') + '.' : 'ONs ' + TN[ST.tp] + ': precio en pesos y la TIR del último cierre (' + fr(C && C.d) + ').') + (lvT && lvN ? ' En vivo: ' + lvT.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) + '.' : '');
+    $('onsSub').textContent = (usd ? 'ONs hard dollar en ' + (spG() === 'D' ? 'MEP (especie D)' : 'cable (especie C)') + ': TIR, duración y paridad con sus flujos y el precio de ' + (lvN ? 'ahora' : 'cierre') + '.' : 'ONs ' + TN[ST.tp] + ': precio en pesos y ' + tirTx() + '.') + (lvT && lvN ? ' En vivo: ' + lvT.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) + '.' : '');
     // indicadores
     var P = R.filter(function (e) { return e.tir != null && !e.odd && e.d >= 45 && xOf(e) > 0 && yOf(e) != null; });
     var tirs = P.map(function (e) { return e.tir; }), sprs = P.filter(function (e) { return e.spr != null; }).map(function (e) { return e.spr; }), vt = R.reduce(function (a, e) { return a + (e.v || 0); }, 0), best = P.slice().sort(function (a, b) { return b.tir - a.tir; })[0];
     $('onsK').innerHTML = '<div><small>ONs</small><b>' + R.length + '</b><span>' + (lvN ? lvN + ' con precio de hoy' : 'precio del cierre') + '</span></div>' +
-      '<div><small>TIR mediana</small><b>' + (tirs.length ? nf(med(tirs) * 100, 2) + '%' : '—') + '</b><span>' + (usd ? 'en dólares, TEA' : 'del cierre') + '</span></div>' +
+      '<div><small>TIR mediana</small><b>' + (tirs.length ? nf(med(tirs) * 100, 2) + '%' : '—') + '</b><span>' + (usd ? 'en dólares, TEA' : ST.tp === 'dl' ? 'en dólares, A3500 constante' : 'en pesos, TEA') + '</span></div>' +
       (usd ? '<div><small>Spread mediano</small><b>' + (sprs.length ? sg(med(sprs), 0) + ' pb' : '—') + '</b><span>contra los Globales</span></div>' : '') +
       '<div><small>Mayor TIR</small><b>' + (best ? best.k : '—') + '</b><span>' + (best ? nf(best.tir * 100, 2) + '%' : '') + '</span></div>' +
       '<div><small>Monto operado</small><b>' + (vt ? (usd ? 'USD ' : '$ ') + nf(vt / 1e6, 1) + ' M' : '—') + '</b><span>' + (lvN ? 'en lo que va de hoy' : 'en el último cierre') + '</span></div>';
@@ -9735,7 +9755,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       onClick: function (ev, els) { var el = els.filter(function (x) { return x.datasetIndex === 0; })[0]; if (el) pick(pts[el.index].k); },
       plugins: { legend: { display: MU, labels: { color: mu, boxWidth: 12, filter: function (it) { return it.datasetIndex >= 1; } } }, tooltip: { filter: function (it) { return it.datasetIndex === 0; }, callbacks: { title: function (c) { if (!c.length) return ''; return c[0].raw.k + (c[0].raw.e.em ? ' · ' + c[0].raw.e.em : ''); }, label: function (c) { var e = c.raw.e; return ['TIR ' + nf(e.tir * 100, 2) + '% · MD ' + nf(e.md, 2) + ' años', e.spr != null ? 'Spread contra los Globales: ' + sg(e.spr, 0) + ' pb' : '', 'Precio ' + nf(e.p, 2) + (e.par ? ' · paridad ' + nf(e.par * 100, 1) + '%' : ''), c.raw.res != null ? 'Contra la curva: ' + sg(c.raw.res * k, 0) + ' pb' : '', 'Tocá para ver la ficha'].filter(Boolean); } } } },
       scales: { x: { type: 'linear', title: { display: true, text: ST.ax === 'plazo' ? 'Plazo (días)' : ST.ax === 'md' ? 'Duración modificada (años)' : 'Duración modificada (días)', color: mu }, ticks: { color: mu }, grid: { color: bd } },
-        y: { title: { display: true, text: sp ? 'Spread contra los Globales (pb)' : ST.tp === 'usd' ? 'TIR en dólares (TEA, %)' : 'TIR del cierre (%)', color: mu }, ticks: { color: mu, callback: function (v) { return sp ? nf(v, 0) : nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
+        y: { title: { display: true, text: sp ? 'Spread contra los Globales (pb)' : ST.tp === 'usd' || ST.tp === 'dl' ? 'TIR en dólares (TEA, %)' : 'TIR en pesos (TEA, %)', color: mu }, ticks: { color: mu, callback: function (v) { return sp ? nf(v, 0) : nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
     var odd = ROWS.filter(function (e) { return vis(e) && e.odd; }).map(function (e) { return e.k; });
     $('onsN').textContent = (sp ? 'Spread = TIR de la ON menos la TIR de la curva de Globales (ajuste logarítmico, con el precio de ahora) a la misma duración modificada' + (sov() ? '; antes de ' + nf(sov().x0 / 365, 1) + ' años de duración, el más corto, y después de ' + nf(sov().x1 / 365, 1) + ', el más largo, se extiende el mismo ajuste' : '') + '. ' : '') + (MU ? 'Una curva logarítmica por empresa, con sus ONs y en su tramo de duración; cada empresa en su color. ' : fit && pts.length === 2 ? 'Con 2 ONs la curva logarítmica pasa por las dos. ' : fit ? 'Curva ' + fit.name.toLowerCase() + ' con las ONs del gráfico' + (nOut ? ' salvo ' + nOut + ' que se alejan más de 2 σ (no tiran la curva)' : '') + '; verde: rinde más que la curva (barata), rojo: menos (cara), blanco: sobre la curva (±¼ σ, σ = ' + nf(sd * k, 0) + ' pb). ' : 'Pocas ONs para ajustar una curva. ') + (odd.length ? 'Fuera del gráfico por precio o TIR fuera de escala: ' + odd.join(', ') + '. ' : '') + 'No se grafican las que vencen en menos de 45 días. Tocá un punto para ver la ficha. ' + 'Precios por 100 VN.';
   }
@@ -9800,7 +9820,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var usd = ST.tp === 'usd', R = ROWS.filter(vis), k = ST.sort, d = ST.dir;
     R.sort(function (a, b) { var x = a[k], y = b[k]; if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * d; });
     var th = function (s, t, l, ti) { return '<th data-s="' + s + '"' + (l ? ' class="l"' : '') + (ti ? ' title="' + ti + '"' : '') + '>' + t + (ST.sort === s ? (ST.dir > 0 ? ' ▲' : ' ▼') : '') + '</th>'; };
-    var h = '<thead><tr>' + th('k', 'ON', 1) + th('em', 'Empresa', 1) + th('mat', 'Vence') + th('d', 'Días') + th('r', 'Cupón') + th('p', 'Precio') + th('ch', 'Var. %') + (usd ? th('bid', 'Compra') + th('ask', 'Venta') : '') + th('tir', 'TIR', 0, usd ? 'TIR efectiva anual (act/365) con los flujos del prospecto y el precio sucio' : 'TIR del último cierre') + (usd ? th('spr', 'Spread', 0, 'Contra la curva de Globales a la misma duración, en pb') : '') + th('md', 'MD', 0, 'Duración modificada, en años') + (usd ? th('cvx', 'Convex.', 0, 'Convexidad') + th('dv01', 'DV01', 0, 'Cuánto cambia el precio (por 100 VN) si la TIR se mueve 1 pb') + th('par', 'Paridad', 0, 'Precio sobre el valor técnico (residual + interés corrido)') : '') + th('res', 'Residual', 0, 'Valor residual por 100 VN') + th('v', 'Monto', 0, 'Operado hoy (o en el último cierre), en miles') + th('v20', 'Prom. 20 r.', 0, 'Monto promedio diario de las últimas 20 ruedas, en miles') + (usd ? th('ba', 'Puntas', 0, 'TIR a precio de compra menos TIR a precio de venta, en pb') : '') + th('lq', 'Liquidez', 0, 'Puntaje de 0 a 100 con las ruedas que operó de las últimas 20, el monto promedio' + (usd ? ' y las puntas' : '') + '. Alta desde 66, baja debajo de 33') + '</tr></thead><tbody>';
+    var h = '<thead><tr>' + th('k', 'ON', 1) + th('em', 'Empresa', 1) + th('mat', 'Vence') + th('d', 'Días') + th('r', 'Cupón') + th('p', 'Precio') + th('ch', 'Var. %') + (usd ? th('bid', 'Compra') + th('ask', 'Venta') : '') + th('tir', 'TIR', 0, usd ? 'TIR efectiva anual (act/365) con los flujos del prospecto y el precio sucio' : tirTx()) + (usd ? th('spr', 'Spread', 0, 'Contra la curva de Globales a la misma duración, en pb') : '') + th('md', 'MD', 0, 'Duración modificada, en años') + (usd ? th('cvx', 'Convex.', 0, 'Convexidad') + th('dv01', 'DV01', 0, 'Cuánto cambia el precio (por 100 VN) si la TIR se mueve 1 pb') + th('par', 'Paridad', 0, 'Precio sobre el valor técnico (residual + interés corrido)') : '') + th('res', 'Residual', 0, 'Valor residual por 100 VN') + th('v', 'Monto', 0, 'Operado hoy (o en el último cierre), en miles') + th('v20', 'Prom. 20 r.', 0, 'Monto promedio diario de las últimas 20 ruedas, en miles') + (usd ? th('ba', 'Puntas', 0, 'TIR a precio de compra menos TIR a precio de venta, en pb') : '') + th('lq', 'Liquidez', 0, 'Puntaje de 0 a 100 con las ruedas que operó de las últimas 20, el monto promedio' + (usd ? ' y las puntas' : '') + '. Alta desde 66, baja debajo de 33') + '</tr></thead><tbody>';
     var am = function (v) { return v ? (v < 1e3 ? '<1' : nf(v / 1e3, 0)) + ' k' : '—'; };
     h += R.map(function (e) { var c = e.ch == null ? 'mu' : e.ch > 0 ? 'up' : e.ch < 0 ? 'dn' : 'mu';
       return '<tr data-k="' + e.k + '"' + (e.k === SEL ? ' class="on"' : '') + '><td class="l"><b>' + e.k + '</b> <span class="mu" style="font-size:11.5px">' + e.sym.slice(-1) + '</span>' + (e.live ? '' : ' <span class="tg">cierre</span>') + '</td><td class="l">' + (esc(e.em) || '<span class="mu">—</span>') + '</td><td>' + fr(e.mat) + '</td><td>' + nf(e.d) + '</td><td>' + (e.r != null ? nf(e.r, 2) + '%' : '—') + '</td><td>' + nf(e.p, usd ? 2 : 0) + '</td><td class="' + c + '">' + (e.ch == null ? '—' : sg(e.ch, 2) + '%') + '</td>' +
@@ -9822,7 +9842,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var h = '<div class="sxh"><div style="min-width:0"><p class="qh">' + e.k + ' <span class="mu" style="font-weight:500">' + e.sym + '</span>' + (e.em ? ' · ' + esc(e.em) : '') + '</p><p class="qs">ON ' + TN[e.t].toLowerCase() + (e.r != null ? ', cupón ' + nf(e.r, 2) + '%' : '') + ', emitida el ' + fr(e.iss) + ' y vence el ' + fr(e.mat) + '. Flujos en ' + mon + ' por 100 VN.</p></div><div class="sxb">' + xlb('fic', 'Excel: flujos y sensibilidad de esta ON') + dlb('onsF', 'Bonerio_ON_' + e.k) + '<button class="icon-btn" data-html2canvas-ignore="true" id="onsFx" title="Cerrar" style="flex:none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div>';
     if (usd) h += '<p style="margin:10px 0 0"><button class="act" type="button" onclick="if(window.onsOpenF) window.onsOpenF(\'' + e.k + '\')">Ver flujo y total return de ' + e.k + ' →</button></p>';
     h += '<div class="fg">' + kv('Precio', nf(e.p, usd ? 2 : 0), e.live ? 'ahora' : 'cierre del ' + fr(C && C.d)) +
-      kv('TIR', e.tir == null || e.odd ? '—' : nf(e.tir * 100, 2) + '%', usd ? 'en dólares, TEA' : 'del cierre') +
+      kv('TIR', e.tir == null || e.odd ? '—' : nf(e.tir * 100, 2) + '%', usd ? 'en dólares, TEA' : e.t === 'dl' ? 'en dólares, A3500 constante' : 'en pesos, TEA') +
       (usd ? kv('TIR compra / venta', e.tirB != null ? nf(e.tirB * 100, 2) + '% / ' + nf(e.tirA * 100, 2) + '%' : '—', e.ba != null ? 'puntas: ' + nf(e.ba, 0) + ' pb' : 'sin puntas') + kv('Spread soberano', e.spr == null ? '—' : sg(e.spr, 0) + ' pb', 'contra los Globales') : '') +
       kv('Duración modificada', nf(e.md, 2) + ' años', e.md != null ? nf(e.md * 365, 0) + ' días' : '') + kv('Duración Macaulay', e.mac != null ? nf(e.mac / 365, 2) + ' años' : '—') +
       (usd ? kv('Convexidad', ok ? nf(e.cvx, 2) : '—') + kv('DV01', ok ? 'US$ ' + nf(e.dv01, 4) : '—', 'por 100 VN y 1 pb') + kv('Paridad', e.par ? nf(e.par * 100, 1) + '%' : '—') + kv('Valor técnico', nf(e.vt, 2), 'residual ' + nf(e.res, 1) + ' + interés corrido ' + nf(e.ai, 3)) : '') +
@@ -9833,7 +9853,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       h += '<div class="f2"><div><h5>Sensibilidad del precio a la TIR</h5><div class="tw"><table><thead><tr><th class="l">Δ TIR</th><th>TIR</th><th>Precio</th><th>Var. %</th><th title="−MD·Δy + ½·Convexidad·Δy²">Aprox. MD + convex.</th></tr></thead><tbody>' +
         sh.map(function (b) { var y = e.tir + b / 1e4, p1 = bxPv(fl, s, y), dy = b / 1e4, ap = (-e.md * dy + 0.5 * e.cvx * dy * dy) * 100; return '<tr><td class="l">' + sg(b, 0) + ' pb</td><td>' + nf(y * 100, 2) + '%</td><td>' + nf(p1, 2) + '</td><td class="' + (p1 > e.p ? 'up' : 'dn') + '">' + sg((p1 / e.p - 1) * 100, 2) + '%</td><td class="mu">' + sg(ap, 2) + '%</td></tr>'; }).join('') + '</tbody></table></div>' +
         '<p class="note" style="margin-top:8px">Precio exacto descontando los flujos a la TIR movida; la última columna es la aproximación con duración y convexidad.</p></div>';
-    } else h += '<div class="f2"><div><h5>Sensibilidad</h5><p class="note">' + (usd ? 'Sin TIR confiable para esta ON con el precio de ahora.' : 'La sensibilidad se calcula para las hard dollar; en esta ON la TIR es la del cierre y sus flujos dependen de ' + (e.t === 'dl' ? 'el A3500' : e.t === 'cer' ? 'el CER' : e.t === 'fija' ? 'la tasa pactada' : 'la tasa variable') + '.') + '</p></div>';
+    } else h += '<div class="f2"><div><h5>Sensibilidad</h5><p class="note">' + (usd ? 'Sin TIR confiable para esta ON con el precio de ahora.' : 'La sensibilidad se calcula para las hard dollar; en esta ON la TIR supone el índice constante y sus flujos dependen de ' + (e.t === 'dl' ? 'el A3500' : e.t === 'cer' ? 'el CER' : e.t === 'fija' ? 'la tasa pactada' : 'la tasa variable') + '.') + '</p></div>';
     // flujos que faltan
     var rs = e.res, tot = { r: 0, a: 0, c: 0, v: 0 };
     h += '<div><h5>Flujos que faltan (' + fl.length + ')</h5><div class="onsFw"><canvas id="onsFc"></canvas></div><div class="tw" style="margin-top:10px;max-height:300px"><table><thead><tr><th class="l">Fecha</th><th>Renta</th><th>Amortización</th><th>Total</th><th>Residual después</th>' + (ok ? '<th>Valor presente</th>' : '') + '</tr></thead><tbody>' +
