@@ -9557,7 +9557,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var KEY = 'onsSt1', ST = { tp: 'usd', liq: 'op', ax: 'mdd', q: '', sort: 'v', dir: -1 };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
   var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
-  var J = null, C = null, LV = {}, lvT = null, CH = null, ROWS = [];
+  var J = null, C = null, EM = {}, LV = {}, lvT = null, CH = null, ROWS = [];
   var j = function (u) { return fetch(u + '?v=' + Math.floor(Date.now() / 6e4), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
 
   root.innerHTML = '<style>' +
@@ -9570,7 +9570,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     '<div class="ctl"><label>Tipo<select id="onsTp">' + TIPOS.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
     '<label>Liquidez<select id="onsLiq"><option value="op">Operaron en la última rueda</option><option value="all">Todas con precio</option></select></label>' +
     '<label id="onsAxL">Eje X<select id="onsAx"><option value="mdd">Duración modificada (días)</option><option value="md">Duración modificada (años)</option><option value="plazo">Plazo (días)</option></select></label>' +
-    '<label>Buscar<input type="search" id="onsQ" placeholder="YMC, TLC, VSC…"></label></div>' +
+    '<label>Empresa<select id="onsEm"><option value="">Todas</option></select></label>' +
+    '<label>Buscar<input type="search" id="onsQ" placeholder="YMC, YPF, Telecom…"></label></div>' +
     '<div class="kp" id="onsK"></div>' +
     '<div class="onsCw"><canvas id="onsCv"></canvas></div><p class="note" id="onsN" style="margin-top:8px"></p></div>' +
     '<div class="card sx" id="onsT" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Tabla de ONs</p><p class="qs" id="onsTs">Tocá un encabezado para ordenar.</p></div><div class="sxb">' + dlb('onsT', 'Bonerio_ONs_tabla') + '</div></div>' +
@@ -9578,8 +9579,9 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var $ = function (id) { return document.getElementById(id); };
   $('onsTp').value = ST.tp; $('onsLiq').value = ST.liq; $('onsAx').value = ST.ax; $('onsQ').value = ST.q;
   ['onsTp', 'onsLiq', 'onsAx'].forEach(function (id) { $(id).onchange = function () { ST[{ onsTp: 'tp', onsLiq: 'liq', onsAx: 'ax' }[id]] = this.value; save(); draw(); }; });
+  $('onsEm').onchange = function () { ST.em = this.value; save(); draw(); };
   $('onsQ').oninput = function () { ST.q = this.value; save(); draw(); };
-  $('onsTab').onclick = function (e) { var th = e.target.closest('th[data-s]'); if (!th) return; var k = th.getAttribute('data-s'); if (ST.sort === k) ST.dir = -ST.dir; else { ST.sort = k; ST.dir = k === 'k' || k === 'mat' ? 1 : -1; } save(); table(); };
+  $('onsTab').onclick = function (e) { var th = e.target.closest('th[data-s]'); if (!th) return; var k = th.getAttribute('data-s'); if (ST.sort === k) ST.dir = -ST.dir; else { ST.sort = k; ST.dir = k === 'k' || k === 'em' || k === 'mat' ? 1 : -1; } save(); table(); };
 
   function live() {
     return fetch('https://data912.com/live/arg_corp', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (rows) {
@@ -9587,7 +9589,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       LV = o; lvT = new Date(); if (isAct()) draw();
     }).catch(function () { });
   }
-  function load() { Promise.all([j('data/ons.json'), j('data/ons_cierre.json')]).then(function (r) { J = r[0]; C = r[1] || { px: {} }; if (isAct()) draw(); }); }
+  function load() { Promise.all([j('data/ons.json'), j('data/ons_cierre.json'), j('data/ons_emisores.json')]).then(function (r) { J = r[0]; C = r[1] || { px: {} }; EM = r[2] || {}; if (isAct()) draw(); }); }
 
   function settle() { try { return window.settleDate(window.settleMode || 'T1'); } catch (e) { var d = new Date(); return Math.floor(d.getTime() / 864e5) + 1; } }
   function rows() {
@@ -9596,7 +9598,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     Object.keys(J.on).forEach(function (k) {
       var o = J.on[k], usd = o.t === 'usd', sym = usd ? k + spG() : o.o, L = LV[sym], cl = C.px[sym], lvOk = L && L.c && open;
       var p = lvOk ? L.c : cl ? cl[0] : null, prev = cl ? cl[0] : null, ch = lvOk && L.pct != null ? L.pct : null;
-      var e = { k: k, sym: sym, t: o.t, mat: o.mat, r: o.r, res: o.res, p: p, ch: ch, v: lvOk ? L.v * L.c / 100 : cl ? cl[2] : 0, v20: cl ? cl[3] : null, n: lvOk ? L.n : null, live: !!lvOk, d: dn(o.mat) - s, bid: L && L.bid, ask: L && L.ask };
+      var e = { k: k, sym: sym, em: EM[k] || '', t: o.t, mat: o.mat, r: o.r, res: o.res, p: p, ch: ch, v: lvOk ? L.v * L.c / 100 : cl ? cl[2] : 0, v20: cl ? cl[3] : null, n: lvOk ? L.n : null, live: !!lvOk, d: dn(o.mat) - s, bid: L && L.bid, ask: L && L.ask };
       if (!(p > 0)) return;
       var fl = o.fl.map(function (f) { return [dn(f[0]), f[1], f[2]]; }).filter(function (f) { return f[0] > s; });
       if (usd && fl.length) {
@@ -9611,11 +9613,15 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     return out;
   }
   var xOf = function (e) { return ST.ax === 'plazo' ? e.d : ST.ax === 'md' ? e.md : e.md != null ? e.md * 365 : null; };
-  var vis = function (e) { var q = (ST.q || '').trim().toUpperCase(); return e.t === ST.tp && (ST.liq === 'all' || e.v > 0) && (!q || e.k.indexOf(q) >= 0); };
+  var vis = function (e) { var q = (ST.q || '').trim().toUpperCase(); return e.t === ST.tp && (ST.liq === 'all' || e.v > 0) && (!ST.em || e.em === ST.em) && (!q || e.k.indexOf(q) >= 0 || e.em.toUpperCase().indexOf(q) >= 0); };
 
   function draw() {
     if (!J) { load(); return; }
-    ROWS = rows(); var R = ROWS.filter(vis), usd = ST.tp === 'usd';
+    ROWS = rows(); var usd = ST.tp === 'usd';
+    var ems = {}; ROWS.forEach(function (e) { if (e.em && e.t === ST.tp && (ST.liq === 'all' || e.v > 0)) ems[e.em] = (ems[e.em] || 0) + 1; }); // empresas con ONs en este tipo
+    if (ST.em && !ems[ST.em]) ST.em = '';
+    $('onsEm').innerHTML = '<option value="">Todas</option>' + Object.keys(ems).sort(function (a, b) { return a.localeCompare(b, 'es'); }).map(function (n) { return '<option value="' + n.replace(/"/g, '&quot;') + '"' + (n === ST.em ? ' selected' : '') + '>' + n + ' (' + ems[n] + ')</option>'; }).join('');
+    var R = ROWS.filter(vis);
     var lvN = R.filter(function (e) { return e.live; }).length;
     $('onsSub').textContent = (usd ? 'ONs hard dollar en ' + (spG() === 'D' ? 'MEP (especie D)' : 'cable (especie C)') + ': TIR, duración y paridad con sus flujos y el precio de ' + (lvN ? 'ahora' : 'cierre') + '.' : 'ONs ' + TN[ST.tp] + ': precio en pesos y la TIR del último cierre (' + fr(C && C.d) + ').') + (lvT && lvN ? ' En vivo: ' + lvT.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) + '.' : '');
     // indicadores
@@ -9648,7 +9654,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     sets.unshift({ type: 'scatter', label: 'ONs', data: pts, backgroundColor: pts.map(col), borderColor: pts.map(col), pointRadius: 5.5, hoverRadius: 8, order: 1 });
     var lab = { id: 'onsLab', afterDatasetsDraw: function (c) { var m = c.getDatasetMeta(0), g = c.ctx; g.save(); g.font = '600 11px Inter, sans-serif'; g.fillStyle = tx; g.textBaseline = 'middle'; m.data.forEach(function (el, i) { var p = pts[i]; if (pts.length > 45 && Math.abs(p.res || 0) < 0.8 * (sd || 0)) return; g.fillText(p.k, el.x + 8, el.y); }); g.restore(); } };
     CH = new Chart($('onsCv').getContext('2d'), { data: { datasets: sets }, plugins: [lab], options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
-      plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.datasetIndex === 0; }, callbacks: { title: function (c) { return c[0].raw.k; }, label: function (c) { var e = c.raw.e; return ['TIR ' + nf(e.tir * 100, 2) + '% · MD ' + nf(e.md, 2) + ' años', 'Precio ' + nf(e.p, 2) + (e.par ? ' · paridad ' + nf(e.par * 100, 1) + '%' : ''), c.raw.res != null ? 'Contra la curva: ' + sg(c.raw.res * 100, 0) + ' pb' : '']; } } } },
+      plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.datasetIndex === 0; }, callbacks: { title: function (c) { return c[0].raw.k + (c[0].raw.e.em ? ' · ' + c[0].raw.e.em : ''); }, label: function (c) { var e = c.raw.e; return ['TIR ' + nf(e.tir * 100, 2) + '% · MD ' + nf(e.md, 2) + ' años', 'Precio ' + nf(e.p, 2) + (e.par ? ' · paridad ' + nf(e.par * 100, 1) + '%' : ''), c.raw.res != null ? 'Contra la curva: ' + sg(c.raw.res * 100, 0) + ' pb' : '']; } } } },
       scales: { x: { type: 'linear', title: { display: true, text: ST.ax === 'plazo' ? 'Plazo (días)' : ST.ax === 'md' ? 'Duración modificada (años)' : 'Duración modificada (días)', color: mu }, ticks: { color: mu }, grid: { color: bd } },
         y: { title: { display: true, text: ST.tp === 'usd' ? 'TIR en dólares (TEA, %)' : 'TIR del cierre (%)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
     var odd = ROWS.filter(function (e) { return vis(e) && e.odd; }).map(function (e) { return e.k; });
@@ -9658,9 +9664,9 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var usd = ST.tp === 'usd', R = ROWS.filter(vis), k = ST.sort, d = ST.dir;
     R.sort(function (a, b) { var x = a[k], y = b[k]; if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * d; });
     var th = function (s, t, l) { return '<th data-s="' + s + '"' + (l ? ' class="l"' : '') + '>' + t + (ST.sort === s ? (ST.dir > 0 ? ' ▲' : ' ▼') : '') + '</th>'; };
-    var h = '<thead><tr>' + th('k', 'ON', 1) + th('mat', 'Vence') + th('d', 'Días') + th('r', 'Cupón') + th('p', 'Precio') + th('ch', 'Var. %') + (usd ? th('bid', 'Compra') + th('ask', 'Venta') : '') + th('tir', 'TIR') + th('md', 'MD') + (usd ? th('par', 'Paridad') : '') + th('res', 'Residual') + th('v', 'Monto') + th('v20', 'Prom. 20 r.') + '</tr></thead><tbody>';
+    var h = '<thead><tr>' + th('k', 'ON', 1) + th('em', 'Empresa', 1) + th('mat', 'Vence') + th('d', 'Días') + th('r', 'Cupón') + th('p', 'Precio') + th('ch', 'Var. %') + (usd ? th('bid', 'Compra') + th('ask', 'Venta') : '') + th('tir', 'TIR') + th('md', 'MD') + (usd ? th('par', 'Paridad') : '') + th('res', 'Residual') + th('v', 'Monto') + th('v20', 'Prom. 20 r.') + '</tr></thead><tbody>';
     h += R.map(function (e) { var c = e.ch == null ? 'mu' : e.ch > 0 ? 'up' : e.ch < 0 ? 'dn' : 'mu';
-      return '<tr><td class="l"><b>' + e.k + '</b> <span class="mu" style="font-size:11.5px">' + e.sym.slice(-1) + '</span>' + (e.live ? '' : ' <span class="tg">cierre</span>') + '</td><td>' + fr(e.mat) + '</td><td>' + nf(e.d) + '</td><td>' + (e.r != null ? nf(e.r, 2) + '%' : '—') + '</td><td>' + nf(e.p, usd ? 2 : 0) + '</td><td class="' + c + '">' + (e.ch == null ? '—' : sg(e.ch, 2) + '%') + '</td>' +
+      return '<tr><td class="l"><b>' + e.k + '</b> <span class="mu" style="font-size:11.5px">' + e.sym.slice(-1) + '</span>' + (e.live ? '' : ' <span class="tg">cierre</span>') + '</td><td class="l">' + (e.em || '<span class="mu">—</span>') + '</td><td>' + fr(e.mat) + '</td><td>' + nf(e.d) + '</td><td>' + (e.r != null ? nf(e.r, 2) + '%' : '—') + '</td><td>' + nf(e.p, usd ? 2 : 0) + '</td><td class="' + c + '">' + (e.ch == null ? '—' : sg(e.ch, 2) + '%') + '</td>' +
         (usd ? '<td>' + nf(e.bid, 2) + '</td><td>' + nf(e.ask, 2) + '</td>' : '') + '<td><b>' + (e.tir == null || e.odd ? '—' : nf(e.tir * 100, 2) + '%') + '</b></td><td>' + nf(e.md, 2) + '</td>' + (usd ? '<td>' + (e.par ? nf(e.par * 100, 1) + '%' : '—') + '</td>' : '') + '<td>' + nf(e.res, 1) + '</td><td>' + (e.v ? (e.v < 1e3 ? '<1' : nf(e.v / 1e3, 0)) + ' k' : '—') + '</td><td>' + (e.v20 ? (e.v20 < 1e3 ? '<1' : nf(e.v20 / 1e3, 0)) + ' k' : '—') + '</td></tr>'; }).join('') + '</tbody>';
     $('onsTab').innerHTML = h;
     $('onsTn').textContent = usd ? 'TIR efectiva anual (act/365) con los flujos del prospecto y el precio sucio (como cotiza BYMA); MD = duración modificada en años; paridad = precio / (residual + interés corrido). «cierre»: sin precio de hoy, se usa el del ' + fr(C && C.d) + '. Monto (hoy o del último cierre) y promedio diario de las últimas 20 ruedas, en miles de la moneda de la especie.' : 'TIR y precio del último cierre (' + fr(C && C.d) + ') o de ahora si operó; la TIR es la que publica BYMA para esa especie. Monto (hoy o del último cierre) y promedio de 20 ruedas, en miles de pesos.';
