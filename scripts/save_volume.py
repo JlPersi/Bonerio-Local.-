@@ -83,7 +83,18 @@ else:
 print("campo v interpretado como:", mode, "(%d tickers de comparación)" % len(dist_nom))
 
 known = set(cur)
+# provinciales: sus especies en dólares no siguen la regla ticker + D/C (BA37D → BA7DD, BA7DC); salen de data/pvs.json
+PVSP = {}
+try:
+    for o in json.load(open(os.path.join(HERE, "..", "data", "pvs.json")))["on"].values():
+        if o.get("d"): PVSP[o["d"]] = "D"
+        if o.get("c"): PVSP[o["c"]] = "C"
+except Exception:
+    pass
+for t, x in PVSP.items():
+    if t in cur: cur[t]["s"] = x
 def specie(sym):
+    if sym in PVSP: return PVSP[sym]
     if sym in cur: return cur[sym]["s"]
     if sym in corp_syms: return sym[-1] if sym[-1] in "DC" else "P"
     if sym[-1] in "DC" and sym[:-1] in live and sym[:-1] in cur: return sym[-1]
