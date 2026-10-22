@@ -186,7 +186,7 @@ Chart.register({ id: 'zoomFix', beforeEvent: function (ch, args) {
   --ok: #34d399;
   --bad: #ff6b8b;
   /* familias y secundarios (los gráficos los leen de acá) */
-  --c-fija: #ffc542; --c-cer: #2fd4a7; --c-tam: #ff8fb3; --c-dl: #5cc8ff; --c-dual: #c9a0ff; --c-on: #f0abfc; --c-usd: #b8e986; --c-ref: #e4e4e7; --c-gris: #71717a;
+  --c-fija: #ffc542; --c-cer: #2fd4a7; --c-tam: #ff8fb3; --c-dl: #5cc8ff; --c-dual: #c9a0ff; --c-cer-k: #0e8f70; --c-on: #f0abfc; --c-usd: #b8e986; --c-ref: #e4e4e7; --c-gris: #71717a;
   --c-s1: #b8e986;
   --c-s2: #c9a0ff;
   --c-s3: #e4e4e7;
@@ -210,7 +210,7 @@ Chart.register({ id: 'zoomFix', beforeEvent: function (ch, args) {
   --acx: #ffffff;
   --ok: #0f8f6b;
   --bad: #c2335a;
-  --c-fija: #b7791f; --c-cer: #0f9b78; --c-tam: #d0467c; --c-dl: #1f86c7; --c-dual: #7a4fd0; --c-on: #a21caf; --c-usd: #4f8f1f; --c-ref: #3f3f46; --c-gris: #8a8a93;
+  --c-fija: #b7791f; --c-cer: #0f9b78; --c-tam: #d0467c; --c-dl: #1f86c7; --c-dual: #7a4fd0; --c-cer-k: #0a6b53; --c-on: #a21caf; --c-usd: #4f8f1f; --c-ref: #3f3f46; --c-gris: #8a8a93;
   --c-s1: #4f8f1f;
   --c-s2: #7a4fd0;
   --c-s3: #3f3f46;
@@ -3289,7 +3289,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   } };
   var GR = '#34d399', RD = '#ff6b8b';
   function fairChart(id, ref, S, spec, cap, dualMode, gmap, model, ax) {
-    var FCOL = css('--tx'); // la curva va en el color del texto (blanco / negro según el tema): con el color de la familia se confundía con el verde de los baratos (CER) o el rojo de los caros (TAMAR)
+    var FCOL = css('--tx'), CC = css({ c1: '--c-fija', c2: '--c-cer-k', c3: '--c-tam', c4: '--c-dl', c5: '--c-dual' }[ref] || '--tx'); // FCOL: los que están sobre la curva; CC: la curva, en el color de la familia (CER en un verde más oscuro, para no confundirla con los baratos)
     var args = [].slice.call(arguments), scOff = !!SCOFF[ref], hasSc = !!gmap; if (scOff) gmap = null; // la leyenda prende y apaga la capa de tu escenario
     ax = ax || 'plazo'; var yrs = ax === 'md', xOf = function (o) { return xaxVal(ax, o.d, o.mac, o.mdur); }, xtol = yrs ? 0.003 : 1;
     var fitX = function (pts, m) { var u = yrs ? 365 : 1, q = fairFit(pts.map(function (p) { return { x: p.x * u, y: p.y, k: p.k }; }), m); return !q || u === 1 ? q : { f: function (x) { return q.f(x * u); }, sigma: q.sigma, res: q.res, name: q.name }; }; // las formas de la curva están pensadas en días
@@ -3313,7 +3313,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       cu0 = x0; cu1 = x1;
       sets.push({ type: 'line', label: '+1σ', data: up, borderColor: 'rgba(161,161,170,.55)', borderDash: [4, 4], borderWidth: 1, pointRadius: 0, fill: false, order: 5 });
       sets.push({ type: 'line', label: '−1σ', data: lo, borderColor: 'rgba(161,161,170,.55)', borderDash: [4, 4], borderWidth: 1, pointRadius: 0, fill: '-1', backgroundColor: 'rgba(161,161,170,.10)', order: 5 });
-      sets.push({ type: 'line', label: 'Curva fair', data: cu, borderColor: FCOL, borderWidth: 2.5, pointRadius: 0, fill: false, order: 4 });
+      sets.push({ type: 'line', label: 'Curva fair', data: cu, borderColor: CC, borderWidth: 2.5, pointRadius: 0, fill: false, order: 4 });
       P.forEach(function (p) { if (p.x < fx0 - xtol || p.x > fx1 + xtol) { p.out = true; return; } p.fy = fit.f(p.x); p.res = p.y - p.fy; }); // fuera del rango de la curva no se extrapola
     }
     var ax0, ax1, allx = P.map(function (p) { return p.x; }); if (spec.zero) allx = allx.concat(sets.length && sets[0].data ? sets[0].data.map(function (p) { return p.x; }) : []);
@@ -9568,6 +9568,10 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var KEY = 'onsSt1', ST = { tp: 'usd', liq: 'op', ax: 'mdd', vw: 'tir', q: '', sort: 'v', dir: -1 };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
   var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
+  if (!Array.isArray(ST.em)) ST.em = ST.em ? [ST.em] : []; // varias empresas a la vez (antes era una sola)
+  var EPAL = ['#f0abfc', '#5cc8ff', '#ffc542', '#a3e635', '#fb923c', '#c9a0ff', '#2dd4bf', '#f87171'], EMS = {};
+  var emCol = function (n) { var i = ST.em.indexOf(n); return i < 0 ? null : EPAL[i % EPAL.length]; };
+  var hexA = function (h, a) { h = String(h).trim(); if (h.charAt(0) !== '#') return h; var n = parseInt(h.length === 4 ? h.replace(/#(.)(.)(.)/, '$1$1$2$2$3$3') : h.slice(1), 16); return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')'; };
   var J = null, C = null, EM = {}, LV = {}, lvT = null, CH = null, CHF = null, CHS = null, ROWS = [], SEL = null, ldP = null;
   var j = function (u) { return fetch(u + '?v=' + Math.floor(Date.now() / 6e4), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
 
@@ -9579,13 +9583,17 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     '#ons .lq{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600}#ons .lq3{background:rgba(52,211,153,.15);color:#34d399}#ons .lq2{background:rgba(255,197,66,.15);color:#ffc542}#ons .lq1{background:rgba(255,107,139,.15);color:#ff6b8b}' +
     '#ons .fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px}#ons .fg div{border:1px solid var(--bd);border-radius:10px;padding:10px 12px;background:var(--bg)}#ons .fg small{display:block;font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px}#ons .fg b{display:block;font-size:17px;margin-top:3px}#ons .fg span{font-size:11.5px;color:var(--mu)}' +
     '#ons .f2{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:18px;margin-top:16px}@media(max-width:1000px){#ons .f2{grid-template-columns:minmax(0,1fr)}}#ons h5{margin:0 0 6px;font-size:13px;color:var(--mu);font-weight:600}#ons .f2 .tw{margin-top:0;max-height:420px}' +
+    '#ons .ctl .lbl{display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--mu);position:relative}#ons .emB{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:10px 30px 10px 14px;font:inherit;width:210px;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}#ons .emB:after{content:"▾";position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--mu)}' +
+    '#ons .emP{position:absolute;top:100%;left:0;z-index:60;margin-top:6px;width:290px;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px;box-shadow:0 14px 34px rgba(0,0,0,.35)}#ons .emP input[type=search]{width:100%;padding:8px 10px;font-size:13px}#ons .emL{max-height:300px;overflow:auto;margin-top:8px}' +
+    '#ons .ctl .emL label{flex-direction:row;align-items:center;gap:8px;padding:6px;border-radius:8px;color:var(--tx);font-size:13px;cursor:pointer}#ons .ctl .emL label:hover{background:var(--bg)}#ons .emL input{width:auto;padding:0;margin:0}#ons .emL i{width:10px;height:10px;border-radius:50%;flex:none}#ons .emL small{margin-left:auto;color:var(--mu);font-size:12px}' +
+    '#ons .emF{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:var(--mu)}#ons .emF button{background:none;border:0;color:var(--ac);cursor:pointer;font:inherit;font-weight:600}#ons .kp .emK{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:12.5px;color:var(--tx)}#ons .kp .emK i{width:8px;height:8px;border-radius:50%;flex:none}#ons .kp .emK b{display:inline;margin-left:auto;font-size:14px}' +
     '</style>' +
     '<div class="card sx" id="onsC"><div class="sxh"><div style="min-width:0"><p class="qh">Obligaciones negociables</p><p class="qs" id="onsSub">Curva y tabla de las ONs vigentes, con el precio en vivo.</p></div><div class="sxb">' + dlb('onsC', 'Bonerio_ONs_curva') + '</div></div>' +
     '<div class="ctl"><label>Tipo<select id="onsTp">' + TIPOS.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
     '<label id="onsVwL">Gráfico<select id="onsVw"><option value="tir">TIR</option><option value="spr">Spread contra el soberano</option></select></label>' +
     '<label>Liquidez<select id="onsLiq"><option value="op">Operaron en la última rueda</option><option value="all">Todas con precio</option></select></label>' +
     '<label id="onsAxL">Eje X<select id="onsAx"><option value="mdd">Duración modificada (días)</option><option value="md">Duración modificada (años)</option><option value="plazo">Plazo (días)</option></select></label>' +
-    '<label>Empresa<select id="onsEm"><option value="">Todas</option></select></label>' +
+    '<div class="lbl">Empresa<button type="button" class="emB" id="onsEmB">Todas</button><div class="emP" id="onsEmP" hidden><input type="search" id="onsEmQ" placeholder="Buscar empresa…"><div class="emL" id="onsEmL"></div><div class="emF"><span>Hasta 8 a la vez, cada una en su color</span><button type="button" id="onsEmX">Todas</button></div></div></div>' +
     '<label>Buscar<input type="search" id="onsQ" placeholder="YMC, YPF, Telecom…"></label></div>' +
     '<div class="kp" id="onsK"></div>' +
     '<div class="onsCw"><canvas id="onsCv"></canvas></div><p class="note" id="onsN" style="margin-top:8px"></p></div>' +
@@ -9597,7 +9605,17 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var $ = function (id) { return document.getElementById(id); };
   $('onsTp').value = ST.tp; $('onsVw').value = ST.vw; $('onsLiq').value = ST.liq; $('onsAx').value = ST.ax; $('onsQ').value = ST.q;
   ['onsTp', 'onsVw', 'onsLiq', 'onsAx'].forEach(function (id) { $(id).onchange = function () { ST[{ onsTp: 'tp', onsVw: 'vw', onsLiq: 'liq', onsAx: 'ax' }[id]] = this.value; save(); draw(); }; });
-  $('onsEm').onchange = function () { ST.em = this.value; save(); draw(); };
+  function emUI() { // selector de empresas: varias a la vez, con su color
+    var q = ($('onsEmQ').value || '').trim().toLowerCase(), ks = Object.keys(EMS).sort(function (a, b) { return (emCol(b) ? 1 : 0) - (emCol(a) ? 1 : 0) || a.localeCompare(b, 'es'); }); // las elegidas primero
+    $('onsEmB').textContent = ST.em.length ? (ST.em.length <= 2 ? ST.em.join(', ') : ST.em[0] + ' y ' + (ST.em.length - 1) + ' más') : 'Todas';
+    $('onsEmL').innerHTML = ks.filter(function (n) { return !q || n.toLowerCase().indexOf(q) >= 0; }).map(function (n) { var c = emCol(n); return '<label><input type="checkbox" data-em="' + esc(n) + '"' + (c ? ' checked' : '') + (!c && ST.em.length >= 8 ? ' disabled' : '') + '><i style="background:' + (c || 'transparent') + ';border:1px solid ' + (c || 'var(--mu)') + '"></i>' + esc(n) + '<small>' + EMS[n] + '</small></label>'; }).join('') || '<p class="note" style="margin:6px">Sin resultados</p>';
+  }
+  $('onsEmB').onclick = function (ev) { ev.stopPropagation(); var p = $('onsEmP'); p.hidden = !p.hidden; if (!p.hidden) { $('onsEmQ').value = ''; emUI(); $('onsEmQ').focus(); } };
+  $('onsEmP').onclick = function (ev) { ev.stopPropagation(); };
+  $('onsEmQ').oninput = emUI;
+  $('onsEmL').onchange = function (ev) { var n = ev.target.getAttribute('data-em'); if (n == null) return; var i = ST.em.indexOf(n); if (ev.target.checked && i < 0) ST.em.push(n); else if (!ev.target.checked && i >= 0) ST.em.splice(i, 1); save(); draw(); };
+  $('onsEmX').onclick = function () { ST.em = []; save(); draw(); };
+  document.addEventListener('click', function () { var p = $('onsEmP'); if (p && !p.hidden) p.hidden = true; });
   $('onsQ').oninput = function () { ST.q = this.value; save(); draw(); };
   $('onsTab').onclick = function (e) {
     var th = e.target.closest('th[data-s]');
@@ -9620,7 +9638,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     SOVt = Date.now(); SOV = {};
     try {
       var u = (window.PFQ && window.PFQ.universe()) || [], pts = u.filter(function (r) { return r.grp === 'usd' && /^GD/.test(r.k) && r.tir != null && r.md > 0; }).map(function (r) { return { x: r.md * 365, y: r.tir * 100, k: r.k }; });
-      var f = pts.length >= 3 ? window.curveFitUSD(pts, 'log', 3) : null; if (f) { var xs = pts.map(function (q) { return q.x; }), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs); SOV = { f: smo(f.f, x0, x1, Math.max(60, x0 * 0.35), Math.max(180, (x1 - x0) * 0.3)), x0: x0, x1: x1, pts: pts }; } // fuera del tramo de los Globales no extrapola el ajuste: sigue la pendiente del borde y la va apagando, sin quiebres
+      var f = pts.length >= 3 ? slf(pts, 0.5) : null; if (f) { var xs = pts.map(function (q) { return q.x; }); SOV = { f: f.f, x0: Math.min.apply(null, xs), x1: Math.max.apply(null, xs), pts: pts }; } // logarítmica corrida (corrimiento de al menos la mitad del Global más largo): afuera del tramo de los Globales se extiende pareja, sin hundirse en los plazos cortos
     } catch (e) { console.error('ons sov', e); }
     return SOV.f ? SOV : null;
   }
@@ -9666,7 +9684,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var xOf = function (e) { return ST.ax === 'plazo' ? e.d : ST.ax === 'md' ? e.md : e.md != null ? e.md * 365 : null; };
   var spV = function () { return ST.vw === 'spr' && ST.tp === 'usd'; };
   var yOf = function (e) { return spV() ? e.spr : e.tir * 100; };
-  var vis = function (e) { var q = (ST.q || '').trim().toUpperCase(); return e.t === ST.tp && (ST.liq === 'all' || e.v > 0) && (!ST.em || e.em === ST.em) && (!q || e.k.indexOf(q) >= 0 || e.em.toUpperCase().indexOf(q) >= 0); };
+  var vis = function (e) { var q = (ST.q || '').trim().toUpperCase(); return e.t === ST.tp && (ST.liq === 'all' || e.v > 0) && (!ST.em.length || ST.em.indexOf(e.em) >= 0) && (!q || e.k.indexOf(q) >= 0 || e.em.toUpperCase().indexOf(q) >= 0); };
   var med = function (a) { a = a.slice().sort(function (x, y) { return x - y; }); return a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : null; };
 
   function draw() {
@@ -9674,8 +9692,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     ROWS = rows(); var usd = ST.tp === 'usd';
     $('onsVwL').style.display = usd ? '' : 'none';
     var ems = {}; ROWS.forEach(function (e) { if (e.em && e.t === ST.tp && (ST.liq === 'all' || e.v > 0)) ems[e.em] = (ems[e.em] || 0) + 1; }); // empresas con ONs en este tipo
-    if (ST.em && !ems[ST.em]) ST.em = '';
-    $('onsEm').innerHTML = '<option value="">Todas</option>' + Object.keys(ems).sort(function (a, b) { return a.localeCompare(b, 'es'); }).map(function (n) { return '<option value="' + esc(n) + '"' + (n === ST.em ? ' selected' : '') + '>' + esc(n) + ' (' + ems[n] + ')</option>'; }).join('');
+    EMS = ems; ST.em = ST.em.filter(function (n) { return ems[n]; }); emUI();
     var R = ROWS.filter(vis);
     var lvN = R.filter(function (e) { return e.live; }).length;
     $('onsSub').textContent = (usd ? 'ONs hard dollar en ' + (spG() === 'D' ? 'MEP (especie D)' : 'cable (especie C)') + ': TIR, duración y paridad con sus flujos y el precio de ' + (lvN ? 'ahora' : 'cierre') + '.' : 'ONs ' + TN[ST.tp] + ': precio en pesos y la TIR del último cierre (' + fr(C && C.d) + ').') + (lvT && lvN ? ' En vivo: ' + lvT.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) + '.' : '');
@@ -9691,10 +9708,15 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   }
   function chart(P) {
     if (CH) { CH.destroy(); CH = null; } if (!window.Chart) return;
-    var tx = css('--tx'), mu = css('--mu'), bd = css('--bd'), GR = '#34d399', RD = '#ff6b8b', W = '#e4e4e7', sp = spV(), k = sp ? 1 : 100; // k: unidades del eje a pb
-    var pts = P.map(function (e) { return { x: xOf(e), y: yOf(e), k: e.k, e: e }; });
-    var fitOf = function (q) { return q.length >= 2 ? window.curveFitUSD(q.map(function (p) { return { x: p.x, y: p.y }; }), 'log', 2) : null; }; // desde 2 ONs, para que siempre haya curva
-    var fit = fitOf(pts), sets = [], sd = null, nOut = 0, s0 = null;
+    var tx = css('--tx'), mu = css('--mu'), bd = css('--bd'), GR = '#34d399', RD = '#ff6b8b', W = '#e4e4e7', CO = css('--c-on') || '#f0abfc', sp = spV(), k = sp ? 1 : 100, MU = ST.em.length >= 2; // k: unidades del eje a pb; MU: varias empresas
+    var pts = P.map(function (e) { return { x: xOf(e), y: yOf(e), k: e.k, e: e, c: emCol(e.em) }; });
+    var fitOf = function (q) { return slf(q); }; // desde 2 ONs, para que siempre haya curva
+    var fit = MU ? null : fitOf(pts), sets = [], sd = null, nOut = 0, s0 = null;
+    if (MU) ST.em.forEach(function (n) { // una curva por empresa, en su color
+      var q = pts.filter(function (p) { return p.e.em === n; }), f = q.length >= 2 ? robFit(q) : null, c = emCol(n), cu = [];
+      if (f) { q.forEach(function (p) { p.res = p.y - f.f(p.x); }); var qx = q.map(function (p) { return p.x; }), a = Math.min.apply(null, qx), b = Math.max.apply(null, qx); for (var i = 0; i <= 120; i++) { var xx = a + (b - a) * i / 120; cu.push({ x: xx, y: f.f(xx) }); } }
+      if (q.length) sets.push({ type: 'line', label: n, data: cu, borderColor: c, backgroundColor: c, borderWidth: 2.5, pointRadius: 0, fill: false, cubicInterpolationMode: 'monotone', borderCapStyle: 'round', order: 3 });
+    });
     if (fit && pts.length >= 5) { // segunda pasada sin las que se alejan más de 2 σ (default o castigo puntual), para que no tiren la curva
       var r0 = pts.map(function (p) { return p.y - fit.f(p.x); }); s0 = Math.sqrt(r0.reduce(function (a, r) { return a + r * r; }, 0) / Math.max(1, r0.length - 1));
       var core = pts.filter(function (p, i) { return Math.abs(r0[i]) <= 2 * s0; }), f2 = fitOf(core); if (f2) { fit = f2; nOut = pts.length - core.length; }
@@ -9703,60 +9725,76 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       var res = pts.map(function (p) { return p.y - fit.f(p.x); }), rc = res.filter(function (r) { return s0 == null || Math.abs(r) <= 2 * s0; }); sd = Math.sqrt(rc.reduce(function (a, r) { return a + r * r; }, 0) / Math.max(1, rc.length - 1));
       pts.forEach(function (p, i) { p.res = res[i]; });
       var xs = pts.map(function (p) { return p.x; }), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), cu = [];
-      var fs = onCurve(fit.f, xs); for (var i = 0; i <= 160; i++) { var xx = x0 + (x1 - x0) * i / 160; cu.push({ x: xx, y: fs(xx) }); }
-      sets.push({ type: 'line', label: 'Curva', data: cu, borderColor: W, borderWidth: 2.5, pointRadius: 0, fill: false, cubicInterpolationMode: 'monotone', borderCapStyle: 'round', order: 3 });
+      for (var i = 0; i <= 160; i++) { var xx = x0 + (x1 - x0) * i / 160; cu.push({ x: xx, y: fit.f(xx) }); }
+      sets.push({ type: 'line', label: 'Curva', data: cu, borderColor: CO, borderWidth: 2.5, pointRadius: 0, fill: false, cubicInterpolationMode: 'monotone', borderCapStyle: 'round', order: 3 });
     }
-    var col = function (p) { return p.res == null || !(sd > 1e-6) || Math.abs(p.res) < 0.25 * sd ? W : p.res > 0 ? GR : RD; };
-    sets.unshift({ type: 'scatter', label: 'ONs', data: pts, backgroundColor: pts.map(col), borderColor: pts.map(function (p) { return p.k === SEL ? '#f0abfc' : col(p); }), borderWidth: pts.map(function (p) { return p.k === SEL ? 3 : 1; }), pointRadius: pts.map(function (p) { return p.k === SEL ? 8 : 5.5; }), hoverRadius: 8, order: 1 });
-    var lab = { id: 'onsLab', afterDatasetsDraw: function (c) { var m = c.getDatasetMeta(0), g = c.ctx; g.save(); g.font = '600 11px Inter, sans-serif'; g.fillStyle = tx; g.textBaseline = 'middle'; m.data.forEach(function (el, i) { var p = pts[i]; if (pts.length > 45 && p.k !== SEL && Math.abs(p.res || 0) < 0.8 * (sd || 0)) return; g.fillText(p.k, el.x + 8, el.y); }); g.restore(); } };
+    var col = function (p) { if (MU) return p.c || mu; return p.res == null || !(sd > 1e-6) || Math.abs(p.res) < 0.25 * sd ? W : p.res > 0 ? GR : RD; };
+    sets.unshift({ type: 'scatter', label: 'ONs', data: pts, backgroundColor: pts.map(col), borderColor: pts.map(function (p) { return p.k === SEL ? (MU ? tx : CO) : col(p); }), borderWidth: pts.map(function (p) { return p.k === SEL ? 3 : 1; }), pointRadius: pts.map(function (p) { return p.k === SEL ? 8 : 5.5; }), hoverRadius: 8, order: 1 });
+    var lab = { id: 'onsLab', afterDatasetsDraw: function (c) { var m = c.getDatasetMeta(0), g = c.ctx; g.save(); g.font = '600 11px Inter, sans-serif'; g.fillStyle = tx; g.textBaseline = 'middle'; m.data.forEach(function (el, i) { var p = pts[i]; if (pts.length > 45 && !MU && p.k !== SEL && Math.abs(p.res || 0) < 0.8 * (sd || 0)) return; g.fillText(p.k, el.x + 8, el.y); }); g.restore(); } };
     CH = new Chart($('onsCv').getContext('2d'), { data: { datasets: sets }, plugins: [lab], options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
       onClick: function (ev, els) { var el = els.filter(function (x) { return x.datasetIndex === 0; })[0]; if (el) pick(pts[el.index].k); },
-      plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.datasetIndex === 0; }, callbacks: { title: function (c) { return c[0].raw.k + (c[0].raw.e.em ? ' · ' + c[0].raw.e.em : ''); }, label: function (c) { var e = c.raw.e; return ['TIR ' + nf(e.tir * 100, 2) + '% · MD ' + nf(e.md, 2) + ' años', e.spr != null ? 'Spread contra los Globales: ' + sg(e.spr, 0) + ' pb' : '', 'Precio ' + nf(e.p, 2) + (e.par ? ' · paridad ' + nf(e.par * 100, 1) + '%' : ''), c.raw.res != null ? 'Contra la curva: ' + sg(c.raw.res * k, 0) + ' pb' : '', 'Tocá para ver la ficha'].filter(Boolean); } } } },
+      plugins: { legend: { display: MU, labels: { color: mu, boxWidth: 12, filter: function (it) { return it.datasetIndex >= 1; } } }, tooltip: { filter: function (it) { return it.datasetIndex === 0; }, callbacks: { title: function (c) { return c[0].raw.k + (c[0].raw.e.em ? ' · ' + c[0].raw.e.em : ''); }, label: function (c) { var e = c.raw.e; return ['TIR ' + nf(e.tir * 100, 2) + '% · MD ' + nf(e.md, 2) + ' años', e.spr != null ? 'Spread contra los Globales: ' + sg(e.spr, 0) + ' pb' : '', 'Precio ' + nf(e.p, 2) + (e.par ? ' · paridad ' + nf(e.par * 100, 1) + '%' : ''), c.raw.res != null ? 'Contra la curva: ' + sg(c.raw.res * k, 0) + ' pb' : '', 'Tocá para ver la ficha'].filter(Boolean); } } } },
       scales: { x: { type: 'linear', title: { display: true, text: ST.ax === 'plazo' ? 'Plazo (días)' : ST.ax === 'md' ? 'Duración modificada (años)' : 'Duración modificada (días)', color: mu }, ticks: { color: mu }, grid: { color: bd } },
         y: { title: { display: true, text: sp ? 'Spread contra los Globales (pb)' : ST.tp === 'usd' ? 'TIR en dólares (TEA, %)' : 'TIR del cierre (%)', color: mu }, ticks: { color: mu, callback: function (v) { return sp ? nf(v, 0) : nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
     var odd = ROWS.filter(function (e) { return vis(e) && e.odd; }).map(function (e) { return e.k; });
-    $('onsN').textContent = (sp ? 'Spread = TIR de la ON menos la TIR de la curva de Globales (ajuste logarítmico, con el precio de ahora) a la misma duración modificada' + (sov() ? '; antes de ' + nf(sov().x0 / 365, 1) + ' años de duración, el más corto, y después de ' + nf(sov().x1 / 365, 1) + ', el más largo, la curva se va aplanando' : '') + '. ' : '') + (fit && pts.length === 2 ? 'Con 2 ONs la curva logarítmica pasa por las dos. ' : fit ? 'Curva ' + fit.name.toLowerCase() + ' con las ONs del gráfico' + (nOut ? ' salvo ' + nOut + ' que se alejan más de 2 σ (no tiran la curva)' : '') + '; verde: rinde más que la curva (barata), rojo: menos (cara), blanco: sobre la curva (±¼ σ, σ = ' + nf(sd * k, 0) + ' pb). ' : 'Pocas ONs para ajustar una curva. ') + (odd.length ? 'Fuera del gráfico por precio o TIR fuera de escala: ' + odd.join(', ') + '. ' : '') + 'No se grafican las que vencen en menos de 45 días. Tocá un punto para ver la ficha. ' + 'Precios por 100 VN.';
+    $('onsN').textContent = (sp ? 'Spread = TIR de la ON menos la TIR de la curva de Globales (ajuste logarítmico, con el precio de ahora) a la misma duración modificada' + (sov() ? '; antes de ' + nf(sov().x0 / 365, 1) + ' años de duración, el más corto, y después de ' + nf(sov().x1 / 365, 1) + ', el más largo, se extiende el mismo ajuste' : '') + '. ' : '') + (MU ? 'Una curva logarítmica por empresa, con sus ONs y en su tramo de duración; cada empresa en su color. ' : fit && pts.length === 2 ? 'Con 2 ONs la curva logarítmica pasa por las dos. ' : fit ? 'Curva ' + fit.name.toLowerCase() + ' con las ONs del gráfico' + (nOut ? ' salvo ' + nOut + ' que se alejan más de 2 σ (no tiran la curva)' : '') + '; verde: rinde más que la curva (barata), rojo: menos (cara), blanco: sobre la curva (±¼ σ, σ = ' + nf(sd * k, 0) + ' pb). ' : 'Pocas ONs para ajustar una curva. ') + (odd.length ? 'Fuera del gráfico por precio o TIR fuera de escala: ' + odd.join(', ') + '. ' : '') + 'No se grafican las que vencen en menos de 45 días. Tocá un punto para ver la ficha. ' + 'Precios por 100 VN.';
   }
   // curva de ONs (TIR) y curva de Globales en el mismo gráfico; el área entre las dos es el spread
-  // extiende f fuera de [a, b] sin quiebre: sigue con la pendiente del borde y la va apagando (escala h)
-  function smo(f, a, b, ha, hb) {
-    var d = function (x) { var e = Math.max(1e-6, Math.abs(x) * 1e-4); return (f(x + e) - f(x - e)) / (2 * e); }, fa = f(a), fb = f(b), da = d(a), db = d(b);
-    return function (x) { return x < a ? fa + da * ha * (Math.exp((x - a) / ha) - 1) : x > b ? fb + db * hb * (1 - Math.exp(-(x - b) / hb)) : f(x); };
-  }
-  function pct(v, q) { v = v.slice().sort(function (a, b) { return a - b; }); return v[Math.min(v.length - 1, Math.max(0, Math.round(q * (v.length - 1))))]; }
-  function onCurve(f, xs) { // la logarítmica se empina en los plazos muy cortos: debajo del 10% más corto de las ONs se suaviza
-    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), a = xs.length >= 8 ? pct(xs, 0.1) : x0;
-    return a > x0 ? smo(f, a, x1, Math.max(1e-6, (a - x0) * 0.6), 1) : f;
+  function slf(pts, mf) { // TIR = a + b·ln(x + c), con el corrimiento c que mejor ajusta: cóncava y pareja, sin el gancho de la logarítmica pura en los plazos cortos ni quiebres
+    pts = pts.filter(function (p) { return isFinite(p.x) && isFinite(p.y) && p.x > 0; }); if (pts.length < 2) return null;
+    var mx = Math.max.apply(null, pts.map(function (p) { return p.x; })), best = null;
+    (pts.length < 4 ? [Math.max(0.2, mf || 0)] : [0.05, 0.1, 0.2, 0.35, 0.5, 0.75, 1, 1.5].filter(function (v) { return v >= (mf || 0); })).forEach(function (fc) {
+      var c = mx * fc, n = pts.length, L = pts.map(function (p) { return Math.log(p.x + c); }), lm = L.reduce(function (a, v) { return a + v; }, 0) / n, ym = pts.reduce(function (a, p) { return a + p.y; }, 0) / n, sxx = 0, sxy = 0;
+      L.forEach(function (l, i) { sxx += (l - lm) * (l - lm); sxy += (l - lm) * (pts[i].y - ym); }); if (!(sxx > 1e-12)) return;
+      var b = sxy / sxx, a = ym - b * lm, sse = 0; L.forEach(function (l, i) { var r = pts[i].y - a - b * l; sse += r * r; });
+      if (!best || sse < best.sse) best = { a: a, b: b, c: c, sse: sse };
+    });
+    if (!best) return null; var B = best;
+    return { f: function (x) { return B.a + B.b * Math.log(Math.max(0, x) + B.c); }, name: 'Logarítmica' };
   }
   function robFit(pts) {
-    var fo = function (q) { return q.length >= 2 ? window.curveFitUSD(q.map(function (p) { return { x: p.x, y: p.y }; }), 'log', 2) : null; }, f = fo(pts), n = 0;
+    var fo = function (q) { return slf(q); }, f = fo(pts), n = 0;
     if (f && pts.length >= 5) { var r = pts.map(function (p) { return p.y - f.f(p.x); }), sd = Math.sqrt(r.reduce(function (a, v) { return a + v * v; }, 0) / (r.length - 1)), core = pts.filter(function (p, i) { return Math.abs(r[i]) <= 2 * sd; }), f2 = fo(core); if (f2) { f = f2; n = pts.length - core.length; } }
     return f ? { f: f.f, n: n } : null;
   }
   function chartSv(R) {
     var box = $('onsSv'); if (CHS) { CHS.destroy(); CHS = null; }
     var SV = sov(); if (ST.tp !== 'usd' || !SV || !window.Chart) { box.hidden = true; return; } box.hidden = false;
-    var mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), CO = '#f0abfc', CS = css('--c-usd') || '#b8e986';
-    var pts = R.filter(function (e) { return e.tir != null && !e.odd && e.d >= 45 && e.md > 0; }).map(function (e) { return { x: e.md * 365, y: e.tir * 100, k: e.k, e: e }; });
-    var fo = robFit(pts), sp = SV.pts.map(function (q) { return { x: q.x, y: q.y, k: q.k }; });
+    var mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), cd = css('--card'), CO = css('--c-on') || '#f0abfc', CS = css('--c-usd') || '#b8e986', MU = ST.em.length >= 2;
+    var pts = R.filter(function (e) { return e.tir != null && !e.odd && e.d >= 45 && e.md > 0; }).map(function (e) { return { x: e.md * 365, y: e.tir * 100, k: e.k, e: e, c: emCol(e.em) || CO }; });
+    var fo = MU ? null : robFit(pts), fO = fo && fo.f, sp = SV.pts.map(function (q) { return { x: q.x, y: q.y, k: q.k }; });
+    var FO = MU ? ST.em.map(function (n) { var q = pts.filter(function (p) { return p.e.em === n; }), f = q.length >= 2 ? robFit(q) : null; if (!f) return null; var qx = q.map(function (p) { return p.x; }); return { n: n, c: emCol(n), f: f.f, x0: Math.min.apply(null, qx), x1: Math.max.apply(null, qx) }; }).filter(Boolean) : [];
     var xs = pts.map(function (p) { return p.x; }).concat(sp.map(function (p) { return p.x; })), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), G = [], O = [];
-    var fO = fo ? onCurve(fo.f, pts.map(function (p) { return p.x; })) : null;
-    for (var i = 0; i <= 160; i++) { var x = x0 + (x1 - x0) * i / 160; G.push({ x: x, y: SV.f(x) }); if (fo) O.push({ x: x, y: fO(x) }); }
+    for (var i = 0; i <= 160; i++) { var x = x0 + (x1 - x0) * i / 160; G.push({ x: x, y: SV.f(x) }); if (fO) O.push({ x: x, y: fO(x) }); }
+    var LN = { type: 'line', pointRadius: 0, borderWidth: 3, cubicInterpolationMode: 'monotone', borderCapStyle: 'round', order: 3 };
     var sets = [
-      { type: 'scatter', label: 'ONs', data: pts, backgroundColor: CO, borderColor: CO, pointRadius: 4, hoverRadius: 7, order: 2 },
+      { type: 'scatter', label: 'ONs', data: pts, backgroundColor: pts.map(function (p) { return hexA(p.c, MU ? 0.85 : 0.6); }), borderColor: pts.map(function (p) { return p.k === SEL ? tx : hexA(p.c, 0.9); }), borderWidth: pts.map(function (p) { return p.k === SEL ? 2 : 0; }), pointRadius: pts.map(function (p) { return p.k === SEL ? 6 : 3.5; }), hoverRadius: 7, order: 2 },
       { type: 'scatter', label: 'Globales', data: sp, backgroundColor: CS, borderColor: CS, pointRadius: 6, pointStyle: 'rectRot', hoverRadius: 8, order: 2 },
-      { type: 'line', label: 'Curva soberana (Globales)', data: G, borderColor: CS, borderWidth: 3, pointRadius: 0, fill: false, cubicInterpolationMode: 'monotone', borderCapStyle: 'round', order: 3 }];
-    if (fo) sets.push({ type: 'line', label: 'Curva de ONs' + (ST.em ? ' de ' + ST.em : ''), data: O, borderColor: CO, borderWidth: 3, pointRadius: 0, cubicInterpolationMode: 'monotone', borderCapStyle: 'round', order: 3, fill: { target: 2, above: 'rgba(255,107,139,.13)', below: 'rgba(92,200,255,.13)' } });
-    var cy = G.concat(O).map(function (q) { return q.y; }), py = pts.map(function (q) { return q.y; }).concat(sp.map(function (q) { return q.y; })), ymn = Math.max(Math.min.apply(null, py), Math.min.apply(null, cy) - 4), ymx = Math.min(Math.max.apply(null, py), Math.max.apply(null, cy) + 4), nOff = pts.filter(function (q) { return q.y < ymn || q.y > ymx; }).length; // el eje sigue a las curvas: las ONs muy alejadas quedan afuera
+      Object.assign({ label: 'Curva soberana (Globales)', data: G, borderColor: CS, backgroundColor: CS, fill: false }, LN)];
+    if (fO) sets.push(Object.assign({ label: 'Curva de ONs' + (ST.em.length === 1 ? ' de ' + ST.em[0] : ''), data: O, borderColor: CO, fill: 2 }, LN, { backgroundColor: hexA(CO, 0.1) }));
+    FO.forEach(function (o) { var d = []; for (var i = 0; i <= 120; i++) { var x = o.x0 + (o.x1 - o.x0) * i / 120; d.push({ x: x, y: o.f(x) }); } sets.push(Object.assign({ label: o.n, data: d, borderColor: o.c, backgroundColor: o.c, fill: false }, LN)); });
+    var cy = G.concat(O).concat([].concat.apply([], sets.slice(4).map(function (d) { return d.data; }))).map(function (q) { return q.y; }), py = pts.map(function (q) { return q.y; }).concat(sp.map(function (q) { return q.y; })), ymn = Math.max(Math.min.apply(null, py), Math.min.apply(null, cy) - 4), ymx = Math.min(Math.max.apply(null, py), Math.max.apply(null, cy) + 4), nOff = pts.filter(function (q) { return q.y < ymn || q.y > ymx; }).length; // el eje sigue a las curvas: las ONs muy alejadas quedan afuera
+    var inO = function (x) { var a = Math.min.apply(null, pts.map(function (p) { return p.x; })), b = Math.max.apply(null, pts.map(function (p) { return p.x; })); return x >= a && x <= b; };
+    var at = function (y) { var x = y * 365; return fO && inO(x) ? (fO(x) - SV.f(x)) * 100 : null; };
     var lab = { id: 'onsSvLab', afterDatasetsDraw: function (c) { var g = c.ctx; g.save(); g.font = '600 11px Inter, sans-serif'; g.textBaseline = 'middle'; [[1, sp, CS], [0, pts, tx]].forEach(function (z) { if (z[0] === 0 && pts.length > 30) return; var m = c.getDatasetMeta(z[0]); g.fillStyle = z[2]; m.data.forEach(function (el, i) { g.fillText(z[1][i].k, el.x + 8, el.y); }); }); g.restore(); } };
-    CHS = new Chart($('onsSvC').getContext('2d'), { data: { datasets: sets }, plugins: [lab], options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+    var mk = { id: 'onsSvMk', afterDatasetsDraw: function (c) { // el spread marcado sobre el gráfico a 1, 2, 3 y 5 años
+      if (!fO) return; var g = c.ctx, X = c.scales.x, Y = c.scales.y, A = c.chartArea; g.save(); g.font = '700 11.5px Inter, sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'center';
+      [1, 2, 3, 5].forEach(function (yr) { var v = at(yr); if (v == null) return; var px = X.getPixelForValue(yr * 365), y1 = Y.getPixelForValue(SV.f(yr * 365)), y2 = Y.getPixelForValue(fO(yr * 365)); if (px < A.left || px > A.right) return;
+        g.strokeStyle = tx; g.globalAlpha = 0.55; g.setLineDash([3, 3]); g.lineWidth = 1.2; g.beginPath(); g.moveTo(px, Math.max(A.top, Math.min(A.bottom, y1))); g.lineTo(px, Math.max(A.top, Math.min(A.bottom, y2))); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+        var t = sg(v, 0) + ' pb', w = g.measureText(t).width + 16, ym = Math.max(A.top + 12, Math.min(A.bottom - 12, (y1 + y2) / 2));
+        g.fillStyle = cd; g.strokeStyle = hexA(CO, 0.7); g.lineWidth = 1; g.beginPath(); if (g.roundRect) g.roundRect(px - w / 2, ym - 11, w, 22, 11); else g.rect(px - w / 2, ym - 11, w, 22); g.fill(); g.stroke();
+        g.fillStyle = tx; g.fillText(t, px, ym + 0.5); });
+      g.restore(); } };
+    CHS = new Chart($('onsSvC').getContext('2d'), { data: { datasets: sets }, plugins: [lab, mk], options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
       onClick: function (ev, els) { var el = els.filter(function (x) { return x.datasetIndex === 0; })[0]; if (el) pick(pts[el.index].k); },
       plugins: { legend: { labels: { color: mu, boxWidth: 12, filter: function (it) { return it.datasetIndex >= 2; } } }, tooltip: { filter: function (it) { return it.datasetIndex <= 1; }, callbacks: { title: function (c) { var r = c[0].raw; return r.k + (r.e && r.e.em ? ' · ' + r.e.em : ''); }, label: function (c) { var r = c.raw; return ['TIR ' + nf(r.y, 2) + '% · MD ' + nf(r.x / 365, 2) + ' años', r.e && r.e.spr != null ? 'Spread contra los Globales: ' + sg(r.e.spr, 0) + ' pb' : '']; } } } },
       scales: { x: { type: 'linear', title: { display: true, text: 'Duración modificada (días)', color: mu }, ticks: { color: mu }, grid: { color: bd } }, y: { min: Math.floor(ymn), max: Math.ceil(ymx), title: { display: true, text: 'TIR en dólares (TEA, %)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
-    var at = function (y) { var x = y * 365; return fo && x >= Math.min.apply(null, pts.map(function (p) { return p.x; })) && x <= Math.max.apply(null, pts.map(function (p) { return p.x; })) ? (fO(x) - SV.f(x)) * 100 : null; };
-    $('onsSvK').innerHTML = [1, 2, 3, 5].map(function (y) { var v = at(y); return '<div><small>Spread a ' + y + ' año' + (y > 1 ? 's' : '') + '</small><b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b><span>' + (v == null ? 'fuera del tramo de las ONs' : 'curva de ONs − curva soberana') + '</span></div>'; }).join('');
-    $('onsSvS').textContent = 'Curva de ' + (ST.em ? 'las ONs de ' + ST.em : 'las ONs hard dollar') + ' contra la de los Globales, las dos en ' + (spG() === 'D' ? 'MEP' : 'cable') + '; el área entre las dos es el spread.';
-    $('onsSvN').textContent = 'Las dos curvas son ajustes logarítmicos de TIR contra duración modificada' + (fo && fo.n ? '; la de ONs sin las ' + fo.n + ' que se alejan más de 2 σ' : '') + '. Rosa: las ONs rinden más que los Globales a esa duración; celeste: rinden menos. Antes del Global más corto (' + nf(SV.x0 / 365, 1) + ' años) y después del más largo (' + nf(SV.x1 / 365, 1) + ') la curva soberana sigue la pendiente del borde y se va aplanando.' + (nOff ? ' ' + nOff + ' ON' + (nOff > 1 ? 's quedan' : ' queda') + ' fuera de la escala, lejos de las curvas (están en el gráfico de arriba).' : '') + ' Usa los mismos filtros de arriba (tipo, liquidez, empresa y búsqueda). Tocá una ON para ver su ficha.';
+    $('onsSvK').innerHTML = [1, 2, 3, 5].map(function (y) {
+      var t = '<small>Spread a ' + y + ' año' + (y > 1 ? 's' : '') + '</small>';
+      if (MU) return '<div>' + t + FO.map(function (o) { var x = y * 365, v = x >= o.x0 && x <= o.x1 ? (o.f(x) - SV.f(x)) * 100 : null; return '<span class="emK"><i style="background:' + o.c + '"></i>' + esc(o.n) + '<b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b></span>'; }).join('') + '</div>';
+      var v = at(y); return '<div>' + t + '<b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b><span>' + (v == null ? 'fuera del tramo de las ONs' : 'curva de ONs − curva soberana') + '</span></div>'; }).join('');
+    $('onsSvS').textContent = (MU ? 'Curvas de las ONs de ' + ST.em.join(', ') : 'Curva de ' + (ST.em.length ? 'las ONs de ' + ST.em[0] : 'las ONs hard dollar')) + ' contra la de los Globales, todas en ' + (spG() === 'D' ? 'MEP' : 'cable') + (MU ? '; cada empresa en su color.' : '; el área entre las dos es el spread, marcado a 1, 2, 3 y 5 años.');
+    $('onsSvN').textContent = 'Las curvas son ajustes logarítmicos de TIR contra duración modificada' + (fo && fo.n ? '; la de ONs sin las ' + fo.n + ' que se alejan más de 2 σ' : '') + (MU ? '; la de cada empresa, con sus ONs y en su tramo de duración' : '') + '. Spread = curva de ONs menos curva soberana a la misma duración: negativo, las ONs rinden menos que los Globales. Antes del Global más corto (' + nf(SV.x0 / 365, 1) + ' años) y después del más largo (' + nf(SV.x1 / 365, 1) + ') la curva soberana es el mismo ajuste extendido.' + (nOff ? ' ' + nOff + ' ON' + (nOff > 1 ? 's quedan' : ' queda') + ' fuera de la escala, lejos de las curvas (están en el gráfico de arriba).' : '') + ' Usa los mismos filtros de arriba (tipo, liquidez, empresa y búsqueda). Tocá una ON para ver su ficha.';
   }
   function table() {
     var usd = ST.tp === 'usd', R = ROWS.filter(vis), k = ST.sort, d = ST.dir;
@@ -9818,7 +9856,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       var wb = XLSX.utils.book_new(), add = function (tb, nm) { if (!tb) return; var ws = XLSX.utils.table_to_sheet(tb, { raw: false }); XLSX.utils.book_append_sheet(wb, ws, nm.slice(0, 31)); };
       if (w === 'flu') add($('onsfT'), 'Flujo ' + $('onsfB').value);
       else if (w === 'atr') add($('onsfRt'), 'Total return');
-      else if (w === 'tab') add($('onsTab'), 'ONs ' + TN[ST.tp] + (ST.em ? ' ' + ST.em : ''));
+      else if (w === 'tab') add($('onsTab'), 'ONs ' + TN[ST.tp] + (ST.em.length ? ' ' + ST.em.join(' ') : ''));
       else { var t = $('onsF').querySelectorAll('table'); if (t.length > 1) { add(t[0], 'Sensibilidad ' + SEL); add(t[1], 'Flujos ' + SEL); } else add(t[0], 'Flujos ' + SEL); }
       if (wb.SheetNames.length) XLSX.writeFile(wb, 'Bonerio_ONs_' + (w === 'flu' ? 'flujo_' + $('onsfB').value : w === 'atr' ? 'total_return' : w === 'fic' ? SEL : TN[ST.tp].replace(/ /g, '_')) + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
     };
@@ -9924,7 +9962,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       return out.slice(0, 12);
     },
     open: function (k) {
-      load().then(function () { if (!J || !J.on[k]) return; ST.tp = J.on[k].t; ST.em = ''; ST.q = ''; $('onsTp').value = ST.tp; $('onsQ').value = ''; save(); SEL = k; if (window.switchTab) window.switchTab('ons'); setTimeout(function () { draw(); setTimeout(function () { $('onsF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80); }, 80); });
+      load().then(function () { if (!J || !J.on[k]) return; ST.tp = J.on[k].t; ST.em = []; ST.q = ''; $('onsTp').value = ST.tp; $('onsQ').value = ''; save(); SEL = k; if (window.switchTab) window.switchTab('ons'); setTimeout(function () { draw(); setTimeout(function () { $('onsF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80); }, 80); });
     }
   };
   var bq = document.getElementById('bnQ'); if (bq) bq.addEventListener('focus', function () { load(); }, { once: true });
