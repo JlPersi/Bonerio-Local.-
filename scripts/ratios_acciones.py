@@ -95,8 +95,10 @@ def ttm(per, i, key, cer):
     va, vs = a.get("resultados", {}).get(key), s.get("resultados", {}).get(key)
     if va is None or vs is None:
         return None
-    k = lambda q: cer(p["cierre"]) / cer(q["cierre"])
-    return v + va * k(a) - vs * k(s)
+    c0, ca, cs = cer(p["cierre"]), cer(a["cierre"]), cer(s["cierre"])
+    if not (c0 and ca and cs):  # sin índice para esas fechas (balances viejos)
+        return None
+    return v + va * c0 / ca - vs * c0 / cs
 
 
 def publicado(p):
@@ -142,7 +144,7 @@ def main():
             if dnum(c["cierre"]) - dnum(a["cierre"]) > 200:
                 continue
             for key in ("ni", "ebitda", "ventas"):
-                if c[key] is None and a[key] is not None:
+                if c[key] is None and a[key] is not None and cer(c["cierre"]) and cer(a["cierre"]):
                     c[key] = a[key] * cer(c["cierre"]) / cer(a["cierre"])
         try:
             px = [(r[0], r[4]) for r in json.load(open(os.path.join(DIR, t + ".json")))["r"] if r[4]]
@@ -156,6 +158,8 @@ def main():
                 continue
             c = av[-1]
             if not c["acciones"]:
+                continue
+            if not (cer(d) and cer(c["cierre"])):
                 continue
             f = cer(d) / cer(c["cierre"]) * esc  # balance reexpresado a moneda del día del precio
             k = 1  # splits posteriores al cierre del balance (los precios no vienen ajustados)
