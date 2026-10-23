@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Logos redondos de las acciones (los de TradingView) en data/logos/<TICKER>.svg y la lista en data/logos.json.
 Para cada ticker de data/acciones/index.json busca su logoid en el buscador de TradingView (BYMA primero) y baja el SVG.
-Lo que no encuentra queda afuera y la página usa el logo de antes."""
+Lo que no encuentra queda afuera y la página usa el logo de antes. Un logo cargado a mano (data/logos/BPAT.jpg con
+"BPAT": "BPAT.jpg" en logos.json) se respeta."""
 import json, os, re, time, urllib.request, urllib.parse
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
@@ -33,8 +34,11 @@ def logoid(t):
 
 os.makedirs(OUT, exist_ok=True)
 idx = json.load(open(os.path.join(DATA, "acciones", "index.json")))
-done = {}
-for t in sorted({x["t"] for x in idx}):
+try:  # los que se cargaron a mano (un archivo con extensión, como BPAT.jpg) no se pisan
+    done = {k: v for k, v in json.load(open(os.path.join(DATA, "logos.json"))).items() if "." in v}
+except Exception:
+    done = {}
+for t in sorted({x["t"] for x in idx} - set(done)):
     lid = logoid(t)
     if not lid:
         print(t, "sin logo"); continue
