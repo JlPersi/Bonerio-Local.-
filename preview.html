@@ -2988,12 +2988,6 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
   };
   hM.onchange = function () { pairB(); renderHist(); };
   hA.onchange = function () { if (hM.value) pairB(); renderHist(); };
-  window.psPair = function (a, b) { // un par de la matriz de tasas implícitas, en Historial y comparación: rendimiento y spread
-    if (!INST[a]) return; hM.value = ''; if (hB.dataset.p) { hB.innerHTML = '<option value="">(ninguno)</option>' + optsAll; delete hB.dataset.p; }
-    hA.value = a; hB.value = b !== a && INST[b] ? b : ''; hV.value = 'yd';
-    if (!hA.offsetParent && window.switchTab) window.switchTab('pesos');
-    renderHist(); var c = hA.closest('.card'); if (c) setTimeout(function () { c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
-  };
   [hB, hV, hF].forEach(function (e) { e.onchange = function () { renderHist(); }; });
   // proyección por mes de cada tarjeta (desplegable a la izquierda del gráfico)
   (function () {
@@ -3624,7 +3618,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         box = document.createElement('details'); box.id = 'psFw' + n; box.className = 'psfwd'; try { box.open = localStorage.getItem('psFwO' + n) === '1'; } catch (e) { box.open = false; } // cerrada por default; queda abierta solo si el usuario la abrió
         box.innerHTML = '<summary>' + F.tit + '</summary><div class="ctl" style="margin:10px 0 4px"><label>Vista<select data-fwv><option value="tr">Tramos</option><option value="mx">Matriz</option></select></label>' + (F.lin ? '' : '<label>Tasa<select data-fwu><option value="tea">TEA (TIR)</option><option value="tna">TNA</option></select></label>') + '</div>' +
           '<div id="psFwG' + n + '"><p class="note" id="psFwR' + n + '" style="margin:6px 0 10px;color:var(--tx)"></p><div style="position:relative;height:260px"><canvas id="psFwC' + n + '"></canvas></div><div class="wrap" style="margin-top:12px"><table class="qt" id="psFwT' + n + '"></table></div></div>' +
-          '<div id="psFwM' + n + '" style="display:none"><div class="wrap" style="margin-top:8px"><table class="qt fwm" id="psFwX' + n + '"></table></div><p class="qs" style="margin-top:8px">Cada celda es ' + (F.lin ? 'el margen implícito' : 'la tasa implícita') + ' entre el vencimiento del bono de la fila (corto) y el de la columna (largo). En la diagonal, ' + (F.lin ? 'el margen' : 'la tasa') + ' de cada bono. Más intenso el color, más alta la tasa. Tocá una celda para ver ese par en Historial y comparación.</p></div>' +
+          '<div id="psFwM' + n + '" style="display:none"><div class="wrap" style="margin-top:8px"><table class="qt fwm" id="psFwX' + n + '"></table></div><p class="qs" style="margin-top:8px">Cada celda es ' + (F.lin ? 'el margen implícito' : 'la tasa implícita') + ' entre el vencimiento del bono de la fila (corto) y el de la columna (largo). En la diagonal, ' + (F.lin ? 'el margen' : 'la tasa') + ' de cada bono. Más intenso el color, más alta la tasa. Tocá una celda para ver la forward de ese par, día por día, en Expectativas › Forwards.</p></div>' +
           '<p class="qs" style="margin-top:8px">' + F.sub + ' Los tramos de menos de ' + FWD_MIN + ' días van en gris: con tan poco plazo, un error chico de precio mueve mucho la tasa. Un pico seguido de un pozo suele ser un bono fuera de la curva (barato), no un tramo que pague más.' + (F.lin ? '' : ' TEA del tramo: (monto del largo ÷ monto del corto)<sup>365/días</sup> − 1; TNA: (monto del largo ÷ monto del corto − 1) × 365 ÷ días.') + '</p>';
         box.addEventListener('toggle', function () { try { localStorage.setItem('psFwO' + n, box.open ? '1' : '0'); } catch (e) { } });
         card.appendChild(box);
@@ -3660,7 +3654,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
           pts.forEach(function (b, j) { var c = cell[i][j]; if (!c) { mh += '<td></td>'; return; } var w = hi2 > lo ? (c.v - lo) / (hi2 - lo) : 0.5, bg = !isFinite(c.v) ? '' : c.sh ? ' style="background:repeating-linear-gradient(135deg,rgba(161,161,170,.10) 0 6px,rgba(161,161,170,.03) 6px 12px)"' : ' style="background:' + rgba(FC, 0.14 + 0.46 * Math.max(0, Math.min(1, w))) + '"'; mh += '<td class="' + (j === i ? 'fwd' : '') + (c.sh ? ' fwc' : '') + '"' + bg + ' data-a="' + nm(a.k) + '" data-b="' + nm(b.k) + '" title="' + nm(a.k) + ' → ' + nm(b.k) + (j > i ? ' (' + (b.d - a.d) + ' días' + (c.sh ? ': tramo corto, en gris rayado' : '') + ')' : '') + '">' + (isFinite(c.v) ? fm(c.v * 100, 2) + '%' : '—') + '</td>'; });
           mh += '</tr>';
         });
-        document.getElementById('psFwX' + n).innerHTML = mh + '</tbody>'; document.getElementById('psFwX' + n).onclick = function (ev) { var td = ev.target.closest('td[data-a]'); if (td && window.psPair) window.psPair(td.getAttribute('data-a'), td.getAttribute('data-b')); };
+        document.getElementById('psFwX' + n).innerHTML = mh + '</tbody>'; document.getElementById('psFwX' + n).onclick = function (ev) { var td = ev.target.closest('td[data-a]'); if (td && window.thPair) window.thPair(td.getAttribute('data-a'), td.getAttribute('data-b')); };
         return;
       }
       var h = '<thead><tr><th class="l">Tramo</th><th>' + (F.lin ? 'Margen implícito' : 'Tasa implícita (' + (U === 'tna' ? 'TNA' : 'TEA') + ')') + '</th><th class="l">Entre</th><th>Días</th><th>Tasa del bono</th></tr></thead><tbody>';
@@ -8045,7 +8039,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       var last = d[n - 1].y, z = sd > 0 ? (last - mu) / sd : 0;
       rows.push({ c: c, a: a, b: b, last: last, mu: mu, sd: sd, z: z, n: n, t: x1, mix: mix, dd: dd });
     });
-    mk('thFC', sets, (ST.conv === 'tea' ? 'TEA' : 'TNA 180/360') + ' o margen (%)', function (c) { return c.dataset.label + ': ' + fm(c.parsed.y, 2) + '%'; });
+    $('thFC').parentNode.style.display = sets.length ? '' : 'none'; // sin pares, sin gráfico vacío (el eje caía en 1970)
+    if (!sets.length) kill('thFC'); else mk('thFC', sets, (ST.conv === 'tea' ? 'TEA' : 'TNA 180/360') + ' o margen (%)', function (c) { return c.dataset.label + ': ' + fm(c.parsed.y, 2) + '%'; });
     var th = 'style="text-align:right;padding:6px 10px;color:var(--mu);font-weight:600;font-size:12px;white-space:nowrap"', td = 'style="text-align:right;padding:7px 10px;border-top:1px solid var(--bd);white-space:nowrap;font-variant-numeric:tabular-nums"';
     $('thFS').innerHTML = rows.length ? '<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr><th ' + th.replace('right', 'left') + '>Par</th><th ' + th + '>Hoy</th><th ' + th + '>Promedio</th><th ' + th + '>Desvío</th><th ' + th + '>Rango habitual</th><th ' + th + '>Hoy vs promedio</th><th ' + th.replace('right', 'left') + '>Lectura</th></tr></thead><tbody>' + rows.map(function (r) {
       var zc = r.z >= 1 ? 'var(--ok)' : r.z <= -1 ? 'var(--bad)' : 'var(--mu)';
@@ -8159,7 +8154,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var from = bxDayNum(ST.from), G = universe(from), all = opts(G);
     $('thAdd').innerHTML = '<option value="">Elegí un bono…</option>' + all;
     $('thAddF').innerHTML = '<option value="">Elegí una familia…</option>' + GORD.map(function (g) { var n = members(G, g).length, on = ST.fams.indexOf(g) >= 0; return n ? '<option value="' + g + '"' + (on ? ' disabled' : '') + '>' + (on ? '✓ ' : '') + GN[g] + ' (' + n + (n === 1 ? ' bono' : ' bonos') + ')</option>' : ''; }).join('');
-    var fa = $('thFA').value, fb = $('thFB').value; $('thFA').innerHTML = all; $('thFB').innerHTML = all; $('thFA').value = fa || 'TZX27'; $('thFB').value = fb || 'TZX28';
+    var fa = $('thFA').value, fb = $('thFB').value; $('thFA').innerHTML = all; $('thFB').innerHTML = all; $('thFA').value = (THW && THW[0]) || fa || 'TZX27'; $('thFB').value = (THW && THW[1]) || fb || 'TZX28'; THW = null;
     chipsY(); chipsF();
     try { renderY(); } catch (e) { console.error('tasas históricas', e); }
     try { renderF(); } catch (e) { console.error('forwards', e); }
@@ -8176,6 +8171,12 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   $('thConv').onchange = function () { ST.conv = this.value; save(); later(); };
   $('thAdd').onchange = function () { var k = this.value; if (k && ST.sel.indexOf(k) < 0) { ST.sel.push(k); save(); later(); } this.value = ''; };
   $('thAddF').onchange = function () { var g = this.value; if (g && ST.fams.indexOf(g) < 0) { ST.fams.push(g); save(); later(); } this.value = ''; };
+  var THW = null; // par que llega de la matriz de tasas implícitas (Bonos en pesos)
+  window.thPair = function (a, b) {
+    if (!a || !b || a === b) return; var p = [a, b]; THW = p; if (!ST.pairs.some(function (x) { return pkey(x) === pkey(p); })) ST.pairs.push(p); save();
+    if (window.switchTab) window.switchTab($('expf') ? 'expf' : 'thist'); later(); // la tarjeta vive en Expectativas › Forwards
+    var n = 0, go = function () { var el = $('thF'); if ((!el || !el.offsetParent) && n++ < 15) { setTimeout(go, 300); return; } try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) {} }; setTimeout(go, 400);
+  };
   $('thFAdd').onclick = function () { var a = $('thFA').value, b = $('thFB').value; if (!a || !b || a === b) return; var p = ord(a, b); if (matOf(p[0]) === matOf(p[1])) { $('thFN').textContent = a + ' y ' + b + ' vencen el mismo día: no hay forward entre ellos.'; return; } if (!ST.pairs.some(function (x) { return pkey(x) === pkey(p); })) ST.pairs.push(p); $('thFA').value = p[0]; $('thFB').value = p[1]; save(); later(); };
   document.addEventListener('click', function (e) {
     var go = e.target.closest('.psgo [data-go]'); if (go) { var sid = go.getAttribute('data-sec'); window.switchTab(go.getAttribute('data-go')); setTimeout(function () { var el = document.getElementById(sid); if (el) try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) {} }, 350); return; }
