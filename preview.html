@@ -10883,9 +10883,9 @@ window.RATG = (function () {
     '<div class="f2" style="margin-top:6px"><div><h5>Aceleración del negocio, en dólares</h5><div class="tw" style="max-height:none;margin-top:0"><table id="accFa"></table></div></div><div><h5>Contra sus ONs y el soberano</h5><div class="tw" style="max-height:none;margin-top:0"><table id="accFo"></table></div></div></div>' +
     '<h5>Contra sus competidores</h5><div class="tw" style="max-height:none;margin-top:0"><table id="accFp"></table></div><p class="note" id="accFxn" style="margin-top:8px"></p></div>' +
 
-    '<div class="card sx" id="accS" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Sectores</p><p class="qs">Retorno promedio de cada sector y la relación entre dos sectores en el tiempo. Tocá un sector para filtrar la tabla.</p></div><div class="sxb">' + dlb('accS', 'Bonerio_acciones_sectores') + '</div></div>' +
+    '<div class="card sx" id="accS" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Sectores</p><p class="qs">Retorno de cada sector, ponderado por el monto que opera cada acción, y la relación entre dos sectores en el tiempo. Tocá un sector para filtrar la tabla.</p></div><div class="sxb">' + dlb('accS', 'Bonerio_acciones_sectores') + '</div></div>' +
     '<div class="ctl"><label>Retorno<span class="seg" id="accSp"><button data-v="1m">1 mes</button><button data-v="3m">3 meses</button><button data-v="ytd">En el año</button><button data-v="1a">1 año</button></span></label></div>' +
-    '<div class="f2"><div><h5>Retorno promedio por sector</h5><div class="cw2" style="height:380px"><canvas id="accScv"></canvas></div></div><div><h5>Resumen por sector (medianas)</h5><div class="tw" style="max-height:380px;margin-top:0"><table id="accStab"></table></div></div></div>' +
+    '<div class="f2"><div><h5>Retorno por sector (ponderado por monto)</h5><div class="cw2" style="height:380px"><canvas id="accScv"></canvas></div></div><div><h5>Resumen por sector (medianas)</h5><div class="tw" style="max-height:380px;margin-top:0"><table id="accStab"></table></div></div></div>' +
     '<div class="ctl" style="margin-top:20px"><label>Sector A<select id="accSa"></select></label><label>Sector B<select id="accSb"></select></label>' +
     '<label>Período<span class="seg" id="accSper">' + RG.slice(1).filter(function (r) { return r[0] !== 'ytd'; }).map(function (r) { return '<button data-v="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</span></label></div>' +
     '<div class="cw2" style="height:clamp(260px,26vw,360px)"><canvas id="accRcv"></canvas></div><p class="note" id="accSn" style="margin-top:8px"></p></div>' +
@@ -11323,10 +11323,12 @@ window.RATG = (function () {
   }
   function hexRgb(h) { var n = parseInt(h.slice(1), 16); return (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255); }
   var SL = {};
-  function secLine(ts, mon) { // índice simple de un grupo de acciones (promedio de retornos diarios), por fecha
+  var wOf = function (t) { var m = mt(t); if (m.amt20 > 0) return m.amt20; var o = MT.t[t]; return o && o.vol_prom_20 > 0 && o.ars && o.ars.precio > 0 ? o.vol_prom_20 * o.ars.precio : 0; }; // peso de una acción en su sector: monto promedio de las últimas 20 ruedas, en pesos
+  var wavg = function (a) { var sw = 0, s = 0; a.forEach(function (x) { if (x[1] > 0) { sw += x[1]; s += x[0] * x[1]; } }); return sw > 0 ? s / sw : a.length ? mean(a.map(function (x) { return x[0]; })) : null; }; // [valor, peso]; sin pesos, promedio simple
+  function secLine(ts, mon) { // índice de un grupo de acciones (retornos diarios ponderados por monto), por fecha
     var key = ts.join(',') + mon; if (SL[key]) return SL[key]; var R = {};
-    var td1 = today(); ts.forEach(function (t) { var p0 = null; rows(t, mon).forEach(function (x) { var c = x[4]; if (x[0] >= td1) return; if (p0) { var r = Math.log(c / p0); if (Math.abs(r) < 0.4) (R[x[0]] = R[x[0]] || []).push(r); } p0 = c; }); });
-    var lv = 100, out = {}; Object.keys(R).sort().forEach(function (d) { lv *= Math.exp(mean(R[d])); out[d] = lv; }); return SL[key] = out;
+    var td1 = today(); ts.forEach(function (t) { var p0 = null, w = wOf(t); rows(t, mon).forEach(function (x) { var c = x[4]; if (x[0] >= td1) return; if (p0) { var r = Math.log(c / p0); if (Math.abs(r) < 0.4) (R[x[0]] = R[x[0]] || []).push([r, w]); } p0 = c; }); });
+    var lv = 100, out = {}; Object.keys(R).sort().forEach(function (d) { lv *= Math.exp(wavg(R[d])); out[d] = lv; }); return SL[key] = out;
   }
   function chips() {
     var all = ST.ov.concat(ST.pa); $('accCh').innerHTML = all.map(function (k) { var it = itInfo(k); if (!it) return ''; return '<span class="chip"><i style="background:' + it[2] + '"></i>' + esc(k.indexOf('cmp:') === 0 ? 'Comparar con ' + it[1] : it[1]) + (FUN[k] ? '<button type="button" data-f="' + k + '" title="' + (integ(k) ? 'Pasar a un panel aparte' : 'Integrar al gráfico de precio') + '">' + (integ(k) ? 'separar' : 'integrar') + '</button>' : '') + '<button type="button" data-x="' + esc(k) + '" title="Sacar">×</button></span>'; }).join('');
@@ -11371,13 +11373,13 @@ window.RATG = (function () {
     if (!IX) return; var k = ST.sp, rs = [];
     SEC.forEach(function (s) {
       var ts = IX.filter(function (x) { return secOf(x.t) === s[0]; }).map(function (x) { return x.t; }); if (!ts.length) return; var Mm = ts.map(function (t) { return mt(t)[ST.mon] || {}; }), Rr = ts.map(function (t) { return (RT.t[t] || {}).ultimo || {}; });
-      var rr = Mm.map(function (a) { return (a.ret || {})[k]; }).filter(function (x) { return x != null; });
-      rs.push({ s: s, n: ts.length, r: rr.length ? mean(rr) : null, best: ts.map(function (t, i) { return [t, (Mm[i].ret || {})[k]]; }).filter(function (x) { return x[1] != null; }).sort(function (a, b) { return b[1] - a[1]; })[0],
+      var rr = Mm.map(function (a, i) { return [(a.ret || {})[k], wOf(ts[i])]; }).filter(function (x) { return x[0] != null; }), W = rr.reduce(function (z, x) { return z + (x[1] > 0 ? x[1] : 0); }, 0), top = ts.map(function (t) { return [t, wOf(t)]; }).sort(function (a, b) { return b[1] - a[1]; })[0];
+      rs.push({ s: s, n: ts.length, r: rr.length ? wavg(rr) : null, top: W > 0 && top ? [top[0], top[1] / W] : null, best: ts.map(function (t, i) { return [t, (Mm[i].ret || {})[k]]; }).filter(function (x) { return x[1] != null; }).sort(function (a, b) { return b[1] - a[1]; })[0],
         vol: med(Mm.map(function (a) { return (a.vol || {})['252']; })), beta: med(Mm.map(function (a) { return a.beta; })), pe: med(Rr.map(function (r) { return r.pe > 0 ? r.pe : null; })), pvl: med(Rr.map(function (r) { return r.pvl; })), dd: med(Mm.map(function (a) { return a.dd_max; })) });
     });
     rs.sort(function (a, b) { return (b.r == null ? -9 : b.r) - (a.r == null ? -9 : a.r); });
     var o = base(); o.indexAxis = 'y'; o.plugins.legend.display = false; o.interaction = { mode: 'nearest', intersect: true };
-    o.plugins.tooltip.callbacks = { label: function (c) { var x = rs[c.dataIndex]; return [nf(c.parsed.x, 1) + '% (promedio de ' + x.n + ' acciones)', x.best ? 'la mejor: ' + x.best[0] + ' ' + pc(x.best[1]) : '']; } };
+    o.plugins.tooltip.callbacks = { label: function (c) { var x = rs[c.dataIndex]; return [nf(c.parsed.x, 1) + '% (' + x.n + ' acciones, ponderado por monto)', x.top ? 'pesa más ' + x.top[0] + ': ' + nf(x.top[1] * 100, 0) + '% del monto' : '', x.best ? 'la mejor: ' + x.best[0] + ' ' + pc(x.best[1]) : '']; } };
     o.scales.x.ticks.callback = function (v) { return tk(v) + '%'; }; o.scales.x.grid = { color: css('--bd') }; o.scales.y.grid = { display: false };
     o.onClick = function (e, el) { if (el && el[0]) secPick(rs[el[0].index].s[0]); };
     mk('accScv', { type: 'bar', data: { labels: rs.map(function (x) { return x.s[1]; }), datasets: [{ data: rs.map(function (x) { return x.r == null ? null : x.r * 100; }), backgroundColor: rs.map(function (x) { return x.s[2]; }), borderRadius: 4 }] }, options: o });
@@ -11405,7 +11407,7 @@ window.RATG = (function () {
       var cA = A === 'lider' ? '#e4e4e7' : SC[A], cB = B2 === 'lider' ? '#e4e4e7' : SC[B2];
       mk('accRcv', { type: 'line', data: { labels: c.map(function (x) { return fr(x[0]); }), datasets: [ln(nA + ' (base 100)', ia, cA, { borderWidth: 1.2 }), ln(nB + ' (base 100)', ib, cB, { borderWidth: 1.2 }), ln('Ratio ' + nA + ' / ' + nB + ' (eje derecho)', rt, css('--fc') || '#4ade80', { borderWidth: 2.2, yAxisID: 'y1' })] }, options: o });
       var last = rt[rt.length - 1];
-      $('accSn').textContent = 'Índices por sector: promedio simple de los retornos diarios de sus acciones (precios ajustados por splits); el panel líder, ponderado por capitalización. En el período, ' + nA + ' ' + (last >= 100 ? 'le ganó' : 'perdió') + ' contra ' + nB + ' por ' + nf(Math.abs(last - 100), 1) + ' puntos.';
+      $('accSn').textContent = 'Índices por sector: retornos diarios de sus acciones ponderados por el monto operado (promedio de las últimas 20 ruedas, precios ajustados por splits); el panel líder, ponderado por capitalización. En el período, ' + nA + ' ' + (last >= 100 ? 'le ganó' : 'perdió') + ' contra ' + nB + ' por ' + nf(Math.abs(last - 100), 1) + ' puntos.';
     });
   }
 
