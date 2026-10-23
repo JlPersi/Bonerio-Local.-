@@ -5211,7 +5211,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var fb = e.target.closest('[data-f]'); if (fb) { F = fb.getAttribute('data-f'); draw(); return; }
       var rg = e.target.closest('[data-r]'); if (rg) { RNG = rg.getAttribute('data-r'); draw(); return; }
       var li = e.target.closest('li[data-k]'); if (li) { TK = li.getAttribute('data-k'); SP = ''; VIEW = 'tk'; draw(); return; }
-      var go = e.target.closest('[data-go]'); if (go) { var t = go.getAttribute('data-go'); if (EMBQ) { if (window.DBPOST) window.DBPOST({ t: 'dbGo', tab: t }); return; } close(); if (window.switchTab) window.switchTab(t); window.scrollTo(0, 0); }
+      var go = e.target.closest('[data-go]'); if (go) { var t = go.getAttribute('data-go'); if (/^acc:/.test(t) && window.ACCQ && !EMBQ) { close(); window.ACCQ.open(t.slice(4)); return; } if (EMBQ) { if (window.DBPOST) window.DBPOST({ t: 'dbGo', tab: t }); return; } close(); if (window.switchTab) window.switchTab(t); window.scrollTo(0, 0); }
     });
     draw(); if (window.corpLive) window.corpLive();
     if (!DAY) window.VOLX.day(function (d) { DAY = d || false; if (ov) draw(); });
@@ -5237,10 +5237,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var rngB = function () { return '<div class="f">' + RNGS.map(function (r) { return '<button type="button" data-r="' + r[0] + '" class="' + (RNG === r[0] ? 'on' : '') + '">' + r[1] + '</button>'; }).join('') + '</div>'; };
   var norm = function (v) { return v.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); };
   function inpChange(inp, have) { inp.onchange = function () { var v = norm(this.value); if (!v) return; var X = window.QVX; if (X && X.has(v)) { TK = v; SP = ''; } else { TK = /[ODC]$/.test(v) && have.indexOf(v.slice(0, -1)) >= 0 ? v.slice(0, -1) : v; SP = TK !== v ? v.slice(-1) : ''; } if (!EMBQ) try { localStorage.setItem('qvTk', TK); } catch (e) { } draw(); }; inp.onfocus = function () { this.select(); }; }
-  var xList = function () { var X = window.QVX; return X ? X.list() : []; };
+  var xList = function () { var X = window.QVX, A = window.ACCQ && window.ACCQ.qv; return (X ? X.list() : []).concat(A ? A.list() : []); };
   function drawTk() {
     var P = ov.querySelector('#qvP'), bd = P.querySelector('.bd'), k = pick(), have = syms();
     if (window.QVX && window.QVX.has(k)) { drawX(k, have); return; }
+    var AQ = window.ACCQ && window.ACCQ.qv; if (AQ && AQ.has(k) && !q(k) && !q(k + 'O') && !q(k + 'D')) { drawX(k, have, AQ); return; } // acciones
     var pe = !q(k) && q(k + 'O') ? 'O' : '', sps = [pe, 'D', 'C'].filter(function (s) { return s === pe || q(k + s); }); if (sps.indexOf(SP) < 0) SP = pe;
     var sym = k + SP, Q = q(sym) || {}, dyn = RAW && RAW.t ? RAW.t[sym] : null;
     var c0 = null; if (dyn) { var acc = 0, cl = []; for (var i = 0; i < dyn.i.length; i++) { acc += dyn.i[i]; if (dyn.c[i] > 0) cl.push([RAW.dates[acc], dyn.c[i]]); } var td = nowBA().d; var prev = cl.filter(function (x) { return x[0] < td; }); c0 = prev.length ? prev[prev.length - 1] : null; }
@@ -5285,12 +5286,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
 
   /* ---------- caución, plazo fijo, tasas del BCRA, A3500 y futuros (los datos de Mercado de dinero y Futuros: window.QVX) ---------- */
-  function drawX(k, have) {
-    var P = ov.querySelector('#qvP'), bd = P.querySelector('.bd'), X = window.QVX;
+  function drawX(k, have, prov) {
+    var P = ov.querySelector('#qvP'), bd = P.querySelector('.bd'), X = prov || window.QVX;
     var inpH = '<div class="q"><input id="qvI" list="qvL" value="' + esc(k) + '" placeholder="Buscá: AL30, CAUCION, DLR/NOV26…" autocomplete="off" spellcheck="false"><datalist id="qvL">' + xList().map(function (x) { return '<option value="' + esc(x[0]) + '">' + esc(x[1]) + '</option>'; }).join('') + have.map(function (s) { return '<option value="' + esc(s) + '">'; }).join('') + '</datalist></div>';
-    P.querySelector('.ft').innerHTML = '<span>' + (/^(DLR|CAUC)\//.test(k) ? 'A3 y Primary' : /^CAUCION/.test(k) ? 'A3 y BYMA' : k === 'A3500' || k === 'PLAZO FIJO' || k === 'BADLAR' || k === 'TAMAR' ? 'BCRA' : 'A3 y BCRA') + '</span><span class="bt">' + addB() + '<button type="button" data-go="' + (/^(DLR|CAUC)\/|FUTURO|DEVAL|A3500/.test(k) ? 'tfut' : 'tcor') + '">Abrir la pestaña</button></span>';
+    P.querySelector('.ft').innerHTML = prov ? '<span>' + prov.src + '</span><span class="bt">' + addB() + '<button type="button" data-go="acc:' + esc(k) + '">Abrir la ficha</button></span>' : '<span>' + (/^(DLR|CAUC)\//.test(k) ? 'A3 y Primary' : /^CAUCION/.test(k) ? 'A3 y BYMA' : k === 'A3500' || k === 'PLAZO FIJO' || k === 'BADLAR' || k === 'TAMAR' ? 'BCRA' : 'A3 y BCRA') + '</span><span class="bt">' + addB() + '<button type="button" data-go="' + (/^(DLR|CAUC)\/|FUTURO|DEVAL|A3500/.test(k) ? 'tfut' : 'tcor') + '">Abrir la pestaña</button></span>';
     if (EMBQ && window.DBPOST) window.DBPOST({ t: 'dbCfg', o: { k: k, sp: '', r: RNG } });
-    if (!X.ready()) { bd.innerHTML = inpH + '<p class="t">Cargando…</p>'; inpChange(bd.querySelector('#qvI'), have); X.ensure(function () { if (ov && VIEW === 'tk') draw(); }); return; }
+    if (!X.ready(k)) { bd.innerHTML = inpH + '<p class="t">Cargando…</p>'; inpChange(bd.querySelector('#qvI'), have); X.ensure(function () { if (ov && VIEW === 'tk') draw(); }, k); return; }
     var o = X.get(k);
     if (!o) { bd.innerHTML = inpH + '<p class="t">No hay datos de ' + esc(k) + '.</p>'; inpChange(bd.querySelector('#qvI'), have); return; }
     var cl = o.ch > 0 ? 'up' : o.ch < 0 ? 'dn' : 'mu';
@@ -11676,10 +11677,33 @@ window.RATG = (function () {
     var cnt = {}; rows.forEach(function (x) { var k = x.d1 + '|' + x.d0; cnt[k] = (cnt[k] || 0) + 1; }); var bk = Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a]; })[0].split('|');
     return { info: (nl ? 'Hoy ' : 'Cierre del ') + fr(bk[0]) + ' contra el cierre del ' + fr(bk[1]) + (n > 1 ? ' (' + n + ' ruedas)' : '') + ' · ' + rows.length + ' acciones ' + (VDP === 'lider' ? 'del panel líder' : VDP === 'general' ? 'del panel general' : 'de los dos paneles') + ' · ' + (nl ? nl + ' con precio en vivo de data912' : 'precios de cierre') + ' · en pesos', chips: chips };
   }
+  /* para el botón flotante (Ticker): una acción con su último precio, puntas, volumen y gráfico de cierres */
+  var QV = {
+    src: 'Precios de data912 · cierres guardados',
+    has: function (k) { return !!IX && IX.some(function (x) { return x.t === k; }); },
+    ready: function (k) { return !!IX && !!RAW[k]; },
+    ensure: function (cb, k) { load().then(function () { return k && IX.some(function (x) { return x.t === k; }) ? file(k) : null; }).then(function () { return live(); }).then(cb); },
+    list: function () { return IX ? IX.map(function (x) { return [x.t, 'Acción · ' + SN[secOf(x.t)]]; }) : []; },
+    get: function (k) {
+      if (Date.now() - lvT > 25000) live();
+      var L = LV[k] || {}, r = RAW[k] || [], td = today(), pv = r.filter(function (x) { return x[0] < td; }), c0 = pv.length ? pv[pv.length - 1] : null, x = IX.filter(function (y) { return y.t === k; })[0] || {};
+      var p = L.c > 0 ? L.c : r.length ? r[r.length - 1][4] : null, ref = L.c > 0 ? c0 : pv.length > 1 ? pv[pv.length - 2] : null, ch = p && ref ? (p / ref[4] - 1) * 100 : null, a = (mt(k).ars || {}).ret || {}, vv = L.c > 0 ? L.v : r.length ? r[r.length - 1][5] : null; // sin rueda en vivo: el volumen del último cierre
+      return { k: k, u: '$', vf: '$ ' + nf(p, 2), ch: ch, chU: '%', t: 'Acción · ' + SN[secOf(k)], n: x.panel === 'lider' ? 'panel líder' : 'panel general',
+        vs: (L.c > 0 ? 'Último operado' : r.length ? 'Cierre del ' + fr(r[r.length - 1][0]) : '') + (ref ? ' · cierre anterior $ ' + nf(ref[4], 2) + ' (' + fr(ref[0]) + ')' : ''),
+        bk: L.b > 0 || L.a > 0 ? [['Compra', L.b > 0 ? nf(L.b, 2) : '—'], ['Venta', L.a > 0 ? nf(L.a, 2) : '—']] : null,
+        kv: [['Volumen', vv > 0 ? big(vv) + ' acc.' : '—'], ['Monto', vv > 0 && p > 0 ? '$ ' + big(vv * p) : '—'], ['Operaciones', L.q > 0 ? nf(L.q, 0) : '—'], ['En el año', pc(a.ytd)], ['1 año', pc(a['1a'])]],
+        fmt: function (v) { return '$ ' + nf(v, 2); } };
+    },
+    series: function (o, R) {
+      var N = { '1m': 21, '3m': 63, '6m': 126, '1a': 252 }[R] || 21, r = rows(o.k, 'ars').slice(-N);
+      return { pts: r.map(function (x, i) { return { x: i, y: x[4] }; }), lbl: function (i) { var d = r[Math.round(i)]; return d ? d[0].slice(8, 10) + '/' + d[0].slice(5, 7) : ''; }, step: false, note: R === 'in' ? 'De las acciones no hay intradiario: el último mes.' : '' };
+    }
+  };
   /* para el buscador de arriba */
   window.ACCQ = {
     find: function (q) { if (!IX) { load(); return []; } q = String(q || '').toUpperCase(); var out = []; IX.forEach(function (x) { var s = x.t === q ? 0 : x.t.indexOf(q) === 0 ? 1 : -1; if (s < 0) ADRS.forEach(function (a) { if (a[0] === x.t && a[1].indexOf(q) === 0) s = 1; }); if (s >= 0) { var m = mt(x.t).ars || {}, L = LV[x.t] || {}; out.push({ k: x.t, s: s, p: L.c > 0 ? L.c : m.precio, sec: SN[secOf(x.t)] }); } }); return out; },
     vard: vardView,
+    qv: QV,
     lv: function () { if (IX && Date.now() - lvT > 25000) live(); return LV; },
     open: function (t) { ST.sel = t; save(); if (window.switchTab) window.switchTab('acc'); setTimeout(function () { load().then(function () { pick(t, 1); }); }, 80); }
   };

@@ -9,13 +9,55 @@ Por ticker, en pesos y en dólares CCL (el CCL sale de AL30 / AL30C de data/volu
   en las últimas 252 ruedas en común
 - volumen promedio de 20 ruedas (en la unidad de data912)
 Además guarda el índice del panel líder (base 100) en pesos y en CCL, para graficar.
-Los retornos solo usan ruedas consecutivas guardadas; las ruedas sin precio no se rellenan.
+Los retornos solo usan ruedas consecutivas guardadas; las ruedas sin precio no se rellenan. Los precios se ajustan por splits como en la página.
 """
 import json, os, math, datetime as dt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIR = os.path.join(HERE, "..", "data", "acciones")
 SKIP = {"index.json", "saltos.json", "metricas.json", "ratios.json"}
+
+
+def splits():
+    """Igual que la página: de saltos.json, los saltos que son un múltiplo casi exacto (2:1 con 0,6% de margen, 3:1 o más con 5%)
+    son splits; si el salto se revierte a la rueda siguiente es un dato malo y se saca esa rueda."""
+    try:
+        sl = json.load(open(os.path.join(DIR, "saltos.json")))
+    except (OSError, ValueError):
+        return {}, {}
+    L = {}
+    for x in sl:
+        c0, c1 = x.get("c0"), x.get("c1")
+        if not (c0 and c1 and c0 > 0 and c1 > 0):
+            continue
+        q = c0 / c1; inv = q < 1; z = 1 / q if inv else q; k = round(z)
+        if not ((k >= 3 and abs(z / k - 1) < 0.05) or (k == 2 and abs(z / k - 1) < 0.006)):
+            continue
+        L.setdefault(x["t"], []).append({"de": x["de"], "a": x["a"], "f": 1 / k if inv else k})
+    spl, bad = {}, {}
+    for t, a in L.items():
+        i = 0
+        while i < len(a):
+            n = a[i + 1] if i + 1 < len(a) else None
+            if n and n["de"] == a[i]["a"] and abs(math.log(a[i]["f"] * n["f"])) < 0.1:
+                bad.setdefault(t, set()).add(a[i]["a"]); i += 2; continue
+            spl.setdefault(t, []).append((a[i]["a"], a[i]["f"])); i += 1
+    return spl, bad
+
+
+def adj(px, sp, bad):
+    """px [(fecha, cierre)] ajustado por splits, sin las ruedas malas ni los precios rotos que saltan más de 30% y vuelven."""
+    px = [(d, p) for d, p in px if d not in bad]
+    if sp:
+        out = []
+        for d, p in px:
+            f = 1
+            for d1, k in sp:
+                if d < d1:
+                    f *= k
+            out.append((d, p / f))
+        px = out
+    return [x for i, x in enumerate(px) if not (0 < i < len(px) - 1 and abs(math.log(x[1] / px[i - 1][1])) > 0.3 and abs(math.log(px[i + 1][1] / px[i - 1][1])) < 0.1)]
 
 
 def ccl_series():
@@ -98,12 +140,13 @@ def index_from(series, members):
 
 def main():
     ccl = ccl_series()
+    spl, bad = splits()
     ars, usd, meta = {}, {}, {}
     for fn in sorted(os.listdir(DIR)):
         if not fn.endswith(".json") or fn in SKIP:
             continue
         o = json.load(open(os.path.join(DIR, fn)))
-        px = [(r[0], r[4]) for r in o.get("r", []) if r[4] and r[4] > 0]
+        px = adj([(r[0], r[4]) for r in o.get("r", []) if r[4] and r[4] > 0], spl.get(o.get("t"), []), bad.get(o.get("t"), set()))
         if len(px) < 2:
             continue
         t = o["t"]; ars[t] = px; meta[t] = o
