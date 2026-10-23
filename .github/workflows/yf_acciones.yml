@@ -1,0 +1,31 @@
+name: "Acciones: histórico de Yahoo"
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Tickers sin el .BA, separados por coma (los que data912 no tiene)"
+        required: false
+        default: "ECOG"
+permissions:
+  contents: write
+jobs:
+  yahoo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q yfinance
+      - name: Histórico de Yahoo
+        env:
+          TICKERS: ${{ github.event.inputs.tickers }}
+        run: python3 scripts/yf_acciones.py
+      - name: Métricas y ratios
+        run: python3 scripts/metricas_acciones.py && python3 scripts/ratios_acciones.py
+      - name: Commit
+        run: |
+          if [ -n "$(git status --porcelain data)" ]; then
+            git config user.name "cierre-bot"
+            git config user.email "bot@users.noreply.github.com"
+            git add data
+            git commit -m "acciones: Yahoo $(date -u +%F)"
+            git pull --rebase -q origin main && git push
+          fi
