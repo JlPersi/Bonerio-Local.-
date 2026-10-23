@@ -18,7 +18,13 @@ jobs:
           if [ -n "$(git status --porcelain data)" ]; then
             git config user.name "cierre-bot"
             git config user.email "bot@users.noreply.github.com"
+            # solo los balances: ratios.json lo reescribe también el cierre diario, así que se rearma después de traer main
+            git add data/acciones/balances
+            git commit -m "balances $(date -u +%F)" || true
+            git checkout -- data
+            git pull --rebase -q origin main
+            python3 scripts/ratios_acciones.py
             git add data
-            git commit -m "balances $(date -u +%F)"
-            git pull --rebase -q origin main && git push
+            git commit -m "ratios $(date -u +%F)" || true
+            git push
           fi
