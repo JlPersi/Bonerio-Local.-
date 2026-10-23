@@ -59,7 +59,7 @@ def load_cer():
 def load_fx():
     """A3500 diario (data/dolar.json y lo último de data/indices.json), con la misma interfaz que load_cer."""
     fx = {}
-    for fn, key in (("dolar.json", "A3500"), ("indices.json", "FX")):
+    for fn, key in (("acciones/ccl.json", "oficial"), ("dolar.json", "A3500"), ("indices.json", "FX")):  # el oficial histórico (desde 2002) y encima el A3500 más reciente
         try:
             for d, v in json.load(open(os.path.join(ROOT, "data", fn)))[key].items():
                 fx[dnum(d)] = float(v)
