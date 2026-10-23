@@ -10767,9 +10767,11 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   function load() {
     if (ldP) return ldP;
     var vol = new Promise(function (ok) { if (window.VOLX && window.VOLX.raw) window.VOLX.raw(ok); else j('data/volumen.json').then(ok); });
-    ldP = Promise.all([j('data/acciones/index.json'), j('data/acciones/metricas.json'), j('data/acciones/ratios.json'), vol, j('data/acciones/saltos.json')]).then(function (r) {
+    ldP = Promise.all([j('data/acciones/index.json'), j('data/acciones/metricas.json'), j('data/acciones/ratios.json'), vol, j('data/acciones/saltos.json'), j('data/acciones/ccl.json')]).then(function (r) {
       IX = r[0]; MT = r[1] || { t: {} }; RT = r[2] || { t: {} }; if (!IX) { err = 'No se pudieron leer los datos de acciones.'; return; }
       splits(r[4] || []);
+      // dólar por fecha: el oficial hasta que aparece el CCL (2011), después el CCL histórico y, desde 2023, el de AL30 / AL30C (data/acciones/ccl.json, scripts/ccl_historico.py)
+      var H = r[5] || {}, hc = H.ccl || {}, c0 = Object.keys(hc).sort()[0] || '9999'; Object.keys(H.oficial || {}).forEach(function (d) { if (d < c0) CCL[d] = H.oficial[d]; }); Object.keys(hc).forEach(function (d) { CCL[d] = hc[d]; });
       var v = r[3]; // CCL de AL30 / AL30C por fecha
       if (v && v.t) { var ser = function (tk) { var o = v.t[tk], out = {}, acc = 0; if (!o) return out; o.i.forEach(function (i, k) { acc += i; if (o.c[k] > 0) out[v.dates[acc]] = o.c[k]; }); return out; }; var a = ser('AL30'), c = ser('AL30C'); Object.keys(a).forEach(function (d) { if (c[d]) CCL[d] = a[d] / c[d]; }); }
       $('accTkL').innerHTML = IX.slice().sort(function (a, b) { return a.t.localeCompare(b.t); }).map(function (x) { return '<option value="' + x.t + '">' + SN[secOf(x.t)] + '</option>'; }).join('');
@@ -10793,11 +10795,12 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     // rueda con un precio roto (salta más de 30% y vuelve al día siguiente, como el 03/08/2023 en todo el panel): se saca
     return r.filter(function (x, i) { var a = r[i - 1], b = r[i + 1]; return !(a && b && Math.abs(Math.log(x[4] / a[4])) > 0.3 && Math.abs(Math.log(b[4] / a[4])) < 0.1); });
   }
+  var fxd = function (d) { return CCL[d] || (d < '2002-01-07' ? 1 : null); }; // convertibilidad: 1 peso = 1 dólar
   function file(t) { if (!FL[t]) FL[t] = j('data/acciones/' + t + '.json').then(function (d) { var r = adj(t, d && d.r ? d.r : []); RAW[t] = r; return r; }); return FL[t]; }
   /* filas en la moneda elegida: [fecha, apertura, máximo, mínimo, cierre, volumen]; en pesos se agrega la rueda de hoy en vivo */
   function rows(t, mon) {
     var r = RAW[t] || [], out = [], L = LV[t];
-    r.forEach(function (x) { var f = 1; if (mon === 'ccl') { f = CCL[x[0]]; if (!f) return; } out.push([x[0], x[1] > 0 ? x[1] / f : null, x[2] > 0 ? x[2] / f : null, x[3] > 0 ? x[3] / f : null, x[4] / f, x[5]]); });
+    r.forEach(function (x) { var f = 1; if (mon === 'ccl') { f = fxd(x[0]); if (!f) return; } out.push([x[0], x[1] > 0 ? x[1] / f : null, x[2] > 0 ? x[2] / f : null, x[3] > 0 ? x[3] / f : null, x[4] / f, x[5]]); });
     var d = today(); if (mon === 'ars' && L && L.c > 0 && out.length && out[out.length - 1][0] < d && L.v > 0) out.push([d, null, null, null, L.c, L.v]);
     return out;
   }
@@ -10816,7 +10819,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var mc = med(caps) || 1; lid.forEach(function (t) { if (!SH[t]) { var r = RAW[t]; SH[t] = mc / r[r.length - 1][4]; } }); // sin balance: el peso de la mediana
     IDX = {};
     ['ars', 'ccl'].forEach(function (mon) {
-      var P = {}, D = {}; lid.forEach(function (t) { var m = {}; RAW[t].forEach(function (x) { var c = x[4]; if (mon === 'ccl') { if (!CCL[x[0]]) return; c /= CCL[x[0]]; } m[x[0]] = c; D[x[0]] = 1; }); P[t] = m; });
+      var P = {}, D = {}; lid.forEach(function (t) { var m = {}; RAW[t].forEach(function (x) { var c = x[4]; if (mon === 'ccl') { var f = fxd(x[0]); if (!f) return; c /= f; } m[x[0]] = c; D[x[0]] = 1; }); P[t] = m; });
       var ds = Object.keys(D).sort(), last = {}, lv = 100, out = [];
       ds.forEach(function (d) {
         var num = 0, den = 0;
