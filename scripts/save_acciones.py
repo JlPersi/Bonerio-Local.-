@@ -181,6 +181,8 @@ def daily():
     upd = {}
     for t, r in L.items():
         old = load(t)
+        if not old and t in LIDER:  # del panel líder sin histórico en data912 (ECOG): arranca con el cierre de hoy
+            old = {"r": []}
         if not old:  # solo tickers con histórico: /live/arg_stocks también trae las especies en dólares (GGALD, BMA.D...) y otros papeles
             continue
         rows = old.get("r", [])
