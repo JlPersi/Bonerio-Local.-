@@ -19,6 +19,9 @@ if os.environ.get("FORCE_DATE"):
 if today.weekday() >= 5:
     print("fin de semana, no se guarda"); sys.exit(0)
 ds = today.isoformat()
+ahora = dt.datetime.now(ZoneInfo("America/Argentina/Buenos_Aires"))
+if not os.environ.get("FORCE_DATE") and ahora.hour < 17:
+    print("rueda sin cerrar (antes de las 17), no se guarda"); sys.exit(0)  # antes de la rueda data912 repite la anterior; durante, el volumen está incompleto
 
 def get(url):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -65,6 +68,14 @@ for t, o in db["t"].items():
     for k, di in enumerate(o["i"]):
         acc += di; d[db["dates"][acc]] = [o["v"][k], o["e"][k], o["c"][k]]
     cur[t] = {"s": o["s"], "d": d}
+
+# feriado o API sin actualizar: el volumen y el precio son los de la última rueda guardada -> no se guarda
+prev = max((d for d in db["dates"] if d < ds), default=None)
+if prev:
+    pv = {t: o["d"][prev] for t, o in cur.items() if prev in o["d"]}
+    com = [t for t in live if t in pv]
+    if com and sum(1 for t in com if pv[t][0] == live[t][0] and pv[t][2] == live[t][1]) >= 0.9 * len(com):
+        print("mismo volumen que la rueda del %s, no se guarda" % prev); sys.exit(0)
 
 # --- ¿v viene en nominal o en monto? se compara con el promedio de las últimas ruedas guardadas ---
 dist_nom, dist_eff = [], []
