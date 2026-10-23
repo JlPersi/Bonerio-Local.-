@@ -11372,7 +11372,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     try {
       var P = window.PSX; if (!P || !P.INST) return null; var t = dnum(d), best = null;
       Object.keys(P.INST).forEach(function (k) { var ins = P.INST[k]; if (ins.k !== 'cap' || !ins.r || !ins.r.length) return; var mat = ins.r[ins.r.length - 1][0]; if (mat <= bxToday()) return; if (!best || Math.abs(mat - t) < Math.abs(best.m - t)) best = { k: k, m: mat }; });
-      if (!best) return null; var pts = P.ptsOf(best.k), px = pts && pts.length ? pts[pts.length - 1][1] : null; if (!(px > 0)) return null;
+      if (!best) return null; var q = (window.PXQ || {})[best.k], pts = P.ptsOf(best.k), px = q && q.c > 0 ? q.c : pts && pts.length ? pts[pts.length - 1][1] : null; if (!(px > 0)) return null; // en vivo si hay, si no el último cierre
       var y = P.yieldAt(best.k, bxToday(), px); return y == null || !isFinite(y) ? null : { k: best.k, y: y / 100, m: new Date(best.m * 864e5).toISOString().slice(0, 10) };
     } catch (e) { return null; }
   }
