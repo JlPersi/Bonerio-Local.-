@@ -3858,8 +3858,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
 ;(function () {
   var root = document.getElementById('vard'); if (!root || !window.PSX) return;
   var X = window.PSX, fm = X.fm, sg = X.sg, css = X.css, rgba = X.rgba;
-  var GN = { usd: 'Hard Dollar', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dl: 'Dólar linked', dual: 'Duales', on: 'ONs hard dollar', pv: 'Provinciales hard dollar' };
-  var ORDER = ['usd', 'fija', 'cer', 'tamar', 'dl', 'dual', 'on', 'pv'];
+  var GN = { usd: 'Hard Dollar', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dl: 'Dólar linked', dual: 'Duales', on: 'ONs hard dollar', pv: 'Provinciales hard dollar', acc: 'Acciones' };
+  var ORDER = ['usd', 'fija', 'cer', 'tamar', 'dl', 'dual', 'on', 'pv', 'acc'];
   var CORP = function (g) { return g === 'on' || g === 'pv'; }; // ONs y provinciales: se suman solo si se eligen
   var GR = '#34d399', RD = '#ff6b8b', NE = '#a1a1aa';
   var ST = { n: 1, vm: 'acum', grp: 'usd', sort: 'dpct', dir: -1, mU: window.USD_MODEL || 'log', mP: 'auto', cap: 0, dual: '0', ax: 'md', axU: 'md', sh: 'hide' }, PCT = {}, DATA = null, CH = null, timer = null;
@@ -3998,13 +3998,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<div class="card sx" id="vdCap"><div class="sxh"><div style="min-width:0"><p class="qh" id="vdTit">Variación diaria contra el cierre anterior</p><p class="qs keep" id="vdInfo"></p></div>' +
       '<div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'vdCap\', \'Soberanos_Variacion_Diaria\')" title="Descargar en HD"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>' +
       '<div class="vdc sxc"><label>Grupo<select id="vdG"></select></label><label>Comparar contra<select id="vdN"><option value="1">Ayer (cierre anterior)</option><option value="5">5 ruedas atrás</option><option value="10">10 ruedas atrás</option><option value="20">20 ruedas atrás</option></select></label>' +
-      '<label id="vdKL">Curva<select id="vdK"></select></label><label id="vdAxL">Eje X<select id="vdAx">' + xaxOpts('md') + '</select></label><label>Plazo máximo<select id="vdX"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000">1.000 días</option><option value="1500">1.500 días</option><option value="0" selected>Todos</option></select></label><label id="vdDL">Duales<select id="vdD"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' +
+      '<label id="vdKL">Curva<select id="vdK"></select></label><label id="vdAxL">Eje X<select id="vdAx">' + xaxOpts('md') + '</select></label><label id="vdXL">Plazo máximo<select id="vdX"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000">1.000 días</option><option value="1500">1.500 días</option><option value="0" selected>Todos</option></select></label><label id="vdDL">Duales<select id="vdD"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' +
       '<label id="vdShL" title="Con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb (S16O6, a 3 días, 149 pb): su cambio de tasa no se compara con el del resto">Menos de 30 días<select id="vdSh"><option value="hide">Ocultar en el gráfico</option><option value="gray">Mostrar en gris</option></select></label>' +
       '</div>' +
       '<div class="vdchips" id="vdChips" style="margin-bottom:16px"></div>' +
       '<div id="vdCurveCard"><div class="vdleg" id="vdLeg"></div><div class="chart-wrap" style="height:560px;margin-top:0"><canvas id="vdChart"></canvas></div>' +
       '<details class="vddet" id="vdDet"><summary><span id="vdDetS">Desplazamiento de la curva y detalle por bono</span></summary><div class="vdshift" id="vdShift"></div><div class="wrap" id="vdTblCard" style="margin-top:14px"><table class="vdt" id="vdTable"></table></div></details>' +
-      '<div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--bd)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;margin-bottom:6px"><div style="font-weight:600;color:var(--tx)" id="vdVolT" data-dlh>Volumen de la rueda</div><label id="vdVolML" style="display:none;flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--mu);margin:0">Comparar<select id="vdVolM" style="min-width:0;width:auto;max-width:100%"><option value="acum"></option><option value="hoy"></option></select></label></div><p class="note" id="vdVolS" style="margin:0 0 10px;color:var(--tx)"></p><div class="chart-wrap" style="height:320px;margin-top:0"><canvas id="vdVolCh"></canvas></div></div></div></div>';
+      '<div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--bd)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;margin-bottom:6px"><div style="font-weight:600;color:var(--tx)" id="vdVolT" data-dlh>Volumen de la rueda</div><label id="vdVolML" style="display:none;flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--mu);margin:0">Comparar<select id="vdVolM" style="min-width:0;width:auto;max-width:100%"><option value="acum"></option><option value="hoy"></option></select></label></div><p class="note" id="vdVolS" style="margin:0 0 10px;color:var(--tx)"></p><div class="chart-wrap" style="height:320px;margin-top:0"><canvas id="vdVolCh"></canvas></div></div></div><div id="vdAccCard" hidden></div></div>';
     var g = document.getElementById('vdG');
     g.innerHTML = ORDER.map(function (k) { return '<option value="' + k + '">' + GN[k] + '</option>'; }).join('');
     g.value = ST.grp;
@@ -4197,6 +4197,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (typeof Chart === 'undefined') return;
       if (!document.getElementById('vdChart')) html();
       if (ST.grp === 'all') { ST.grp = 'usd'; document.getElementById('vdG').value = 'usd'; }
+      var acc = ST.grp === 'acc', ac = document.getElementById('vdAccCard'); document.getElementById('vdCurveCard').hidden = acc; ac.hidden = !acc; ['vdKL', 'vdAxL', 'vdXL'].forEach(function (id) { document.getElementById(id).style.display = acc ? 'none' : ''; });
+      if (acc) { // acciones: su propia vista (barras y monto operado), armada por la pestaña Acciones
+        document.getElementById('vdDL').style.display = document.getElementById('vdShL').style.display = 'none'; document.getElementById('vdN').value = String(ST.n);
+        document.getElementById('vdTit').textContent = ST.n === 1 ? 'Variación diaria contra el cierre anterior' : 'Variación contra ' + ST.n + ' ruedas atrás';
+        var v = window.ACCQ && window.ACCQ.vard ? window.ACCQ.vard(ac, ST.n, later) : { info: 'Las acciones no están disponibles.', chips: '' };
+        document.getElementById('vdInfo').textContent = v.info; document.getElementById('vdChips').innerHTML = v.chips; return;
+      }
       DATA = build();
       var isD = ST.grp === 'cer' || ST.grp === 'tamar';
       var kk = document.getElementById('vdK'), usdG = ST.grp === 'usd' || CORP(ST.grp), want = usdG ? 'u' : 'p';
@@ -11606,9 +11613,58 @@ window.RATG = (function () {
   var _sw = window.switchTab; window.switchTab = function (id) { _sw(id); if (id === 'acc') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
   new MutationObserver(function () { if (isAct() && IX) drawAll(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); // claro / oscuro
   var rzT = null; addEventListener('resize', function () { clearTimeout(rzT); rzT = setTimeout(function () { if (isAct() && TV && (innerWidth < 700) !== (parseInt($('accG').style.height) < (540 + PANES.length * 131) - 50)) chart(); }, 300); });
+  /* ---------- para Variación diaria: cada acción contra el cierre de N ruedas atrás, con el monto operado (metricas.json trae las últimas 41 ruedas) ---------- */
+  var VDP = 'lider';
+  function vdRows(n) {
+    var td = today();
+    return IX.map(function (x) {
+      var o = MT.t[x.t]; if (!o || !o.u || o.u.length < 2) return null;
+      var r = adj(x.t, o.u.map(function (y) { return [y[0], null, null, null, y[1], y[2]]; })).map(function (y) { return [y[0], y[4], y[5]]; }), L = LV[x.t], lv = 0;
+      if (L && L.c > 0 && L.v > 0 && r.length && r[r.length - 1][0] < td) { r.push([td, L.c, L.v]); lv = 1; }
+      var k = r.length - 1; if (k - n < 0) return null;
+      var am = function (a, b) { var s = 0, m = 0; for (var i = Math.max(a, 0); i <= b; i++) { s += r[i][2] > 0 ? r[i][1] * r[i][2] : 0; m++; } return m ? s / m : null; }, kc = lv ? k - 1 : k;
+      return { t: x.t, panel: x.panel, sec: SN[secOf(x.t)], p: r[k][1], d: r[k][1] / r[k - n][1] - 1, d1: r[k][0], d0: r[k - n][0], lv: lv,
+        a1: n === 1 ? am(k, k) : am(k - n + 1, k), a0: n === 1 ? am(k - 1, k - 1) : k - 2 * n + 1 >= 0 ? am(k - 2 * n + 1, k - n) : null, w: am(kc - 19, kc) };
+    }).filter(function (x) { return x && isFinite(x.d); });
+  }
+  function vardView(box, n, cb) {
+    if (err) return { info: err, chips: '' };
+    if (!IX) { load().then(function () { return live(); }).then(cb); return { info: 'Cargando acciones…', chips: '' }; }
+    if (Date.now() - lvT > 25000) live().then(cb);
+    if (!$('vdAccC')) {
+      box.innerHTML = '<div class="vdc" style="margin-bottom:12px"><label>Panel<select id="vdAccP"><option value="lider">Panel líder</option><option value="general">Panel general</option><option value="todas">Todas</option></select></label></div>' +
+        '<div class="chart-wrap" id="vdAccW" style="margin-top:0"><canvas id="vdAccC"></canvas></div>' +
+        '<div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--bd)"><div style="font-weight:600;color:var(--tx)">Detalle y monto operado</div><p class="note" id="vdAccS" style="margin:4px 0 10px;color:var(--tx)"></p><div class="wrap"><table class="vdt" id="vdAccT"></table></div></div>';
+      $('vdAccP').onchange = function () { VDP = this.value; cb(); };
+      $('vdAccT').onclick = function (e) { var tr = e.target.closest ? e.target.closest('tr[data-t]') : null; if (tr) window.ACCQ.open(tr.getAttribute('data-t')); };
+    }
+    $('vdAccP').value = VDP;
+    var all = vdRows(n), rows = all.filter(function (x) { return VDP === 'todas' || (VDP === 'lider') === (x.panel === 'lider'); }).sort(function (a, b) { return b.d - a.d; });
+    if (!rows.length) { $('vdAccW').style.height = '60px'; return { info: 'Sin precios de acciones todavía.', chips: '' }; }
+    var GR = css('--ok') || '#34d399', RD = css('--bad') || '#ff6b8b', col = function (v) { return v > 0.00005 ? GR : v < -0.00005 ? RD : css('--mu'); };
+    $('vdAccW').style.height = Math.max(260, rows.length * 22 + 50) + 'px';
+    var o = base(); o.indexAxis = 'y'; o.plugins.legend.display = false; o.interaction = { mode: 'nearest', axis: 'y', intersect: false };
+    o.plugins.tooltip.callbacks = { label: function (c) { var x = rows[c.dataIndex]; return [pc(x.d, 2) + ' · $ ' + nf(x.p, 2), x.sec, 'monto ' + (n === 1 ? '' : 'promedio ') + '$ ' + big(x.a1) + (x.a0 ? ' (' + pc(x.a1 / x.a0 - 1, 0) + ')' : '')]; } };
+    o.scales.x.ticks.callback = function (v) { return tk(v) + '%'; }; o.scales.x.grid = { color: css('--bd') }; o.scales.y.grid = { display: false }; o.scales.y.ticks.autoSkip = false;
+    o.onClick = function (e, el) { if (el && el[0]) window.ACCQ.open(rows[el[0].index].t); };
+    mk('vdAccC', { type: 'bar', data: { labels: rows.map(function (x) { return x.t; }), datasets: [{ data: rows.map(function (x) { return x.d * 100; }), backgroundColor: rows.map(function (x) { return col(x.d); }), borderRadius: 3 }] }, options: o });
+    var A1 = rows.reduce(function (s, x) { return s + (x.a1 || 0); }, 0), A0 = rows.reduce(function (s, x) { return s + (x.a0 || 0); }, 0), nl = rows.filter(function (x) { return x.lv; }).length;
+    $('vdAccS').textContent = (n === 1 ? 'Monto de la rueda' + (nl ? ' (en vivo, hasta ahora)' : '') + ' contra la anterior' : 'Monto promedio de las últimas ' + n + ' ruedas contra las ' + n + ' anteriores') + ': $ ' + big(A1) + (A0 ? ' contra $ ' + big(A0) + ' (' + pc(A1 / A0 - 1, 0) + ')' : '') + '. Tocá una acción para ver su ficha.';
+    var dc = function (v, d) { return '<td class="r" style="color:' + col(v) + '">' + pc(v, d) + '</td>'; };
+    $('vdAccT').innerHTML = '<tr><th class="l">Acción</th><th class="l">Sector</th><th>Precio</th><th>Variación</th><th>Monto' + (n === 1 ? '' : ' prom.') + '</th><th>Anterior</th><th>Var. monto</th><th>Peso en el monto</th></tr>' +
+      rows.map(function (x) { return '<tr data-t="' + x.t + '" style="cursor:pointer"><td class="k">' + x.t + '</td><td class="l">' + esc(x.sec) + '</td><td class="r">' + nf(x.p, 2) + '</td>' + dc(x.d, 2) + '<td class="r">' + big(x.a1) + '</td><td class="r">' + big(x.a0) + '</td>' + (x.a0 ? dc(x.a1 / x.a0 - 1, 0) : '<td class="r">—</td>') + '<td class="r">' + (A1 ? pa(x.a1 / A1, 1) : '—') + '</td></tr>'; }).join('');
+    var up = rows.filter(function (x) { return x.d > 0.00005; }).length, dn = rows.filter(function (x) { return x.d < -0.00005; }).length, wa = wavg(rows.map(function (x) { return [x.d, x.w]; })), mb = rows[0], mw = rows[rows.length - 1];
+    var top = rows.slice().sort(function (a, b) { return (b.a1 || 0) - (a.a1 || 0); })[0];
+    var c = function (t, v, s, cc) { return '<div class="vdchip"><small>' + t + '</small><b style="color:' + (cc || 'var(--tx)') + '">' + v + '</b><span>' + (s || '&nbsp;') + '</span></div>'; };
+    var chips = c('Suben / bajan', up + ' / ' + dn, rows.length - up - dn ? rows.length - up - dn + ' sin cambio' : 'de ' + rows.length + ' acciones') + c('Variación ponderada', pc(wa, 2), 'por monto operado (20 ruedas)', col(wa)) + c('Mediana', pc(med(rows.map(function (x) { return x.d; })), 2), 'variación de la acción típica', col(med(rows.map(function (x) { return x.d; })))) +
+      c(mb.d >= 0 ? 'Mayor suba' : 'Menor baja', mb.t, pc(mb.d, 2), col(mb.d)) + (mw !== mb ? c(mw.d > 0 ? 'Menor suba' : 'Mayor baja', mw.t, pc(mw.d, 2), col(mw.d)) : '') + (top ? c('La más operada', top.t, '$ ' + big(top.a1) + (A1 ? ' · ' + pa(top.a1 / A1, 0) + ' del monto' : ''), 'var(--tx)') : '');
+    var cnt = {}; rows.forEach(function (x) { var k = x.d1 + '|' + x.d0; cnt[k] = (cnt[k] || 0) + 1; }); var bk = Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a]; })[0].split('|');
+    return { info: (nl ? 'Hoy ' : 'Cierre del ') + fr(bk[0]) + ' contra el cierre del ' + fr(bk[1]) + (n > 1 ? ' (' + n + ' ruedas)' : '') + ' · ' + rows.length + ' acciones ' + (VDP === 'lider' ? 'del panel líder' : VDP === 'general' ? 'del panel general' : 'de los dos paneles') + ' · ' + (nl ? nl + ' con precio en vivo de data912' : 'precios de cierre') + ' · en pesos', chips: chips };
+  }
   /* para el buscador de arriba */
   window.ACCQ = {
     find: function (q) { if (!IX) { load(); return []; } q = String(q || '').toUpperCase(); var out = []; IX.forEach(function (x) { var s = x.t === q ? 0 : x.t.indexOf(q) === 0 ? 1 : -1; if (s < 0) ADRS.forEach(function (a) { if (a[0] === x.t && a[1].indexOf(q) === 0) s = 1; }); if (s >= 0) { var m = mt(x.t).ars || {}, L = LV[x.t] || {}; out.push({ k: x.t, s: s, p: L.c > 0 ? L.c : m.precio, sec: SN[secOf(x.t)] }); } }); return out; },
+    vard: vardView,
     open: function (t) { ST.sel = t; save(); if (window.switchTab) window.switchTab('acc'); setTimeout(function () { load().then(function () { pick(t, 1); }); }, 80); }
   };
   load();
