@@ -10909,7 +10909,7 @@ window.RATG = (function () {
 
     '<div class="card sx" id="accS" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Sectores</p><p class="qs">Retorno de cada sector, ponderado por el monto que opera cada acción, y la relación entre dos sectores en el tiempo. Tocá un sector para filtrar la tabla.</p></div><div class="sxb">' + dlb('accS', 'Bonerio_acciones_sectores') + '</div></div>' +
     '<div class="ctl"><label>Retorno<span class="seg" id="accSp"><button data-v="1m">1 mes</button><button data-v="3m">3 meses</button><button data-v="ytd">En el año</button><button data-v="1a">1 año</button></span></label></div>' +
-    '<div class="f2"><div><h5>Retorno por sector (ponderado por monto)</h5><div class="cw2" style="height:380px"><canvas id="accScv"></canvas></div></div><div><h5>Resumen por sector (medianas)</h5><div class="tw" style="max-height:380px;margin-top:0"><table id="accStab"></table></div></div></div>' +
+    '<div class="f2"><div><h5 id="accScT">Retorno por sector (ponderado por monto)</h5><div class="cw2" style="height:380px"><canvas id="accScv"></canvas></div></div><div><h5>Resumen por sector (medianas)</h5><div class="tw" style="max-height:380px;margin-top:0"><table id="accStab"></table></div></div></div>' +
     '<div class="ctl" style="margin-top:20px"><label>Sector A<select id="accSa"></select></label><label>Sector B<select id="accSb"></select></label>' +
     '<label>Período<span class="seg" id="accSper">' + RG.slice(1).filter(function (r) { return r[0] !== 'ytd'; }).map(function (r) { return '<button data-v="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</span></label></div>' +
     '<div class="cw2" style="height:clamp(260px,26vw,360px)"><canvas id="accRcv"></canvas></div><p class="note" id="accSn" style="margin-top:8px"></p></div>' +
@@ -11394,7 +11394,7 @@ window.RATG = (function () {
 
   /* ---------- sectores ---------- */
   function sectors() {
-    if (!IX) return; var k = ST.sp, rs = [];
+    if (!IX) return; var k = ST.sp, rs = []; $('accScT').textContent = 'Retorno por sector en ' + (ST.mon === 'ccl' ? 'dólares CCL' : 'pesos') + ' (ponderado por monto)';
     SEC.forEach(function (s) {
       var ts = IX.filter(function (x) { return secOf(x.t) === s[0]; }).map(function (x) { return x.t; }); if (!ts.length) return; var Mm = ts.map(function (t) { return mt(t)[ST.mon] || {}; }), Rr = ts.map(function (t) { return (RT.t[t] || {}).ultimo || {}; });
       var rr = Mm.map(function (a, i) { return [(a.ret || {})[k], wOf(ts[i])]; }).filter(function (x) { return x[0] != null; }), W = rr.reduce(function (z, x) { return z + (x[1] > 0 ? x[1] : 0); }, 0), top = ts.map(function (t) { return [t, wOf(t)]; }).sort(function (a, b) { return b[1] - a[1]; })[0];
