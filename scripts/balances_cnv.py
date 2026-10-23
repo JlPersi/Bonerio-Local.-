@@ -22,7 +22,7 @@ OUT = os.path.join(HERE, "..", "data", "acciones", "balances")
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36"}
 BASE = "https://www.cnv.gov.ar/SitioWeb"
 DESDE = "2010-01-01"  # toda la historia que tenga la CNV en planillas estandarizadas
-VERSION = 2  # si cambia la forma de leer las planillas, se suben: los archivos de otra versión se rearman enteros
+VERSION = 3  # si cambia la forma de leer las planillas, se suben: los archivos de otra versión se rearman enteros
 
 # ticker: (CUIT, valor nominal por acción al cierre de los balances, mes de cierre del ejercicio, banco, moneda funcional)
 EMPRESAS = {
@@ -204,6 +204,7 @@ def periodo(t, v, p, vn, mes_cierre, banco):
             "patrimonio_neto_controlante": (pn - (mino or 0)) if pn is not None else None,
             "deuda_financiera": None if banco else suma("2322200", "2312300"),
             "caja_inversiones": None if banco else suma("1122500", "1122300"),
+            "activo_total": g("1999999"),
         },
     }
     return r
@@ -240,6 +241,12 @@ def main():
             q = elegido.get(p["cierre"])
             if q is None or (q["tipo"] != "CONSOLIDADO" and p["tipo"] == "CONSOLIDADO"):
                 elegido[p["cierre"]] = p
+        # un individual suelto entre consolidados (o el último, después de uno consolidado) es un consolidado que la CNV todavía no
+        # tiene en planilla: se saltea para no mezclar el patrimonio y las ventas de la controlante con los del grupo
+        cs = sorted(elegido); co = [elegido[c]["tipo"] == "CONSOLIDADO" for c in cs]
+        for i, c in enumerate(cs):
+            if not co[i] and i and co[i - 1] and (i + 1 == len(cs) or co[i + 1]):
+                del elegido[c]
         try:  # períodos ya cargados de la misma presentación: no se vuelven a bajar
             viejo = json.load(open(os.path.join(OUT, t + ".json")))
             previos = {q["fuente"]: dict(q, escala=viejo["escala"]) for q in viejo["periodos"]} if viejo.get("v") == VERSION else {}

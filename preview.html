@@ -11124,7 +11124,7 @@ window.RATG = (function () {
     '<div class="card sx" id="accV" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Valuación contra rentabilidad</p><p class="qs" id="accVs">Como la curva soberana: cada acción según su rentabilidad (X) y su múltiplo (Y), con el precio en vivo. Debajo de la recta, barata contra sus pares.</p></div><div class="sxb">' + dlb('accV', 'Bonerio_acciones_valuacion') + '</div></div>' +
     '<div class="ctl"><label>Grupo<select id="accVg"><option value="ban">Bancos</option><option value="nof">No financieras</option><option value="all">Todas</option>' + SEC.filter(function (s) { return s[0] !== 'ban'; }).map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('') + '</select></label>' +
     '<label>Múltiplo (eje Y)<select id="accVx"><option value="pvl">Precio / valor libro</option><option value="pe">Precio / ganancias (P/E)</option><option value="ev">EV / EBITDA</option></select></label>' +
-    '<label>Rentabilidad (eje X)<select id="accVy"><option value="roe">ROE</option><option value="me">Margen EBITDA</option><option value="mn">Margen neto</option></select></label></div>' +
+    '<label>Rentabilidad (eje X)<select id="accVy"><option value="roe">ROE</option><option value="roa">ROA</option><option value="me">Margen EBITDA</option><option value="mn">Margen neto</option></select></label></div>' +
     '<div class="cw"><canvas id="accVc"></canvas></div><h5>Contra la recta: cuánto tendría que valer el múltiplo para la rentabilidad que tiene</h5><div class="tw" style="max-height:360px"><table id="accVt"></table></div><p class="note" id="accVn" style="margin-top:8px"></p></div>' +
 
     '<div class="card sx" id="accA" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">ADRs</p><p class="qs">Las acciones argentinas en Nueva York y el dólar que surge de cada una.</p></div><div class="sxb">' + dlb('accA', 'Bonerio_ADRs') + '</div></div>' +
@@ -11446,9 +11446,9 @@ window.RATG = (function () {
     var R = (RT.t[t] || {}).ultimo; if (!R) return null; var m = mt(t).ars || {}, L = LV[t] || {}, f = L.c > 0 && m.precio > 0 && m.fecha === R.d ? L.c / m.precio : 1, cap = R.capitalizacion * f, cc = CCN, u = function (v) { return v != null && cc ? v / cc : null; };
     var evA = R.deuda_neta != null ? cap + R.deuda_neta : null;
     return { R: R, cap: cap, capU: u(cap), evA: evA, evU: u(evA), ev: R.ebitda > 0 && evA != null ? evA / R.ebitda : null, pe: R.pe != null ? R.pe * f : null, pvl: R.pvl != null ? R.pvl * f : null, ey: R.ni != null && cap ? R.ni / cap : null,
-      roe: R.roe, me: R.margen_ebitda, mn: R.margen_neto, dne: R.dn_ebitda, pnU: u(R.pn), niU: u(R.ni), ebU: u(R.ebitda), dnU: u(R.deuda_neta), eb: R.ebitda, dn: R.deuda_neta, bank: secOf(t) === 'ban' };
+      roe: R.roe, roa: R.roa, me: R.margen_ebitda, mn: R.margen_neto, dne: R.dn_ebitda, pnU: u(R.pn), niU: u(R.ni), ebU: u(R.ebitda), dnU: u(R.deuda_neta), eb: R.ebitda, dn: R.deuda_neta, bank: secOf(t) === 'ban' };
   }
-  var VXN = { pvl: 'P/VL', pe: 'P/E', ev: 'EV/EBITDA' }, VYN = { roe: 'ROE', me: 'Margen EBITDA', mn: 'Margen neto' };
+  var VXN = { pvl: 'P/VL', pe: 'P/E', ev: 'EV/EBITDA' }, VYN = { roe: 'ROE', roa: 'ROA', me: 'Margen EBITDA', mn: 'Margen neto' };
   function vpts(sel, xk, yk) { // puntos rentabilidad (X, %) contra múltiplo (Y)
     var P = []; IX.forEach(function (x) { if (!sel(x.t)) return; var F = fund(x.t); if (!F) return; var xv = F[xk], yv = F[yk]; if (xv == null || yv == null || !(yv > 0) || yv > 80) return; P.push({ x: xv * 100, y: yv, t: x.t, s: secOf(x.t), F: F }); }); return P;
   }
@@ -11478,9 +11478,9 @@ window.RATG = (function () {
     var card = function (a, b, c) { return '<div><small>' + a + '</small><b>' + b + '</b><span>' + c + '</span></div>'; };
     if (!F) $('accFk').innerHTML = card('Valuación', '—', 'sin balances cargados para ' + t + ' (hoy hay del panel líder)');
     else if (F.bank) $('accFk').innerHTML = card('Capitalización', u(F.capU), 'con el precio de ahora') + card('Patrimonio neto', u(F.pnU), 'último balance, en pesos de hoy') + card('P/VL', nf(F.pvl, 2) + 'x', 'precio / valor libro') +
-      card('P/E (12 meses)', F.pe > 0 ? nf(F.pe, 1) + 'x' : 'n/s', 'earnings yield ' + pc(F.ey, 1)) + card('ROE (12 meses)', pa(F.roe, 1), 'ganancia ' + u(F.niU)) + card('Bancos', 'sin EV/EBITDA', 'la deuda es su materia prima');
+      card('P/E (12 meses)', F.pe > 0 ? nf(F.pe, 1) + 'x' : 'n/s', 'earnings yield ' + pc(F.ey, 1)) + card('ROE (12 meses)', F.roe != null ? pa(F.roe, 1) : 'n/s', 'ROA ' + (F.roa != null ? pa(F.roa, 2) : '—') + ' · ganancia ' + u(F.niU)) + card('Bancos', 'sin EV/EBITDA', 'la deuda es su materia prima');
     else $('accFk').innerHTML = card('Capitalización', u(F.capU), 'con el precio de ahora') + card('Valor de empresa (EV)', u(F.evU), 'deuda neta ' + u(F.dnU)) + card('EV/EBITDA (12 meses)', F.ev ? nf(F.ev, 1) + 'x' : '—', 'EBITDA ' + u(F.ebU) + ' · P/VL ' + nf(F.pvl, 2)) +
-      card('P/E (12 meses)', F.pe > 0 ? nf(F.pe, 1) + 'x' : 'n/s', 'earnings yield ' + pc(F.ey, 1)) + card('Margen EBITDA', pa(F.me, 1), 'ROE ' + pa(F.roe, 1) + ' · margen neto ' + pa(F.mn, 1)) + card('Deuda neta / EBITDA', F.dne != null ? nf(F.dne, 2) + 'x' : '—', F.dne != null && F.dne < 0 ? 'caja neta' : 'en veces');
+      card('P/E (12 meses)', F.pe > 0 ? nf(F.pe, 1) + 'x' : 'n/s', 'earnings yield ' + pc(F.ey, 1)) + card('Margen EBITDA', pa(F.me, 1), 'ROE ' + (F.roe != null ? pa(F.roe, 1) : 'n/s (patrimonio negativo)') + ' · ROA ' + (F.roa != null ? pa(F.roa, 1) : '—') + ' · margen neto ' + pa(F.mn, 1)) + card('Deuda neta / EBITDA', F.dne != null ? nf(F.dne, 2) + 'x' : '—', F.dne != null && F.dne < 0 ? 'caja neta' : 'en veces');
     // curva sectorial
     var bk = secOf(t) === 'ban', xk = bk ? 'roe' : 'me', yk = bk ? 'pvl' : 'ev', P = vpts(function (x) { return (secOf(x) === 'ban') === bk; }, xk, yk), L = fitL(P), me = P.filter(function (q) { return q.t === t; })[0], po = me ? potOf(me, yk, L) : null;
     scat('accFc', P, L, VYN[xk], VXN[yk], t, function (x) { pick(x, 1); });
@@ -11729,8 +11729,8 @@ window.RATG = (function () {
   function valua() {
     if (!IX) return; var g = ST.vg, yk = ST.vx, xk = ST.vy;
     // los bancos no tienen EBITDA ni ventas en el balance: para ellos P/VL o P/E contra ROE (las opciones que no aplican se apagan)
-    var bk = g === 'ban'; [].forEach.call($('accVx').options, function (o) { o.disabled = bk && o.value === 'ev'; }); [].forEach.call($('accVy').options, function (o) { o.disabled = bk && o.value !== 'roe'; });
-    if (bk) { if (yk === 'ev') yk = 'pvl'; xk = 'roe'; } $('accVx').value = yk; $('accVy').value = xk;
+    var bk = g === 'ban'; [].forEach.call($('accVx').options, function (o) { o.disabled = bk && o.value === 'ev'; }); [].forEach.call($('accVy').options, function (o) { o.disabled = bk && o.value !== 'roe' && o.value !== 'roa'; });
+    if (bk) { if (yk === 'ev') yk = 'pvl'; if (xk !== 'roa') xk = 'roe'; } $('accVx').value = yk; $('accVy').value = xk;
     var P = vpts(function (t) { var s2 = secOf(t); return g === 'ban' ? s2 === 'ban' : g === 'nof' ? s2 !== 'ban' : g === 'all' || s2 === g; }, xk, yk), L = fitL(P);
     scat('accVc', P, L, VYN[xk], VXN[yk], ST.sel, function (t) { pick(t, 1); });
     var T = P.map(function (p) { var q = potOf(p, yk, L); return { p: p, fy: q.fy, up: q.up }; }).sort(function (u, v) { return (v.up == null ? -9 : v.up) - (u.up == null ? -9 : u.up); });
