@@ -18,9 +18,10 @@ from zoneinfo import ZoneInfo
 BASES = ["https://data912.com", "https://api.data912.com"]
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIR = os.path.join(HERE, "..", "data", "acciones")
-# Panel líder (S&P Merval). Confirmar la composición vigente: lo que no está acá se marca como panel general.
-LIDER = {"ALUA", "BBAR", "BMA", "BYMA", "CEPU", "COME", "CRES", "EDN", "GGAL", "IRSA", "LOMA", "METR", "PAMP",
-         "SUPV", "TECO2", "TGNO4", "TGSU2", "TRAN", "TXAR", "VALO", "YPFD"}
+# Panel líder de BYMA (octubre 2026, como lo muestra la pantalla del broker): lo que no está acá es panel general.
+# El índice (data/acciones/index.json) toma el panel de esta lista cada vez que se arma.
+LIDER = {"ALUA", "BBAR", "BMA", "BYMA", "CEPU", "CRES", "ECOG", "EDN", "GGAL", "LOMA", "METR", "PAMP",
+         "SUPV", "TGNO4", "TGSU2", "TRAN", "TXAR", "VALO", "YPFD"}
 SALTO = 0.35
 
 
@@ -126,7 +127,7 @@ def write_index():
         r = o.get("r") or []
         if not r:
             continue
-        idx.append({"t": o["t"], "panel": o.get("panel"), "desde": r[0][0], "hasta": r[-1][0], "n": len(r)})
+        idx.append({"t": o["t"], "panel": "lider" if o["t"] in LIDER else "general", "desde": r[0][0], "hasta": r[-1][0], "n": len(r)})
         for a, b in zip(r, r[1:]):
             if a[4] and b[4] and abs(b[4] / a[4] - 1) > SALTO:
                 saltos.append({"t": o["t"], "de": a[0], "a": b[0], "c0": a[4], "c1": b[4], "var": round(b[4] / a[4] - 1, 4)})
