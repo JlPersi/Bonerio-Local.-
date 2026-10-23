@@ -49,6 +49,8 @@ EMPRESAS = {
     "YPFD": ("30546689979", 10, 12, False, "USD"),
 }
 SPLITS = {"YPFD": [{"fecha": "2026-08-03", "factor": 10}]}  # YPF pasó de VN $10 a VN $1
+# BYMA: capitalización ×5 en 2024 (la historia de precios ya viene ajustada: "ajustado") y ×2 el 26/05/2025 (sin ajustar)
+SPLITS["BYMA"] = [{"fecha": "2024-06-01", "factor": 5, "ajustado": True}, {"fecha": "2025-05-26", "factor": 2}]
 MESES = {"ene": 1, "feb": 2, "mar": 3, "abr": 4, "may": 5, "jun": 6, "jul": 7, "ago": 8, "sep": 9, "oct": 10, "nov": 11, "dic": 12}
 
 
