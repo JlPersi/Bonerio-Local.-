@@ -6389,7 +6389,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (R === 'in') {
         var ok = sets.filter(function (s) { return s.i; });
         if (!ok.length) { empty(ce, 'Todavía no hay intradiario guardado: la caución de BYMA se guarda cada 10 minutos durante la rueda.'); return null; }
-        var d = ok[0].i.d; if (d !== todayBA()) document.getElementById(ce).textContent = '';
+        var d = ok.reduce(function (a, s) { return s.i.d > a ? s.i.d : a; }, ''); ok = ok.filter(function (s) { return s.i.d === d; }); if (d !== todayBA()) // solo la última rueda: no mezclar el cable de ayer con el MEP de hoy
+           document.getElementById(ce).textContent = '';
         return intraChart(id, ok.map(function (s) { return { label: s.label + (d !== todayBA() ? ' (' + fr(d).slice(0, 5) + ')' : ''), p: s.i.p, col: s.col }; }), d !== todayBA() ? 'Intradiario del ' + fr(d) : '');
       }
       var D2 = window_(sets.map(function (s) { return s.h; }), '0', rgN(R));
