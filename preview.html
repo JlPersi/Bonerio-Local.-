@@ -9633,6 +9633,12 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 </script>
 <!--@@BONO_END@@-->
 <script>
+/* Calificaciones (data/calificaciones.json, escala nacional de largo plazo): nota, categoría para las curvas y su color. Lo usan ONs y provinciales */
+window.RATG = (function () {
+  var nt = function (s) { var m = String(s || '').toUpperCase().match(/^(AAA|AA|A|BBB|BB|B|CCC|CC|C|D)([+-]?)/); return m ? m[1] + m[2] : null; };
+  var br = function (n) { var b = n ? n.replace(/[+-]$/, '') : ''; return /^(AAA|AA|A|BBB)$/.test(b) ? b : b === 'BB' || b === 'B' ? 'BB y B' : null; }; // CCC, C y default: sin curva
+  return { nt: nt, br: br, BK: ['AAA', 'AA', 'A', 'BBB', 'BB y B'], COL: { AAA: '#34d399', AA: '#5cc8ff', A: '#ffc542', BBB: '#fb923c', 'BB y B': '#f87171' } };
+})();
 /* =====================================================================
    Obligaciones negociables: tabla, curva, spread contra el soberano, liquidez y ficha de cada ON.
    Flujos por 100 VN (data/ons.json, sale de data/ons_flujos.xlsx con scripts/ons.py), cierre anterior
@@ -9663,7 +9669,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var EPAL = ['#f0abfc', '#5cc8ff', '#ffc542', '#818cf8', '#fb923c', '#c9a0ff', '#2dd4bf', '#f87171'], EMS = {};
   var emCol = function (n) { var i = ST.em.indexOf(n); return i < 0 ? null : EPAL[i % EPAL.length]; };
   var hexA = function (h, a) { h = String(h).trim(); if (h.charAt(0) !== '#') return h; var n = parseInt(h.length === 4 ? h.replace(/#(.)(.)(.)/, '$1$1$2$2$3$3') : h.slice(1), 16); return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')'; };
-  var J = null, C = null, EM = {}, LV = {}, lvT = null, CH = null, CHF = null, CHS = null, ROWS = [], SEL = null, ldP = null;
+  var J = null, C = null, EM = {}, LV = {}, lvT = null, CH = null, CHF = null, CHS = null, ROWS = [], SEL = null, ldP = null, CHR = null, CAL = null, RTF = {};
   var j = function (u) { return fetch(u + '?v=' + Math.floor(Date.now() / 6e4), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
 
   root.innerHTML = '<style>' +
@@ -9691,6 +9697,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     '<div class="onsCw"><canvas id="onsCv"></canvas></div><p class="note" id="onsN" style="margin-top:8px"></p></div>' +
     '<div class="card sx" id="onsSv" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Curva de ONs contra la curva soberana</p><p class="qs" id="onsSvS">Las dos curvas en dólares, con el spread entre ellas.</p></div><div class="sxb">' + dlb('onsSv', 'Bonerio_ONs_vs_soberanos') + '</div></div>' +
     '<div class="kp" id="onsSvK"></div><div class="onsCw"><canvas id="onsSvC"></canvas></div><p class="note" id="onsSvN" style="margin-top:8px"></p></div>' +
+    '<div class="card sx" id="onsRt" style="margin-top:24px" hidden><div class="sxh"><div style="min-width:0"><p class="qh">Curvas por calificación</p><p class="qs" id="onsRtS"></p></div><div class="sxb">' + dlb('onsRt', 'Bonerio_ONs_por_calificacion') + '</div></div>' +
+    '<div class="kp" id="onsRtK"></div><div class="onsCw"><canvas id="onsRtC"></canvas></div><p class="note" id="onsRtN" style="margin-top:8px"></p></div>' +
     '<div class="card sx" id="onsF" style="margin-top:24px" hidden></div>' +
     '<div class="card sx" id="onsT" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Tabla de ONs</p><p class="qs" id="onsTs">Tocá un encabezado para ordenar y una fila para ver la ficha de la ON.</p></div><div class="sxb">' + xlb('tab', 'Excel: la tabla tal como se ve, con los filtros') + dlb('onsT', 'Bonerio_ONs_tabla') + '</div></div>' +
     '<div class="tw"><table id="onsTab"></table></div><p class="note" id="onsTn" style="margin-top:8px"></p></div>';
@@ -9818,7 +9826,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       (usd ? '<div><small>Spread mediano</small><b>' + (sprs.length ? sg(med(sprs), 0) + ' pb' : '—') + '</b><span>contra los Globales</span></div>' : '') +
       '<div><small>Mayor TIR</small><b>' + (best ? best.k : '—') + '</b><span>' + (best ? nf(best.tir * 100, 2) + '%' : '') + '</span></div>' +
       '<div><small>Monto operado</small><b>' + (vt ? (usd ? 'USD ' : '$ ') + nf(vt / 1e6, 1) + ' M' : '—') + '</b><span>' + (lvN ? 'en lo que va de hoy' : 'en el último cierre') + '</span></div>';
-    chart(P); chartSv(R); table(); ficha();
+    rat(); chart(P); chartSv(R); chartRt(); table(); ficha();
   }
   function chart(P) {
     if (CH) { CH.destroy(); CH = null; } if (!window.Chart) return;
@@ -9871,6 +9879,39 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     if (f && pts.length >= 5) { var r = pts.map(function (p) { return p.y - f.f(p.x); }), sd = Math.sqrt(r.reduce(function (a, v) { return a + v * v; }, 0) / (r.length - 1)), core = pts.filter(function (p, i) { return Math.abs(r[i]) <= 2 * sd; }), f2 = fo(core); if (f2) { f = f2; n = pts.length - core.length; } }
     return f ? { f: f.f, n: n } : null;
   }
+  function rat() { // calificación de cada emisor y spread contra la curva de su nota (o de su categoría si la nota tiene menos de 5 bonos)
+    if (CAL == null) { CAL = 0; j('data/calificaciones.json').then(function (c) { CAL = c || {}; if (isAct()) draw(); }); }
+    var G = window.RATG, U = [], NT = {}; RTF = {};
+    ROWS.forEach(function (e) { e.rat = null; e.srt = null; var c = CAL && e.em && CAL[e.em], n = c && G.nt(c.cal); if (!n) return; e.rat = { n: n, b: G.br(n), t: c.cal + ' · ' + c.ag + ' · ' + fr(c.fecha) };
+      if (e.rat.b && e.t === 'usd' && e.tir != null && !e.odd && e.d >= 45 && e.md > 0 && (ST.liq === 'all' || e.v > 0)) U.push({ x: e.md, y: e.tir * 100, e: e }); });
+    var fit = function (q) { q = q.filter(function (p) { return p.y > -5 && p.y < 40; }); if (q.length < 3) return null; var f = robFit(q); if (!f) return null; var xs = q.map(function (p) { return p.x; }); return { f: f.f, x0: Math.min.apply(null, xs), x1: Math.max.apply(null, xs), n: q.length }; };
+    G.BK.forEach(function (b) { RTF[b] = fit(U.filter(function (p) { return p.e.rat.b === b; })); });
+    U.forEach(function (p) { (NT[p.e.rat.n] = NT[p.e.rat.n] || []).push(p); });
+    Object.keys(NT).forEach(function (n) { NT[n].F = NT[n].length >= 5 ? fit(NT[n]) : null; });
+    U.forEach(function (p) { var r = p.e.rat, F = NT[r.n].F, u = F || RTF[r.b]; if (!u) return; var w = (u.x1 - u.x0) * 0.25 + 0.3; if (p.x < u.x0 - w || p.x > u.x1 + w) return; p.e.srt = (p.y - u.f(p.x)) * 100; r.cv = F ? r.n : r.b; });
+  }
+  function chartRt() { // curvas por calificación, con las elegidas resaltadas
+    var box = $('onsRt'); if (CHR) { CHR.destroy(); CHR = null; }
+    var G = window.RATG, U = ROWS.filter(function (e) { return e.t === 'usd' && e.rat && e.rat.b && e.tir != null && !e.odd && e.d >= 45 && e.md > 0 && (ST.liq === 'all' || e.v > 0); });
+    if (ST.tp !== 'usd' || U.length < 3 || !window.Chart) { box.hidden = true; return; } box.hidden = false;
+    var mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), SE = ST.em, sets = [];
+    G.BK.forEach(function (b) { var F = RTF[b], c = G.COL[b], q = U.filter(function (e) { return e.rat.b === b; }); if (!q.length) return;
+      sets.push({ label: b + ' (' + q.length + ')', data: q.map(function (e) { return { x: e.md, y: e.tir * 100, e: e }; }), backgroundColor: hexA(c, SE.length ? 0.25 : 0.65), borderColor: hexA(c, SE.length ? 0.35 : 0.95), pointRadius: 4, hoverRadius: 6, order: 2 });
+      if (F) { var d = []; for (var i = 0; i <= 60; i++) { var x = F.x0 + (F.x1 - F.x0) * i / 60; d.push({ x: x, y: F.f(x) }); } sets.push({ label: 'Curva ' + b, data: d, showLine: true, borderColor: c, borderWidth: 2.2, pointRadius: 0, hoverRadius: 0, order: 1, cv: 1 }); } });
+    var H = U.filter(function (e) { return SE.indexOf(e.em) >= 0; }), YS = U.map(function (e) { return e.tir * 100; }).filter(function (y) { return y > -5 && y < 40; }), YL = [Math.floor(Math.min.apply(null, YS) - 1), Math.ceil(Math.max.apply(null, YS) + 1)];
+    if (H.length) sets.push({ label: 'Elegidas', data: H.map(function (e) { return { x: e.md, y: e.tir * 100, e: e }; }), backgroundColor: H.map(function (e) { return G.COL[e.rat.b]; }), borderColor: tx, borderWidth: 2, pointRadius: 7, hoverRadius: 9, order: 0, hl: 1 });
+    var lab = { id: 'onsRtLab', afterDatasetsDraw: function (c) { var g = c.ctx; g.save(); g.font = '600 11px Inter, sans-serif'; g.fillStyle = tx; g.textAlign = 'center'; c.data.datasets.forEach(function (d, i) { if (d.hl) c.getDatasetMeta(i).data.forEach(function (el, k) { g.fillText(d.data[k].e.k, el.x, el.y - 11); }); }); g.restore(); } };
+    CHR = new Chart($('onsRtC').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [lab], options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'nearest', intersect: true },
+      onClick: function (ev, els) { var el = els[0], p = el && CHR.data.datasets[el.datasetIndex].data[el.index]; if (p && p.e) pick(p.e.k); },
+      plugins: { legend: { labels: { color: mu, boxWidth: 12, filter: function (it, d) { return !d.datasets[it.datasetIndex].cv; } } }, tooltip: { filter: function (it) { return !it.dataset.cv; }, callbacks: { label: function (c) { var e = c.raw.e; return [e.k + ' · ' + (e.em || '') + ' · ' + e.rat.n, 'TIR ' + nf(e.tir * 100, 2) + '%, MD ' + nf(e.md, 2), e.srt == null ? 'Sin curva para comparar' : sg(e.srt, 0) + ' pb contra la curva ' + e.rat.cv]; } } } },
+      scales: { x: { type: 'linear', title: { display: true, text: 'Duración modificada (años)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1); } }, grid: { color: bd } }, y: { min: YL[0], max: YL[1], title: { display: true, text: 'TIR en dólares (TEA, %)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
+    var at = function (F) { return Math.min(Math.max(3, F.x0), F.x1); }, OUT = U.filter(function (e) { return e.tir <= -0.05 || e.tir >= 0.4; });
+    $('onsRtK').innerHTML = H.length ? SE.map(function (n) { var q = H.filter(function (e) { return e.em === n && e.srt != null; }); if (!q.length) return ''; var r = q[0].rat, m = med(q.map(function (e) { return e.srt; })); return '<div><small>' + esc(n) + ' · ' + r.n + '</small><b style="color:' + (m >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + sg(m, 0) + ' pb</b><span>contra la curva ' + r.cv + (q.length > 1 ? ' (mediana de ' + q.length + ')' : '') + '</span></div>'; }).join('')
+      : G.BK.filter(function (b) { return RTF[b]; }).map(function (b) { var F = RTF[b]; return '<div><small>Curva ' + b + '</small><b>' + nf(F.f(at(F)), 2) + '%</b><span>TIR a ' + nf(at(F), 1) + ' años · ' + F.n + ' bonos</span></div>'; }).join('');
+    var sin = {}; ROWS.forEach(function (e) { if (e.t === 'usd' && e.em && !e.rat) sin[e.em] = 1; });
+    $('onsRtS').textContent = 'Una curva por calificación crediticia con las ONs hard dollar. Elegí una empresa arriba para ver cómo rinde contra la curva de su nota.';
+    $('onsRtN').textContent = 'Calificación de largo plazo en escala nacional: FIX y, donde FIX no califica, Moody\'s Local. AA+, AA y AA− van en la curva AA (lo mismo en cada categoría); si una nota tiene 5 o más bonos, el spread se mide contra la curva de esa nota. Spread positivo: rinde más que su curva (está más barato). Fuera: CCC o en default' + (Object.keys(sin).length ? '; sin calificación cargada: ' + Object.keys(sin).sort().join(', ') : '') + (OUT.length ? '; fuera de escala (TIR menor a −5% o mayor a 40%, no arman curva): ' + OUT.map(function (e) { return e.k + ' ' + nf(e.tir * 100, 1) + '%'; }).join(', ') : '') + '.';
+  }
   function chartSv(R) {
     var box = $('onsSv'); if (CHS) { CHS.destroy(); CHS = null; }
     var SV = sov(); if (ST.tp !== 'usd' || !SV || !window.Chart) { box.hidden = true; return; } box.hidden = false;
@@ -9918,11 +9959,11 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var usd = ST.tp === 'usd', R = ROWS.filter(vis), k = ST.sort, d = ST.dir;
     R.sort(function (a, b) { var x = a[k], y = b[k]; if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * d; });
     var th = function (s, t, l, ti) { return '<th data-s="' + s + '"' + (l ? ' class="l"' : '') + (ti ? ' title="' + ti + '"' : '') + '>' + t + (ST.sort === s ? (ST.dir > 0 ? ' ▲' : ' ▼') : '') + '</th>'; };
-    var h = '<thead><tr>' + th('k', 'ON', 1) + th('em', 'Empresa', 1) + th('mat', 'Vence') + th('d', 'Días') + th('r', 'Cupón') + th('p', 'Precio') + th('ch', 'Var. %') + (usd ? th('bid', 'Compra') + th('ask', 'Venta') : '') + th('tir', 'TIR', 0, usd ? 'TIR efectiva anual (act/365) con los flujos del prospecto y el precio sucio' : tirTx()) + (usd ? th('spr', 'Spread', 0, 'Contra la curva de Globales a la misma duración, en pb') : '') + th('md', 'MD', 0, 'Duración modificada, en años') + (usd ? th('cvx', 'Convex.', 0, 'Convexidad') + th('dv01', 'DV01', 0, 'Cuánto cambia el precio (por 100 VN) si la TIR se mueve 1 pb') + th('par', 'Paridad', 0, 'Precio sobre el valor técnico (residual + interés corrido)') : '') + th('res', 'Residual', 0, 'Valor residual por 100 VN') + th('v', 'Monto', 0, 'Operado hoy (o en el último cierre), en miles') + th('v20', 'Prom. 20 r.', 0, 'Monto promedio diario de las últimas 20 ruedas, en miles') + (usd ? th('ba', 'Puntas', 0, 'TIR a precio de compra menos TIR a precio de venta, en pb') : '') + th('lq', 'Liquidez', 0, 'Puntaje de 0 a 100 con las ruedas que operó de las últimas 20, el monto promedio' + (usd ? ' y las puntas' : '') + '. Alta desde 66, baja debajo de 33') + '</tr></thead><tbody>';
+    var h = '<thead><tr>' + th('k', 'ON', 1) + th('em', 'Empresa', 1) + th('mat', 'Vence') + th('d', 'Días') + th('r', 'Cupón') + th('p', 'Precio') + th('ch', 'Var. %') + (usd ? th('bid', 'Compra') + th('ask', 'Venta') : '') + th('tir', 'TIR', 0, usd ? 'TIR efectiva anual (act/365) con los flujos del prospecto y el precio sucio' : tirTx()) + (usd ? th('spr', 'Spread', 0, 'Contra la curva de Globales a la misma duración, en pb') + th('srt', 'vs. rating', 0, 'Spread contra la curva de su calificación (escala nacional de largo plazo), en pb. Positivo: rinde más que sus pares de la misma nota') : '') + th('md', 'MD', 0, 'Duración modificada, en años') + (usd ? th('cvx', 'Convex.', 0, 'Convexidad') + th('dv01', 'DV01', 0, 'Cuánto cambia el precio (por 100 VN) si la TIR se mueve 1 pb') + th('par', 'Paridad', 0, 'Precio sobre el valor técnico (residual + interés corrido)') : '') + th('res', 'Residual', 0, 'Valor residual por 100 VN') + th('v', 'Monto', 0, 'Operado hoy (o en el último cierre), en miles') + th('v20', 'Prom. 20 r.', 0, 'Monto promedio diario de las últimas 20 ruedas, en miles') + (usd ? th('ba', 'Puntas', 0, 'TIR a precio de compra menos TIR a precio de venta, en pb') : '') + th('lq', 'Liquidez', 0, 'Puntaje de 0 a 100 con las ruedas que operó de las últimas 20, el monto promedio' + (usd ? ' y las puntas' : '') + '. Alta desde 66, baja debajo de 33') + '</tr></thead><tbody>';
     var am = function (v) { return v ? (v < 1e3 ? '<1' : nf(v / 1e3, 0)) + ' k' : '—'; };
     h += R.map(function (e) { var c = e.ch == null ? 'mu' : e.ch > 0 ? 'up' : e.ch < 0 ? 'dn' : 'mu';
       return '<tr data-k="' + e.k + '"' + (e.k === SEL ? ' class="on"' : '') + '><td class="l"><b>' + e.k + '</b> <span class="mu" style="font-size:11.5px">' + e.sym.slice(-1) + '</span>' + (e.live ? '' : ' <span class="tg">cierre</span>') + '</td><td class="l">' + (esc(e.em) || '<span class="mu">—</span>') + '</td><td>' + fr(e.mat) + '</td><td>' + nf(e.d) + '</td><td>' + (e.r != null ? nf(e.r, 2) + '%' : '—') + '</td><td>' + nf(e.p, usd ? 2 : 0) + '</td><td class="' + c + '">' + (e.ch == null ? '—' : sg(e.ch, 2) + '%') + '</td>' +
-        (usd ? '<td>' + nf(e.bid, 2) + '</td><td>' + nf(e.ask, 2) + '</td>' : '') + '<td><b>' + (e.tir == null || e.odd ? '—' : nf(e.tir * 100, 2) + '%') + '</b></td>' + (usd ? '<td>' + (e.spr == null ? '—' : sg(e.spr, 0)) + '</td>' : '') + '<td>' + nf(e.md, 2) + '</td>' +
+        (usd ? '<td>' + nf(e.bid, 2) + '</td><td>' + nf(e.ask, 2) + '</td>' : '') + '<td><b>' + (e.tir == null || e.odd ? '—' : nf(e.tir * 100, 2) + '%') + '</b></td>' + (usd ? '<td>' + (e.spr == null ? '—' : sg(e.spr, 0)) + '</td><td title="' + (e.rat ? esc(e.rat.t) : 'Sin calificación cargada') + '">' + (e.rat ? '<span class="mu" style="font-size:11px">' + e.rat.n + '</span> ' : '') + (e.srt == null ? '—' : sg(e.srt, 0)) + '</td>' : '') + '<td>' + nf(e.md, 2) + '</td>' +
         (usd ? '<td>' + (e.odd ? '—' : nf(e.cvx, 1)) + '</td><td>' + (e.odd ? '—' : nf(e.dv01, 3)) + '</td><td>' + (e.par ? nf(e.par * 100, 1) + '%' : '—') + '</td>' : '') + '<td>' + nf(e.res, 1) + '</td><td>' + am(e.v) + '</td><td>' + am(e.v20) + '</td>' + (usd ? '<td>' + (e.ba == null ? '—' : nf(e.ba, 0)) + '</td>' : '') + '<td>' + lqTag(e.lq) + '</td></tr>'; }).join('') + '</tbody>';
     $('onsTab').innerHTML = h;
     $('onsTn').textContent = 'Precios por 100 VN; montos en miles de ' + (usd ? 'dólares' : 'pesos') + '. «cierre»: no operó hoy, se usa el precio del ' + fr(C && C.d) + '. Pasá el mouse por el título de cada columna para ver qué mide; tocá una ON para ver su ficha.';
@@ -10157,7 +10198,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var EPAL = ['#f0abfc', '#5cc8ff', '#ffc542', '#818cf8', '#fb923c', '#c9a0ff', '#2dd4bf', '#f87171'], EMS = {};
   var emCol = function (n) { var i = ST.em.indexOf(n); return i < 0 ? null : EPAL[i % EPAL.length]; };
   var hexA = function (h, a) { h = String(h).trim(); if (h.charAt(0) !== '#') return h; var n = parseInt(h.length === 4 ? h.replace(/#(.)(.)(.)/, '$1$1$2$2$3$3') : h.slice(1), 16); return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')'; };
-  var J = null, C = null, EM = {}, LV = {}, lvT = null, CH = null, CHF = null, CHS = null, ROWS = [], SEL = null, ldP = null;
+  var J = null, C = null, EM = {}, LV = {}, lvT = null, CH = null, CHF = null, CHS = null, ROWS = [], SEL = null, ldP = null, CHR = null, CAL = null, RTF = {};
   var j = function (u) { return fetch(u + '?v=' + Math.floor(Date.now() / 6e4), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
 
   root.innerHTML = '<style>' +
@@ -10185,6 +10226,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     '<div class="pvsCw"><canvas id="pvsCv"></canvas></div><p class="note" id="pvsN" style="margin-top:8px"></p></div>' +
     '<div class="card sx" id="pvsSv" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Curva de provinciales contra la curva soberana</p><p class="qs" id="pvsSvS">Las dos curvas en dólares, con el spread entre ellas.</p></div><div class="sxb">' + dlb('pvsSv', 'Bonerio_provinciales_vs_soberanos') + '</div></div>' +
     '<div class="kp" id="pvsSvK"></div><div class="pvsCw"><canvas id="pvsSvC"></canvas></div><p class="note" id="pvsSvN" style="margin-top:8px"></p></div>' +
+    '<div class="card sx" id="pvsRt" style="margin-top:24px" hidden><div class="sxh"><div style="min-width:0"><p class="qh">Curvas por calificación</p><p class="qs" id="pvsRtS"></p></div><div class="sxb">' + dlb('pvsRt', 'Bonerio_provinciales_por_calificacion') + '</div></div>' +
+    '<div class="kp" id="pvsRtK"></div><div class="pvsCw"><canvas id="pvsRtC"></canvas></div><p class="note" id="pvsRtN" style="margin-top:8px"></p></div>' +
     '<div class="card sx" id="pvsF" style="margin-top:24px" hidden></div>' +
     '<div class="card sx" id="pvsT" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Tabla de provinciales</p><p class="qs" id="pvsTs">Tocá un encabezado para ordenar y una fila para ver la ficha del bono.</p></div><div class="sxb">' + xlb('tab', 'Excel: la tabla tal como se ve, con los filtros') + dlb('pvsT', 'Bonerio_provinciales_tabla') + '</div></div>' +
     '<div class="tw"><table id="pvsTab"></table></div><p class="note" id="pvsTn" style="margin-top:8px"></p></div>';
@@ -10313,7 +10356,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       (usd ? '<div><small>Spread mediano</small><b>' + (sprs.length ? sg(med(sprs), 0) + ' pb' : '—') + '</b><span>contra los Globales</span></div>' : '') +
       '<div><small>Mayor TIR</small><b>' + (best ? best.k : '—') + '</b><span>' + (best ? nf(best.tir * 100, 2) + '%' : '') + '</span></div>' +
       '<div><small>Monto operado</small><b>' + (vt ? (usd ? 'USD ' : '$ ') + nf(vt / 1e6, 1) + ' M' : '—') + '</b><span>' + (lvN ? 'en lo que va de hoy' : 'en el último cierre') + '</span></div>';
-    chart(P); chartSv(R); table(); ficha();
+    rat(); chart(P); chartSv(R); chartRt(); table(); ficha();
   }
   function chart(P) {
     if (CH) { CH.destroy(); CH = null; } if (!window.Chart) return;
@@ -10366,6 +10409,39 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     if (f && pts.length >= 5) { var r = pts.map(function (p) { return p.y - f.f(p.x); }), sd = Math.sqrt(r.reduce(function (a, v) { return a + v * v; }, 0) / (r.length - 1)), core = pts.filter(function (p, i) { return Math.abs(r[i]) <= 2 * sd; }), f2 = fo(core); if (f2) { f = f2; n = pts.length - core.length; } }
     return f ? { f: f.f, n: n } : null;
   }
+  function rat() { // calificación de cada emisor y spread contra la curva de su nota (o de su categoría si la nota tiene menos de 5 bonos)
+    if (CAL == null) { CAL = 0; j('data/calificaciones.json').then(function (c) { CAL = c || {}; if (isAct()) draw(); }); }
+    var G = window.RATG, U = [], NT = {}; RTF = {};
+    ROWS.forEach(function (e) { e.rat = null; e.srt = null; var c = CAL && e.em && CAL[e.em], n = c && G.nt(c.cal); if (!n) return; e.rat = { n: n, b: G.br(n), t: c.cal + ' · ' + c.ag + ' · ' + fr(c.fecha) };
+      if (e.rat.b && e.t === 'usd' && e.tir != null && !e.odd && e.d >= 45 && e.md > 0 && (ST.liq === 'all' || e.v > 0)) U.push({ x: e.md, y: e.tir * 100, e: e }); });
+    var fit = function (q) { q = q.filter(function (p) { return p.y > -5 && p.y < 40; }); if (q.length < 3) return null; var f = robFit(q); if (!f) return null; var xs = q.map(function (p) { return p.x; }); return { f: f.f, x0: Math.min.apply(null, xs), x1: Math.max.apply(null, xs), n: q.length }; };
+    G.BK.forEach(function (b) { RTF[b] = fit(U.filter(function (p) { return p.e.rat.b === b; })); });
+    U.forEach(function (p) { (NT[p.e.rat.n] = NT[p.e.rat.n] || []).push(p); });
+    Object.keys(NT).forEach(function (n) { NT[n].F = NT[n].length >= 5 ? fit(NT[n]) : null; });
+    U.forEach(function (p) { var r = p.e.rat, F = NT[r.n].F, u = F || RTF[r.b]; if (!u) return; var w = (u.x1 - u.x0) * 0.25 + 0.3; if (p.x < u.x0 - w || p.x > u.x1 + w) return; p.e.srt = (p.y - u.f(p.x)) * 100; r.cv = F ? r.n : r.b; });
+  }
+  function chartRt() { // curvas por calificación, con las elegidas resaltadas
+    var box = $('pvsRt'); if (CHR) { CHR.destroy(); CHR = null; }
+    var G = window.RATG, U = ROWS.filter(function (e) { return e.t === 'usd' && e.rat && e.rat.b && e.tir != null && !e.odd && e.d >= 45 && e.md > 0 && (ST.liq === 'all' || e.v > 0); });
+    if (ST.tp !== 'usd' || U.length < 3 || !window.Chart) { box.hidden = true; return; } box.hidden = false;
+    var mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), SE = ST.em, sets = [];
+    G.BK.forEach(function (b) { var F = RTF[b], c = G.COL[b], q = U.filter(function (e) { return e.rat.b === b; }); if (!q.length) return;
+      sets.push({ label: b + ' (' + q.length + ')', data: q.map(function (e) { return { x: e.md, y: e.tir * 100, e: e }; }), backgroundColor: hexA(c, SE.length ? 0.25 : 0.65), borderColor: hexA(c, SE.length ? 0.35 : 0.95), pointRadius: 4, hoverRadius: 6, order: 2 });
+      if (F) { var d = []; for (var i = 0; i <= 60; i++) { var x = F.x0 + (F.x1 - F.x0) * i / 60; d.push({ x: x, y: F.f(x) }); } sets.push({ label: 'Curva ' + b, data: d, showLine: true, borderColor: c, borderWidth: 2.2, pointRadius: 0, hoverRadius: 0, order: 1, cv: 1 }); } });
+    var H = U.filter(function (e) { return SE.indexOf(e.em) >= 0; }), YS = U.map(function (e) { return e.tir * 100; }).filter(function (y) { return y > -5 && y < 40; }), YL = [Math.floor(Math.min.apply(null, YS) - 1), Math.ceil(Math.max.apply(null, YS) + 1)];
+    if (H.length) sets.push({ label: 'Elegidas', data: H.map(function (e) { return { x: e.md, y: e.tir * 100, e: e }; }), backgroundColor: H.map(function (e) { return G.COL[e.rat.b]; }), borderColor: tx, borderWidth: 2, pointRadius: 7, hoverRadius: 9, order: 0, hl: 1 });
+    var lab = { id: 'pvsRtLab', afterDatasetsDraw: function (c) { var g = c.ctx; g.save(); g.font = '600 11px Inter, sans-serif'; g.fillStyle = tx; g.textAlign = 'center'; c.data.datasets.forEach(function (d, i) { if (d.hl) c.getDatasetMeta(i).data.forEach(function (el, k) { g.fillText(d.data[k].e.k, el.x, el.y - 11); }); }); g.restore(); } };
+    CHR = new Chart($('pvsRtC').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [lab], options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'nearest', intersect: true },
+      onClick: function (ev, els) { var el = els[0], p = el && CHR.data.datasets[el.datasetIndex].data[el.index]; if (p && p.e) pick(p.e.k); },
+      plugins: { legend: { labels: { color: mu, boxWidth: 12, filter: function (it, d) { return !d.datasets[it.datasetIndex].cv; } } }, tooltip: { filter: function (it) { return !it.dataset.cv; }, callbacks: { label: function (c) { var e = c.raw.e; return [e.k + ' · ' + (e.em || '') + ' · ' + e.rat.n, 'TIR ' + nf(e.tir * 100, 2) + '%, MD ' + nf(e.md, 2), e.srt == null ? 'Sin curva para comparar' : sg(e.srt, 0) + ' pb contra la curva ' + e.rat.cv]; } } } },
+      scales: { x: { type: 'linear', title: { display: true, text: 'Duración modificada (años)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1); } }, grid: { color: bd } }, y: { min: YL[0], max: YL[1], title: { display: true, text: 'TIR en dólares (TEA, %)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
+    var at = function (F) { return Math.min(Math.max(3, F.x0), F.x1); }, OUT = U.filter(function (e) { return e.tir <= -0.05 || e.tir >= 0.4; });
+    $('pvsRtK').innerHTML = H.length ? SE.map(function (n) { var q = H.filter(function (e) { return e.em === n && e.srt != null; }); if (!q.length) return ''; var r = q[0].rat, m = med(q.map(function (e) { return e.srt; })); return '<div><small>' + esc(n) + ' · ' + r.n + '</small><b style="color:' + (m >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + sg(m, 0) + ' pb</b><span>contra la curva ' + r.cv + (q.length > 1 ? ' (mediana de ' + q.length + ')' : '') + '</span></div>'; }).join('')
+      : G.BK.filter(function (b) { return RTF[b]; }).map(function (b) { var F = RTF[b]; return '<div><small>Curva ' + b + '</small><b>' + nf(F.f(at(F)), 2) + '%</b><span>TIR a ' + nf(at(F), 1) + ' años · ' + F.n + ' bonos</span></div>'; }).join('');
+    var sin = {}; ROWS.forEach(function (e) { if (e.t === 'usd' && e.em && !e.rat) sin[e.em] = 1; });
+    $('pvsRtS').textContent = 'Una curva por calificación crediticia con las provinciales hard dollar. Elegí una provincia arriba para ver cómo rinde contra la curva de su nota.';
+    $('pvsRtN').textContent = 'Calificación de largo plazo en escala nacional: FIX y, donde FIX no califica, Moody\'s Local. AA+, AA y AA− van en la curva AA (lo mismo en cada categoría); si una nota tiene 5 o más bonos, el spread se mide contra la curva de esa nota. Spread positivo: rinde más que su curva (está más barato). Fuera: CCC o en default' + (Object.keys(sin).length ? '; sin calificación cargada: ' + Object.keys(sin).sort().join(', ') : '') + (OUT.length ? '; fuera de escala (TIR menor a −5% o mayor a 40%, no arman curva): ' + OUT.map(function (e) { return e.k + ' ' + nf(e.tir * 100, 1) + '%'; }).join(', ') : '') + '.';
+  }
   function chartSv(R) {
     var box = $('pvsSv'); if (CHS) { CHS.destroy(); CHS = null; }
     var SV = sov(); if (ST.tp !== 'usd' || !SV || !window.Chart) { box.hidden = true; return; } box.hidden = false;
@@ -10409,11 +10485,11 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var usd = ST.tp === 'usd', R = ROWS.filter(vis), k = ST.sort, d = ST.dir;
     R.sort(function (a, b) { var x = a[k], y = b[k]; if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * d; });
     var th = function (s, t, l, ti) { return '<th data-s="' + s + '"' + (l ? ' class="l"' : '') + (ti ? ' title="' + ti + '"' : '') + '>' + t + (ST.sort === s ? (ST.dir > 0 ? ' ▲' : ' ▼') : '') + '</th>'; };
-    var h = '<thead><tr>' + th('k', 'Bono', 1) + th('em', 'Provincia', 1) + th('mat', 'Vence') + th('d', 'Días') + th('r', 'Cupón') + th('p', 'Precio') + th('ch', 'Var. %') + (usd ? th('bid', 'Compra') + th('ask', 'Venta') : '') + th('tir', 'TIR', 0, usd ? 'TIR efectiva anual (act/365) con los flujos del prospecto y el precio sucio' : tirTx()) + (usd ? th('spr', 'Spread', 0, 'Contra la curva de Globales a la misma duración, en pb') : '') + th('md', 'MD', 0, 'Duración modificada, en años') + (usd ? th('cvx', 'Convex.', 0, 'Convexidad') + th('dv01', 'DV01', 0, 'Cuánto cambia el precio (por 100 VN) si la TIR se mueve 1 pb') + th('par', 'Paridad', 0, 'Precio sobre el valor técnico (residual + interés corrido)') : '') + th('res', 'Residual', 0, 'Valor residual por 100 VN') + th('v', 'Monto', 0, 'Operado hoy (o en el último cierre), en miles') + th('v20', 'Prom. 20 r.', 0, 'Monto promedio diario de las últimas 20 ruedas, en miles') + (usd ? th('ba', 'Puntas', 0, 'TIR a precio de compra menos TIR a precio de venta, en pb') : '') + th('lq', 'Liquidez', 0, 'Puntaje de 0 a 100 con las ruedas que operó de las últimas 20, el monto promedio' + (usd ? ' y las puntas' : '') + '. Alta desde 66, baja debajo de 33') + '</tr></thead><tbody>';
+    var h = '<thead><tr>' + th('k', 'Bono', 1) + th('em', 'Provincia', 1) + th('mat', 'Vence') + th('d', 'Días') + th('r', 'Cupón') + th('p', 'Precio') + th('ch', 'Var. %') + (usd ? th('bid', 'Compra') + th('ask', 'Venta') : '') + th('tir', 'TIR', 0, usd ? 'TIR efectiva anual (act/365) con los flujos del prospecto y el precio sucio' : tirTx()) + (usd ? th('spr', 'Spread', 0, 'Contra la curva de Globales a la misma duración, en pb') + th('srt', 'vs. rating', 0, 'Spread contra la curva de su calificación (escala nacional de largo plazo), en pb. Positivo: rinde más que sus pares de la misma nota') : '') + th('md', 'MD', 0, 'Duración modificada, en años') + (usd ? th('cvx', 'Convex.', 0, 'Convexidad') + th('dv01', 'DV01', 0, 'Cuánto cambia el precio (por 100 VN) si la TIR se mueve 1 pb') + th('par', 'Paridad', 0, 'Precio sobre el valor técnico (residual + interés corrido)') : '') + th('res', 'Residual', 0, 'Valor residual por 100 VN') + th('v', 'Monto', 0, 'Operado hoy (o en el último cierre), en miles') + th('v20', 'Prom. 20 r.', 0, 'Monto promedio diario de las últimas 20 ruedas, en miles') + (usd ? th('ba', 'Puntas', 0, 'TIR a precio de compra menos TIR a precio de venta, en pb') : '') + th('lq', 'Liquidez', 0, 'Puntaje de 0 a 100 con las ruedas que operó de las últimas 20, el monto promedio' + (usd ? ' y las puntas' : '') + '. Alta desde 66, baja debajo de 33') + '</tr></thead><tbody>';
     var am = function (v) { return v ? (v < 1e3 ? '<1' : nf(v / 1e3, 0)) + ' k' : '—'; };
     h += R.map(function (e) { var c = e.ch == null ? 'mu' : e.ch > 0 ? 'up' : e.ch < 0 ? 'dn' : 'mu';
       return '<tr data-k="' + e.k + '"' + (e.k === SEL ? ' class="on"' : '') + '><td class="l"><b>' + e.k + '</b> <span class="mu" style="font-size:11.5px">' + spLab(e) + '</span>' + (e.live ? '' : ' <span class="tg">cierre</span>') + '</td><td class="l">' + (esc(e.em) || '<span class="mu">—</span>') + '</td><td>' + fr(e.mat) + '</td><td>' + nf(e.d) + '</td><td>' + (e.r != null ? nf(e.r, 2) + '%' : '—') + '</td><td>' + nf(e.p, usd ? 2 : 0) + '</td><td class="' + c + '">' + (e.ch == null ? '—' : sg(e.ch, 2) + '%') + '</td>' +
-        (usd ? '<td>' + nf(e.bid, 2) + '</td><td>' + nf(e.ask, 2) + '</td>' : '') + '<td><b>' + (e.tir == null || e.odd ? '—' : nf(e.tir * 100, 2) + '%') + '</b></td>' + (usd ? '<td>' + (e.spr == null ? '—' : sg(e.spr, 0)) + '</td>' : '') + '<td>' + nf(e.md, 2) + '</td>' +
+        (usd ? '<td>' + nf(e.bid, 2) + '</td><td>' + nf(e.ask, 2) + '</td>' : '') + '<td><b>' + (e.tir == null || e.odd ? '—' : nf(e.tir * 100, 2) + '%') + '</b></td>' + (usd ? '<td>' + (e.spr == null ? '—' : sg(e.spr, 0)) + '</td><td title="' + (e.rat ? esc(e.rat.t) : 'Sin calificación cargada') + '">' + (e.rat ? '<span class="mu" style="font-size:11px">' + e.rat.n + '</span> ' : '') + (e.srt == null ? '—' : sg(e.srt, 0)) + '</td>' : '') + '<td>' + nf(e.md, 2) + '</td>' +
         (usd ? '<td>' + (e.odd ? '—' : nf(e.cvx, 1)) + '</td><td>' + (e.odd ? '—' : nf(e.dv01, 3)) + '</td><td>' + (e.par ? nf(e.par * 100, 1) + '%' : '—') + '</td>' : '') + '<td>' + nf(e.res, 1) + '</td><td>' + am(e.v) + '</td><td>' + am(e.v20) + '</td>' + (usd ? '<td>' + (e.ba == null ? '—' : nf(e.ba, 0)) + '</td>' : '') + '<td>' + lqTag(e.lq) + '</td></tr>'; }).join('') + '</tbody>';
     $('pvsTab').innerHTML = h;
     $('pvsTn').textContent = 'Precios por 100 VN; montos en miles de ' + (usd ? 'dólares' : 'pesos') + '. «cierre»: no operó hoy, se usa el precio del ' + fr(C && C.d) + '. Pasá el mouse por el título de cada columna para ver qué mide; tocá un bono para ver su ficha.';
