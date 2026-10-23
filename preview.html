@@ -9651,7 +9651,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
   var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
   if (!Array.isArray(ST.em)) ST.em = ST.em ? [ST.em] : []; // varias empresas a la vez (antes era una sola)
-  var EPAL = ['#f0abfc', '#5cc8ff', '#ffc542', '#a3e635', '#fb923c', '#c9a0ff', '#2dd4bf', '#f87171'], EMS = {};
+  var EPAL = ['#f0abfc', '#5cc8ff', '#ffc542', '#818cf8', '#fb923c', '#c9a0ff', '#2dd4bf', '#f87171'], EMS = {};
   var emCol = function (n) { var i = ST.em.indexOf(n); return i < 0 ? null : EPAL[i % EPAL.length]; };
   var hexA = function (h, a) { h = String(h).trim(); if (h.charAt(0) !== '#') return h; var n = parseInt(h.length === 4 ? h.replace(/#(.)(.)(.)/, '$1$1$2$2$3$3') : h.slice(1), 16); return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')'; };
   var J = null, C = null, EM = {}, LV = {}, lvT = null, CH = null, CHF = null, CHS = null, ROWS = [], SEL = null, ldP = null;
@@ -9856,8 +9856,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     if (!best) return null; var B = best;
     return { f: function (x) { return B.a + B.b * Math.log(Math.max(0, x) + B.c); }, name: 'Logarítmica' };
   }
-  function robFit(pts) {
-    var fo = function (q) { return slf(q); }, f = fo(pts), n = 0;
+  function robFit(pts, mf) {
+    var fo = function (q) { return slf(q, mf); }, f = fo(pts), n = 0;
     if (f && pts.length >= 5) { var r = pts.map(function (p) { return p.y - f.f(p.x); }), sd = Math.sqrt(r.reduce(function (a, v) { return a + v * v; }, 0) / (r.length - 1)), core = pts.filter(function (p, i) { return Math.abs(r[i]) <= 2 * sd; }), f2 = fo(core); if (f2) { f = f2; n = pts.length - core.length; } }
     return f ? { f: f.f, n: n } : null;
   }
@@ -9867,7 +9867,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), cd = css('--card'), CO = css('--c-on') || '#f0abfc', CS = css('--c-usd') || '#b8e986', MU = ST.em.length >= 2;
     var pts = R.filter(function (e) { return e.tir != null && !e.odd && e.d >= 45 && e.md > 0; }).map(function (e) { return { x: e.md * 365, y: e.tir * 100, k: e.k, e: e, c: emCol(e.em) || CO }; });
     var fo = MU ? null : robFit(pts), fO = fo && fo.f, sp = SV.pts.map(function (q) { return { x: q.x, y: q.y, k: q.k }; });
-    var FO = MU ? ST.em.map(function (n) { var q = pts.filter(function (p) { return p.e.em === n; }), f = q.length >= 2 ? robFit(q) : null; if (!f) return null; var qx = q.map(function (p) { return p.x; }); return { n: n, c: emCol(n), f: f.f, x0: Math.min.apply(null, qx), x1: Math.max.apply(null, qx) }; }).filter(Boolean) : [];
+    var FO = MU ? ST.em.map(function (n) { var q = pts.filter(function (p) { return p.e.em === n; }), f = q.length >= 2 ? robFit(q, 0.5) : null; /* corrimiento mínimo: sin el gancho que exagera las ONs cortas de cada empresa */ if (!f) return null; var qx = q.map(function (p) { return p.x; }); return { n: n, c: emCol(n), f: f.f, x0: Math.min.apply(null, qx), x1: Math.max.apply(null, qx) }; }).filter(Boolean) : [];
     var xs = pts.map(function (p) { return p.x; }).concat(sp.map(function (p) { return p.x; })), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), G = [], O = [];
     for (var i = 0; i <= 160; i++) { var x = x0 + (x1 - x0) * i / 160; G.push({ x: x, y: SV.f(x) }); if (fO) O.push({ x: x, y: fO(x) }); }
     var LN = { type: 'line', pointRadius: 0, borderWidth: 3, cubicInterpolationMode: 'monotone', borderCapStyle: 'round', order: 3 };
@@ -9876,28 +9876,32 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       { type: 'scatter', label: 'Globales', data: sp, backgroundColor: CS, borderColor: CS, pointRadius: 6, pointStyle: 'rectRot', hoverRadius: 8, order: 2 },
       Object.assign({ label: 'Curva soberana (Globales)', data: G, borderColor: CS, backgroundColor: CS, fill: false }, LN)];
     if (fO) sets.push(Object.assign({ label: 'Curva de ONs' + (ST.em.length === 1 ? ' de ' + ST.em[0] : ''), data: O, borderColor: CO, fill: 2 }, LN, { backgroundColor: hexA(CO, 0.1) }));
-    FO.forEach(function (o) { var d = []; for (var i = 0; i <= 120; i++) { var x = o.x0 + (o.x1 - o.x0) * i / 120; d.push({ x: x, y: o.f(x) }); } sets.push(Object.assign({ label: o.n, data: d, borderColor: o.c, backgroundColor: o.c, fill: false }, LN)); });
-    var cy = G.concat(O).concat([].concat.apply([], sets.slice(4).map(function (d) { return d.data; }))).map(function (q) { return q.y; }), py = pts.map(function (q) { return q.y; }).concat(sp.map(function (q) { return q.y; })), ymn = Math.max(Math.min.apply(null, py), Math.min.apply(null, cy) - 4), ymx = Math.min(Math.max.apply(null, py), Math.max.apply(null, cy) + 4), nOff = pts.filter(function (q) { return q.y < ymn || q.y > ymx; }).length; // el eje sigue a las curvas: las ONs muy alejadas quedan afuera
+    FO.forEach(function (o) { var d = [], s = []; for (var i = 0; i <= 120; i++) { var x = o.x0 + (o.x1 - o.x0) * i / 120; d.push({ x: x, y: o.f(x) }); s.push({ x: x, y: SV.f(x) }); } var si = sets.length; // la soberana en el tramo de la empresa, invisible, para sombrear el spread
+      sets.push(Object.assign({ label: '', hid: 1, data: s, borderColor: 'transparent', backgroundColor: 'transparent', fill: false }, LN, { borderWidth: 0, order: 4 }));
+      sets.push(Object.assign({ label: o.n, data: d, borderColor: o.c, backgroundColor: hexA(o.c, 0.1), fill: FO.length <= 2 ? si : false }, LN)); });
+    var cy = G.concat(O).concat([].concat.apply([], sets.slice(3).map(function (d) { return d.data; }))).map(function (q) { return q.y; }), py = pts.map(function (q) { return q.y; }).concat(sp.map(function (q) { return q.y; })), ymn = Math.max(Math.min.apply(null, py), Math.min.apply(null, cy) - 4), ymx = Math.min(Math.max.apply(null, py), Math.max.apply(null, cy) + 4), nOff = pts.filter(function (q) { return q.y < ymn || q.y > ymx; }).length; // el eje sigue a las curvas: las ONs muy alejadas quedan afuera
     var inO = function (x) { var a = Math.min.apply(null, pts.map(function (p) { return p.x; })), b = Math.max.apply(null, pts.map(function (p) { return p.x; })); return x >= a && x <= b; };
     var at = function (y) { var x = y * 365; return fO && inO(x) ? (fO(x) - SV.f(x)) * 100 : null; };
     var lab = { id: 'onsSvLab', afterDatasetsDraw: function (c) { var g = c.ctx; g.save(); g.font = '600 11px Inter, sans-serif'; g.textBaseline = 'middle'; [[1, sp, CS], [0, pts, tx]].forEach(function (z) { if (z[0] === 0 && pts.length > 30) return; var m = c.getDatasetMeta(z[0]); g.fillStyle = z[2]; m.data.forEach(function (el, i) { g.fillText(z[1][i].k, el.x + 8, el.y); }); }); g.restore(); } };
     var mk = { id: 'onsSvMk', afterDatasetsDraw: function (c) { // el spread marcado sobre el gráfico a 1, 2, 3 y 5 años
-      if (!fO) return; var g = c.ctx, X = c.scales.x, Y = c.scales.y, A = c.chartArea; g.save(); g.font = '700 11.5px Inter, sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'center';
-      [1, 2, 3, 5].forEach(function (yr) { var v = at(yr); if (v == null) return; var px = X.getPixelForValue(yr * 365), y1 = Y.getPixelForValue(SV.f(yr * 365)), y2 = Y.getPixelForValue(fO(yr * 365)); if (px < A.left || px > A.right) return;
+      var CU = fO ? [{ f: fO, c: CO, v: at }] : FO.length <= 3 ? FO.map(function (o) { return { f: o.f, c: o.c, v: function (yr) { var x = yr * 365; return x >= o.x0 && x <= o.x1 ? (o.f(x) - SV.f(x)) * 100 : null; } }; }) : []; // con más de 3 empresas, los valores quedan solo en las tarjetas
+      if (!CU.length) return; var g = c.ctx, X = c.scales.x, Y = c.scales.y, A = c.chartArea; g.save(); g.font = '700 11.5px Inter, sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'center';
+      [1, 2, 3, 5].forEach(function (yr) { var used = []; CU.forEach(function (u) { var CO = u.c, fO = u.f, v = u.v(yr); if (v == null) return; var px = X.getPixelForValue(yr * 365), y1 = Y.getPixelForValue(SV.f(yr * 365)), y2 = Y.getPixelForValue(fO(yr * 365)); if (px < A.left || px > A.right) return;
         g.strokeStyle = tx; g.globalAlpha = 0.55; g.setLineDash([3, 3]); g.lineWidth = 1.2; g.beginPath(); g.moveTo(px, Math.max(A.top, Math.min(A.bottom, y1))); g.lineTo(px, Math.max(A.top, Math.min(A.bottom, y2))); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
         var t = sg(v, 0) + ' pb', w = g.measureText(t).width + 16, ym = Math.max(A.top + 12, Math.min(A.bottom - 12, (y1 + y2) / 2));
+        for (var k = 0; k < 6 && used.some(function (q) { return Math.abs(q - ym) < 24; }); k++) ym = Math.min(A.bottom - 12, ym + 24); used.push(ym); // que no se pisen las etiquetas de dos empresas
         g.fillStyle = cd; g.strokeStyle = hexA(CO, 0.7); g.lineWidth = 1; g.beginPath(); if (g.roundRect) g.roundRect(px - w / 2, ym - 11, w, 22, 11); else g.rect(px - w / 2, ym - 11, w, 22); g.fill(); g.stroke();
-        g.fillStyle = tx; g.fillText(t, px, ym + 0.5); });
+        g.fillStyle = tx; g.fillText(t, px, ym + 0.5); }); });
       g.restore(); } };
     CHS = new Chart($('onsSvC').getContext('2d'), { data: { datasets: sets }, plugins: [lab, mk], options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
       onClick: function (ev, els) { var el = els.filter(function (x) { return x.datasetIndex === 0; })[0]; if (el) { var kk = pts[el.index].k; setTimeout(function () { pick(kk); }, 0); } }, // fuera del evento: pick redibuja (y destruye) este mismo gráfico
-      plugins: { legend: { labels: { color: mu, boxWidth: 12, filter: function (it) { return it.datasetIndex >= 2; } } }, tooltip: { filter: function (it) { return it.datasetIndex <= 1; }, callbacks: { title: function (c) { if (!c.length) return ''; var r = c[0].raw; return r.k + (r.e && r.e.em ? ' · ' + r.e.em : ''); }, label: function (c) { var r = c.raw; return ['TIR ' + nf(r.y, 2) + '% · MD ' + nf(r.x / 365, 2) + ' años', r.e && r.e.spr != null ? 'Spread contra los Globales: ' + sg(r.e.spr, 0) + ' pb' : '']; } } } },
+      plugins: { legend: { labels: { color: mu, boxWidth: 12, filter: function (it, d) { return it.datasetIndex >= 2 && !d.datasets[it.datasetIndex].hid; } } }, tooltip: { filter: function (it) { return it.datasetIndex <= 1; }, callbacks: { title: function (c) { if (!c.length) return ''; var r = c[0].raw; return r.k + (r.e && r.e.em ? ' · ' + r.e.em : ''); }, label: function (c) { var r = c.raw; return ['TIR ' + nf(r.y, 2) + '% · MD ' + nf(r.x / 365, 2) + ' años', r.e && r.e.spr != null ? 'Spread contra los Globales: ' + sg(r.e.spr, 0) + ' pb' : '']; } } } },
       scales: { x: { type: 'linear', title: { display: true, text: 'Duración modificada (días)', color: mu }, ticks: { color: mu }, grid: { color: bd } }, y: { min: Math.floor(ymn), max: Math.ceil(ymx), title: { display: true, text: 'TIR en dólares (TEA, %)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
     $('onsSvK').innerHTML = [1, 2, 3, 5].map(function (y) {
       var t = '<small>Spread a ' + y + ' año' + (y > 1 ? 's' : '') + '</small>';
       if (MU) return '<div>' + t + FO.map(function (o) { var x = y * 365, v = x >= o.x0 && x <= o.x1 ? (o.f(x) - SV.f(x)) * 100 : null; return '<span class="emK"><i style="background:' + o.c + '"></i>' + esc(o.n) + '<b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b></span>'; }).join('') + '</div>';
       var v = at(y); return '<div>' + t + '<b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b><span>' + (v == null ? 'fuera del tramo de las ONs' : 'curva de ONs − curva soberana') + '</span></div>'; }).join('');
-    $('onsSvS').textContent = (MU ? 'Curvas de las ONs de ' + ST.em.join(', ') : 'Curva de ' + (ST.em.length ? 'las ONs de ' + ST.em[0] : 'las ONs hard dollar')) + ' contra la de los Globales, todas en ' + (spG() === 'D' ? 'MEP' : 'cable') + (MU ? '; cada empresa en su color.' : '; el área entre las dos es el spread, marcado a 1, 2, 3 y 5 años.');
+    $('onsSvS').textContent = (MU ? 'Curvas de las ONs de ' + ST.em.join(', ') : 'Curva de ' + (ST.em.length ? 'las ONs de ' + ST.em[0] : 'las ONs hard dollar')) + ' contra la de los Globales, todas en ' + (spG() === 'D' ? 'MEP' : 'cable') + (MU ? '; cada empresa en su color' + (FO.length <= 2 ? ', con su spread sombreado y marcado a 1, 2, 3 y 5 años.' : FO.length <= 3 ? ', con su spread marcado a 1, 2, 3 y 5 años.' : '; el spread de cada una, en las tarjetas.') : '; el área entre las dos es el spread, marcado a 1, 2, 3 y 5 años.');
     $('onsSvN').textContent = 'Las curvas son ajustes logarítmicos de TIR contra duración modificada' + (fo && fo.n ? '; la de ONs sin las ' + fo.n + ' que se alejan más de 2 σ' : '') + (MU ? '; la de cada empresa, con sus ONs y en su tramo de duración' : '') + '. Spread = curva de ONs menos curva soberana a la misma duración: negativo, las ONs rinden menos que los Globales. Antes del Global más corto (' + nf(SV.x0 / 365, 1) + ' años) y después del más largo (' + nf(SV.x1 / 365, 1) + ') la curva soberana es el mismo ajuste extendido.' + (nOff ? ' ' + nOff + ' ON' + (nOff > 1 ? 's quedan' : ' queda') + ' fuera de la escala, lejos de las curvas (están en el gráfico de arriba).' : '') + ' Usa los mismos filtros de arriba (tipo, liquidez, empresa y búsqueda). Tocá una ON para ver su ficha.';
   }
   function table() {
@@ -10140,7 +10144,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
   var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
   if (!Array.isArray(ST.em)) ST.em = ST.em ? [ST.em] : []; // varias provincias a la vez (antes era una sola)
-  var EPAL = ['#f0abfc', '#5cc8ff', '#ffc542', '#a3e635', '#fb923c', '#c9a0ff', '#2dd4bf', '#f87171'], EMS = {};
+  var EPAL = ['#f0abfc', '#5cc8ff', '#ffc542', '#818cf8', '#fb923c', '#c9a0ff', '#2dd4bf', '#f87171'], EMS = {};
   var emCol = function (n) { var i = ST.em.indexOf(n); return i < 0 ? null : EPAL[i % EPAL.length]; };
   var hexA = function (h, a) { h = String(h).trim(); if (h.charAt(0) !== '#') return h; var n = parseInt(h.length === 4 ? h.replace(/#(.)(.)(.)/, '$1$1$2$2$3$3') : h.slice(1), 16); return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')'; };
   var J = null, C = null, EM = {}, LV = {}, lvT = null, CH = null, CHF = null, CHS = null, ROWS = [], SEL = null, ldP = null;
