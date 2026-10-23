@@ -116,7 +116,8 @@ def main():
         rows = meta[t]["r"]
         v20 = [r[5] for r in rows[-20:] if r[5]]  # en la unidad que manda data912 (confirmar si es cantidad de acciones o pesos)
         out["t"][t] = {"panel": meta[t].get("panel"), "ars": stats(px, ir_a), "ccl": stats(usd[t], ir_u),
-                       "vol_prom_20": round(sum(v20) / len(v20)) if v20 else None}
+                       "vol_prom_20": round(sum(v20) / len(v20)) if v20 else None,
+                       "u": [[r[0], r[4], r[5]] for r in rows[-41:] if r[4] and r[4] > 0]}  # últimas ruedas (fecha, cierre, volumen) para Variación diaria
     json.dump(out, open(os.path.join(DIR, "metricas.json"), "w"), separators=(",", ":"))
     print("métricas de %d tickers (%d del panel líder), CCL con %d ruedas" % (len(out["t"]), len(lider), len(ccl)))
 
