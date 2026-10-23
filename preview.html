@@ -9220,17 +9220,29 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 #cal .calIt i{width:7px;height:7px;border-radius:50%;background:var(--fc);flex:none}
 #cal .calIt b{flex:none}
 #cal .calIt span{margin-left:auto;color:var(--mu);font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#cal .calIt em{font-style:normal;font:700 9.5px Inter,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.04em;padding:1px 5px;border-radius:5px;flex:none}
+#cal .calAm em{color:var(--fc);border:1px solid var(--fc)}
+#cal .calIt.calVto{background:var(--fc);color:var(--bg)}
+#cal .calIt.calVto i{background:var(--bg)}
+#cal .calIt.calVto span{color:var(--bg);font-weight:700}
+#cal .calIt.calVto em{background:var(--bg);color:var(--fc)}
+#cal .calLg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mu)}
+#cal .calLg span{display:inline-flex;align-items:center;gap:6px}
+#cal .calLg i{width:12px;height:12px;border-radius:4px;background:var(--pill);border:1px solid var(--pillb)}
+#cal .calLg .calAm i{border-color:var(--tx)}
+#cal .calLg .calVto i{background:var(--tx);border-color:var(--tx)}
+#cal .calTy.calVto{text-decoration:underline;text-underline-offset:3px}
 #cal .calMr{color:var(--mu);font:600 11px Inter,system-ui,sans-serif;padding:2px 6px;border:0;background:transparent;cursor:pointer;text-align:left}
 #cal .calMr:hover{color:var(--tx)}
 #cal .fvW{overflow-x:auto}
 #cal table.calTb{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
 #cal table.calTb th{text-align:right;padding:9px 12px;color:var(--mu);font-weight:600;font-size:12px;border-bottom:1px solid var(--bd);white-space:nowrap}
 #cal table.calTb td{text-align:right;padding:8px 12px;border-bottom:1px solid var(--bd);white-space:nowrap}
-#cal table.calTb th:nth-child(-n+3),#cal table.calTb td:nth-child(-n+3){text-align:left}
+#cal table.calTb th:nth-child(-n+4),#cal table.calTb td:nth-child(-n+4){text-align:left}
 #cal table.calTb td small{color:var(--mu)}
 #cal table.calTb tbody tr{cursor:pointer}
 #cal table.calTb tbody tr:hover{background:var(--pill)}
-@media (max-width:700px){#cal .calCt{align-items:flex-start}#cal .calD{min-height:84px;padding:4px 3px}#cal .calIt{padding:3px 4px;font-size:10.5px}#cal .calIt span{display:none}#cal .calDw{padding:6px 4px}}
+@media (max-width:700px){#cal .calIt em{display:none}#cal .calLg{display:none}#cal .calCt{align-items:flex-start}#cal .calD{min-height:84px;padding:4px 3px}#cal .calIt{padding:3px 4px;font-size:10.5px}#cal .calIt span{display:none}#cal .calDw{padding:6px 4px}}
 #fav .fvTop{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
 #fav .fvTop h2{margin:0 0 4px;font-size:30px;letter-spacing:-.03em}
 #fav .fvTop p{margin:0;color:var(--mu);font-size:14px;max-width:720px}
@@ -9740,7 +9752,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     keys.forEach(function (k) {
       var r = MAP[k]; if (!r) return; if (CST.fam !== 'all' && famOf(r) !== CST.fam) return;
       var T; try { T = tech(r); } catch (e) { return; }
-      (T.rows || []).forEach(function (x) { if (!(x.total > 0) || x.t < t0) return; out.push({ t: nextBiz(x.t), k: k, r: r, usd: r.grp === 'usd' || !!r.usdOn, renta: x.renta, amort: x.amort, total: x.total, vn: src === 'pf' ? vn[k] : null }); });
+      var R = (T.rows || []).filter(function (x) { return x.total > 0; }), lt = R.length ? R[R.length - 1].t : null;
+      R.forEach(function (x) { if (x.t < t0) return; var ty = x.t === lt ? 'vto' : x.amort > 0 ? 'am' : 'cp'; out.push({ t: nextBiz(x.t), k: k, r: r, usd: r.grp === 'usd' || !!r.usdOn, renta: x.renta, amort: x.amort, total: x.total, ty: ty, vn: src === 'pf' ? vn[k] : null }); }); // ty: cp cupón, am cupón y amortización parcial, vto vencimiento (último pago)
     });
     return out.sort(function (a, b) { return a.t - b.t || (a.k < b.k ? -1 : 1); });
   }
@@ -9751,6 +9764,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var td = bxToday(), dt = new Date(td * 864e5), ym = CST.m || (dt.getUTCFullYear() * 12 + dt.getUTCMonth()), Y = Math.floor(ym / 12), Mo = ym % 12;
     var d0 = Date.UTC(Y, Mo, 1) / 864e5, d1 = Date.UTC(Y, Mo + 1, 1) / 864e5, F = calFlows(CST.src), pf = CST.src === 'pf';
     var inM = F.filter(function (f) { return f.t >= d0 && f.t < d1; }), byD = {}; inM.forEach(function (f) { (byD[f.t] = byD[f.t] || []).push(f); });
+    var tyO = { vto: 0, am: 1, cp: 2 }; Object.keys(byD).forEach(function (d) { byD[d].sort(function (a, b) { return tyO[a.ty] - tyO[b.ty]; }); }); // en cada día, primero los que vencen
     var amt = function (f) { return pf ? f.total * f.vn / 100 : f.total; }, cur = function (f) { return f.usd ? 'US$ ' : '$ '; };
     var sum = function (L, usd) { return L.filter(function (f) { return f.usd === usd; }).reduce(function (a, f) { return a + amt(f); }, 0); };
     var seg = function (key, opts, val) { return '<div class="fvSp">' + opts.map(function (o) { return '<button type="button" data-cal-' + key + '="' + o[0] + '" class="' + (o[0] === val ? 'on' : '') + '">' + o[1] + '</button>'; }).join('') + '</div>'; };
@@ -9768,23 +9782,23 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var chips = '<div class="calChs">' +
       chip(pf ? 'Cobrás en ' + MESES[Mo] : 'Pagos en ' + MESES[Mo], pf ? [u ? 'US$ ' + fm(u, 2) : '', a ? '$ ' + fm(a, 2) : ''].filter(Boolean).join(' · ') || '—' : String(inM.length), pf ? inM.length + (inM.length === 1 ? ' pago' : ' pagos') : 'cupones y amortizaciones') +
       chip('Próximo cobro', nx ? dmy(nx.t) : '—', nx ? nx.k + ' · ' + cur(nx) + fm(amt(nx), 2) + (pf ? '' : ' c/100 VN') : '') +
-      chip('Días hábiles con pagos', String(Object.keys(byD).length), 'en ' + MESES[Mo] + ' de ' + Y) + '</div>';
+      chip('Vencimientos en ' + MESES[Mo], String(inM.filter(function (f) { return f.ty === 'vto'; }).length), (function (v) { return v.length ? v.slice(0, 4).map(function (f) { return f.k; }).join(', ') + (v.length > 4 ? ' y ' + (v.length - 4) + ' más' : '') : 'ningún bono termina de pagar este mes'; })(inM.filter(function (f) { return f.ty === 'vto'; }))) + '</div>';
     var w0 = (d0 + 3) % 7, cells = '', DOW = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie'];
     for (var i = 0; i < Math.min(w0, 5) && w0 < 5; i++) cells += '<div class="calD calX"></div>';
     for (var t = d0; t < d1; t++) {
       var w = (t + 3) % 7; if (w > 4) continue;
       var L = byD[t] || [], hol = !bxIsBiz(t), cls = 'calD' + (t === td ? ' calTd' : '') + (t < td ? ' calPs' : '') + (hol ? ' calHo' : '') + (L.length ? ' calHas' : '');
       cells += '<div class="' + cls + '"><div class="calN">' + (t - d0 + 1) + (hol ? '<i>feriado</i>' : '') + '</div>' + L.slice(0, CST.day === t ? 99 : 5).map(function (f) {
-        return '<button type="button" class="calIt" data-cal-go="' + f.k + '" style="--fc:var(' + (FV[f.r.grp] || '--c-fija') + ')" title="' + esc(f.k + ' · renta ' + fm(f.renta, 4) + ' · amortización ' + fm(f.amort, 4) + ' (c/100 VN)') + '"><i></i><b>' + f.k + '</b><span>' + cur(f) + fm(amt(f), pf ? 0 : 2) + '</span></button>';
+        return '<button type="button" class="calIt' + (f.ty === 'vto' ? ' calVto' : f.ty === 'am' ? ' calAm' : '') + '" data-cal-go="' + f.k + '" style="--fc:var(' + (FV[f.r.grp] || '--c-fija') + ')" title="' + esc(f.k + ' · renta ' + fm(f.renta, 4) + ' · amortización ' + fm(f.amort, 4) + ' (c/100 VN)') + '"><i></i><b>' + f.k + '</b>' + (f.ty === 'vto' ? '<em>vence</em>' : f.ty === 'am' ? '<em>amort.</em>' : '') + '<span>' + cur(f) + fm(amt(f), pf ? 0 : 2) + '</span></button>';
       }).join('') + (L.length > 5 ? '<button type="button" class="calMr" data-cal-day="' + t + '">' + (CST.day === t ? 'ver menos' : 'y ' + (L.length - 5) + ' más') + '</button>' : '') + '</div>';
     }
     var grid = '<div data-norf class="card calC" id="calCM"><div class="fvH"><div class="fvT"><button type="button" class="calNv" data-cal-mv="-1" aria-label="Mes anterior">‹</button><b>' + MESES[Mo] + ' ' + Y + '</b><button type="button" class="calNv" data-cal-mv="1" aria-label="Mes siguiente">›</button>' +
-      (CST.m ? '<button type="button" class="fvAdd calHoy" data-cal-mv="0">Hoy</button>' : '') + '</div></div><div class="calW">' + DOW.map(function (d) { return '<div class="calDw">' + d + '</div>'; }).join('') + cells + '</div></div>';
+      (CST.m ? '<button type="button" class="fvAdd calHoy" data-cal-mv="0">Hoy</button>' : '') + '</div><div class="calLg"><span><i></i>Cupón</span><span class="calAm"><i></i>Cupón y amortización parcial</span><span class="calVto"><i></i>Vencimiento (último pago)</span></div></div><div class="calW">' + DOW.map(function (d) { return '<div class="calDw">' + d + '</div>'; }).join('') + cells + '</div></div>';
     var up = F.filter(function (f) { return f.t >= td && f.t < td + 90; });
-    var tb = '<div data-norf class="card calC"><div class="fvH"><div class="fvT"><i style="--fc:var(--tx)"></i><b>Próximos 90 días</b><span>' + up.length + '</span></div></div><div class="fvW"><table class="fvTb calTb"><thead><tr><th>Fecha</th><th>Ticker</th><th>Familia</th><th>Renta</th><th>Amortización</th><th>Total c/100 VN</th>' + (pf ? '<th>VN</th><th>Cobrás</th>' : '') + '</tr></thead><tbody>' +
+    var tb = '<div data-norf class="card calC"><div class="fvH"><div class="fvT"><i style="--fc:var(--tx)"></i><b>Próximos 90 días</b><span>' + up.length + '</span></div></div><div class="fvW"><table class="fvTb calTb"><thead><tr><th>Fecha</th><th>Ticker</th><th>Familia</th><th>Tipo</th><th>Renta</th><th>Amortización</th><th>Total c/100 VN</th>' + (pf ? '<th>VN</th><th>Cobrás</th>' : '') + '</tr></thead><tbody>' +
       (up.length ? up.map(function (f) {
-        return '<tr data-cal-go="' + f.k + '"><td>' + dmy(f.t) + ' <small>' + DOW[(f.t + 3) % 7] + '</small></td><td><b>' + f.k + '</b></td><td>' + esc(FAM[f.r.grp] ? FAM[f.r.grp][0] : f.r.grp) + '</td><td>' + fm(f.renta, 4) + '</td><td>' + fm(f.amort, 4) + '</td><td>' + cur(f) + fm(f.total, 4) + '</td>' + (pf ? '<td>' + fm(f.vn, 0) + '</td><td><b>' + cur(f) + fm(amt(f), 2) + '</b></td>' : '') + '</tr>';
-      }).join('') : '<tr><td colspan="8">Sin cobros en los próximos 90 días.</td></tr>') + '</tbody></table></div></div>';
+        return '<tr data-cal-go="' + f.k + '"><td>' + dmy(f.t) + ' <small>' + DOW[(f.t + 3) % 7] + '</small></td><td><b>' + f.k + '</b></td><td>' + esc(FAM[f.r.grp] ? FAM[f.r.grp][0] : f.r.grp) + '</td><td>' + (f.ty === 'vto' ? '<b class="calTy calVto">Vencimiento</b>' : f.ty === 'am' ? '<b class="calTy calAm">Cupón y amortización</b>' : 'Cupón') + '</td><td>' + fm(f.renta, 4) + '</td><td>' + fm(f.amort, 4) + '</td><td>' + cur(f) + fm(f.total, 4) + '</td>' + (pf ? '<td>' + fm(f.vn, 0) + '</td><td><b>' + cur(f) + fm(amt(f), 2) + '</b></td>' : '') + '</tr>';
+      }).join('') : '<tr><td colspan="9">Sin cobros en los próximos 90 días.</td></tr>') + '</tbody></table></div></div>';
     cRoot.innerHTML = head + chips + grid + tb;
   }
   if (cRoot) cRoot.addEventListener('click', function (e) {
