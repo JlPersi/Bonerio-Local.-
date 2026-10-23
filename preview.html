@@ -10679,7 +10679,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var big = function (v) { if (v == null || !isFinite(v)) return '—'; var a = Math.abs(v); return a >= 1e12 ? nf(v / 1e12, 2) + ' B' : a >= 1e9 ? nf(v / 1e9, 1) + ' MM' : a >= 1e6 ? nf(v / 1e6, 1) + ' M' : a >= 1e3 ? nf(v / 1e3, 0) + ' mil' : nf(v, 0); };
   var isAct = function () { return root.classList.contains('active'); };
   var $ = function (id) { return document.getElementById(id); };
-  var today = function () { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }); } catch (e) { return new Date().toISOString().slice(0, 10); } };
+  var TDc = null, TDt = 0, today = function () { var n = Date.now(); if (TDc && n - TDt < 30000) return TDc; TDt = n; try { TDc = new Date(n).toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }); } catch (e) { TDc = new Date(n).toISOString().slice(0, 10); } return TDc; }; // toLocaleDateString con zona horaria es lento: se calcula cada 30 s
   var dlb = function (id, name) { return '<button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'' + id + '\', \'' + name + '\')" title="Descargar en HD"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>'; };
   var dnum = function (d) { return Math.floor(Date.parse(d + 'T00:00:00Z') / 864e5); };
   function mean(a) { var s = 0; for (var i = 0; i < a.length; i++) s += a[i]; return a.length ? s / a.length : null; }
@@ -10914,7 +10914,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var o = { amt20: null }, r = RAW[t]; if (!r || r.length < 2) return;
     var last20 = r.slice(-20).filter(function (x) { return x[5] > 0; }); o.amt20 = last20.length ? mean(last20.map(function (x) { return x[4] * x[5]; })) : null; o.v20 = last20.length ? mean(last20.map(function (x) { return x[5]; })) : null; o.vl = r[r.length - 1][5];
     ['ars', 'ccl'].forEach(function (mon) {
-      var px = rows(t, mon).map(function (x) { return [x[0], x[4]]; }); if (RAW[t] && LV[t] && mon === 'ars') px = px.filter(function (x) { return x[0] < today(); }); // métricas al cierre
+      var px = rows(t, mon).map(function (x) { return [x[0], x[4]]; }); if (RAW[t] && LV[t] && mon === 'ars') { var td = today(); px = px.filter(function (x) { return x[0] < td; }); } // métricas al cierre
       if (px.length < 2) return; var N = px.length, lp = px[N - 1][1], rt = function (n) { return N > n ? lp / px[N - 1 - n][1] - 1 : null; };
       var y0 = null; for (var i = N - 1; i >= 0; i--) if (px[i][0] < px[N - 1][0].slice(0, 4)) { y0 = px[i][1]; break; }
       var lr = []; for (i = 1; i < N; i++) lr.push(Math.log(px[i][1] / px[i - 1][1]));
@@ -11123,7 +11123,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var qlr = qC.map(function (c, i) { return i ? Math.log(c / qC[i - 1]) : null; }), qir = qI.map(function (v, i) { return i && v && qI[i - 1] ? Math.log(v / qI[i - 1]) : null; });
     var a = (mt(t)[mon] || {}), cr = qC.slice(qk), lrr = qlr.slice(qk + 1).filter(function (x) { return x != null; }), vr = sd(lrr), rr2 = cr[cr.length - 1] / cr[0] - 1, R = (RT.t[t] || {}).ultimo || {};
     var X2 = [], Y2 = []; for (var z1 = qk + 1; z1 < qN; z1++) if (qlr[z1] != null && qir[z1] != null) { X2.push(qir[z1]); Y2.push(qlr[z1]); } var br = reg(X2, Y2), ri = qI[qk] && qI[qN - 1] ? qI[qN - 1] / qI[qk] - 1 : null;
-    var uC = rows(t, 'ccl').filter(function (x) { return x[0] < today(); }), b60 = function (ref) { var X = [], Y = []; uC.slice(-61).forEach(function (x, k, A2) { if (!k) return; var i0 = ref[A2[k - 1][0]], i1 = ref[x[0]]; if (i0 && i1) { X.push(Math.log(i1 / i0)); Y.push(Math.log(x[4] / A2[k - 1][4])); } }); return X.length >= 40 ? reg(X, Y) : null; };
+    var td0 = today(), uC = rows(t, 'ccl').filter(function (x) { return x[0] < td0; }), b60 = function (ref) { var X = [], Y = []; uC.slice(-61).forEach(function (x, k, A2) { if (!k) return; var i0 = ref[A2[k - 1][0]], i1 = ref[x[0]]; if (i0 && i1) { X.push(Math.log(i1 / i0)); Y.push(Math.log(x[4] / A2[k - 1][4])); } }); return X.length >= 40 ? reg(X, Y) : null; };
     var bm = IDX ? b60(IDX.m.ccl) : null, bg = b60(G30), c20 = qC.slice(-21), l20 = qlr.slice(-20).filter(function (x) { return x != null; }), sh = l20.length > 10 && sd(l20) ? (c20[c20.length - 1] / c20[0] - 1) / (sd(l20) * Math.sqrt(20)) : null, m52 = Math.max.apply(null, qC.slice(-252));
     var kp2 = '<div><small>Beta 60 ruedas, en dólares</small><b>' + nf(bm ? bm[0] : null, 2) + '</b><span>contra el panel líder en CCL · contra GD30D ' + nf(bg ? bg[0] : null, 2) + '</span></div>' +
       '<div><small>Sharpe corto (20 ruedas)</small><b' + cl(sh) + '>' + nf(sh, 2) + '</b><span>retorno de 20 ruedas / su volatilidad · desde el máximo de 52 semanas ' + pc(qC[qN - 1] / m52 - 1, 1) + '</span></div>';
@@ -11232,7 +11232,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var SL = {};
   function secLine(ts, mon) { // índice simple de un grupo de acciones (promedio de retornos diarios), por fecha
     var key = ts.join(',') + mon; if (SL[key]) return SL[key]; var R = {};
-    ts.forEach(function (t) { var p0 = null; rows(t, mon).forEach(function (x) { var c = x[4]; if (x[0] >= today()) return; if (p0) { var r = Math.log(c / p0); if (Math.abs(r) < 0.4) (R[x[0]] = R[x[0]] || []).push(r); } p0 = c; }); });
+    var td1 = today(); ts.forEach(function (t) { var p0 = null; rows(t, mon).forEach(function (x) { var c = x[4]; if (x[0] >= td1) return; if (p0) { var r = Math.log(c / p0); if (Math.abs(r) < 0.4) (R[x[0]] = R[x[0]] || []).push(r); } p0 = c; }); });
     var lv = 100, out = {}; Object.keys(R).sort().forEach(function (d) { lv *= Math.exp(mean(R[d])); out[d] = lv; }); return SL[key] = out;
   }
   function chips() {
