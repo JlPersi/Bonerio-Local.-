@@ -76,7 +76,7 @@ for name, api, fl in (("ons", "arg_corp", "ons.json"), ("pvs", "arg_bonds", "pvs
             continue
         b = h.get("base", {}).get(s) if n < 20 else None
         w = (20 - n) / 20 if b else 0
-        px[s] = [p, None, mo.get(s, 0), round((b[0] or 0) * w + sum(m) / 20) if b else round(sum(m) / n), round((b[1] or 0) * w) + sum(1 for x in m if x > 0)]
+        px[s] = [p, None, mo.get(s, 0), round((b[0] or 0) * w + sum(m) / 20) if b else round(sum(m) / n), (round((b[1] or 0) * w) if b else 0) + sum(1 for x in m if x > 0)]
     json.dump({"d": hoy, "px": px}, open(out, "w"), separators=(",", ":"))
     print(name, hoy, len(px), "especies,", len(mo), "operaron")
 json.dump(H, open(P("corp_montos.json"), "w"), separators=(",", ":"))
