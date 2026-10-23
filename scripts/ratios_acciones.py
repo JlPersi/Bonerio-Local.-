@@ -12,6 +12,10 @@ hoy se reexpresa todo con el CER (aproximación del IPC, que va unos 45 días at
 Las empresas con moneda funcional dólar ("moneda_funcional": "USD", como YPF y Pampa) presentan en pesos convertidos al tipo de
 cambio del cierre: a esas se las lleva a la fecha con el A3500 (data/dolar.json) en vez del CER.
 TTM con estados acumulados: acumulado actual + último anual − mismo acumulado del año anterior (cada uno reexpresado).
+Además, por empresa:
+- "ultimo": EV, deuda neta, EBITDA, ventas y resultado de los últimos 12 meses en pesos de hoy, earnings yield y deuda neta / EBITDA
+- "trim": cada trimestre suelto (ventas, EBITDA y resultado neto, en dólares: pesos del cierre / CCL de ese día, o el A3500 si la
+  moneda funcional es el dólar) y el patrimonio neto, para las variaciones interanuales y contra el trimestre anterior.
 """
 import json, os, re, datetime as dt
 
@@ -101,6 +105,49 @@ def ttm(per, i, key, cer):
     return v + va * c0 / ca - vs * c0 / cs
 
 
+def load_ccl():
+    """CCL histórico (data/acciones/ccl.json, desde 2013) y el oficial antes, con la misma interfaz que load_cer."""
+    fx = {}
+    try:
+        h = json.load(open(os.path.join(DIR, "ccl.json")))
+        c0 = min(h.get("ccl", {}) or {"9999": 0})
+        for d, v in h.get("oficial", {}).items():
+            if d < c0:
+                fx[dnum(d)] = float(v)
+        for d, v in h.get("ccl", {}).items():
+            fx[dnum(d)] = float(v)
+    except Exception as e:
+        print("CCL histórico no disponible:", e)
+    keys = sorted(fx)
+    def at(d):
+        t = dnum(d) if isinstance(d, str) else d
+        if not keys or t < keys[0]:
+            return None
+        if t >= keys[-1]:
+            return fx[keys[-1]]
+        while t not in fx:
+            t -= 1
+        return fx[t]
+    return at
+
+
+def quarter(per, i, key, cer):
+    """Flujo del trimestre que cierra en el período i, en moneda de su cierre (acumulado − acumulado anterior del mismo ejercicio)."""
+    p = per[i]; v = p.get("resultados", {}).get(key); m = p.get("acumulado_meses", 12)
+    if v is None:
+        return None
+    if m == 3:
+        return v
+    prev = [q for q in per[:i] if q.get("acumulado_meses") == m - 3 and 80 < dnum(p["cierre"]) - dnum(q["cierre"]) < 100]
+    if not prev:
+        return None
+    vq = prev[-1].get("resultados", {}).get(key)
+    c0, c1 = cer(p["cierre"]), cer(prev[-1]["cierre"])
+    if vq is None or not (c0 and c1):
+        return None
+    return v - vq * c0 / c1
+
+
 def publicado(p):
     if p.get("publicado"):
         return p["publicado"]
@@ -115,7 +162,7 @@ def div(a, b):
 def main():
     if not os.path.isdir(BAL):
         print("sin carpeta de balances"); return
-    cer_idx, fx_idx = load_cer(), load_fx()
+    cer_idx, fx_idx, ccl_idx = load_cer(), load_fx(), load_ccl()
     out = {"generado": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), "t": {}}
     for fn in sorted(os.listdir(BAL)):
         if not fn.endswith(".json") or fn.startswith("plantilla"):
@@ -175,8 +222,32 @@ def main():
         res = {"balances": len(per), "serie_cols": ["d", "pe", "pvl", "ev_ebitda"], "serie": serie}
         if last:
             row, c, mcap = last
+            f = cer(row["d"]) / cer(c["cierre"]) * esc
+            hoy = lambda v: round(v * f) if v is not None else None
+            dn = ((c["deuda"] or 0) - (c["caja"] or 0)) if c["deuda"] is not None or c["caja"] is not None else None
             res["ultimo"] = dict(row, cierre_balance=c["cierre"], capitalizacion=round(mcap),
-                                 roe=div(c["ni"], c["pn"]), margen_ebitda=div(c["ebitda"], c["ventas"]), margen_neto=div(c["ni"], c["ventas"]))
+                                 roe=div(c["ni"], c["pn"]), margen_ebitda=div(c["ebitda"], c["ventas"]), margen_neto=div(c["ni"], c["ventas"]),
+                                 ev=round(mcap + dn * f) if dn is not None else None, deuda_neta=hoy(dn), deuda=hoy(c["deuda"]), caja=hoy(c["caja"]),
+                                 ebitda=hoy(c["ebitda"]), ventas=hoy(c["ventas"]), ni=hoy(c["ni"]), pn=hoy(c["pn"]),
+                                 ey=div(c["ni"] * f if c["ni"] is not None else None, mcap), dn_ebitda=div(dn, c["ebitda"]))
+        # trimestres sueltos en dólares
+        usd = fx_idx if b.get("moneda_funcional") == "USD" else ccl_idx
+        trim = []
+        for i, p in enumerate(per):
+            fx = usd(p["cierre"])
+            if not fx:
+                continue
+            q = lambda k: quarter(per, i, k, cer)
+            ebit, da = q("resultado_operativo"), q("depreciaciones")
+            ni = q("resultado_neto_controlante")
+            if ni is None:
+                ni = q("resultado_neto")
+            u = lambda v: round(v * esc / fx / 1e6, 1) if v is not None else None  # millones de dólares
+            s = p.get("situacion", {}); pn = s.get("patrimonio_neto_controlante", s.get("patrimonio_neto"))
+            trim.append([p["cierre"], u(q("ventas")), u(ebit + da if ebit is not None and da is not None else None), u(ni), u(pn),
+                         u(s.get("deuda_financiera")), u(s.get("caja_inversiones"))])
+        res["trim_cols"] = ["cierre", "ventas", "ebitda", "ni", "pn", "deuda", "caja"]
+        res["trim"] = trim[-16:]
         out["t"][t] = res
     json.dump(out, open(os.path.join(DIR, "ratios.json"), "w"), separators=(",", ":"))
     print("ratios de %d empresas" % len(out["t"]))
