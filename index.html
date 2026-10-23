@@ -2849,6 +2849,7 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
     };
     if (kd === 'cer0' || kd === 'cerc') {
       o.coef = cerAt(bdBack(s, 10), ZERO) / cerBase(ins);
+      o.cfx = bdBack(mat, 10) <= lastOf(IDX.CER); // el CER del último pago ya se publicó: lo que falta cobrar está fijo en pesos
       real(P / o.coef, kd === 'cerc' ? ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; }) : null);
     }
     if (kd === 'dl') { o.fx0 = fx0; o.usdTea = Math.pow(100 * fx0 / P, 365 / o.d) - 1; o.usdTnas = (100 * fx0 / P - 1) * 365 / o.d; o.usdTna30 = tnaOf(o.usdTea); o.vt = 100 * fxAt(bdBack(s, 3), ZERO); o.par = P / o.vt; } // como BYMA: TIR con el último A3500 (tipo de cambio constante); paridad contra el valor técnico, 100 × A3500 de 3 días hábiles antes de la liquidación
@@ -3167,7 +3168,7 @@ h = '<tr><th class="l">Ticker</th><th>Vencimiento</th><th>Días</th><th>Precio</
     by('cer').forEach(function (o) {
       if (o.miss) { h += '<tr>' + tkcell(o) + '<td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td' + flc(o) + '>' + fm(o.P, 2) + '</td><td colspan="' + (3 + (scOn ? 1 : 0)) + '" class="note" style="margin:0">Sin CER de emisión para calcular el coeficiente</td></tr>'; return; }
       var tgt = interp(fc, o.mac || o.d), known = bdBack(o.mat, 10) <= lastOf(IDX.CER) + 10 /* con menos de 10 días de CER por proyectar el breakeven no es estable */, be = isOut(o) || tgt == null || known ? null : beSolve(o, s, sc, 'pi', tgt, -0.05, 0.25); o.be = be; fair(o, tgt);
-      h += '<tr>' + tkcell(o) + '<td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td' + flc(o) + '>' + fm(o.P, 2) + '</td><td style="' + AC + '">' + pcs(o.realTea) + '</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + '<td>' + pcs(MET(o)) + '</td>' + beTd(o, be, 2) + (o.rem = remCer(o), remOn ? remOut(o, be, 2) : '') + fairTd(o, 2) + vcells(o, 2) + mc(o) + '</tr>';
+      h += '<tr>' + tkcell(o) + '<td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td' + flc(o) + '>' + fm(o.P, 2) + '</td><td style="' + AC + '"' + (o.cfx ? ' title="El CER del último pago ya se publicó: el pago está fijo en pesos y opera como una Lecap. Se muestra la TIR nominal (TEA), que es la que se compara con las Lecaps; la real, a tan pocos días, no dice mucho.">' + pcs(o.tea) + ' <small style="opacity:.7">nominal</small>' : '>' + pcs(o.realTea)) + '</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + '<td>' + pcs(MET(o)) + '</td>' + beTd(o, be, 2) + (o.rem = remCer(o), remOn ? remOut(o, be, 2) : '') + fairTd(o, 2) + vcells(o, 2) + mc(o) + '</tr>';
     });
     if (only === 2 && document.getElementById('psD2').value === '2') S.filter(function (o) { return o.fam === 'dual' && o.isCer && !o.miss && capOk(o); }).sort(function (a, b) { return a.mat - b.mat; }).forEach(function (o) { // duales que se suman a la curva: se marcan con * y toman el color del gráfico
       h += '<tr>' + tkcell(o, true) + '<td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td' + flc(o) + '>' + fm(o.P, 2) + '</td><td style="' + AC + '">' + pcs(o.realTea) + '</td>' + (scOn ? '<td>' + pcs(o.tea) + '</td>' : '') + '<td>' + pcs(MET(o)) + '</td><td style="' + BE + '">—</td>' + (remOn ? '<td>—</td><td>—</td>' : '') + fairNo + mc(o) + '</tr>';
@@ -6926,7 +6927,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     snap.S.forEach(function (o) {
       if (o.miss || !(o.P > 0) || o.d <= 0) return;
       var ins = o.ins, kd = ins.k, grp = X.famOf(ins), tipo = psTipo(o.k, ins), tir = o.tea, tl = 'TIR nominal', krFl = o.fl, krP = o.P, krY = o.tea, feat = [tipo, 'Paga en pesos'];
-      if (kd === 'cer0' || kd === 'cerc') { tir = o.realTea; tl = 'TIR real (sobre CER)'; krFl = kd === 'cerc' ? ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; }) : [[o.mat, 100]]; krP = o.preal; krY = o.realTea; feat.push('Ajusta por CER'); }
+      if ((kd === 'cer0' || kd === 'cerc') && o.cfx) { tl = 'TIR nominal (el CER del último pago ya se publicó: el pago está fijo en pesos, como una Lecap)'; feat.push('Ajusta por CER', 'Pago ya fijo en pesos'); }
+      else if (kd === 'cer0' || kd === 'cerc') { tir = o.realTea; tl = 'TIR real (sobre CER)'; krFl = kd === 'cerc' ? ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; }) : [[o.mat, 100]]; krP = o.preal; krY = o.realTea; feat.push('Ajusta por CER'); }
       else if (kd === 'dl') { tir = o.usdTea; tl = 'TIR en dólares (A3500 constante)'; krFl = [[o.mat, 100 * o.fx0]]; krY = o.usdTea; feat.push('Ajusta por dólar oficial A3500'); }
       else if (kd === 'tamar') { feat.push('TAMAR + ' + fm(ins.r[0][3] * 100, 2) + '%'); tl = 'TIR nominal con la TAMAR proyectada'; }
       else if (kd === 'dual' || kd === 'dualtf') tl = 'TIR nominal con la rama que gana en el escenario';
@@ -6934,8 +6936,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var cuotas = ins.r.filter(function (r) { return r[0] > s; }).length;
       feat.push(kd === 'cpn' || kd === 'cerc' ? (cuotas > 1 ? cuotas + ' pagos por delante' : 'Último pago') : 'Paga todo al vencimiento');
       if (ins.iss) feat.push('Emitido el ' + dfull(ins.iss));
-      var tna = o.tnas != null ? o.tnas : o.tna30; if (kd === 'cer0' || kd === 'cerc') tna = o.realTna30; if (kd === 'dl') tna = o.usdTnas;
-      out.push({ k: o.k, grp: grp, fams: String(ins.f || grp).split('+'), tipo: tipo, P: o.P, pccy: 'ARS', pars: o.P, mat: o.mat, d: o.d, tir: tir, tna: tna, tem: temOf(tir), md: o.mdur != null ? o.mdur : o.md,
+      var tna = o.tnas != null ? o.tnas : o.tna30; if ((kd === 'cer0' || kd === 'cerc') && !o.cfx) tna = o.realTna30; if (kd === 'dl') tna = o.usdTnas;
+      out.push({ k: o.k, grp: grp, fams: String(ins.f || grp).split('+'), tipo: tipo, P: o.P, pccy: 'ARS', pars: o.P, mat: o.mat, d: o.d, cfx: o.cfx, tir: tir, tna: tna, tem: temOf(tir), md: o.mdur != null ? o.mdur : o.md,
         krFl: krFl, krP: krP, krY: krY, fl: o.fl, fccy: 'ARS', feat: feat, tl: tl, flt: kd === 'tamar' || kd === 'dual' || kd === 'dualtf' ? { ins: ins, sc: snap.sc } : null });
     });
     return out;
@@ -9561,7 +9563,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var cv = document.getElementById('bnCvC'); if (!cv || typeof Chart === 'undefined') return; kill('cv');
     var usd = r.grp === 'usd', law = function (k) { return k.indexOf('GD') === 0 ? 'gd' : /^BP/.test(k) ? 'bp' : 'al'; };
     var cg = function (x) { return x.usdOn ? 'usd' : x.ty === 'cer' || x.ty === 'dl' ? x.ty : 'ars'; };
-    var peers = (r.corp ? CU.filter(function (x) { return cg(x) === cg(r) && !x.odd; }) : U).filter(function (x) { return x.grp === r.grp && x.tir != null && isFinite(x.tir) && (usd ? x.md > 0.1 && (law(x.k) === law(r.k) || (law(r.k) === 'bp' && law(x.k) === 'al')) : x.d >= 15 && (x.tir > 0 || r.corp && r.ty === 'cer')); });
+    var peers = (r.corp ? CU.filter(function (x) { return cg(x) === cg(r) && !x.odd; }) : U).filter(function (x) { return (r.cfx ? x.grp === 'fija' || x === r : x.grp === r.grp && !x.cfx) && x.tir != null && isFinite(x.tir) && (usd ? x.md > 0.1 && (law(x.k) === law(r.k) || (law(r.k) === 'bp' && law(x.k) === 'al')) : x.d >= 15 && (x.tir > 0 || r.corp && r.ty === 'cer')); });
     var xOf = function (x) { return usd ? x.md : x.d; };
     var P = peers.map(function (x) { return { x: xOf(x), y: x.tir * 100, k: x.k }; }), f = usd ? null : fitLog(P), me = P.filter(function (p) { return p.k === r.k; })[0], fit = P;
     if (usd) { // el mismo ajuste que Globales / Bonares: modelo elegido ahí, sin los de menos de 1,1 de duración ni los Bonares nuevos (AO27, AO28, AO29, AN29)
@@ -9572,7 +9574,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       var keep = P.filter(function (p, i) { return dv[i] <= lim; }); if (keep.length >= 4 && keep.length < P.length) f = fitLog(keep) || f;
     }
     var name = usd ? (law(r.k) === 'gd' ? 'Globales (ley Nueva York)' : law(r.k) === 'bp' ? 'BOPREAL y Bonares (ley local)' : 'Bonares (ley local)') : FAM[r.grp][0] + (r.corp ? (r.usdOn ? ' hard dollar' : r.ty === 'cer' ? ' CER' : r.ty === 'dl' ? ' dollar linked' : ' en pesos') : '');
-    document.getElementById('bnCvS').textContent = name + ': ' + r.tl.toLowerCase().replace(/^tir/, 'TIR').replace('cer)', 'CER)').replace('a3500', 'A3500') + ' contra ' + (usd ? 'duración modificada (años)' : 'días al vencimiento') + '.';
+    document.getElementById('bnCvS').textContent = r.cfx ? 'Contra las Lecaps: el CER del último pago ya se publicó, así que se compara la TIR nominal contra días al vencimiento.' : name + ': ' + r.tl.toLowerCase().replace(/^tir/, 'TIR').replace('cer)', 'CER)').replace('a3500', 'A3500') + ' contra ' + (usd ? 'duración modificada (años)' : 'días al vencimiento') + '.';
     var col = FAM[r.grp][1], mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), lines = [];
     if (f && P.length) { var x0 = Math.min.apply(null, P.map(function (p) { return p.x; })), x1 = Math.max.apply(null, P.map(function (p) { return p.x; })); for (var i = 0; i <= 40; i++) { var x = x0 + (x1 - x0) * i / 40; lines.push({ x: x, y: f(x) }); } }
     var dif = f && me ? (me.y - f(me.x)) * 100 : null, out = usd && me && fit.indexOf(me) < 0;
