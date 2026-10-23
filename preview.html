@@ -4513,8 +4513,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var sg = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : (v > 0 ? '+' : '') + nf(v, d); };
   var css = X.css || function (n) { return getComputedStyle(document.body).getPropertyValue(n).trim(); };
   var isAct = function () { return root.classList.contains('active'); };
-  var FAMS = { fija: ['Tasa fija', '#ffc542'], cer: ['CER', '#2fd4a7'], tamar: ['TAMAR', '#ff8fb3'], dl: ['Dólar linked', '#5cc8ff'], dual: ['Duales', '#c9a0ff'], bonar: ['Bonares (ley local)', '#6f9e3c'], glob: ['Globales (ley NY)', '#b8e986'], bop: ['Bopreal', '#e4e4e7'], on: ['Obligaciones negociables', '#f0abfc'], pv: ['Bonos provinciales', '#fdba74'], oth: ['Otros', '#a1a1aa'] };
-  var FORD = ['fija', 'cer', 'tamar', 'dl', 'dual', 'bonar', 'glob', 'bop', 'on', 'pv', 'oth'];
+  var FAMS = { fija: ['Tasa fija', '#ffc542'], cer: ['CER', '#2fd4a7'], tamar: ['TAMAR', '#ff8fb3'], dl: ['Dólar linked', '#5cc8ff'], dual: ['Duales', '#c9a0ff'], bonar: ['Bonares (ley local)', '#6f9e3c'], glob: ['Globales (ley NY)', '#b8e986'], bop: ['Bopreal', '#e4e4e7'], on: ['Obligaciones negociables', '#f0abfc'], pv: ['Bonos provinciales', '#fdba74'], oth: ['Otros', '#a1a1aa'], acc: ['Acciones', '#60a5fa'] };
+  var FORD = ['fija', 'cer', 'tamar', 'dl', 'dual', 'bonar', 'glob', 'bop', 'on', 'pv', 'oth', 'acc'];
+  var DA = null, DAL = false; // acciones (data/volumen_acciones.json): se cargan solo si se elige la familia y no entran en Todas, que es la renta fija
   var PERIODS = [[1, 'Última rueda'], [5, '5 ruedas'], [10, '10 ruedas (≈ 2 semanas)'], [20, '20 ruedas (≈ 1 mes)'], [60, '60 ruedas (≈ 3 meses)'], [120, '120 ruedas (≈ 6 meses)'], [250, '250 ruedas (≈ 1 año)'], [0, 'Todo el historial']];
   var ST = { w: 20, fam: 'all', cur: 'all', view: 'bono', met: 'e', top: 30, sel: '', live: false, mi: 3, ref: 20, al30: false }, SORT = { k: 'tot', d: -1 };
   var MINS = [0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1]; // % del monto del período: los bonos que pesan menos no se dibujan en Volumen contra precio (por defecto 0,05%)
@@ -4526,6 +4527,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     if (D || loading) return; loading = true;
     fetch('data/volumen.json?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('no se pudo leer data/volumen.json (' + r.status + ')'); return r.json(); })
       .then(function (o) { D = o; loading = false; render(); flushQ(); }).catch(function (e) { loading = false; err = e.message; render(); flushQ(); });
+  }
+  function loadAcc() {
+    if (DA || DAL) return; DAL = true;
+    fetch('data/volumen_acciones.json?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : { t: {} }; }).catch(function () { return { t: {} }; }).then(function (o) { DA = o || { t: {} }; DAL = false; render(); });
   }
   /* volumen diario promedio (20 ruedas, en pesos) por bono, para que otras pestañas midan la liquidez */
   var VQ = [], RQ = [];
@@ -4580,6 +4585,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (live) { var lq = q[t]; if (lq && lq.v > 0 && lq.c > 0) { V[n - 1] = lq.v; E[n - 1] = lq.v * lq.c / 100; C[n - 1] = lq.c; LIVEN++; } }
       T[t] = { s: (window.PVSQ && window.PVSQ.spec && window.PVSQ.spec(t)) || o.s, V: V, E: E, C: C }; // las especies en dólares de los provinciales se guardaron como pesos
     }
+    var al = live && DA && window.ACCQ && window.ACCQ.lv ? window.ACCQ.lv() : {};
+    if (DA) for (t in DA.t) { // acciones: volumen en acciones, monto = cierre × acciones
+      o = DA.t[t]; var V2 = new Float64Array(n), E2 = new Float64Array(n), C2 = new Float64Array(n).fill(NaN), a2 = 0;
+      for (k = 0; k < o.i.length; k++) { a2 += o.i[k]; V2[a2] = o.v[k] || 0; E2[a2] = o.e[k] || 0; if (o.c[k] > 0) C2[a2] = o.c[k]; }
+      if (live) { var la = al[t]; if (la && la.v > 0 && la.c > 0) { V2[n - 1] = la.v; E2[n - 1] = la.v * la.c; C2[n - 1] = la.c; } }
+      T[t] = { s: 'P', V: V2, E: E2, C: C2, acc: 1 };
+    }
     DN = typeof bxDayNum === 'function' ? DATES.map(function (d) { return bxDayNum(d); }) : null;
     MEP = fxSeries('D'); CCL = fxSeries('C');
   }
@@ -4597,6 +4609,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
   var ONT = null, ONTD = null; // las ONs que guarda el cierre (volumen.json → on): especie O (pesos), D y C
   function meta(t, s) {
+    if (T[t] && T[t].acc) return { base: t, fam: 'acc' };
     if (D && D !== ONTD) { ONTD = D; ONT = {}; (D.on || []).forEach(function (k) { ONT[k] = 1; }); }
     if (ONT && ONT[t]) return { base: t.slice(0, -1), fam: 'on' };
     var pb = window.PVSQ && window.PVSQ.base ? window.PVSQ.base(t) : null; if (pb) return { base: pb, fam: 'pv' }; // provinciales: sus especies en dólares tienen otro ticker
@@ -4626,7 +4639,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var map = {}, t, o, i, e;
     for (t in T) {
       o = T[t]; if (ST.cur !== 'all' && o.s !== ST.cur) continue;
-      var m = meta(t, o.s); if (ST.fam !== 'all' && m.fam !== ST.fam) continue;
+      var m = meta(t, o.s); if (ST.fam !== 'all' && m.fam !== ST.fam || ST.fam === 'all' && m.fam === 'acc') continue;
       var key = ST.view === 'bono' ? m.base : t;
       e = map[key] || (map[key] = { key: key, base: m.base, fam: m.fam, tk: [], M: new Float64Array(n), px: null, pr: -1, sp: '' });
       e.tk.push(t); e.sp += (e.sp.indexOf(o.s) < 0 ? o.s : '');
@@ -4638,6 +4651,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
   function attachPay(e) { // cobros (cupones y amortizaciones) por rueda: el precio es sucio y cae el día ex; se suman para medir el movimiento de mercado
     e.pay = new Float64Array(n); e.unk = new Uint8Array(n); e.adj = 'none';
+    if (e.fam === 'acc') { e.adj = 'acc'; return; } // acciones: sin cupones (los dividendos no se descuentan)
     if (!DN || typeof bxExDay !== 'function') return;
     var inst = (X.INST || {})[e.base], fl = null, unk = null;
     if (e.fam === 'bonar' || e.fam === 'glob') { var b = typeof B !== 'undefined' ? B.filter(function (x) { return x.k === e.base; })[0] : null; if (b) { fl = bxFullFlows(b); e.adj = 'full'; } }
@@ -5020,6 +5034,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var sub = document.getElementById('vlSub');
       if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
       if (!D) { sub.textContent = 'Cargando la serie de volumen…'; load(); return; }
+      if (ST.fam === 'acc' && !DA) { sub.textContent = 'Cargando el volumen de las acciones…'; loadAcc(); return; }
       build();
       document.getElementById('vlW').value = ST.w; document.getElementById('vlF').value = ST.fam; document.getElementById('vlC').value = ST.cur; document.getElementById('vlM').value = ST.met; document.getElementById('vlV').value = ST.view; document.getElementById('vlTop').value = ST.top; document.getElementById('vlMin').value = ST.mi; document.getElementById('vlR').value = ST.ref; document.getElementById('vlA').checked = ST.al30; document.getElementById('vlL').checked = ST.live;
       var list = entities(), M = metrics(list), rows = M.rows;
@@ -11665,6 +11680,7 @@ window.RATG = (function () {
   window.ACCQ = {
     find: function (q) { if (!IX) { load(); return []; } q = String(q || '').toUpperCase(); var out = []; IX.forEach(function (x) { var s = x.t === q ? 0 : x.t.indexOf(q) === 0 ? 1 : -1; if (s < 0) ADRS.forEach(function (a) { if (a[0] === x.t && a[1].indexOf(q) === 0) s = 1; }); if (s >= 0) { var m = mt(x.t).ars || {}, L = LV[x.t] || {}; out.push({ k: x.t, s: s, p: L.c > 0 ? L.c : m.precio, sec: SN[secOf(x.t)] }); } }); return out; },
     vard: vardView,
+    lv: function () { if (IX && Date.now() - lvT > 25000) live(); return LV; },
     open: function (t) { ST.sel = t; save(); if (window.switchTab) window.switchTab('acc'); setTimeout(function () { load().then(function () { pick(t, 1); }); }, 80); }
   };
   load();
