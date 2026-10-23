@@ -75,6 +75,12 @@ EMPRESAS = {
 SPLITS = {"YPFD": [{"fecha": "2026-08-03", "factor": 10}]}  # YPF pasó de VN $10 a VN $1
 # BYMA: capitalización ×5 en 2024 (la historia de precios ya viene ajustada: "ajustado") y ×2 el 26/05/2025 (sin ajustar)
 SPLITS["BYMA"] = [{"fecha": "2024-06-01", "factor": 5, "ajustado": True}, {"fecha": "2025-05-26", "factor": 2}]
+# unidad fija para las que escala_de lee mal: empresas chicas que presentan en pesos (el activo no llega a $100.000 M y se tomaría como miles)
+# y Fiplasto, que pasó de pesos a millones en 2025. Lista de (desde cierre, escala); vale la última que empiece antes del cierre.
+ESCALA = {t: [("2000-01-01", 1)] for t in ("AGRO", "CADO", "CARC", "DOME", "GAMI", "GARO", "HSAT", "LONG", "POLL", "ROSE", "SEMI")}
+ESCALA["FIPL"] = [("2000-01-01", 1), ("2025-06-30", 1000000)]
+# montos cargados con tres ceros de menos (el capital sí viene en la unidad de la escala): (desde cierre, factor)
+MONTOS_X = {"FIPL": ("2025-12-31", 1000)}
 MESES = {"ene": 1, "feb": 2, "mar": 3, "abr": 4, "may": 5, "jun": 6, "jul": 7, "ago": 8, "sep": 9, "oct": 10, "nov": 11, "dic": 12}
 
 
@@ -159,12 +165,18 @@ def escala_de(activo):
     return 1 if activo > 1e11 else (1000 if activo > 1e8 else 1000000)
 
 
-def periodo(v, p, vn, mes_cierre, banco):
+def periodo(t, v, p, vn, mes_cierre, banco):
     g = lambda k: v.get(k)
     def suma(*ks):
         xs = [g(k) for k in ks]
         return None if all(x is None for x in xs) else sum(x or 0 for x in xs)
     esc = escala_de(g("1999999"))
+    for d, e in ESCALA.get(t, []):
+        if d <= p["cierre"]:
+            esc = e
+    mx = MONTOS_X.get(t)
+    if mx and p["cierre"] >= mx[0]:
+        g = lambda k: v.get(k) * mx[1] if v.get(k) is not None and k != "2210999" else v.get(k)
     m = int(p["cierre"][5:7])
     meses = (m - mes_cierre) % 12 or 12 if mes_cierre else p.get("meses") or 12
     pn = g("2299999"); mino = g("2211300")
@@ -255,7 +267,7 @@ def main():
                 print(t, c, "planilla ilegible:", e); continue
             if v.get("1999999") is None:
                 print(t, c, "sin activo total, se omite"); continue
-            periodos.append(periodo(v, p, vn, mes_cierre, banco))
+            periodos.append(periodo(t, v, p, vn, mes_cierre, banco))
         if not periodos:
             print(t, "sin períodos"); continue
         esc = periodos[-1]["escala"]
