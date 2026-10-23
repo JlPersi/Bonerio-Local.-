@@ -159,6 +159,35 @@ def div(a, b):
     return round(a / b, 4) if a is not None and b not in (None, 0) else None
 
 
+
+def normalizar(per):
+    """Arregla la escala de los balances viejos que bajaron de la CNV corridos: montos o acciones ×1000 (o acciones ×10),
+    y acciones sueltas mal leídas. Se camina del último balance (el confiable) hacia atrás comparando con el siguiente."""
+    import math, copy, statistics
+    per = copy.deepcopy(per)
+    ref = lambda p: (p.get("situacion") or {}).get("patrimonio_neto") or (p.get("resultados") or {}).get("ventas")
+    for i in range(len(per) - 2, -1, -1):
+        a, b = ref(per[i]), ref(per[i + 1])
+        if a and b and a * b > 0:
+            r, m = abs(a / b), 1
+            while r * m > 60: m /= 1000
+            while r * m < 1 / 60: m *= 1000
+            if m != 1:
+                for g in ("resultados", "situacion"):
+                    for k, v in (per[i].get(g) or {}).items():
+                        if isinstance(v, (int, float)): per[i][g][k] = v * m
+        x, y = per[i].get("acciones"), per[i + 1].get("acciones")
+        if x and y:
+            e = round(math.log10(x / y))
+            if abs(math.log10(x / y)) > 0.8 and e: per[i]["acciones"] = x / 10 ** e
+    ac = [p.get("acciones") for p in per]
+    for i, x in enumerate(ac):  # una acción suelta que no cuadra con sus vecinas (±2 balances): la mediana
+        w = [v for v in ac[max(0, i - 2): i + 3] if v]
+        if x and len(w) >= 3:
+            md = statistics.median(w)
+            if abs(x / md - 1) > 0.2: per[i]["acciones"] = md
+    return per
+
 def main():
     if not os.path.isdir(BAL):
         print("sin carpeta de balances"); return
@@ -170,7 +199,7 @@ def main():
         b = json.load(open(os.path.join(BAL, fn)))
         cer = fx_idx if b.get("moneda_funcional") == "USD" else cer_idx  # índice con que se lleva cada balance a la fecha
         t = b["t"]; esc = b.get("escala", 1)  # multiplicador de los montos (1e6 si están en millones de pesos)
-        per = sorted(b.get("periodos", []), key=lambda p: p["cierre"])
+        per = normalizar(sorted(b.get("periodos", []), key=lambda p: p["cierre"]))
         if not per:
             continue
         calc = []
@@ -210,8 +239,8 @@ def main():
                 continue
             f = cer(d) / cer(c["cierre"]) * esc  # balance reexpresado a moneda del día del precio
             k = 1  # splits posteriores al cierre del balance (los precios no vienen ajustados)
-            for sp in splits:
-                if c["cierre"] < sp["fecha"] <= d:
+            for sp in splits:  # "ajustado": la historia de precios ya viene dividida, así que cuenta para cualquier fecha
+                if c["cierre"] < sp["fecha"] and (sp.get("ajustado") or sp["fecha"] <= d):
                     k *= sp["factor"]
             mcap = price * c["acciones"] * k
             ev = mcap + ((c["deuda"] or 0) - (c["caja"] or 0)) * f if c["deuda"] is not None or c["caja"] is not None else None
