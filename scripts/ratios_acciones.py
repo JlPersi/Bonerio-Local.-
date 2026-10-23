@@ -212,7 +212,7 @@ def main():
             pn = s.get("patrimonio_neto_controlante", s.get("patrimonio_neto"))
             calc.append({"cierre": p["cierre"], "pub": publicado(p), "acciones": p.get("acciones") or b.get("acciones"),
                          "ni": ni, "ebitda": (ebit + da) if ebit is not None and da is not None else None, "ventas": ven,
-                         "pn": pn, "deuda": s.get("deuda_financiera"), "caja": s.get("caja_inversiones")})
+                         "pn": pn, "deuda": s.get("deuda_financiera"), "caja": s.get("caja_inversiones"), "activo": s.get("activo_total")})
         # si a un balance le falta el TTM (no está el mismo período del año anterior), se usa el del balance previo
         # reexpresado, siempre que sea de hasta ~6 meses antes
         for i in range(1, len(calc)):
@@ -255,7 +255,7 @@ def main():
             hoy = lambda v: round(v * f) if v is not None else None
             dn = ((c["deuda"] or 0) - (c["caja"] or 0)) if c["deuda"] is not None or c["caja"] is not None else None
             res["ultimo"] = dict(row, cierre_balance=c["cierre"], capitalizacion=round(mcap),
-                                 roe=div(c["ni"], c["pn"]), margen_ebitda=div(c["ebitda"], c["ventas"]), margen_neto=div(c["ni"], c["ventas"]),
+                                 roe=div(c["ni"], c["pn"]) if c["pn"] and c["pn"] > 0 else None, roa=div(c["ni"], c["activo"]), margen_ebitda=div(c["ebitda"], c["ventas"]), margen_neto=div(c["ni"], c["ventas"]),
                                  ev=round(mcap + dn * f) if dn is not None else None, deuda_neta=hoy(dn), deuda=hoy(c["deuda"]), caja=hoy(c["caja"]),
                                  ebitda=hoy(c["ebitda"]), ventas=hoy(c["ventas"]), ni=hoy(c["ni"]), pn=hoy(c["pn"]),
                                  ey=div(c["ni"] * f if c["ni"] is not None else None, mcap), dn_ebitda=div(dn, c["ebitda"]))
