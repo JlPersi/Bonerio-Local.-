@@ -11072,7 +11072,7 @@ window.RATG = (function () {
     S + '.pkC button,' + S + '.pkI button{display:flex;width:100%;align-items:center;gap:8px;text-align:left;background:none;border:0;border-radius:9px;padding:9px 10px;color:var(--tx);font:inherit;font-size:13.5px;cursor:pointer}' + S + '.pkC button.on{background:rgba(var(--fr),.14);color:var(--fc);font-weight:700}' + S + '.pkC button:hover,' + S + '.pkI button:hover{background:var(--bg)}' +
     S + '.pkI{height:330px;overflow:auto}' + S + '.pkC{align-self:start}' + S + '.pkI button i{width:9px;height:9px;border-radius:50%;flex:none}' + S + '.pkI button em{margin-left:auto;font-style:normal;font-size:16px;color:var(--fc)}' + S + '.pkI small{color:var(--mu);margin-left:6px}' +
     S + '.sbn{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 18px}' + S + '.sbn button{background:var(--card);color:var(--mu);border:1px solid var(--bd);border-radius:999px;padding:8px 16px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}' + S + '.sbn button:hover{color:var(--tx)}' + S + '.sbn button.on{background:var(--fc);border-color:var(--fc);color:#0b0b0c}' + S + '.wsG{position:relative;margin-top:10px}' + S + '#accTv{position:absolute;inset:0}' + S + '.lg{position:absolute;left:8px;z-index:3;font-size:13px;line-height:1.5;color:var(--mu);pointer-events:none;font-variant-numeric:tabular-nums;max-width:calc(100% - 100px);text-shadow:0 0 6px var(--card)}' +
-    S + '.lg b{color:var(--tx);font-weight:700;margin-right:8px}' + S + '.lg i{font-style:normal;margin-right:10px;white-space:nowrap}' +
+    S + '.lg b{color:var(--tx);font-weight:700;margin-right:8px}' + S + '.lg i{font-style:normal;margin-right:10px;white-space:nowrap;display:inline-block}' +
     '@media(max-width:700px){' + S + '.snm{display:none}' + S + '.ctl input[type=search]{width:100%}' + S + '.wsT b{font-size:20px}' + S + '.lg{font-size:11px}}' +
     '</style>' +
 
@@ -11476,7 +11476,7 @@ window.RATG = (function () {
   function ficha2(t) {
     var F = fund(t), u = function (v, d) { return v == null ? '—' : 'US$ ' + big(v); };
     var card = function (a, b, c) { return '<div><small>' + a + '</small><b>' + b + '</b><span>' + c + '</span></div>'; };
-    if (!F) $('accFk').innerHTML = card('Valuación', '—', 'sin balances cargados para ' + t + ' (hoy hay del panel líder)');
+    if (!F) $('accFk').innerHTML = card('Valuación', '—', 'sin balances en la CNV para ' + t);
     else if (F.bank) $('accFk').innerHTML = card('Capitalización', u(F.capU), 'con el precio de ahora') + card('Patrimonio neto', u(F.pnU), 'último balance, en pesos de hoy') + card('P/VL', nf(F.pvl, 2) + 'x', 'precio / valor libro') +
       card('P/E (12 meses)', F.pe > 0 ? nf(F.pe, 1) + 'x' : 'n/s', 'earnings yield ' + pc(F.ey, 1)) + card('ROE (12 meses)', F.roe != null ? pa(F.roe, 1) : 'n/s', 'ROA ' + (F.roa != null ? pa(F.roa, 2) : '—') + ' · ganancia ' + u(F.niU)) + card('Bancos', 'sin EV/EBITDA', 'la deuda es su materia prima');
     else $('accFk').innerHTML = card('Capitalización', u(F.capU), 'con el precio de ahora') + card('Valor de empresa (EV)', u(F.evU), 'deuda neta ' + u(F.dnU)) + card('EV/EBITDA (12 meses)', F.ev ? nf(F.ev, 1) + 'x' : '—', 'EBITDA ' + u(F.ebU) + ' · P/VL ' + nf(F.pvl, 2)) +
@@ -11737,7 +11737,7 @@ window.RATG = (function () {
     $('accVt').innerHTML = '<thead><tr><th>Acción</th><th class="l">Sector</th><th>' + VYN[xk] + '</th><th>' + VXN[yk] + '</th><th>' + VXN[yk] + ' según la recta</th><th>Potencial del precio</th></tr></thead><tbody>' +
       T.map(function (r) { return '<tr data-t="' + r.p.t + '"><td>' + logo(r.p.t, 18) + ' ' + r.p.t + '</td><td class="l"><i class="sd" style="background:' + SC[r.p.s] + '"></i>' + SN[r.p.s] + '</td><td>' + nf(r.p.x, 1) + '%</td><td>' + nf(r.p.y, 2) + 'x</td><td>' + (r.fy != null && isFinite(r.fy) ? nf(r.fy, 2) + 'x' : '—') + '</td><td' + cl(r.up) + '>' + pc(r.up, 0) + '</td></tr>'; }).join('') + '</tbody>';
     $('accVs').textContent = P.length + ' acciones · ' + VXN[yk] + ' = ' + (L ? nf(L.a, 2) + (L.b >= 0 ? ' + ' : ' − ') + nf(Math.abs(L.b), 3) + ' × ' + VYN[xk] + (L.r2 != null ? ' · R² ' + nf(L.r2, 2) : '') : '—') + ' · debajo de la recta: barata contra sus pares';
-    $('accVn').textContent = 'Como la curva soberana, pero con acciones: en X la rentabilidad del último balance (12 meses), en Y el múltiplo con el precio en vivo. La recta dice qué múltiplo "le corresponde" a cada rentabilidad; el potencial es cuánto tendría que moverse el precio para quedar sobre ella (con EV/EBITDA, contando la deuda neta). Una referencia, no una recomendación. Hay balances del panel líder.';
+    $('accVn').textContent = 'Como la curva soberana, pero con acciones: en X la rentabilidad del último balance (12 meses), en Y el múltiplo con el precio en vivo. La recta dice qué múltiplo "le corresponde" a cada rentabilidad; el potencial es cuánto tendría que moverse el precio para quedar sobre ella (con EV/EBITDA, contando la deuda neta). Una referencia, no una recomendación.';
   }
   $('accVt').onclick = function (e) { var tr = e.target.closest('tr[data-t]'); if (tr) pick(tr.getAttribute('data-t'), 1); };
 
