@@ -180,6 +180,12 @@ def normalizar(per):
         if x and y:
             e = round(math.log10(x / y))
             if abs(math.log10(x / y)) > 0.8 and e: per[i]["acciones"] = x / 10 ** e
+    for i in range(1, len(per)):  # un acumulado idéntico al del trimestre anterior del mismo ejercicio es un dato repetido por error (HSAT jul-26)
+        a, c = per[i - 1], per[i]
+        if c.get("acumulado_meses", 12) > a.get("acumulado_meses", 12):
+            for k, v in (c.get("resultados") or {}).items():
+                if v and v == (a.get("resultados") or {}).get(k):
+                    c["resultados"][k] = None
     ac = [p.get("acciones") for p in per]
     for i, x in enumerate(ac):  # una acción suelta que no cuadra con sus vecinas (±2 balances): la mediana
         w = [v for v in ac[max(0, i - 2): i + 3] if v]
