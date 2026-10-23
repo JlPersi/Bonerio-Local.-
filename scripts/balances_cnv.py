@@ -47,6 +47,30 @@ EMPRESAS = {
     "TXAR": ("30516888241", 1, 12, False, "ARS"),
     "VALO": ("30576124275", 1, 12, True, "ARS"),  # Banco de Valores (absorbió a Grupo Financiero Valores)
     "YPFD": ("30546689979", 10, 12, False, "USD"),
+    # panel general (y ECOG): CUIT de la lista de emisoras de la CNV; el mes de cierre (None) se deduce de los balances anuales que
+    # presentó cada una (PERIODICIDAD 1), así un cambio de ejercicio (Morixe pasó de mayo a diciembre) no rompe los acumulados
+    "AGRO": ("30503087967", 1, None, False, "ARS"), "AUSO": ("30677237119", 1, None, False, "ARS"),
+    "BHIP": ("30500011072", 1, None, True, "ARS"), "BOLT": ("30500179151", 1, None, False, "ARS"),
+    "BPAT": ("30500006613", 1, None, True, "ARS"), "CADO": ("30525406756", 1, None, False, "ARS"),
+    "CAPX": ("30629827060", 1, None, False, "ARS"), "CARC": ("30504249227", 1, None, False, "ARS"),
+    "CECO2": ("30652254248", 1, None, False, "ARS"), "CELU": ("30501062150", 1, None, False, "ARS"),
+    "CGPA2": ("30657864281", 1, None, False, "ARS"), "CTIO": ("30587480359", 1, None, False, "ARS"),
+    "CVH": ("30715591231", 1, None, False, "ARS"), "DGCU2": ("33657865589", 1, None, False, "ARS"),
+    "DOME": ("30501999470", 1, None, False, "ARS"), "ECOG": ("30658275522", 1, None, False, "ARS"),
+    "FERR": ("30525341263", 1, None, False, "ARS"), "FIPL": ("30502112259", 1, None, False, "ARS"),
+    "GAMI": ("30709967424", 1, None, False, "ARS"), "GARO": ("30509284861", 1, None, False, "ARS"),
+    "GBAN": ("30657864117", 1, None, False, "ARS"), "GCDI": ("30709282537", 1, None, False, "ARS"),
+    "GCLA": ("30707001735", 1, None, False, "ARS"), "GRIM": ("30500781293", 1, None, False, "ARS"),
+    "HARG": ("30501111127", 1, None, False, "ARS"), "HAVA": ("30708544082", 1, None, False, "ARS"),
+    "HSAT": ("30718288718", 1, None, False, "ARS"), "INTR": ("30501290323", 1, None, False, "ARS"),
+    "INVJ": ("30640285431", 1, None, False, "ARS"), "LEDE": ("30501250305", 1, None, False, "ARS"),
+    "LONG": ("30500833781", 1, None, False, "ARS"), "MIRG": ("30578036071", 1, None, False, "ARS"),
+    "MOLA": ("30715118773", 1, None, False, "ARS"), "MOLI": ("30500858628", 1, None, False, "ARS"),
+    "MORI": ("30525346389", 1, None, False, "ARS"), "OEST": ("30663498513", 1, None, False, "ARS"),
+    "PATA": ("30506730038", 1, None, False, "ARS"), "POLL": ("30538748478", 1, None, False, "ARS"),
+    "RICH": ("30501152826", 1, None, False, "ARS"), "RIGO": ("30500526935", 1, None, False, "ARS"),
+    "ROSE": ("30501407093", 1, None, False, "ARS"), "SAMI": ("30511190238", 1, None, False, "ARS"),
+    "SEMI": ("30536928703", 1, None, False, "ARS"),
 }
 SPLITS = {"YPFD": [{"fecha": "2026-08-03", "factor": 10}]}  # YPF pasó de VN $10 a VN $1
 # BYMA: capitalización ×5 en 2024 (la historia de precios ya viene ajustada: "ajustado") y ×2 el 26/05/2025 (sin ajustar)
@@ -85,7 +109,8 @@ def presentaciones(cuit):
         m = re.search(r"FECHA CIERRE: (\d{4}-\d\d-\d\d)", desc)
         if "CONTROLADAS Y VINCULADAS" in desc or not m:
             continue
-        out.append({"fecha": txt(tds[0]), "desc": desc, "xls": ln.groups(), "cierre": m.group(1),
+        pr = re.search(r"PERIODICIDAD: (\d+)", desc)
+        out.append({"fecha": txt(tds[0]), "desc": desc, "xls": ln.groups(), "cierre": m.group(1), "anual": bool(pr and pr.group(1) == "1"),
                     "tipo": "CONSOLIDADO" if "CONSOLIDADO" in desc else "INDIVIDUAL"})
     return out
 
@@ -141,7 +166,7 @@ def periodo(v, p, vn, mes_cierre, banco):
         return None if all(x is None for x in xs) else sum(x or 0 for x in xs)
     esc = escala_de(g("1999999"))
     m = int(p["cierre"][5:7])
-    meses = (m - mes_cierre) % 12 or 12
+    meses = (m - mes_cierre) % 12 or 12 if mes_cierre else p.get("meses") or 12
     pn = g("2299999"); mino = g("2211300")
     ebit, ebitda = g("8000003"), g("8000004")
     da = ebitda - ebit if ebit is not None and ebitda is not None and ebitda >= ebit else None
@@ -186,6 +211,17 @@ def main():
         except Exception as e:
             print(t, "sin lista de presentaciones:", e); continue
         pres = [p for p in pres if p["cierre"] >= DESDE]
+        if mes_cierre is None:  # meses acumulados: desde el último cierre anual anterior
+            an = sorted({p["cierre"] for p in pres if p.get("anual")})
+            for p in pres:
+                prev = [a for a in an if a < p["cierre"]]
+                if p.get("anual"):
+                    p["meses"] = 12
+                elif not prev:  # antes del primer anual: el mes de cierre del primero que haya
+                    p["meses"] = ((int(p["cierre"][5:7]) - int(an[0][5:7])) % 12 or 12) if an else None
+                else:
+                    y0, m0, y1, m1 = int(prev[-1][:4]), int(prev[-1][5:7]), int(p["cierre"][:4]), int(p["cierre"][5:7])
+                    p["meses"] = min(12, (y1 - y0) * 12 + m1 - m0)
         # por cierre: el consolidado si existe; si se presentó más de una vez, la última (las filas vienen de la más nueva a la más vieja)
         elegido = {}
         for p in pres:
