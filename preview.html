@@ -10845,6 +10845,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   function live() {
     if (Date.now() - lvT < 25000) return Promise.resolve(); lvT = Date.now();
     var g = function (u, into) { return fetch(u, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (rs) { (rs || []).forEach(function (r) { if (r && r.symbol) into[r.symbol] = { c: r.c, pct: r.pct_change, v: r.v, q: r.q_op, b: r.px_bid, a: r.px_ask }; }); }).catch(function () { }); };
+    if (typeof mktStarted === 'function' && !mktStarted()) { LV = {}; return g('https://data912.com/live/usa_adrs', LA); } // antes de la rueda (o sin rueda) data912 repite la anterior: se usa el último cierre
     return Promise.all([g('https://data912.com/live/arg_stocks', LV), g('https://data912.com/live/usa_adrs', LA)]);
   }
   setInterval(function () { if (isAct() && (typeof mktOpen !== 'function' || mktOpen())) live().then(function () { table(); adrs(); valua(); head(); flow(); covered(); }); }, 30000);
@@ -11295,7 +11296,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   function optLoad() {
     if (OPT && Date.now() - OPT_T < 60000) return Promise.resolve();
     var fromLive = (typeof mktOpen !== 'function' || mktOpen()) ? fetch('https://data912.com/live/arg_options', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (r) { return r && r.length ? { d: 'en vivo', r: r } : null; }).catch(function () { return null; }) : Promise.resolve(null);
-    return fromLive.then(function (x) { return x || j('data/acciones/opciones.json').then(function (y) { return y ? { d: 'foto del ' + fr(String(y.d).slice(0, 10)) + ' ' + String(y.d).slice(11, 16) + ' UTC', r: y.r } : null; }); }).then(function (x) { if (x) { OPT = x.r; OPD = x.d; OPT_T = Date.now(); } });
+    return fromLive.then(function (x) { return x || j('data/opciones.json').then(function (y) { return y ? { d: 'foto del ' + fr(String(y.d).slice(0, 10)) + ' ' + String(y.d).slice(11, 16) + ' UTC', r: y.r } : null; }); }).then(function (x) { if (x) { OPT = x.r; OPD = x.d; OPT_T = Date.now(); } });
   }
   function lecapTo(d) { // TEA de la Lecap (o Boncap) que vence más cerca de esa fecha, de la pestaña Pesos
     try {
