@@ -1,0 +1,30 @@
+name: "Herramienta: bajar páginas"
+# Baja páginas o PDFs públicos (por ejemplo, calificaciones de FIX o Moody's Local) a la rama raw-fetch, para leerlos desde donde no hay salida a esos sitios
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "URLs separadas por espacio"
+        required: true
+permissions:
+  contents: write
+jobs:
+  bajar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get install -y -q poppler-utils >/dev/null
+      - name: Bajar
+        env:
+          URLS: ${{ inputs.urls }}
+        run: |
+          mkdir -p /tmp/raw && n=0
+          for u in $URLS; do
+            n=$((n+1)); f=/tmp/raw/$n
+            curl -sSL -A "Mozilla/5.0" --max-time 60 -o "$f" "$u" || { echo "$u falló" >> /tmp/raw/errores.txt; continue; }
+            echo "$n $u" >> /tmp/raw/indice.txt
+            if file "$f" | grep -q PDF; then pdftotext -layout "$f" "$f.txt"; mv "$f" "$f.pdf"; else mv "$f" "$f.html"; fi
+          done
+          git config user.name "cierre-bot"; git config user.email "bot@users.noreply.github.com"
+          git checkout --orphan raw-fetch && git rm -rq --cached . && git clean -fdq -e .git
+          cp /tmp/raw/* . && git add . && git commit -qm "raw $(date -u +%F)" && git push -f origin raw-fetch
