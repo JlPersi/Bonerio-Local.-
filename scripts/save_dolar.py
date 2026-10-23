@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Guarda en data/dolar.json lo propio de la pestaña Dólar. Se corre junto al cierre diario (GitHub Action). Idempotente.
-- A3500: dólar mayorista de referencia del BCRA (Com. A 3500, serie 5), con la historia completa desde junio de 2023.
+- A3500: dólar mayorista de referencia del BCRA (Com. A 3500, serie 5), con la historia desde 2018 (la usan los ratios de las empresas con moneda funcional dólar).
   La primera vez la trae entera; después, los últimos 30 días (el BCRA a veces corrige el último dato).
 - d[fecha]: foto del cierre de data912
     mep: /live/mep, el MEP de AL30 y GD30: cierre, mark (punto medio), bid y ask, precios de cada pata, volumen de cada pata
@@ -39,7 +39,7 @@ fx, days = db.setdefault("A3500", {}), db.setdefault("d", {})
 changed = False
 
 # --- A3500 ---
-desde = "2023-06-01" if len(fx) < 500 else (today - dt.timedelta(days=30)).isoformat()
+desde = "2018-01-01" if not fx or min(fx) > "2018-01-31" else (today - dt.timedelta(days=30)).isoformat()  # desde 2018 para los ratios de YPF y Pampa (moneda funcional dólar)
 try:
     rows = get(BCRA % (desde, ds), "BCRA_FILE")["results"][0]["detalle"]
     for r in rows:
