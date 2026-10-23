@@ -701,6 +701,7 @@ window.curveFitUSD = function (pts, model, minN) {
     <label>Liquidación<div class="seg"><button id="bci" title="Contado inmediato: liquida hoy (si hoy no es hábil, el próximo día hábil). Los precios de data912 son de 24 hs: en CI, las tasas del día anterior a un fin de semana o feriado salen distorsionadas (la de las Lecaps cortas cae cerca de 90 pb y vuelve a subir la rueda siguiente)">CI (hoy)</button><button id="bt1" class="on" title="T+1 (24 hs): liquida el día hábil siguiente. Es el plazo de los precios de data912, por eso es la opción por defecto">T+1 (mañana)</button></div></label>
     <label>Fecha de entrada<input type="date" id="d0" disabled></label>
 </div>
+<div class="card ctl" id="stlBar" style="display:none"><label>Liquidación<div class="seg"><button data-stl="CI" title="Contado inmediato: liquida hoy (si hoy no es hábil, el próximo día hábil). Los precios de data912 son de 24 hs: en CI, las tasas del día anterior a un fin de semana o feriado salen distorsionadas">CI (hoy)</button><button data-stl="T1" title="T+1 (24 hs): liquida el día hábil siguiente. Es el plazo de los precios de data912, por eso es la opción por defecto">T+1 (mañana)</button></div></label><label>Fecha de entrada<input type="date" id="stlD" disabled></label></div>
 
 <!-- PESTAÑA 1: Tabla -->
 <div id="home" class="tab-content"></div>
@@ -10732,6 +10733,19 @@ window.RATG = (function () {
     ms.forEach(function (m) { var n = m.target.nodeType === 1 ? m.target : m.target.parentElement; var t = n && (n.tagName === 'TABLE' ? n : n.closest('table')); if (t) q.add(t); else if (n) n.querySelectorAll && n.querySelectorAll('table').forEach(function (x) { q.add(x); }); });
     if (!pend) { pend = true; Promise.resolve().then(function () { pend = false; var a = Array.from(q); q.clear(); a.forEach(scan); }); }
   }).observe(document.body, { childList: true, subtree: true, characterData: true });
+})();
+</script>
+<script>
+/* liquidación CI / T+1 también en las pestañas con curvas que esconden los controles generales */
+(function () {
+  var bar = document.getElementById('stlBar'), T = /^(pesos|curva|cons|ons|onsf|pvs|pvsf|vard|rot|port|expi|expd|expf)$/, cur = null;
+  if (!bar || !window.applySettle) return;
+  var sync = function () { [].forEach.call(bar.querySelectorAll('[data-stl]'), function (b) { b.className = b.getAttribute('data-stl') === window.settleMode ? 'on' : ''; }); var d = document.getElementById('d0'); document.getElementById('stlD').value = d ? d.value : ''; };
+  var show = function (id) { cur = id; bar.style.display = T.test(id || '') ? '' : 'none'; sync(); };
+  var _as = window.applySettle; window.applySettle = function () { var r = _as.apply(this, arguments); sync(); return r; };
+  var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); show(id); };
+  bar.onclick = function (e) { var b = e.target.closest ? e.target.closest('[data-stl]') : null, m = b && b.getAttribute('data-stl'); if (!m || m === window.settleMode) return; window.applySettle(m, true); if (cur && !/^(pesos|curva|vard)$/.test(cur)) window.switchTab(cur); }; // pesos, curva y variación diaria ya se redibujan solas
+  var a = document.querySelector('.tab-content.active'); show(a ? a.id : null);
 })();
 </script>
 </body>
