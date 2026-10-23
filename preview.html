@@ -10639,6 +10639,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d == null ? 0 : d, maximumFractionDigits: d == null ? 0 : d }); };
   var sg = function (v, d) { return v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v), d); };
   var pc = function (v, d) { return v == null || !isFinite(v) ? '—' : sg(v * 100, d == null ? 1 : d) + '%'; };
+  var tk = function (v) { for (var d = 0; d < 3 && Math.abs(v * Math.pow(10, d) - Math.round(v * Math.pow(10, d))) > 1e-6; d++); return nf(v, d); }; // ticks sin basura de coma flotante
   var pa = function (v, d) { return v == null || !isFinite(v) ? '—' : nf(v * 100, d == null ? 0 : d) + '%'; };
   var cl = function (v) { return v == null || !isFinite(v) || v === 0 ? '' : v > 0 ? ' class="up"' : ' class="dn"'; };
   var fr = function (s) { return s ? s.split('-').reverse().join('/') : '—'; };
@@ -11121,8 +11122,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var LBL2 = { id: 'accLbl2', afterDatasetsDraw: function (ch) { var c = ch.ctx; c.save(); c.textAlign = 'center'; ch.data.datasets.forEach(function (d, i) { if (d.type === 'line') return; ch.getDatasetMeta(i).data.forEach(function (pt, k) { var r = d.data[k]; if (!r || !r.t) return; c.font = (r.me ? '800 13.5px' : '600 12.5px') + ' Inter,system-ui,sans-serif'; c.fillStyle = r.me ? (css('--fc') || '#4ade80') : (css('--tx') || '#ddd'); c.fillText(r.t, pt.x, pt.y - (r.me ? 12 : 9)); }); }); c.restore(); } };
   function scat(id, P, L, xn, yn, me, onPick) {
     var o = base(); o.interaction = { mode: 'nearest', intersect: true }; o.plugins.legend.display = false;
-    o.scales.x = { type: 'linear', title: { display: true, text: xn + ' (%)', color: css('--mu') }, ticks: { color: css('--mu'), callback: function (v) { return v + '%'; } }, grid: { color: css('--bd') } };
-    o.scales.y.title = { display: true, text: yn, color: css('--mu') }; o.scales.y.ticks.callback = function (v) { return v + 'x'; };
+    o.scales.x = { type: 'linear', title: { display: true, text: xn + ' (%)', color: css('--mu') }, ticks: { color: css('--mu'), callback: function (v) { return tk(v) + '%'; } }, grid: { color: css('--bd') } };
+    o.scales.y.title = { display: true, text: yn, color: css('--mu') }; o.scales.y.ticks.callback = function (v) { return tk(v) + 'x'; };
     o.plugins.tooltip.callbacks = { label: function (c) { var q = c.raw; return q.t ? q.t + ': ' + xn + ' ' + nf(q.x, 1) + '% · ' + yn + ' ' + nf(q.y, 2) + 'x' : ''; } };
     o.onClick = function (e, el) { if (el && el[0] && el[0].datasetIndex === 0 && P[el[0].index]) onPick(P[el[0].index].t); };
     var D2 = P.map(function (q) { return { x: q.x, y: q.y, t: q.t, me: q.t === me }; });
@@ -11148,7 +11149,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     $('accFcs').innerHTML = (bk ? '(bancos: ROE contra P/VL)' : '(no financieras: margen EBITDA contra EV/EBITDA)') + (po && po.up != null ? ' · ' + t + ' <span' + cl(po.up) + '>' + (po.up > 0 ? 'barata' : 'cara') + ' ' + pc(Math.abs(po.up), 0).replace(/^[+−]/, '') + '</span> contra la recta' : me ? '' : ' · ' + t + ' no tiene los datos para ubicarla');
     // trimestres en dólares
     var T2 = ((RT.t[t] || {}).trim || []).slice(-8), lab = T2.map(function (q) { return q[0].slice(5, 7) === '03' ? '1T' + q[0].slice(2, 4) : q[0].slice(5, 7) === '06' ? '2T' + q[0].slice(2, 4) : q[0].slice(5, 7) === '09' ? '3T' + q[0].slice(2, 4) : '4T' + q[0].slice(2, 4); });
-    var o = base(); o.scales.y.ticks.callback = function (v) { return big(v * 1e6).replace(' M', ' M'); }; o.scales.y1 = { position: 'right', ticks: { color: css('--mu'), callback: function (v) { return v + '%'; } }, grid: { display: false } };
+    var o = base(); o.scales.y.ticks.callback = function (v) { return big(v * 1e6).replace(' M', ' M'); }; o.scales.y1 = { position: 'right', ticks: { color: css('--mu'), callback: function (v) { return tk(v) + '%'; } }, grid: { display: false } };
     o.plugins.tooltip.callbacks = { label: function (c) { return c.dataset.label + ': ' + (c.dataset.yAxisID === 'y1' ? nf(c.parsed.y, 1) + '%' : 'US$ ' + nf(c.parsed.y, 1) + ' M'); } };
     var ds = bk ? [{ type: 'bar', label: 'Ganancia neta', data: T2.map(function (q) { return q[3]; }), backgroundColor: T2.map(function (q) { return q[3] >= 0 ? 'rgba(52,211,153,.7)' : 'rgba(255,107,139,.7)'; }), borderRadius: 3 },
       ln('ROE del trimestre, anualizado', T2.map(function (q) { return q[3] != null && q[4] ? q[3] * 4 / q[4] * 100 : null; }), '#ffc542', { yAxisID: 'y1', borderWidth: 2, pointRadius: 2 })]
@@ -11252,7 +11253,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     rs.sort(function (a, b) { return (b.r == null ? -9 : b.r) - (a.r == null ? -9 : a.r); });
     var o = base(); o.indexAxis = 'y'; o.plugins.legend.display = false; o.interaction = { mode: 'nearest', intersect: true };
     o.plugins.tooltip.callbacks = { label: function (c) { var x = rs[c.dataIndex]; return [nf(c.parsed.x, 1) + '% (promedio de ' + x.n + ' acciones)', x.best ? 'la mejor: ' + x.best[0] + ' ' + pc(x.best[1]) : '']; } };
-    o.scales.x.ticks.callback = function (v) { return v + '%'; }; o.scales.x.grid = { color: css('--bd') }; o.scales.y.grid = { display: false };
+    o.scales.x.ticks.callback = function (v) { return tk(v) + '%'; }; o.scales.x.grid = { color: css('--bd') }; o.scales.y.grid = { display: false };
     o.onClick = function (e, el) { if (el && el[0]) secPick(rs[el[0].index].s[0]); };
     mk('accScv', { type: 'bar', data: { labels: rs.map(function (x) { return x.s[1]; }), datasets: [{ data: rs.map(function (x) { return x.r == null ? null : x.r * 100; }), backgroundColor: rs.map(function (x) { return x.s[2]; }), borderRadius: 4 }] }, options: o });
     $('accStab').innerHTML = '<thead><tr><th class="l">Sector</th><th>Acciones</th><th>Vol. 1 año</th><th>Beta</th><th>Desde máx.</th><th>P/E</th><th>P/VL</th></tr></thead><tbody>' +
@@ -11394,7 +11395,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     scat('accVc', P, L, VYN[xk], VXN[yk], ST.sel, function (t) { pick(t, 1); });
     var T = P.map(function (p) { var q = potOf(p, yk, L); return { p: p, fy: q.fy, up: q.up }; }).sort(function (u, v) { return (v.up == null ? -9 : v.up) - (u.up == null ? -9 : u.up); });
     $('accVt').innerHTML = '<thead><tr><th>Acción</th><th class="l">Sector</th><th>' + VYN[xk] + '</th><th>' + VXN[yk] + '</th><th>' + VXN[yk] + ' según la recta</th><th>Potencial del precio</th></tr></thead><tbody>' +
-      T.map(function (r) { return '<tr data-t="' + r.p.t + '"><td>' + logo(r.p.t, 18) + ' ' + r.p.t + '</td><td class="l"><i class="sd" style="background:' + SC[r.p.s] + '"></i>' + SN[r.p.s] + '</td><td>' + nf(r.p.x, 1) + '%</td><td>' + nf(r.p.y, 2) + 'x</td><td>' + nf(r.fy, 2) + 'x</td><td' + cl(r.up) + '>' + pc(r.up, 0) + '</td></tr>'; }).join('') + '</tbody>';
+      T.map(function (r) { return '<tr data-t="' + r.p.t + '"><td>' + logo(r.p.t, 18) + ' ' + r.p.t + '</td><td class="l"><i class="sd" style="background:' + SC[r.p.s] + '"></i>' + SN[r.p.s] + '</td><td>' + nf(r.p.x, 1) + '%</td><td>' + nf(r.p.y, 2) + 'x</td><td>' + (r.fy != null && isFinite(r.fy) ? nf(r.fy, 2) + 'x' : '—') + '</td><td' + cl(r.up) + '>' + pc(r.up, 0) + '</td></tr>'; }).join('') + '</tbody>';
     $('accVs').textContent = P.length + ' acciones · ' + VXN[yk] + ' = ' + (L ? nf(L.a, 2) + (L.b >= 0 ? ' + ' : ' − ') + nf(Math.abs(L.b), 3) + ' × ' + VYN[xk] + (L.r2 != null ? ' · R² ' + nf(L.r2, 2) : '') : '—') + ' · debajo de la recta: barata contra sus pares';
     $('accVn').textContent = 'Como la curva soberana, pero con acciones: en X la rentabilidad del último balance (12 meses), en Y el múltiplo con el precio en vivo. La recta dice qué múltiplo "le corresponde" a cada rentabilidad; el potencial es cuánto tendría que moverse el precio para quedar sobre ella (con EV/EBITDA, contando la deuda neta). Una referencia, no una recomendación. Hay balances del panel líder.';
   }
