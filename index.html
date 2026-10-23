@@ -6385,7 +6385,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (R === 'in') {
         var ok = sets.filter(function (s) { return s.i; });
         if (!ok.length) { empty(ce, 'Todavía no hay intradiario guardado: la caución de BYMA se guarda cada 10 minutos durante la rueda.'); return null; }
-        var d = ok[0].i.d; if (d !== todayBA()) document.getElementById(ce).textContent = '';
+        var d = ok.reduce(function (a, s) { return s.i.d > a ? s.i.d : a; }, ''); ok = ok.filter(function (s) { return s.i.d === d; }); if (d !== todayBA()) // solo la última rueda: no mezclar el cable de ayer con el MEP de hoy
+           document.getElementById(ce).textContent = '';
         return intraChart(id, ok.map(function (s) { return { label: s.label + (d !== todayBA() ? ' (' + fr(d).slice(0, 5) + ')' : ''), p: s.i.p, col: s.col }; }), d !== todayBA() ? 'Intradiario del ' + fr(d) : '');
       }
       var D2 = window_(sets.map(function (s) { return s.h; }), '0', rgN(R));
@@ -8210,10 +8211,11 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     vard: P('<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>'),
     rot: P('<path d="M4 9h13l-3-3M20 15H7l3 3"/>'),
     vol: P('<path d="M5 20v-6M10 20V8M15 20v-9M20 20V5"/>'),
-    dol: P('<circle cx="12" cy="12" r="9"/><path d="M15 9.2c-.6-1-1.7-1.5-3-1.5-1.7 0-2.8.9-2.8 2.1 0 2.9 6 1.5 6 4.4 0 1.3-1.2 2.2-3 2.2-1.5 0-2.7-.6-3.3-1.6M12 6v1.7M12 16.4V18"/>'),
+    dol: P('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>'),
+    hd: P('<path d="M3 6v12M3 12h7M10 6v12M14 6h3a5 6 0 0 1 0 12h-3z"/>'),
     thist: P('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>'),
-    tcor: P('<circle cx="12" cy="13" r="8"/><path d="M12 13V9M9 2h6M12 2v3"/>'),
-    tfut: P('<path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>'),
+    tcor: P('<path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>'),
+    tfut: P('<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4M8 15.5h7M13 13.5l2 2-2 2"/>'),
     sint: P('<circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/>'),
     brc: P('<path d="M7 7h11l-3-3M17 17H6l3 3"/>'),
     ons: P('<path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M15 9h3a2 2 0 0 1 2 2v10M2 21h20M8 7h3M8 11h3M8 15h3"/>'), // un edificio: deuda de empresas
@@ -8259,7 +8261,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   IC.exp = P('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'); IC.expi = IC.exp; IC.expd = IC.dol; IC.expf = IC.curva;
   DESC.expi = 'La inflación que descuentan los bonos CER contra la tasa fija, bono por bono y en el tiempo, contra el REM.'; DESC.expd = 'La devaluación que descuentan los dólar linked contra la tasa fija, bono por bono y en el tiempo, contra el REM.'; DESC.expf = 'La tasa de cada tramo entre vencimientos de cada familia y las forwards entre pares en el tiempo.'; DESC.thist = 'La tasa de cada bono día por día y su precio relativo contra la curva.';
   var CAR = P('<path d="m9 6 6 6-6 6"/>').replace('<svg ', '<svg class="sn-car" '), has = function (id) { return id === 'home' || TB.some(function (t) { return t[0] === id; }); };
-  var GR = [['home', 'Inicio'], ['dash', 'Dashboard'], ['port', 'Portfolio'], ['fav', 'Favoritos'], { g: 'usd', t: 'Bonos en dólares', ic: 'curva', it: [['curva', 'Globales y Bonares'], ['tabla', 'Tabla de retornos'], ['desglose', 'Flujos y total return', 'usd']] },
+  var GR = [['home', 'Inicio'], ['dash', 'Dashboard'], ['port', 'Portfolio'], ['fav', 'Favoritos'], { g: 'usd', t: 'Bonos en dólares', ic: 'hd', it: [['curva', 'Globales y Bonares'], ['tabla', 'Tabla de retornos'], ['desglose', 'Flujos y total return', 'usd']] },
     { g: 'ars', t: 'Bonos en pesos', ic: 'pesos', it: [['pesos', 'Curva Pesos'], ['desglose', 'Flujos y total return', 'ars'], ['lic', 'Licitaciones']] },
     { g: 'ons', t: 'Obligaciones negociables', ic: 'ons', it: [['ons', 'Curva y tabla'], ['onsf', 'Flujos y total return']] },
     { g: 'pvs', t: 'Bonos provinciales', ic: 'pvs', it: [['pvs', 'Curva y tabla'], ['pvsf', 'Flujos y total return']] },
@@ -8402,12 +8404,18 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   }
 
   var labelPlug = { id: 'hmLab', afterDatasetsDraw: function (ch) { var ctx = ch.ctx; ctx.save(); ctx.font = '600 10.5px Inter, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = css('--mu');
-    ch.data.datasets.forEach(function (ds, i) { if (ds.type === 'line' || !ch.isDatasetVisible(i)) return; ch.getDatasetMeta(i).data.forEach(function (el, j) { var p = ds.data[j]; if (p && p.k) ctx.fillText(p.k, el.x, el.y - 9); }); }); ctx.restore(); } };
+    ctx.strokeStyle = css('--card') || '#151515'; ctx.lineWidth = 3; ctx.lineJoin = 'round'; // halo del color de la tarjeta: la etiqueta se lee aunque la cruce la curva
+    var A = ch.chartArea, P = [], B = [], hit = function (r) { return B.some(function (b) { return r.x < b.x + b.w && b.x < r.x + r.w && r.y < b.y + b.h && b.y < r.y + r.h; }) || P.some(function (q) { return q.x > r.x - 4 && q.x < r.x + r.w + 4 && q.y > r.y - 4 && q.y < r.y + r.h + 4; }); };
+    ch.data.datasets.forEach(function (ds, i) { if (ds.type === 'line' || !ch.isDatasetVisible(i)) return; ch.getDatasetMeta(i).data.forEach(function (el) { P.push({ x: el.x, y: el.y }); }); });
+    ch.data.datasets.forEach(function (ds, i) { if (ds.type === 'line' || !ch.isDatasetVisible(i)) return; ch.getDatasetMeta(i).data.forEach(function (el, j) { var p = ds.data[j]; if (!p || !p.k) return; // sin encimar: arriba, abajo, a la derecha o a la izquierda del punto; si no entra, no se escribe
+      var w = ctx.measureText(p.k).width, h = 11, C = [[0, -9], [0, 18], [w / 2 + 8, 4], [-w / 2 - 8, 4]];
+      for (var c = 0; c < C.length; c++) { var x = Math.min(Math.max(el.x + C[c][0], A.left + w / 2 + 1), A.right - w / 2 - 1), y = el.y + C[c][1], r = { x: x - w / 2, y: y - h + 2, w: w, h: h }; if (r.y < A.top - 12 || y > A.bottom - 1 || hit(r)) continue; B.push(r); ctx.strokeText(p.k, x, y); ctx.fillText(p.k, x, y); break; }
+    }); }); ctx.restore(); } };
   function scatterCfg(sets, xl, yl, yfmt) {
     var mu = css('--mu'), bd = css('--bd');
     return { type: 'scatter', data: { datasets: sets }, plugins: [labelPlug],
-      options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { top: 14 } }, plugins: { legend: { display: sets.filter(function (s) { return s.label; }).length > 1, labels: { color: css('--tx'), usePointStyle: true, filter: function (it) { return !!it.text; } } }, tooltip: { filter: function (c) { return !!c.raw.k; }, callbacks: { label: function (c) { return c.raw.k + ': ' + yfmt(c.raw.y) + ' · ' + xl + ' ' + nf(c.raw.x, xl === 'días' ? 0 : 2); } } } },
-        scales: { x: { title: { display: true, text: xl === 'días' ? 'Días al vencimiento' : 'Duración modificada (años)', color: mu }, ticks: { color: mu }, grid: { color: bd } }, y: { title: { display: true, text: yl, color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } };
+      options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { top: 14, right: 8 } }, plugins: { legend: { display: sets.filter(function (s) { return s.label; }).length > 1, labels: { color: css('--tx'), usePointStyle: true, filter: function (it) { return !!it.text; } } }, tooltip: { filter: function (c) { return !!c.raw.k; }, callbacks: { label: function (c) { return c.raw.k + ': ' + yfmt(c.raw.y) + ' · ' + xl + ' ' + nf(c.raw.x, xl === 'días' ? 0 : 2); } } } },
+        scales: { x: { grace: '4%', title: { display: true, text: xl === 'días' ? 'Días al vencimiento' : 'Duración modificada (años)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, xl === 'días' ? 0 : 1); } }, grid: { color: bd } }, y: { grace: '8%', title: { display: true, text: yl, color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } };
   }
   function fitLine(pts, fitf, col, xmax) { if (!fitf) return null; var x0 = Math.min.apply(null, pts.map(function (p) { return p.x; })), x1 = xmax || Math.max.apply(null, pts.map(function (p) { return p.x; })), L = []; for (var i = 0; i <= 60; i++) { var x = x0 + (x1 - x0) * i / 60; L.push({ x: x, y: fitf(x) }); } return { type: 'line', data: L, borderColor: col, borderWidth: 2, pointRadius: 0, tension: 0.3, fill: false, borderDash: [], order: 2 }; }
 
@@ -9046,7 +9054,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 #bono .bnId .eyebrow{color:var(--fc);border-color:rgba(var(--fr),.4);background:rgba(var(--fr),.08)}
 #bono .bnId h2{margin:0;font-size:46px;font-weight:700;letter-spacing:-.035em;line-height:1}
 #bono .bnId p{margin:8px 0 0;color:var(--mu);font-size:14px}
-#bono .bnPx{text-align:right}
+#bono .bnPx{text-align:left;margin:8px 0 2px}.bnPx b{display:inline-block!important;vertical-align:baseline}.bnPx span{margin:0 0 0 12px!important;vertical-align:baseline}
 #bono .bnPx b{display:block;font:700 40px/1 var(--fh);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 #bono .bnPx span{display:inline-block;margin-top:6px;font-weight:700;font-size:15px}
 #bono .bnPx small{display:block;margin-top:4px;font-size:12px;color:var(--mu)}
@@ -9367,8 +9375,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     root.setAttribute('data-f', r.grp);
     var nx = T.rows[0], tlS = r.tl.replace(/ \(.*\)$/, '').replace(/ con la .*$/, '');
     root.innerHTML =
-      '<div data-norf class="card bnHero" id="bnCHe"><div class="bnTop"><div class="bnId"><span class="eyebrow">' + FAM[r.grp][0] + ' · ' + esc(r.tipo) + '</span><h2>' + esc(K) + favBtn(K) + '</h2><p>' + esc(r.feat.filter(function (x) { return x !== r.tipo; }).slice(0, 3).join(' · ')) + '</p></div>' +
-        '<div><div class="bnTb">' + dlb('bnCHe', 'Ficha') + '</div><div class="bnPx" id="bnPx"></div>' + (usd ? '<div class="bnSp"><div class="seg">' + [['', 'Pesos'], ['D', 'MEP'], ['C', 'Cable']].map(function (x) { return '<button type="button" data-sp="' + x[0] + '" class="' + (SP === x[0] ? 'on' : '') + '">' + x[1] + ' · ' + symFor(K, x[0]) + '</button>'; }).join('') + '</div></div>' : '') + '</div></div>' +
+      '<div data-norf class="card bnHero" id="bnCHe"><div class="bnTop"><div class="bnId"><span class="eyebrow">' + FAM[r.grp][0] + ' · ' + esc(r.tipo) + '</span><h2>' + esc(K) + favBtn(K) + '</h2><div class="bnPx" id="bnPx"></div><p>' + esc(r.feat.filter(function (x) { return x !== r.tipo; }).slice(0, 3).join(' · ')) + '</p></div>' +
+        '<div><div class="bnTb">' + dlb('bnCHe', 'Ficha') + '</div>' + (usd ? '<div class="bnSp"><div class="seg">' + [['', 'Pesos'], ['D', 'MEP'], ['C', 'Cable']].map(function (x) { return '<button type="button" data-sp="' + x[0] + '" class="' + (SP === x[0] ? 'on' : '') + '">' + x[1] + ' · ' + symFor(K, x[0]) + '</button>'; }).join('') + '</div></div>' : '') + '</div></div>' +
         '<div class="bnK">' +
           '<div><small>' + esc(tlS) + '</small><b>' + pc(r.tir) + '</b><span>' + (r.tem != null ? 'TEM ' + pc(r.tem) : '&nbsp;') + '</span></div>' +
           '<div><small>TNA</small><b>' + pc(r.tna) + '</b><span>' + (usd ? 'capitalizable cada 30 días' : 'la que usa el mercado') + '</span></div>' +
@@ -9890,7 +9898,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     CHS = new Chart($('onsSvC').getContext('2d'), { data: { datasets: sets }, plugins: [lab, mk], options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
       onClick: function (ev, els) { var el = els.filter(function (x) { return x.datasetIndex === 0; })[0]; if (el) { var kk = pts[el.index].k; setTimeout(function () { pick(kk); }, 0); } }, // fuera del evento: pick redibuja (y destruye) este mismo gráfico
       plugins: { legend: { labels: { color: mu, boxWidth: 12, filter: function (it, d) { return it.datasetIndex >= 2 && !d.datasets[it.datasetIndex].hid; } } }, tooltip: { filter: function (it) { return it.datasetIndex <= 1; }, callbacks: { title: function (c) { if (!c.length) return ''; var r = c[0].raw; return r.k + (r.e && r.e.em ? ' · ' + r.e.em : ''); }, label: function (c) { var r = c.raw; return ['TIR ' + nf(r.y, 2) + '% · MD ' + nf(r.x / 365, 2) + ' años', r.e && r.e.spr != null ? 'Spread contra los Globales: ' + sg(r.e.spr, 0) + ' pb' : '']; } } } },
-      scales: { x: { type: 'linear', title: { display: true, text: 'Duración modificada (días)', color: mu }, ticks: { color: mu }, grid: { color: bd } }, y: { min: Math.floor(ymn), max: Math.ceil(ymx), title: { display: true, text: 'TIR en dólares (TEA, %)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
+      scales: { x: { type: 'linear', title: { display: true, text: 'Duración modificada (años)', color: mu }, ticks: { color: mu, stepSize: 365, callback: function (v) { return nf(v / 365, 0); } }, grid: { color: bd } }, y: { min: Math.floor(ymn), max: Math.ceil(ymx), title: { display: true, text: 'TIR en dólares (TEA, %)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
     $('onsSvK').innerHTML = [1, 2, 3, 5].map(function (y) {
       var t = '<small>Spread a ' + y + ' año' + (y > 1 ? 's' : '') + '</small>';
       if (MU) return '<div>' + t + FO.map(function (o) { var x = y * 365, v = x >= o.x0 && x <= o.x1 ? (o.f(x) - SV.f(x)) * 100 : null; return '<span class="emK"><i style="background:' + o.c + '"></i>' + esc(o.n) + '<b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b></span>'; }).join('') + '</div>';
@@ -10380,7 +10388,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     CHS = new Chart($('pvsSvC').getContext('2d'), { data: { datasets: sets }, plugins: [lab, mk], options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
       onClick: function (ev, els) { var el = els.filter(function (x) { return x.datasetIndex === 0; })[0]; if (el) { var kk = pts[el.index].k; setTimeout(function () { pick(kk); }, 0); } }, // fuera del evento: pick redibuja (y destruye) este mismo gráfico
       plugins: { legend: { labels: { color: mu, boxWidth: 12, filter: function (it) { return it.datasetIndex >= 2; } } }, tooltip: { filter: function (it) { return it.datasetIndex <= 1; }, callbacks: { title: function (c) { if (!c.length) return ''; var r = c[0].raw; return r.k + (r.e && r.e.em ? ' · ' + r.e.em : ''); }, label: function (c) { var r = c.raw; return ['TIR ' + nf(r.y, 2) + '% · MD ' + nf(r.x / 365, 2) + ' años', r.e && r.e.spr != null ? 'Spread contra los Globales: ' + sg(r.e.spr, 0) + ' pb' : '']; } } } },
-      scales: { x: { type: 'linear', title: { display: true, text: 'Duración modificada (días)', color: mu }, ticks: { color: mu }, grid: { color: bd } }, y: { min: Math.floor(ymn), max: Math.ceil(ymx), title: { display: true, text: 'TIR en dólares (TEA, %)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
+      scales: { x: { type: 'linear', title: { display: true, text: 'Duración modificada (años)', color: mu }, ticks: { color: mu, stepSize: 365, callback: function (v) { return nf(v / 365, 0); } }, grid: { color: bd } }, y: { min: Math.floor(ymn), max: Math.ceil(ymx), title: { display: true, text: 'TIR en dólares (TEA, %)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
     $('pvsSvK').innerHTML = [1, 2, 3, 5].map(function (y) {
       var t = '<small>Spread a ' + y + ' año' + (y > 1 ? 's' : '') + '</small>';
       if (MU) return '<div>' + t + FO.map(function (o) { var x = y * 365, v = x >= o.x0 && x <= o.x1 ? (o.f(x) - SV.f(x)) * 100 : null; return '<span class="emK"><i style="background:' + o.c + '"></i>' + esc(o.n) + '<b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b></span>'; }).join('') + '</div>';
@@ -10609,6 +10617,38 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   ['bmep', 'bccl'].forEach(function (id) { var b = document.getElementById(id); if (b) b.addEventListener('click', function () { SOVt = 0; if (isAct()) setTimeout(draw, 1500); }); });
   var _rm = window.refreshMarket; if (_rm) window.refreshMarket = function (b) { _rm(b); if (isAct()) { SOVt = 0; live(); } }; // el botón de actualizar de cada tarjeta
   setInterval(function () { if (isAct()) { SOVt = 0; live(); } }, 30000);
+})();
+</script>
+<script>
+/* Parpadeo verde o rojo en las columnas de precio de todas las tablas, cuando el precio de una misma fila cambia entre dos refrescos (Acciones tiene el suyo) */
+(function () {
+  var st = document.createElement('style');
+  st.textContent = '@keyframes pxFu{0%,35%{background:rgba(52,211,153,.55);color:#fff}100%{background:transparent}}@keyframes pxFd{0%,35%{background:rgba(255,107,139,.55);color:#fff}100%{background:transparent}}td.pxu{animation:pxFu 1.6s ease-out}td.pxd{animation:pxFd 1.6s ease-out}';
+  document.head.appendChild(st);
+  var PV = {}, HD = /^(precio|último|ultimo)\b/i, NO = /máx|min|compra|teór|justo|recta|objetivo|técnico|tecnico|origen|emisión|emision|entrada/i;
+  var num = function (x) { var m = (x || '').replace(/\s/g, '').match(/-?[\d.]+(,\d+)?/); if (!m) return null; var v = parseFloat(m[0].replace(/\./g, '').replace(',', '.')); return isFinite(v) ? v : null; };
+  var rk = function (tr) { for (var i = 0; i < tr.attributes.length; i++) { var a = tr.attributes[i]; if (/^data-/.test(a.name) && a.value) return a.value; } var c = tr.cells[0]; return c ? c.textContent.trim() : null; };
+  function scan(t) {
+    if (!t.tHead || t.closest('#acc')) return;
+    var hr = t.tHead.rows[t.tHead.rows.length - 1]; if (!hr) return;
+    var cols = [], sig = [];
+    for (var i = 0, c = 0; i < hr.cells.length; i++) { var h = hr.cells[i].textContent.replace(/[▲▼↑↓⇅]/g, '').trim(); sig.push(h); if (HD.test(h) && !NO.test(h)) cols.push(c); c += hr.cells[i].colSpan || 1; }
+    if (!cols.length) return;
+    var an = t.id || (t.closest('[id]') || {}).id || '', tk = an + '|' + sig.join('|');
+    Array.prototype.forEach.call(t.tBodies, function (b) { Array.prototype.forEach.call(b.rows, function (tr) {
+      var k = rk(tr); if (!k) return;
+      cols.forEach(function (ci) {
+        var td = tr.cells[ci]; if (!td) return; var v = num(td.textContent); if (v == null) return;
+        var key = tk + '|' + k + '|' + ci, p = PV[key]; PV[key] = v;
+        if (p != null && p !== v && Math.abs(v / p - 1) < 0.2) { td.classList.remove('pxu', 'pxd'); void td.offsetWidth; td.classList.add(v > p ? 'pxu' : 'pxd'); }
+      });
+    }); });
+  }
+  var q = new Set(), pend = false;
+  new MutationObserver(function (ms) {
+    ms.forEach(function (m) { var n = m.target.nodeType === 1 ? m.target : m.target.parentElement; var t = n && (n.tagName === 'TABLE' ? n : n.closest('table')); if (t) q.add(t); else if (n) n.querySelectorAll && n.querySelectorAll('table').forEach(function (x) { q.add(x); }); });
+    if (!pend) { pend = true; Promise.resolve().then(function () { pend = false; var a = Array.from(q); q.clear(); a.forEach(scan); }); }
+  }).observe(document.body, { childList: true, subtree: true, characterData: true });
 })();
 </script>
 </body>
