@@ -11125,7 +11125,7 @@ window.RATG = (function () {
     '<div class="cw"><canvas id="accRrc"></canvas></div><p class="note" style="margin-top:8px">El tamaño del punto es la beta contra el panel líder. Tocá un punto para verla en el gráfico.</p></div>' +
 
     '<div class="card sx" id="accV" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Valuación contra rentabilidad</p><p class="qs" id="accVs">Como la curva soberana: cada acción según su rentabilidad (X) y su múltiplo (Y), con el precio en vivo. Debajo de la recta, barata contra sus pares.</p></div><div class="sxb">' + dlb('accV', 'Bonerio_acciones_valuacion') + '</div></div>' +
-    '<div class="ctl"><label>Grupo<select id="accVg"><option value="ban">Bancos</option><option value="nof">No financieras</option><option value="all">Todas</option>' + SEC.filter(function (s) { return s[0] !== 'ban'; }).map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('') + '</select></label>' +
+    '<div class="ctl"><label>Panel<span class="seg" id="accVp"><button data-v="lider">Líder</button><button data-v="general">General</button><button data-v="all">Todas</button></span></label><label>Grupo<select id="accVg"><option value="ban">Bancos</option><option value="nof">No financieras</option><option value="all">Todas</option>' + SEC.filter(function (s) { return s[0] !== 'ban'; }).map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('') + '</select></label>' +
     '<label>Múltiplo (eje Y)<select id="accVx"><option value="pvl">Precio / valor libro</option><option value="pe">Precio / ganancias (P/E)</option><option value="ev">EV / EBITDA</option></select></label>' +
     '<label>Rentabilidad (eje X)<select id="accVy"><option value="roe">ROE</option><option value="roa">ROA</option><option value="me">Margen EBITDA</option><option value="mn">Margen neto</option></select></label></div>' +
     '<div class="cw"><canvas id="accVc"></canvas></div><h5>Contra la recta: cuánto tendría que valer el múltiplo para la rentabilidad que tiene</h5><div class="tw" style="max-height:360px"><table id="accVt"></table></div><p class="note" id="accVn" style="margin-top:8px"></p></div>' +
@@ -11136,7 +11136,8 @@ window.RATG = (function () {
   /* ---------- controles ---------- */
   var SEGS = [['accPn', 'pn', function () { table(); }], ['accMon', 'mon', function () { SX = {}; drawAll(); }], ['accMon2', 'mon', function () { SX = {}; drawAll(); }], ['accMon3', 'mon', function () { SX = {}; drawAll(); }], ['accMon4', 'mon', function () { SX = {}; drawAll(); }], // la moneda también en la ficha, sectores y riesgo-retorno
     ['accRg', 'rg', function () { chart(); }], ['accFq', 'fq', function () { chart(); }], ['accTy', 'ty', function () { chart(); }],
-    ['accSp', 'sp', function () { sectors(); }], ['accSper', 'sper', function () { ratioSec(); }], ['accRr', 'rr', function () { scatter(); }], ['accPr', 'pr', function () { pair(); }], ['accBp', 'bp', function () { flow(); }], ['accPw', 'pw', function () { pair(); }]];
+    ['accSp', 'sp', function () { sectors(); }], ['accSper', 'sper', function () { ratioSec(); }], ['accRr', 'rr', function () { scatter(); }], ['accPr', 'pr', function () { pair(); }], ['accBp', 'bp', function () { flow(); }], ['accPw', 'pw', function () { pair(); }], ['accVp', 'vp', function () { valua(); }]];
+  if (!ST.vp) ST.vp = 'all';
   function segOn() { SEGS.forEach(function (x) { [].forEach.call($(x[0]).querySelectorAll('button'), function (b) { b.classList.toggle('on', b.getAttribute('data-v') === ST[x[1]]); }); }); }
   SEGS.forEach(function (x) { $(x[0]).onclick = function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; ST[x[1]] = b.getAttribute('data-v'); save(); segOn(); x[2](); }; });
   $('accQ').value = ST.q; $('accQ').oninput = function () { ST.q = this.value; save(); table(); };
@@ -11787,12 +11788,13 @@ window.RATG = (function () {
     // los bancos no tienen EBITDA ni ventas en el balance: para ellos P/VL o P/E contra ROE (las opciones que no aplican se apagan)
     var bk = g === 'ban'; [].forEach.call($('accVx').options, function (o) { o.disabled = bk && o.value === 'ev'; }); [].forEach.call($('accVy').options, function (o) { o.disabled = bk && o.value !== 'roe' && o.value !== 'roa'; });
     if (bk) { if (yk === 'ev') yk = 'pvl'; if (xk !== 'roa') xk = 'roe'; } $('accVx').value = yk; $('accVy').value = xk;
-    var P = vpts(function (t) { var s2 = secOf(t); return g === 'ban' ? s2 === 'ban' : g === 'nof' ? s2 !== 'ban' : g === 'all' || s2 === g; }, xk, yk), L = fitL(P);
+    var pnl = {}; IX.forEach(function (x) { pnl[x.t] = x.panel; });
+    var P = vpts(function (t) { var s2 = secOf(t); if (ST.vp !== 'all' && pnl[t] !== ST.vp) return false; return g === 'ban' ? s2 === 'ban' : g === 'nof' ? s2 !== 'ban' : g === 'all' || s2 === g; }, xk, yk), L = fitL(P);
     scat('accVc', P, L, VYN[xk], VXN[yk], ST.sel, function (t) { pick(t, 1); });
     var T = P.map(function (p) { var q = potOf(p, yk, L); return { p: p, fy: q.fy, up: q.up }; }).sort(function (u, v) { return (v.up == null ? -9 : v.up) - (u.up == null ? -9 : u.up); });
     $('accVt').innerHTML = '<thead><tr><th>Acción</th><th class="l">Sector</th><th>' + VYN[xk] + '</th><th>' + VXN[yk] + '</th><th>' + VXN[yk] + ' según la recta</th><th>Potencial del precio</th></tr></thead><tbody>' +
       T.map(function (r) { return '<tr data-t="' + r.p.t + '"><td>' + logo(r.p.t, 18) + ' ' + r.p.t + '</td><td class="l"><i class="sd" style="background:' + SC[r.p.s] + '"></i>' + SN[r.p.s] + '</td><td>' + nf(r.p.x, 1) + '%</td><td>' + nf(r.p.y, 2) + 'x</td><td>' + (r.fy != null && isFinite(r.fy) ? nf(r.fy, 2) + 'x' : '—') + '</td><td' + cl(r.up) + '>' + pc(r.up, 0) + '</td></tr>'; }).join('') + '</tbody>';
-    $('accVs').textContent = P.length + ' acciones · ' + VXN[yk] + ' = ' + (L ? nf(L.a, 2) + (L.b >= 0 ? ' + ' : ' − ') + nf(Math.abs(L.b), 3) + ' × ' + VYN[xk] + (L.r2 != null ? ' · R² ' + nf(L.r2, 2) : '') : '—') + ' · debajo de la recta: barata contra sus pares';
+    $('accVs').textContent = P.length + ' acciones' + (ST.vp === 'lider' ? ' del panel líder' : ST.vp === 'general' ? ' del panel general' : '') + ' · ' + VXN[yk] + ' = ' + (L ? nf(L.a, 2) + (L.b >= 0 ? ' + ' : ' − ') + nf(Math.abs(L.b), 3) + ' × ' + VYN[xk] + (L.r2 != null ? ' · R² ' + nf(L.r2, 2) : '') : '—') + ' · debajo de la recta: barata contra sus pares';
     $('accVn').textContent = 'Como la curva soberana, pero con acciones: en X la rentabilidad del último balance (12 meses), en Y el múltiplo con el precio en vivo. La recta dice qué múltiplo "le corresponde" a cada rentabilidad; el potencial es cuánto tendría que moverse el precio para quedar sobre ella (con EV/EBITDA, contando la deuda neta). Una referencia, no una recomendación.';
   }
   $('accVt').onclick = function (e) { var tr = e.target.closest('tr[data-t]'); if (tr) pick(tr.getAttribute('data-t'), 1); };
