@@ -22,7 +22,7 @@ OUT = os.path.join(HERE, "..", "data", "acciones", "balances")
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36"}
 BASE = "https://www.cnv.gov.ar/SitioWeb"
 DESDE = "2010-01-01"  # toda la historia que tenga la CNV en planillas estandarizadas
-VERSION = 3  # si cambia la forma de leer las planillas, se suben: los archivos de otra versión se rearman enteros
+VERSION = 4  # si cambia la forma de leer las planillas, se suben: los archivos de otra versión se rearman enteros
 
 # ticker: (CUIT, valor nominal por acción al cierre de los balances, mes de cierre del ejercicio, banco, moneda funcional)
 EMPRESAS = {
@@ -198,6 +198,7 @@ def periodo(t, v, p, vn, mes_cierre, banco):
             "depreciaciones": None if banco else da,
             "resultado_neto": g("3049999"),
             "resultado_neto_controlante": None,
+            "flujo_operativo": g("3241100"),  # flujo de efectivo de las actividades operativas (acumulado del ejercicio)
         },
         "situacion": {
             "patrimonio_neto": pn,
@@ -205,6 +206,8 @@ def periodo(t, v, p, vn, mes_cierre, banco):
             "deuda_financiera": None if banco else suma("2322200", "2312300"),
             "caja_inversiones": None if banco else suma("1122500", "1122300"),
             "activo_total": g("1999999"),
+            "activo_corriente": None if banco else g("1139999"),
+            "pasivo_corriente": None if banco else g("2339999"),
         },
     }
     return r
