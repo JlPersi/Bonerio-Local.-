@@ -2147,7 +2147,7 @@ window.snapshotCanvas = function(targetId, scale, hide, cloneHide) { // promesa 
             windowWidth: Math.round(window.innerWidth / z), windowHeight: Math.round(window.innerHeight / z),
             onclone: function(doc) {
                 doc.documentElement.style.zoom = '1'; [].forEach.call(doc.body.children, function(n) { n.style.zoom = ''; });
-                var st = doc.createElement('style'); st.textContent = '*{font-variant-numeric:normal !important}[data-dlhide],[data-dlclone],.qm{display:none !important}.xp,.hl,.qs:not(.keep),details:not([open]){display:none !important}'; doc.head.appendChild(st); // la imagen va sin los textos que explican qué es cada cosa
+                var st = doc.createElement('style'); st.textContent = '*{font-variant-numeric:normal !important}[data-dlhide],[data-dlclone],.qm,span.qm.qm{display:none !important}.xp,.hl,.qs:not(.keep),details:not([open]){display:none !important}'; doc.head.appendChild(st); // la imagen va sin los textos que explican qué es cada cosa
                 var t = doc.getElementById(targetId); if (t) { t.style.overflowX = 'visible'; t.style.alignSelf = 'start'; if (t.hasAttribute('data-dlpad')) t.style.paddingTop = '52px'; }
                 var p1 = doc.querySelector('[data-dlpad1]'); if (p1) p1.style.paddingTop = '52px'; // varias secciones: la primera, si empieza sin título // data-dlpad: la sección empieza sin título, se deja lugar para la marca
                 try { if (window.dlOnClone) window.dlOnClone(doc, targetId); } catch (e) {}
@@ -11054,7 +11054,7 @@ window.RATG = (function () {
 
   var S = '#acc ';
   // subpestañas: qué tarjetas muestra cada una y qué hay que redibujar al entrar (los gráficos ocultos no saben su tamaño)
-  var SUBS = [['panel', 'Panel', ['accT', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV']], ['pares', 'Pares', ['accP']], ['mer', 'Sectores y flujo', ['accS', 'accB', 'accR']], ['opc', 'Opciones', ['accO']]];
+  var SUBS = [['panel', 'Panel', ['accT', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV']], ['pares', 'Pares', ['accP']], ['mer', 'Sectores y flujo', ['accS', 'accB', 'accR']]];
   root.innerHTML = '<style>' +
     '#acc{--fc:#4ade80;--fr:74,222,128}[data-theme="light"] #acc{--fc:#15803d;--fr:21,128,61}' +
     '#acc .card:not(.card .card){background:linear-gradient(180deg,rgba(var(--fr),.10) 0,rgba(var(--fr),.035) 180px,rgba(var(--fr),0) 420px),var(--card);border-color:rgba(var(--fr),.22)}#acc .card:not(.card .card)>.sxh .qh{color:var(--fc);font-size:24px;font-weight:700}#acc .card canvas{background:transparent!important}' +
@@ -11120,7 +11120,7 @@ window.RATG = (function () {
     '<div class="ctl"><label>Para el gráfico<span class="seg" id="accBp"><button data-v="1">Última rueda</button><button data-v="5">5 ruedas</button><button data-v="20">20 ruedas</button></span></label></div>' +
     '<div class="f2"><div><h5>Por sector: presión neta y monto</h5><div class="tw" style="max-height:none;margin-top:0"><table id="accBt"></table></div></div><div><h5 id="accBh">Acciones con más presión</h5><div class="cw2" style="height:380px"><canvas id="accBc"></canvas></div></div></div><p class="note" id="accBn" style="margin-top:8px"></p></div>' +
 
-    '<div class="card sx" id="accO" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Lanzamiento cubierto</p><p class="qs" id="accOs">Comprar la acción y vender un call dentro del dinero: la tasa que queda si al vencimiento la acción sigue arriba del strike, contra una Lecap del mismo plazo.</p></div><div class="sxb">' + dlb('accO', 'Bonerio_lanzamiento_cubierto') + '</div></div>' +
+    '<div class="card sx" id="accO" style="display:none"><div class="sxh"><div style="min-width:0"><p class="qh">Lanzamiento cubierto</p><p class="qs" id="accOs">Comprar la acción y vender un call dentro del dinero: la tasa que queda si al vencimiento la acción sigue arriba del strike, contra una Lecap del mismo plazo.</p></div><div class="sxb">' + dlb('accO', 'Bonerio_lanzamiento_cubierto') + '</div></div>' +
     '<div class="ctl"><label>Acción<select id="accOu" style="min-width:220px"><option value="">Todas (la mejor de cada una)</option></select></label><label>Vencimiento<select id="accOv" style="min-width:150px"></select></label></div>' +
     '<div class="kp" id="accOk"></div><div class="tw"><table id="accOt"></table></div><p class="note" id="accOn" style="margin-top:8px"></p></div>' +
 
@@ -11201,7 +11201,7 @@ window.RATG = (function () {
     if (typeof mktStarted === 'function' && !mktStarted()) { LV = {}; return g('https://data912.com/live/usa_adrs', LA); } // antes de la rueda (o sin rueda) data912 repite la anterior: se usa el último cierre
     return Promise.all([g('https://data912.com/live/arg_stocks', LV), g('https://data912.com/live/usa_adrs', LA)]);
   }
-  setInterval(function () { if (isAct() && (typeof mktOpen !== 'function' || mktOpen())) live().then(function () { table(); adrs(); valua(); head(); flow(); covered(); }); }, 30000);
+  setInterval(function () { if (isAct() && (typeof mktOpen !== 'function' || mktOpen())) live().then(function () { table(); adrs(); valua(); head(); flow(); }); }, 30000);
 
   /* ---------- índice del panel líder ponderado por capitalización ---------- */
   function buildIdx() {
@@ -11306,7 +11306,7 @@ window.RATG = (function () {
     if (!SUBS.some(function (x) { return x[0] === g; })) g = 'panel'; ST.sub = g; save(); var first = true;
     SUBS.forEach(function (x) { x[2].forEach(function (id) { var e = $(id); if (!e) return; e.style.display = x[0] === g ? '' : 'none'; if (x[0] === g) { e.style.marginTop = first ? '0' : '24px'; first = false; } }); });
     [].forEach.call($('accNav').querySelectorAll('button'), function (b) { b.classList.toggle('on', b.getAttribute('data-g') === g); });
-    if (draw && IX) ({ panel: function () { table(); adrs(); }, ficha: chart, val: valua, pares: pair, mer: function () { SX = {}; sectors(); flow(); scatter(); }, opc: covered })[g]();
+    if (draw && IX) ({ panel: function () { table(); adrs(); }, ficha: chart, val: valua, pares: pair, mer: function () { SX = {}; sectors(); flow(); scatter(); } })[g]();
   }
   $('accNav').onclick = function (e) { var b = e.target.closest('button[data-g]'); if (b) sub(b.getAttribute('data-g'), 1); };
   function pick(t, scroll) { ST.sel = t; save(); sub('ficha'); $('accTk').value = ''; [].forEach.call($('accTab').querySelectorAll('tr[data-t]'), function (r) { r.classList.toggle('sel', r.getAttribute('data-t') === t); }); chart(); if (scroll) setTimeout(function () { $('accF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60); }
@@ -11876,7 +11876,7 @@ window.RATG = (function () {
     }, function () { $('accPn2').textContent = 'No se pudo cargar la librería del gráfico.'; });
   }
 
-  function drawAll() { SX = {}; SL = {}; sub(ST.sub || 'panel'); table(); chart(); pair(); flow(); covered(); sectors(); scatter(); valua(); adrs(); }
+  function drawAll() { SX = {}; SL = {}; sub(ST.sub || 'panel'); table(); chart(); pair(); flow(); sectors(); scatter(); valua(); adrs(); }
   function render() {
     if (err) { $('accTs').textContent = err; return; }
     load().then(function () { if (err) { $('accTs').textContent = err; return; } drawAll(); loadAll(); live().then(function () { table(); adrs(); valua(); head(); }); });
@@ -11976,6 +11976,97 @@ window.RATG = (function () {
   var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); show(id); };
   bar.onclick = function (e) { var b = e.target.closest ? e.target.closest('[data-stl]') : null, m = b && b.getAttribute('data-stl'); if (!m || m === window.settleMode) return; window.applySettle(m, true); if (cur && !/^(pesos|curva|vard)$/.test(cur)) window.switchTab(cur); }; // pesos, curva y variación diaria ya se redibujan solas
   var a = document.querySelector('.tab-content.active'); show(a ? a.id : null);
+})();
+</script>
+<script>
+// ayudas en toda la página: un (?) al lado de cada término (columnas y títulos de tarjetas) con su definición. Acciones tiene las suyas.
+(function () {
+  var G = [
+    [/^tir( \(tea\)| hoy| mediana)?$/, 'TIR (tasa interna de retorno): lo que rinde por año el bono si lo comprás hoy a este precio, cobrás todos los pagos y los reinvertís a la misma tasa. Es efectiva anual.'],
+    [/^mayor tir$/, 'El bono con la TIR más alta del grupo. Rinde más, pero suele ser porque el mercado le ve más riesgo.'],
+    [/^tir real/, 'TIR real: lo que rinde por encima de la inflación (bonos CER). Positiva: le gana a la inflación.'],
+    [/^tir usd/, 'TIR en dólares, suponiendo que el tipo de cambio queda como hoy hasta el vencimiento.'],
+    [/^tna( ?simple)?$/, 'TNA (tasa nominal anual): la tasa mensual × 12, sin capitalizar. Es la que se usa para comparar plazos fijos y cauciones.'],
+    [/^tea( \(esc\.\)|\(esc\.\)| en usd| a| b)?$/, 'TEA (tasa efectiva anual): lo que rinde en un año reinvirtiendo los intereses. Es más alta que la TNA y sirve para comparar instrumentos de distinto plazo.'],
+    [/^tem( ?nominal| ?pesos)?$/, 'TEM (tasa efectiva mensual): lo que rinde por mes. Se compara directo con la inflación mensual.'],
+    [/^(md|duraci[oó]n mod\.)$/, 'Duración modificada: cuánto cambia el precio, en %, si la TIR se mueve 1 punto. MD 3: si la tasa sube 1%, el precio baja cerca de 3%. Más alta: más riesgo de tasa.'],
+    [/^convex\.?$/, 'Convexidad: corrige la duración para movimientos grandes de tasa. Más alta es mejor: gana más cuando la tasa baja de lo que pierde cuando sube.'],
+    [/^dv01$/, 'DV01: cuántos pesos o dólares cambia el precio (cada 100 nominales) si la TIR se mueve 1 punto básico (0,01%).'],
+    [/^paridad$/, 'Paridad: precio sobre el valor técnico (lo que falta pagar de capital más el interés corrido). Debajo de 100%: cotiza con descuento.'],
+    [/^(residual|vn residual)$/, 'Residual: qué parte del capital falta devolver, cada 100 nominales. Baja a medida que el bono amortiza.'],
+    [/^cup[oó]n(es)?$/, 'Cupón: la tasa de interés que paga el bono sobre el capital residual.'],
+    [/^renta( cobrada)?$/, 'Renta: los intereses que paga el bono en cada fecha de pago.'],
+    [/^amortizaci[oó]n( cobrada)?$/, 'Amortización: la parte del capital que el bono devuelve en cada pago.'],
+    [/^spread( mediano)?$/, 'Spread: cuánto más rinde contra la curva de referencia a la misma duración, en puntos básicos (100 pb = 1%). Más alto: el mercado pide más por el riesgo.'],
+    [/^spread a \d a[ñn]os?$/, 'Spread a ese plazo: cuánto más rinde la curva del grupo que la de los soberanos a la misma duración, en puntos básicos.'],
+    [/^vs\. rating$/, 'Spread contra la curva de su calificación. Positivo: rinde más que otras de la misma nota; puede ser oportunidad o un riesgo que el rating no muestra.'],
+    [/^curva (aaa|aa|a|bbb|bb y b)$/, 'Curva por calificación: la TIR que el mercado le pide a las emisiones con esa nota (escala nacional), según su duración.'],
+    [/^puntas$/, 'Puntas: diferencia entre la TIR al precio de compra y al de venta. Más chica: más fácil entrar y salir.'],
+    [/^liquidez$/, 'Liquidez: qué tan fácil es comprar o vender sin mover el precio, según el monto operado y las puntas.'],
+    [/^prom\. 20 r\.$/, 'Monto promedio operado por día en las últimas 20 ruedas.'],
+    [/^brecha (mep|ccl)$/, 'Brecha: cuánto más caro está ese dólar que el oficial, en %.'],
+    [/^canje( ccl\/mep)?$/, 'Canje: cuánto más vale el dólar cable (afuera) que el MEP (en una cuenta local), en %.'],
+    [/^(ccl|ccl \(al30\)|ccl de acciones)$/, 'CCL (contado con liquidación): el dólar que surge de comprar un activo en pesos y venderlo en dólares afuera. Queda en una cuenta del exterior.'],
+    [/^(mep|mep \(al30\)|d[oó]lar mep · al30|byma mep)$/, 'MEP (dólar bolsa): el dólar que surge de comprar un bono en pesos y venderlo en dólares en el país. Es legal y sin cupo.'],
+    [/^(oficial|oficial \(a3500\)|oficial · a3500|d[oó]lar a3500)$/, 'A3500: el tipo de cambio mayorista oficial que publica el BCRA. Es la referencia de los dollar linked y de los futuros.'],
+    [/^riesgo pa[ií]s$/, 'Riesgo país: cuánto más rinden los bonos argentinos en dólares que los del Tesoro de EE.UU., en puntos básicos.'],
+    [/^tamar( · tna| bancos privados)?$/, 'TAMAR: la tasa que pagan los bancos por depósitos de más de $1.000 millones a 30 días. Es la referencia de los bonos TAMAR.'],
+    [/^badlar/, 'BADLAR: la tasa que pagan los bancos por depósitos de más de $1 millón a 30 días.'],
+    [/^rem/, 'REM: el relevamiento de expectativas del BCRA. Lo que esperan los economistas para la inflación, el dólar y la tasa.'],
+    [/^(breakeven|be − rem|inflaci[oó]n be|devaluaci[oó]n be|tamar be|be(retorno 0| ?vs\.? reinv\.))/, 'Breakeven: el valor que deja indiferente entre dos instrumentos. Si la inflación (o el dólar) termina arriba del breakeven, gana el que ajusta; si termina abajo, gana el de tasa fija.'],
+    [/^lecap/, 'Lecap: letra del Tesoro en pesos a tasa fija que capitaliza mensualmente y paga todo al vencimiento.'],
+    [/^cauci[oó]n/, 'Caución: un préstamo de corto plazo garantizado con títulos en la bolsa. Es la tasa más usada para pesos ociosos.'],
+    [/^z-score$/, 'Z-score: cuántos desvíos está el valor de hoy de su promedio. Más de 2 o menos de −2: está en un extremo.'],
+    [/^percentil$/, 'Percentil: qué porcentaje de la historia estuvo por debajo del valor de hoy. 90: más alto que el 90% de los días.'],
+    [/^(desv[ií]o \(σ\)|σ)$/, 'Desvío estándar (σ): cuánto se aleja el valor de su promedio, en general.'],
+    [/^banda ±\dσ$/, 'Banda: el promedio más y menos uno o dos desvíos. Fuera de la banda de 2σ es un valor poco habitual.'],
+    [/^total return$/, 'Total return: lo que ganaste en total sumando cupones cobrados y cambio de precio.'],
+    [/^roll-down/, 'Roll-down: lo que gana el bono sólo por acortarse su plazo, si la curva no se mueve.'],
+    [/^(ret\. ?tir ?constante|retorno ?tir cte\.)$/, 'Retorno si la TIR no cambia hasta la fecha de corte.'],
+    [/^colch[oó]n/, 'Colchón: cuántos puntos básicos puede subir la TIR antes de que el retorno pase a ser negativo.'],
+    [/^valor residual/, 'Valor residual a mercado (MTM): lo que vale lo que te queda del bono si lo vendés en la fecha de corte.'],
+    [/^pnl capital$/, 'Resultado por precio: ganancia o pérdida por el cambio de precio del bono.'],
+    [/^pnl cupones$/, 'Resultado por cupones: lo que cobraste de intereses y amortizaciones.'],
+    [/^(devaluaci[oó]n mensual impl[ií]cita|dev\. mensual)$/, 'Devaluación implícita: cuánto espera el mercado que suba el dólar por mes, según el precio de los futuros.'],
+    [/^tasa impl[ií]cita/, 'Tasa implícita: la tasa en pesos que surge de comparar el futuro con el dólar de hoy. Lo que pagás o cobrás por cubrirte.'],
+    [/^ajuste anterior$/, 'Ajuste: el precio oficial de cierre del futuro, con el que se calculan las diferencias diarias.'],
+    [/^(vol\. relativo|volumen relativo)$/, 'Volumen relativo: lo operado contra el promedio de las 20 ruedas anteriores. 2x: el doble de lo normal.'],
+    [/^devengamiento$/, 'Devengamiento: lo que el precio debería subir en un día sólo por el paso del tiempo, con la tasa sin cambios.'],
+    [/^dollar linked/, 'Dollar linked: bono en pesos que ajusta por el dólar oficial A3500. Cubre de una devaluación sin salir del peso.'],
+    [/^steepener/, 'Steepener: la curva se empina. Las tasas largas suben y las cortas bajan.'],
+    [/^flattener/, 'Flattener: la curva se aplana. Las tasas cortas suben y las largas bajan.'],
+    [/^equilibrio reinv\./, 'Tasa de reinversión que deja indiferente entre rotar y quedarse.']
+  ];
+  var K = function (s) { s = String(s || '').replace(/[▲▼*?]/g, '').replace(/\s+/g, ' ').trim().toLowerCase(); for (var i = 0; i < G.length; i++) if (G[i][0].test(s)) return G[i][1]; return null; };
+  var tip = null, on = null, pt = 'mouse', T = 0;
+  function deco() {
+    [].forEach.call(document.querySelectorAll('.tab-content.active th, .tab-content.active small, .tab-content.active .spread-title, #home th, #home small'), function (el) {
+      if (el.querySelector('.qm') || el.closest('#acc, button, .dlmenu, #sideNav, .qm')) return;
+      var t = K(el.textContent), ti = el.getAttribute('title');
+      if (!t && ti && ti.length > 14 && !/^(ordenar|clic|toc)/i.test(ti)) { t = ti; el.removeAttribute('title'); }
+      if (!t) return;
+      var q = document.createElement('span'); q.className = 'qm'; q.textContent = '?'; q.setAttribute('data-tip', t); el.appendChild(q);
+    });
+  }
+  function show(q) {
+    if (!tip) { tip = document.createElement('div'); tip.id = 'qmTip'; document.body.appendChild(tip); }
+    tip.textContent = q.getAttribute('data-tip'); tip.style.display = 'block'; on = q;
+    var r = q.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight, x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)), y = r.bottom + 8;
+    if (y + h > innerHeight - 8) y = Math.max(8, r.top - h - 8);
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  }
+  function hide() { if (tip) tip.style.display = 'none'; on = null; }
+  var qOf = function (e) { var q = e.target.closest && e.target.closest('.qm[data-tip]'); return q && !q.closest('#acc') ? q : null; };
+  document.addEventListener('pointerdown', function (e) { pt = e.pointerType; }, true);
+  document.addEventListener('mouseover', function (e) { if (pt === 'touch') return; var q = qOf(e); if (q && q !== on) show(q); else if (!q && on) hide(); });
+  document.addEventListener('click', function (e) { var q = qOf(e); if (!q) { if (on) hide(); return; } e.stopPropagation(); e.preventDefault(); if (on === q && pt === 'touch') hide(); else show(q); }, true); // tocar abre y cierra; no ordena la columna
+  addEventListener('scroll', hide, true);
+  var st = document.createElement('style');
+  st.textContent = 'span.qm.qm{display:inline-flex !important;align-items:center;justify-content:center;width:14px;height:14px;margin-left:5px;border:1px solid currentColor;border-radius:50%;font-size:9px;font-weight:700;line-height:1;opacity:.6;cursor:help;vertical-align:1px;text-transform:none;letter-spacing:0;font-style:normal}.qm:hover{opacity:1;color:var(--ac)}' +
+    '#qmTip{position:fixed;z-index:2147480000;display:none;max-width:300px;padding:10px 12px;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.35);font-size:12.5px;line-height:1.45;font-weight:400;text-transform:none;letter-spacing:0;white-space:normal;text-align:left;pointer-events:none}';
+  document.head.appendChild(st);
+  new MutationObserver(function () { if (T) return; T = setTimeout(function () { T = 0; deco(); }, 150); }).observe(document.body, { childList: true, subtree: true });
+  deco();
 })();
 </script>
 </body>
