@@ -381,9 +381,9 @@ function proxSVG(x,V,M,W,cut){
   s+=`<text x="${m.l+iw/2}" y="${H-6}" text-anchor="middle">${V.xt}</text><text transform="translate(13,${m.t+ih/2}) rotate(-90)" text-anchor="middle">${V.yl}</text><clipPath id="cpx${x.t}"><rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}"/></clipPath>`;
   if(fit){const N=90,xx=i=>lg?V.fx0*Math.pow(V.fx1/V.fx0,i/N):V.fx0+(V.fx1-V.fx0)*Math.pow(i/N,1.5),pt=(i,o)=>X(xx(i)).toFixed(1)+","+Y(fit.f(xx(i))+o).toFixed(1);
     let up="",lo="",cu="";for(let i=0;i<=N;i++){up+=(i?"L":"M")+pt(i,fit.sigma);cu+=(i?"L":"M")+pt(i,0)}for(let i=N;i>=0;i--)lo+=(i===N?"L":"L")+pt(i,-fit.sigma);
-    s+=`<g clip-path="url(#cpx${x.t})"><path d="${up+lo}Z" fill="rgba(148,163,184,.10)"/><path d="${up}" fill="none" stroke="rgba(148,163,184,.55)" stroke-dasharray="4 4"/><path d="M${lo.slice(1)}" fill="none" stroke="rgba(148,163,184,.55)" stroke-dasharray="4 4"/><path d="${cu}" fill="none" stroke="${V.nc}" stroke-width="2.5"/></g>`;
-    if(me&&src==="new"&&(me.x>V.fx1||me.x<V.fx0))s+=`<line x1="${X(me.x>V.fx1?V.fx1:V.fx0)}" x2="${X(me.x)}" y1="${Y(me.y)}" y2="${Y(me.y)}" stroke="${V.nc}" stroke-width="1.5" stroke-dasharray="4 4"/>`}
-  const tri=(cx,cy,r)=>`M${cx},${cy-r*1.2} L${cx+r*1.1},${cy+r*.8} L${cx-r*1.1},${cy+r*.8} Z`,cl=p=>(V.col||{})[p.k]||V.nc;
+    s+=`<g clip-path="url(#cpx${x.t})"><path d="${up+lo}Z" fill="rgba(148,163,184,.10)"/><path d="${up}" fill="none" stroke="rgba(148,163,184,.55)" stroke-dasharray="4 4"/><path d="M${lo.slice(1)}" fill="none" stroke="rgba(148,163,184,.55)" stroke-dasharray="4 4"/><path d="${cu}" fill="none" stroke="var(--tx)" stroke-width="2.5"/></g>`;
+    if(me&&src==="new"&&(me.x>V.fx1||me.x<V.fx0))s+=`<line x1="${X(me.x>V.fx1?V.fx1:V.fx0)}" x2="${X(me.x)}" y1="${Y(me.y)}" y2="${Y(me.y)}" stroke="var(--tx)" stroke-width="1.5" stroke-dasharray="4 4"/>`}
+  const tri=(cx,cy,r)=>`M${cx},${cy-r*1.2} L${cx+r*1.1},${cy+r*.8} L${cx-r*1.1},${cy+r*.8} Z`,cl=p=>{const c=(V.col||{})[p.k];return !c||c===V.nc?"var(--tx)":c};
   P.forEach(p=>{if(p.k===x.t)return;const cx=X(p.x),cy=Y(p.y),tip=`<title>${p.k}: ${nf(p.y,2)}%${p.fy!=null?" · "+(p.res>0?"+":"")+nf(p.res*100,0)+" pb vs curva":""}</title>`;
     if(p.fy!=null&&Math.abs(Y(p.fy)-cy)>2)s+=`<line x1="${cx}" x2="${cx}" y1="${cy}" y2="${Y(p.fy)}" stroke="var(--mu)" stroke-dasharray="3 3"/>`;
     s+=p.dual?`<path d="${tri(cx,cy,5)}" fill="${cl(p)}">${tip}</path>`:`<circle cx="${cx}" cy="${cy}" r="5" fill="${cl(p)}">${tip}</circle>`});
@@ -758,7 +758,8 @@ all();
     var scr = [].map.call(sec.querySelectorAll('.scr'), function (e) { return e.scrollLeft; });
     return html2canvas(sec, { scale: sc, backgroundColor: bg, useCORS: true, logging: false, onclone: function (doc) {
       // sin las explicaciones ni las flechas; los selectores quedan, como texto, porque dicen qué licitación u opción se ve
-      var st = doc.createElement('style'); st.textContent = '.note,.qs,.dlb,.src,#aPrev,#aNext{display:none !important}*{font-variant-numeric:normal !important}';
+      var st = doc.createElement('style'); st.textContent = '.note,.qs,.dlb,.src,#aPrev,#aNext{display:none !important}*{font-variant-numeric:normal !important}' +
+        '.st{background:var(--soft) !important}.st.now{border-color:var(--ac) !important;box-shadow:none !important}'; // html2canvas no entiende color-mix();
       doc.head.appendChild(st);
       var c = doc.getElementById(sec.id); if (!c) return; c.style.position = 'relative';
       if (keep) { var ids = keep.map(function (k) { return k.id; }); [].forEach.call(c.children, function (x) { if (ids.indexOf(x.id) < 0) x.style.display = 'none'; }); }
