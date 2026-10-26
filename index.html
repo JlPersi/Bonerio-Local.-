@@ -2146,7 +2146,7 @@ window.snapshotCanvas = function(targetId, scale, hide, cloneHide) { // promesa 
             windowWidth: Math.round(window.innerWidth / z), windowHeight: Math.round(window.innerHeight / z),
             onclone: function(doc) {
                 doc.documentElement.style.zoom = '1'; [].forEach.call(doc.body.children, function(n) { n.style.zoom = ''; });
-                var st = doc.createElement('style'); st.textContent = '*{font-variant-numeric:normal !important}[data-dlhide],[data-dlclone]{display:none !important}.xp,.hl,.qs:not(.keep),details:not([open]){display:none !important}'; doc.head.appendChild(st); // la imagen va sin los textos que explican qué es cada cosa
+                var st = doc.createElement('style'); st.textContent = '*{font-variant-numeric:normal !important}[data-dlhide],[data-dlclone],.qm{display:none !important}.xp,.hl,.qs:not(.keep),details:not([open]){display:none !important}'; doc.head.appendChild(st); // la imagen va sin los textos que explican qué es cada cosa
                 var t = doc.getElementById(targetId); if (t) { t.style.overflowX = 'visible'; t.style.alignSelf = 'start'; if (t.hasAttribute('data-dlpad')) t.style.paddingTop = '52px'; }
                 var p1 = doc.querySelector('[data-dlpad1]'); if (p1) p1.style.paddingTop = '52px'; // varias secciones: la primera, si empieza sin título // data-dlpad: la sección empieza sin título, se deja lugar para la marca
                 try { if (window.dlOnClone) window.dlOnClone(doc, targetId); } catch (e) {}
@@ -11822,6 +11822,10 @@ window.RATG = (function () {
   $('accPa').value = ST.pA; $('accPb').value = ST.pB;
   ['accPa', 'accPb'].forEach(function (id) { $(id).onchange = function () { var t = this.value.trim().toUpperCase(); if (IX && IX.some(function (x) { return x.t === t; })) { ST[id === 'accPa' ? 'pA' : 'pB'] = t; save(); pair(); } else this.value = ST[id === 'accPa' ? 'pA' : 'pB']; }; });
   $('accPx').onclick = function () { var a = ST.pA; ST.pA = ST.pB; ST.pB = a; $('accPa').value = ST.pA; $('accPb').value = ST.pB; save(); pair(); };
+  // imágenes HD: los gráficos de Lightweight Charts (Ficha y Pares) van como foto propia del gráfico, no leídos canvas por canvas
+  // (la foto se saca antes de que la captura cambie el zoom de la página, que hace que el gráfico se redibuje con otro tamaño)
+  var LWS = {}, _snap = window.snapshotCanvas; window.snapshotCanvas = function (id) { LWS = {}; var tg = document.getElementById(id); [['accTv', TV], ['accPtv', PT]].forEach(function (x) { var el = document.getElementById(x[0]); if (x[1] && el && tg && tg.contains(el) && el.offsetParent) try { LWS[x[0]] = x[1].takeScreenshot().toDataURL('image/png'); } catch (e) { console.error(e); } }); return _snap.apply(this, arguments); };
+  var _dlOc = window.dlOnClone; window.dlOnClone = function (doc, id) { if (_dlOc) _dlOc(doc, id); Object.keys(LWS).forEach(function (k) { var el = doc.getElementById(k); if (el) { el.style.zoom = '1'; el.innerHTML = '<img src="' + LWS[k] + '" style="display:block;width:100%;height:100%">'; } }); };
   var PT = null, PRS = 'GGAL/BMA GGAL/BBAR BMA/SUPV YPFD/PAMP VIST/YPFD CEPU/PAMP TGSU2/TGNO4 EDN/TRAN TXAR/ALUA IRSA/CRES'.split(' ');
   $('accPp').onchange = function () { var v = this.value.split('/'); if (v.length === 2) { ST.pA = v[0]; ST.pB = v[1]; $('accPa').value = v[0]; $('accPb').value = v[1]; save(); pair(); } };
   function pair() {
