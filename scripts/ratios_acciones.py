@@ -194,6 +194,35 @@ def normalizar(per):
             if abs(x / md - 1) > 0.2: per[i]["acciones"] = md
     return per
 
+def calidad(calc):
+    """DuPont del último balance y del de un año antes, y un score de salud estilo Piotroski (cada punto: True, False o None si falta el dato)."""
+    c = calc[-1]
+    prev = [a for a in calc if 330 <= dnum(c["cierre"]) - dnum(a["cierre"]) <= 400]
+    a = prev[-1] if prev else None
+    def dup(x):
+        if not x:
+            return None
+        return {"cierre": x["cierre"], "roe": div(x["ni"], x["pn"]) if x["pn"] and x["pn"] > 0 else None, "mn": div(x["ni"], x["ventas"]),
+                "rot": div(x["ventas"], x["activo"]), "apal": div(x["activo"], x["pn"]) if x["pn"] and x["pn"] > 0 else None,
+                "roa": div(x["ni"], x["activo"]), "me": div(x["ebitda"], x["ventas"]), "dta": div(x["deuda"], x["activo"]),
+                "liq": div(x["ac"], x["pc"]), "ocf": x["ocf"], "ni": x["ni"], "acc": x["acc0"]}
+    d, e = dup(c), dup(a)
+    gt = lambda x, y: None if x is None or y is None else x > y
+    lt = lambda x, y: None if x is None or y is None else x < y
+    if d["rot"] is None:  # bancos: el flujo operativo mueve depósitos y préstamos, no dice nada de la calidad de la ganancia
+        d["ocf"] = None
+    pts = [["ROA de 12 meses positivo", gt(d["roa"], 0)],
+           ["Flujo de caja operativo de 12 meses positivo", gt(d["ocf"], 0)],
+           ["El ROA subió contra un año antes", gt(d["roa"], e and e["roa"])],
+           ["El flujo operativo supera a la ganancia", gt(d["ocf"], d["ni"])],
+           ["Bajó la deuda sobre el activo", lt(d["dta"], e and e["dta"])],
+           ["Subió la liquidez corriente", gt(d["liq"], e and e["liq"])],
+           ["No emitió acciones en el año", None if not (e and e["acc"] and d["acc"]) else d["acc"] <= e["acc"] * 1.001],
+           ["Subió el margen EBITDA", gt(d["me"], e and e["me"])],
+           ["Subió la rotación del activo", gt(d["rot"], e and e["rot"])]]
+    return {"hoy": d, "antes": e, "puntos": pts}
+
+
 def main():
     if not os.path.isdir(BAL):
         print("sin carpeta de balances"); return
@@ -218,7 +247,8 @@ def main():
             pn = s.get("patrimonio_neto_controlante", s.get("patrimonio_neto"))
             calc.append({"cierre": p["cierre"], "pub": publicado(p), "acciones": p.get("acciones") or b.get("acciones"),
                          "ni": ni, "ebitda": (ebit + da) if ebit is not None and da is not None else None, "ventas": ven,
-                         "pn": pn, "deuda": s.get("deuda_financiera"), "caja": s.get("caja_inversiones"), "activo": s.get("activo_total")})
+                         "pn": pn, "deuda": s.get("deuda_financiera"), "caja": s.get("caja_inversiones"), "activo": s.get("activo_total"),
+                         "ebit": ebit, "ocf": ttm(per, i, "flujo_operativo", cer), "ac": s.get("activo_corriente"), "pc": s.get("pasivo_corriente"), "acc0": p.get("acciones")})
         # si a un balance le falta el TTM (no está el mismo período del año anterior), se usa el del balance previo
         # reexpresado, siempre que sea de hasta ~6 meses antes
         for i in range(1, len(calc)):
@@ -264,7 +294,8 @@ def main():
                                  roe=div(c["ni"], c["pn"]) if c["pn"] and c["pn"] > 0 else None, roa=div(c["ni"], c["activo"]), margen_ebitda=div(c["ebitda"], c["ventas"]), margen_neto=div(c["ni"], c["ventas"]),
                                  ev=round(mcap + dn * f) if dn is not None else None, deuda_neta=hoy(dn), deuda=hoy(c["deuda"]), caja=hoy(c["caja"]),
                                  ebitda=hoy(c["ebitda"]), ventas=hoy(c["ventas"]), ni=hoy(c["ni"]), pn=hoy(c["pn"]),
-                                 ey=div(c["ni"] * f if c["ni"] is not None else None, mcap), dn_ebitda=div(dn, c["ebitda"]))
+                                 ey=div(c["ni"] * f if c["ni"] is not None else None, mcap), dn_ebitda=div(dn, c["ebitda"]), ebit=hoy(c["ebit"]))
+        res["calidad"] = calidad(calc)
         # trimestres sueltos en dólares
         usd = fx_idx if b.get("moneda_funcional") == "USD" else ccl_idx
         trim = []
@@ -280,8 +311,8 @@ def main():
             u = lambda v: round(v * esc / fx / 1e6, 1) if v is not None else None  # millones de dólares
             s = p.get("situacion", {}); pn = s.get("patrimonio_neto_controlante", s.get("patrimonio_neto"))
             trim.append([p["cierre"], u(q("ventas")), u(ebit + da if ebit is not None and da is not None else None), u(ni), u(pn),
-                         u(s.get("deuda_financiera")), u(s.get("caja_inversiones")), u(s.get("activo_total"))])
-        res["trim_cols"] = ["cierre", "ventas", "ebitda", "ni", "pn", "deuda", "caja", "activo"]
+                         u(s.get("deuda_financiera")), u(s.get("caja_inversiones")), u(s.get("activo_total")), publicado(p)])
+        res["trim_cols"] = ["cierre", "ventas", "ebitda", "ni", "pn", "deuda", "caja", "activo", "pub"]
         res["trim"] = trim[-16:]
         out["t"][t] = res
     json.dump(out, open(os.path.join(DIR, "ratios.json"), "w"), separators=(",", ":"))
