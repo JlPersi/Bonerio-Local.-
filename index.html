@@ -11028,7 +11028,7 @@ window.RATG = (function () {
   }
   var RG = [['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['ytd', 'YTD'], ['1a', '1A'], ['3a', '3A'], ['5a', '5A'], ['10a', '10A'], ['max', 'Todo']];
 
-  var KEY = 'accSt2', ST = { fin: { pe: 1, pvl: 1, ev: 1 }, pn: 'lider', mon: 'ars', q: '', sf: '', sort: 'cap', dir: -1, sel: 'GGAL', rg: '1a', fq: 'd', ty: 'velas', lg: 0, ov: ['ma50', 'ma200'], pa: ['vol', 'rsi', 'pe'], sp: '1a', sA: 'ban', sB: 'pet', pA: 'GGAL', pB: 'BMA', pr: '1a', pw: '60', bp: '5', sper: '1a', rr: '1a', vg: 'ban', vx: 'pvl', vy: 'roe' };
+  var KEY = 'accSt2', ST = { fin: { pe: 1, pvl: 1, ev: 1 }, pn: 'lider', mon: 'ars', q: '', sf: '', sort: 'cap', dir: -1, sel: 'GGAL', rg: '1a', fq: 'd', ty: 'velas', lg: 0, ov: ['ma50', 'ma200'], pa: ['vol', 'rsi', 'pe'], sp: '1a', sA: 'ban', sB: 'pet', pA: 'GGAL', pB: 'BMA', pr: '1a', pw: '60', bp: '5', sper: '1a', rr: '1a', vg: 'ban', vx: 'pvl', vy: 'roe', bx: 'sin' };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
   var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
   var G30 = {}, CCN = null, IX = null, MT = null, RT = null, CCL = {}, LV = {}, LA = {}, lvT = 0, FL = {}, RAW = {}, M = {}, IDX = null, ldP = null, err = null, CH = {};
@@ -11084,6 +11084,7 @@ window.RATG = (function () {
     '<div class="card sx" id="accT"><div class="sxh"><div style="min-width:0"><p class="qh">Acciones</p><p class="qs" id="accTs">Panel líder y panel general de BYMA, con el precio en vivo.</p></div><div class="sxb">' + dlb('accT', 'Bonerio_acciones') + '</div></div>' +
     '<div class="ctl"><label>Panel<span class="seg" id="accPn"><button data-v="lider">Líder</button><button data-v="general">General</button><button data-v="all">Todas</button></span></label>' +
     '<label>Moneda<span class="seg" id="accMon"><button data-v="ars">Pesos</button><button data-v="ccl">Dólar CCL</button></span></label>' +
+    '<label title="Contra qué índice se mide la beta: el panel líder sin la propia acción o con ella">Beta<span class="seg" id="accBx"><button data-v="sin">Sin la acción</button><button data-v="con">Con la acción</button></span></label>' +
     '<label>Sector<select id="accSf"><option value="">Todos</option>' + SEC.map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('') + '</select></label>' +
     '<label>Buscar<input type="search" id="accQ" placeholder="GGAL, YPF, bancos…"></label></div>' +
     '<div class="kp" id="accK"></div><div class="tw"><table id="accTab"></table></div><p class="note" id="accTn" style="margin-top:8px"></p></div>' +
@@ -11092,7 +11093,7 @@ window.RATG = (function () {
     '<div class="kp" id="accFk"></div>' +
     '<div class="wsB"><label style="flex-direction:row;align-items:center;gap:8px;margin:0">Moneda<span class="seg" id="accMon2"><button data-v="ars">Pesos</button><button data-v="ccl">Dólar CCL</button></span></label><span class="seg" id="accRg">' + RG.map(function (r) { return '<button data-v="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</span>' +
     '<span class="seg" id="accFq"><button data-v="d">Diario</button><button data-v="w">Semanal</button></span><span class="seg" id="accTy"><button data-v="velas">Velas</button><button data-v="linea">Línea</button></span>' +
-    '<label class="btnL"><input type="checkbox" id="accLg"> Escala log</label><span class="sp"></span><button class="btnA" id="accAdd" type="button">+ Agregar gráfico</button>' +
+    '<label class="btnL"><input type="checkbox" id="accLg"> Escala log</label><label style="flex-direction:row;align-items:center;gap:8px;margin:0" title="Contra qué índice se mide la beta">Beta<span class="seg" id="accBx2"><button data-v="sin">Sin la acción</button><button data-v="con">Con la acción</button></span></label><span class="sp"></span><button class="btnA" id="accAdd" type="button">+ Agregar gráfico</button>' +
     '<div class="pk" id="accPk" hidden><input type="search" id="accPq" placeholder="Buscar indicadores o una acción para comparar (RSI, MACD, P/E, YPF…)"><div class="pkG"><div class="pkC" id="accPc"></div><div class="pkI" id="accPi"></div></div></div></div>' +
     '<div class="chips" id="accCh"></div>' +
     '<div class="wsG" id="accG"><div id="accTv"></div><div id="accLgs"></div></div><div class="kp" id="accFk2"></div><p class="note" id="accFn" style="margin-top:8px"></p></div>' +
@@ -11135,7 +11136,7 @@ window.RATG = (function () {
     '<div class="kp" id="accAk"></div><div class="tw"><table id="accAtab"></table></div><p class="note" id="accAn" style="margin-top:8px"></p></div>';
 
   /* ---------- controles ---------- */
-  var SEGS = [['accPn', 'pn', function () { table(); }], ['accMon', 'mon', function () { SX = {}; drawAll(); }], ['accMon2', 'mon', function () { SX = {}; drawAll(); }], ['accMon3', 'mon', function () { SX = {}; drawAll(); }], ['accMon4', 'mon', function () { SX = {}; drawAll(); }], // la moneda también en la ficha, sectores y riesgo-retorno
+  var SEGS = [['accPn', 'pn', function () { table(); }], ['accBx', 'bx', reBeta], ['accBx2', 'bx', reBeta], ['accMon', 'mon', function () { SX = {}; drawAll(); }], ['accMon2', 'mon', function () { SX = {}; drawAll(); }], ['accMon3', 'mon', function () { SX = {}; drawAll(); }], ['accMon4', 'mon', function () { SX = {}; drawAll(); }], // la moneda también en la ficha, sectores y riesgo-retorno
     ['accRg', 'rg', function () { chart(); }], ['accFq', 'fq', function () { chart(); }], ['accTy', 'ty', function () { chart(); }],
     ['accSp', 'sp', function () { sectors(); }], ['accSper', 'sper', function () { ratioSec(); }], ['accRr', 'rr', function () { scatter(); }], ['accPr', 'pr', function () { pair(); }], ['accBp', 'bp', function () { flow(); }], ['accPw', 'pw', function () { pair(); }], ['accVp', 'vp', function () { valua(); }]];
   if (!ST.vp) ST.vp = 'all';
@@ -11201,25 +11202,34 @@ window.RATG = (function () {
   setInterval(function () { if (isAct() && (typeof mktOpen !== 'function' || mktOpen())) live().then(function () { table(); adrs(); valua(); head(); flow(); }); }, 30000);
 
   /* ---------- índice del panel líder ponderado por capitalización ---------- */
+  var IDD = null, IMC = {};
+  function mkIdx(mon, ex) { // ex: la acción que se saca del índice
+    var P = IDD[mon].P, SH = IDD.SH, last = {}, lv = 100, out = [];
+    IDD[mon].ds.forEach(function (d) {
+      var num = 0, den = 0;
+      IDD.lid.forEach(function (t) { if (t === ex) return; var c = P[t][d], p0 = last[t]; if (c == null) return; if (p0 != null) { var r = Math.log(c / p0); if (Math.abs(r) < 0.4) { var w = SH[t] * p0; num += w * (c / p0 - 1); den += w; } } last[t] = c; });
+      if (den > 0) { lv *= 1 + num / den; out.push([d, lv]); } else if (!out.length) out.push([d, lv]);
+    });
+    return out;
+  }
+  function IM(mon, t) { // índice contra el que se mide la beta de t: sin t, salvo que el inversor elija el panel completo
+    if (ST.bx === 'con' || !IDD || IDD.lid.indexOf(t) < 0) return IDX.m[mon];
+    var k = mon + t; if (!IMC[k]) { IMC[k] = {}; mkIdx(mon, t).forEach(function (x) { IMC[k][x[0]] = x[1]; }); } return IMC[k];
+  }
   function buildIdx() {
     var lid = IX.filter(function (x) { return x.panel === 'lider' && RAW[x.t] && RAW[x.t].length; }).map(function (x) { return x.t; });
     var SH = {}, caps = [];
     lid.forEach(function (t) { var R = (RT.t[t] || {}).ultimo, r = RAW[t], p = r[r.length - 1][4]; if (R && R.capitalizacion > 0 && p > 0) { SH[t] = R.capitalizacion / p; caps.push(R.capitalizacion); } });
     var mc = med(caps) || 1; lid.forEach(function (t) { if (!SH[t]) { var r = RAW[t]; SH[t] = mc / r[r.length - 1][4]; } }); // sin balance: el peso de la mediana
-    IDX = {};
+    IDX = {}; IMC = {}; IDD = { lid: lid, SH: SH };
     ['ars', 'ccl'].forEach(function (mon) {
       var P = {}, D = {}; lid.forEach(function (t) { var m = {}; RAW[t].forEach(function (x) { var c = x[4]; if (mon === 'ccl') { var f = fxd(x[0]); if (!f) return; c /= f; } m[x[0]] = c; D[x[0]] = 1; }); P[t] = m; });
-      var ds = Object.keys(D).sort(), last = {}, lv = 100, out = [];
-      ds.forEach(function (d) {
-        var num = 0, den = 0;
-        lid.forEach(function (t) { var c = P[t][d], p0 = last[t]; if (c == null) return; if (p0 != null) { var r = Math.log(c / p0); if (Math.abs(r) < 0.4) { var w = SH[t] * p0; num += w * (c / p0 - 1); den += w; } } last[t] = c; });
-        if (den > 0) { lv *= 1 + num / den; out.push([d, lv]); } else if (!out.length) out.push([d, lv]);
-      });
-      IDX[mon] = out;
+      IDD[mon] = { P: P, ds: Object.keys(D).sort() }; IDX[mon] = mkIdx(mon);
     });
     IDX.m = { ars: {}, ccl: {} }; ['ars', 'ccl'].forEach(function (m) { IDX[m].forEach(function (x) { IDX.m[m][x[0]] = x[1]; }); });
   }
   /* ---------- métricas de cada acción ---------- */
+  function reBeta() { Object.keys(M).forEach(calc); SX = {}; drawAll(); } // cambia contra qué índice se mide la beta
   function calc(t) {
     var o = { amt20: null }, r = RAW[t]; if (!r || r.length < 2) return;
     var last20 = r.slice(-20).filter(function (x) { return x[5] > 0; }); o.amt20 = last20.length ? mean(last20.map(function (x) { return x[4] * x[5]; })) : null; o.v20 = last20.length ? mean(last20.map(function (x) { return x[5]; })) : null; o.vl = r[r.length - 1][5];
@@ -11233,7 +11243,7 @@ window.RATG = (function () {
       var mm = 0, w = 0; px.slice(-252).forEach(function (p) { mm = Math.max(mm, p[1]); w = Math.min(w, p[1] / mm - 1); });
       var bs = function (n) { return N >= n ? px[N - n][1] : null; }; // base para medir contra el precio en vivo (la rueda de hoy cuenta como una)
       var a = { bs: { '1s': bs(5), '1m': bs(21), '3m': bs(63), '1a': bs(252), ytd: y0 }, fecha: px[N - 1][0], precio: lp, ret: { '1d': rt(1), '1s': rt(5), '1m': rt(21), '3m': rt(63), '6m': rt(126), '1a': rt(252), ytd: y0 ? lp / y0 - 1 : null }, vol: { '20': vv(20), '60': vv(60), '252': vv(252) }, dd_max: lp / mx - 1, mdd_12m: w };
-      if (IDX) { var I = IDX.m[mon], X = [], Y = []; px.slice(-253).forEach(function (p, k, A) { if (!k) return; var i0 = I[A[k - 1][0]], i1 = I[p[0]]; if (i0 && i1) { X.push(Math.log(i1 / i0)); Y.push(Math.log(p[1] / A[k - 1][1])); } }); var b = reg(X, Y); if (b) { a.beta = b[0]; a.corr = b[1]; } }
+      if (IDX) { var I = IM(mon, t), X = [], Y = []; px.slice(-253).forEach(function (p, k, A) { if (!k) return; var i0 = I[A[k - 1][0]], i1 = I[p[0]]; if (i0 && i1) { X.push(Math.log(i1 / i0)); Y.push(Math.log(p[1] / A[k - 1][1])); } }); var b = reg(X, Y); if (b) { a.beta = b[0]; a.corr = b[1]; } }
       o[mon] = a;
     });
     M[t] = o;
@@ -11292,7 +11302,7 @@ window.RATG = (function () {
       '<div><small>Panel líder, un mes</small><b' + cl(ilr(21)) + '>' + pc(ilr(21)) + '</b><span>en el año ' + pc(yn ? ilr(yn) : null) + ' · un año ' + pc(ilr(252)) + '</span></div>' +
       '<div><small>Monto promedio diario</small><b>' + (amt ? '$ ' + big(amt) : '—') + '</b><span>suma de la tabla, 20 ruedas</span></div>';
     $('accTs').textContent = (ST.pn === 'lider' ? 'Panel líder' : ST.pn === 'general' ? 'Panel general' : 'Todas las acciones') + ' · ' + RW.length + ' acciones · ' + (ST.mon === 'ccl' ? 'en dólares CCL (AL30 / AL30C)' : 'en pesos') + (LOADING === 1 ? ' · calculando con el histórico ajustado (' + DONE + ' de ' + IX.length + ')…' : '');
-    $('accTn').innerHTML = 'Precio y variación de hoy en vivo (data912). Retornos y volatilidad (anualizada, de los retornos logarítmicos diarios) al último cierre, con precios ajustados por splits. Beta y correlación: 252 ruedas contra el panel líder ponderado por capitalización. Monto: precio × volumen, promedio de 20 ruedas. P/E, P/VL y capitalización con el precio de ahora y el último balance de la CNV (TTM). RVOL: volumen de hoy contra el promedio de 20 ruedas, ajustado por la parte de la rueda que ya pasó. El precio parpadea en verde o rojo cuando cambia. Tocá una fila para verla en el gráfico.';
+    $('accTn').innerHTML = 'Precio y variación de hoy en vivo (data912). Retornos y volatilidad (anualizada, de los retornos logarítmicos diarios) al último cierre, con precios ajustados por splits. Beta y correlación: 252 ruedas contra el panel líder ponderado por capitalización' + (ST.bx === 'con' ? '' : ', sin la propia acción') + '. Monto: precio × volumen, promedio de 20 ruedas. P/E, P/VL y capitalización con el precio de ahora y el último balance de la CNV (TTM). RVOL: volumen de hoy contra el promedio de 20 ruedas, ajustado por la parte de la rueda que ya pasó. El precio parpadea en verde o rojo cuando cambia. Tocá una fila para verla en el gráfico.';
   }
   $('accTab').onclick = function (e) {
     var th = e.target.closest('th[data-s]');
@@ -11351,7 +11361,7 @@ window.RATG = (function () {
     var b = rows(t, mon); if (wk) b = weekly(b); if (b.length < 2) { $('accFn').textContent = 'Sin datos para ' + t + '.'; return; }
     var N = b.length, D = CUR = b.map(function (x) { return x[0]; }), C = b.map(function (x) { return x[4]; }), V = b.map(function (x) { return x[5] || 0; });
     var tx = css('--tx') || '#e5e7eb', mu = css('--mu') || '#a1a1aa', bd = css('--bd') || '#27272a', UP = '#34d399', DN = '#ff6b8b';
-    var I = IDX ? ffill(D, IDX.m[mon]) : D.map(function () { return null; });
+    var I = IDX ? ffill(D, IDX.m[mon]) : D.map(function () { return null; }), IB = IDX ? ffill(D, IM(mon, t)) : I; // IB: el índice para la beta
     var mobile = innerWidth < 700, pks = ST.pa.filter(function (k) { return k !== 'vol' && IT[k] && !integ(k); }), mainH = mobile ? 360 : 540, subH = mobile ? 110 : 130;
     $('accG').style.height = (mainH + pks.length * (subH + 1)) + 'px';
     if (TV) { TV.remove(); TV = null; }
@@ -11386,7 +11396,7 @@ window.RATG = (function () {
     fin.forEach(function (k) { var it = IT[k], fs = fser(k), s8 = TV.addSeries(LC.LineSeries, { color: it[2], lineWidth: 2, priceScaleId: 'left', priceFormat: fmtP(1, 'x'), priceLineVisible: false, crosshairMarkerVisible: false }, 0); s8.setData(put(fs.a)); LG[0].push({ n: it[1].replace(/ \(.*\)/, '') + (fs.ks.length ? '' : ' (sin balances)'), a: fs.a, c: it[2], f: function (v) { return nf(v, 1) + 'x'; } }); });
     if (fin.length) { TV.applyOptions({ leftPriceScale: { visible: true, borderVisible: false } }); TV.priceScale('left', 0).applyOptions({ scaleMargins: { top: 0.1, bottom: ST.pa.indexOf('vol') >= 0 ? 0.2 : 0.06 } }); }
     // paneles
-    var lr = C.map(function (c, i) { return i ? Math.log(c / C[i - 1]) : null; }), ir = I.map(function (v, i) { return i && v && I[i - 1] ? Math.log(v / I[i - 1]) : null; });
+    var lr = C.map(function (c, i) { return i ? Math.log(c / C[i - 1]) : null; }), ir = IB.map(function (v, i) { return i && v && IB[i - 1] ? Math.log(v / IB[i - 1]) : null; });
     pks.forEach(function (k, pi) {
       var p = pi + 1, it = IT[k], L = [], hl = function (price, color) { return { price: price, color: color || mu, lineWidth: 1, lineStyle: 2, axisLabelVisible: false }; };
       if (k === 'roc1') { var r1 = C.map(function (c, i) { return i ? (c / C[i - 1] - 1) * 100 : null; }), sdv = sd(r1.filter(function (x) { return x != null; }).slice(-ann)); var h = TV.addSeries(LC.HistogramSeries, { priceFormat: fmtP(2, '%'), priceLineVisible: false, lastValueVisible: false }, p);
@@ -11434,11 +11444,11 @@ window.RATG = (function () {
     // siempre con las ruedas diarias: con velas semanales el rango, la volatilidad y la beta tienen que dar lo mismo
     var qb = wk ? rows(t, mon) : b, qN = qb.length, qD = qb.map(function (x) { return x[0]; }), qC = qb.map(function (x) { return x[4]; }), qI = wk ? (IDX ? ffill(qD, IDX.m[mon]) : qD.map(function () { return null; })) : I, qk = 0;
     if (from) while (qk < qN - 1 && qD[qk] < from) qk++;
-    var qlr = qC.map(function (c, i) { return i ? Math.log(c / qC[i - 1]) : null; }), qir = qI.map(function (v, i) { return i && v && qI[i - 1] ? Math.log(v / qI[i - 1]) : null; });
+    var qlr = qC.map(function (c, i) { return i ? Math.log(c / qC[i - 1]) : null; }), qIB = wk ? (IDX ? ffill(qD, IM(mon, t)) : qI) : IB, qir = qIB.map(function (v, i) { return i && v && qIB[i - 1] ? Math.log(v / qIB[i - 1]) : null; });
     var a = (mt(t)[mon] || {}), cr = qC.slice(qk), lrr = qlr.slice(qk + 1).filter(function (x) { return x != null; }), vr = sd(lrr), rr2 = cr[cr.length - 1] / cr[0] - 1, R = (RT.t[t] || {}).ultimo || {};
     var X2 = [], Y2 = []; for (var z1 = qk + 1; z1 < qN; z1++) if (qlr[z1] != null && qir[z1] != null) { X2.push(qir[z1]); Y2.push(qlr[z1]); } var br = reg(X2, Y2), ri = qI[qk] && qI[qN - 1] ? qI[qN - 1] / qI[qk] - 1 : null;
     var td0 = today(), uC = rows(t, 'ccl').filter(function (x) { return x[0] < td0; }), b60 = function (ref) { var X = [], Y = []; uC.slice(-61).forEach(function (x, k, A2) { if (!k) return; var i0 = ref[A2[k - 1][0]], i1 = ref[x[0]]; if (i0 && i1) { X.push(Math.log(i1 / i0)); Y.push(Math.log(x[4] / A2[k - 1][4])); } }); return X.length >= 40 ? reg(X, Y) : null; };
-    var bm = IDX ? b60(IDX.m.ccl) : null, bg = b60(G30), c20 = qC.slice(-21), l20 = qlr.slice(-20).filter(function (x) { return x != null; }), sh = l20.length > 10 && sd(l20) ? (c20[c20.length - 1] / c20[0] - 1) / (sd(l20) * Math.sqrt(20)) : null, m52 = Math.max.apply(null, qC.slice(-252));
+    var bm = IDX ? b60(IM('ccl', t)) : null, bg = b60(G30), c20 = qC.slice(-21), l20 = qlr.slice(-20).filter(function (x) { return x != null; }), sh = l20.length > 10 && sd(l20) ? (c20[c20.length - 1] / c20[0] - 1) / (sd(l20) * Math.sqrt(20)) : null, m52 = Math.max.apply(null, qC.slice(-252));
     var kp2 = '<div><small>Beta 60 ruedas, en dólares</small><b>' + nf(bm ? bm[0] : null, 2) + '</b><span>contra el panel líder en CCL · contra GD30D ' + nf(bg ? bg[0] : null, 2) + '</span></div>' +
       '<div><small>Retorno / riesgo (20 ruedas)</small><b' + cl(sh) + '>' + nf(sh, 2) + '</b><span>retorno de 20 ruedas / su volatilidad, sin restar tasa libre de riesgo · desde el máximo de 52 semanas ' + pc(qC[qN - 1] / m52 - 1, 1) + '</span></div>';
     $('accFk2').innerHTML = '<div><small>Retorno del rango</small><b' + cl(rr2) + '>' + pc(rr2) + '</b><span>panel líder ' + pc(ri) + ' · máx ' + nf(Math.max.apply(null, cr), dec) + '</span></div>' +
