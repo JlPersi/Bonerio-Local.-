@@ -10981,7 +10981,7 @@ window.RATG = (function () {
   var cl = function (v) { return v == null || !isFinite(v) || v === 0 ? '' : v > 0 ? ' class="up"' : ' class="dn"'; };
   var fr = function (s) { return s ? s.split('-').reverse().join('/') : '—'; };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
-  var big = function (v) { if (v == null || !isFinite(v)) return '—'; var a = Math.abs(v); return a >= 1e12 ? nf(v / 1e12, 2) + ' B' : a >= 1e9 ? nf(v / 1e9, 1) + ' MM' : a >= 1e6 ? nf(v / 1e6, 1) + ' M' : a >= 1e3 ? nf(v / 1e3, 0) + ' mil' : nf(v, 0); };
+  var big = function (v) { if (v == null || !isFinite(v)) return '—'; var a = Math.abs(v); return a >= 1e9 ? nf(v / 1e9, a >= 1e11 ? 0 : 1) + ' MM' : a >= 1e6 ? nf(v / 1e6, 1) + ' M' : a >= 1e3 ? nf(v / 1e3, 0) + ' mil' : nf(v, 0); };
   var isAct = function () { return root.classList.contains('active'); };
   var $ = function (id) { return document.getElementById(id); };
   var TDc = null, TDt = 0, today = function () { var n = Date.now(); if (TDc && n - TDt < 30000) return TDc; TDt = n; try { TDc = new Date(n).toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }); } catch (e) { TDc = new Date(n).toISOString().slice(0, 10); } return TDc; }; // toLocaleDateString con zona horaria es lento: se calcula cada 30 s
@@ -10994,7 +10994,7 @@ window.RATG = (function () {
   function reg(X, Y) { var n = X.length; if (n < 30) return null; var mx = mean(X), my = mean(Y), cv = 0, vx = 0, vy = 0; for (var i = 0; i < n; i++) { cv += (X[i] - mx) * (Y[i] - my); vx += (X[i] - mx) * (X[i] - mx); vy += (Y[i] - my) * (Y[i] - my); } return vx && vy ? [cv / vx, cv / Math.sqrt(vx * vy)] : null; }
 
   /* sectores (clasificación propia, por actividad principal) */
-  var SEC = [['ban', 'Bancos y servicios financieros', '#5cc8ff', 'BBAR BMA GGAL SUPV VALO BHIP BPAT BYMA'],
+  var SEC = [['ban', 'Bancos y servicios financieros', '#5cc8ff', 'BBAR BMA GGAL SUPV VALO BHIP BPAT'],
     ['pet', 'Petróleo y gas', '#ffc542', 'YPFD PAMP CAPX'],
     ['gas', 'Transporte y distribución de gas', '#2dd4bf', 'TGSU2 TGNO4 METR ECOG DGCU2 GBAN CGPA2'],
     ['gen', 'Generación eléctrica', '#a3e635', 'CEPU CECO2'],
@@ -11005,7 +11005,8 @@ window.RATG = (function () {
     ['inm', 'Inmobiliario, construcción y autopistas', '#f0abfc', 'IRSA CTIO GCDI POLL AUSO OEST'],
     ['tel', 'Telecomunicaciones y medios', '#f87171', 'TECO2 CVH GCLA'],
     ['con', 'Consumo, salud y juego', '#e879f9', 'GRIM MIRG RICH ROSE BOLT GAMI'],
-    ['otr', 'Holdings y otros', '#94a3b8', 'COME HSAT']];
+    ['otr', 'Holdings y otros', '#94a3b8', 'COME HSAT BYMA']];
+  var SSN = { ban: 'Bancos', pet: 'Petróleo y gas', gas: 'Gas', gen: 'Generación', ele: 'Electricidad', mat: 'Materiales', ind: 'Industria', agr: 'Agro y alimentos', inm: 'Inmobiliario', tel: 'Telecom', con: 'Consumo', otr: 'Holdings y otros' }; // nombres cortos para la tabla
   var SOF = {}, SN = {}, SC = {}; SEC.forEach(function (s) { SN[s[0]] = s[1]; SC[s[0]] = s[2]; s[3].split(' ').forEach(function (t) { SOF[t] = s[0]; }); });
   var secOf = function (t) { return SOF[t] || 'otr'; };
   /* ADRs: [ticker local, ADR, acciones locales por ADR] (si el precio dice otra cosa, se deduce: ver adrs()) */
@@ -11061,7 +11062,7 @@ window.RATG = (function () {
     S + '.up{color:var(--ok)!important}' + S + '.dn{color:var(--bad)!important}' + S + '.cw{position:relative;height:clamp(320px,34vw,460px);margin-top:14px}' + S + '.cw2{position:relative;height:clamp(240px,24vw,320px);margin-top:12px}' +
     S + '.tw{overflow:auto;max-height:640px;margin-top:12px;border:1px solid var(--bd);border-radius:12px}' + S + '.tw table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}' +
     S + '.tw th{position:sticky;top:0;z-index:1;background:var(--card);text-align:right;padding:8px 9px;color:var(--mu);font-weight:600;font-size:11.5px;white-space:nowrap;cursor:pointer;user-select:none;border-bottom:1px solid var(--bd)}' + S + '.tw th.on{color:var(--tx)}' +
-    S + '.tw td{text-align:right;padding:7px 9px;border-bottom:1px solid var(--bd);white-space:nowrap}' + S + '.tw th:first-child,' + S + '.tw td:first-child,' + S + '.tw th.l,' + S + '.tw td.l{text-align:left}' + S + '.tw td:first-child{position:sticky;left:0;background:var(--card);font-weight:700;z-index:0}' +
+    S + '.tw td{text-align:right;padding:7px 9px;border-bottom:1px solid var(--bd);white-space:nowrap}' + '#acc .tw.mr{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 48px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 48px),transparent)}' + S + '.tw th:first-child,' + S + '.tw td:first-child,' + S + '.tw th.l,' + S + '.tw td.l{text-align:left}' + S + '.tw td:first-child{position:sticky;left:0;background:var(--card);font-weight:700;z-index:0}' +
     S + '.tw tbody tr{cursor:pointer}' + S + '.tw tbody tr:hover td{background:var(--bg)}' + S + '.tw tr.sel td{background:rgba(var(--fr),.12)}' + S + '.sd{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}' +
     S + '.why{cursor:help;border-bottom:1px dotted currentColor}' + S + '.qm{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;margin-left:5px;border:1px solid currentColor;border-radius:50%;font-size:9px;font-weight:700;line-height:1;opacity:.6;cursor:help;vertical-align:1px;text-transform:none;letter-spacing:0}' + S + '.qm:hover{opacity:1;color:var(--ac)}' +
     '#accTip{position:fixed;z-index:2147480000;display:none;max-width:300px;padding:10px 12px;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.35);font-size:12.5px;line-height:1.45;font-weight:400;text-transform:none;letter-spacing:0;white-space:normal;text-align:left;pointer-events:none}#accTip span{display:block;margin-top:6px;color:var(--mu)}#accTip b{color:var(--tx)}' +
@@ -11103,7 +11104,7 @@ window.RATG = (function () {
 
     '<div class="card sx" id="accS" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Sectores</p><p class="qs">Retorno de cada sector, ponderado por el monto que opera cada acción, y la relación entre dos sectores en el tiempo. Tocá un sector para filtrar la tabla.</p></div><div class="sxb">' + dlb('accS', 'Bonerio_acciones_sectores') + '</div></div>' +
     '<div class="ctl"><label>Moneda<span class="seg" id="accMon3"><button data-v="ars">Pesos</button><button data-v="ccl">Dólar CCL</button></span></label><label>Retorno<span class="seg" id="accSp"><button data-v="1m">1 mes</button><button data-v="3m">3 meses</button><button data-v="ytd">En el año</button><button data-v="1a">1 año</button></span></label></div>' +
-    '<div class="f2"><div><h5 id="accScT">Retorno por sector (ponderado por monto)</h5><div class="cw2" style="height:380px"><canvas id="accScv"></canvas></div></div><div><h5>Resumen por sector (medianas)</h5><div class="tw" style="max-height:380px;margin-top:0"><table id="accStab"></table></div></div></div>' +
+    '<div class="f2"><div><h5 id="accScT">Retorno por sector (ponderado por monto)</h5><div class="cw2" style="height:380px"><canvas id="accScv"></canvas></div></div><div><h5>Resumen por sector (medianas)</h5><div class="tw" style="max-height:none;margin-top:0"><table id="accStab"></table></div></div></div>' +
     '<div class="ctl" style="margin-top:20px"><label>Sector A<select id="accSa"></select></label><label>Sector B<select id="accSb"></select></label>' +
     '<label>Período<span class="seg" id="accSper">' + RG.slice(1).filter(function (r) { return r[0] !== 'ytd'; }).map(function (r) { return '<button data-v="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</span></label></div>' +
     '<div class="cw2" style="height:clamp(260px,26vw,360px)"><canvas id="accRcv"></canvas></div><p class="note" id="accSn" style="margin-top:8px"></p></div>' +
@@ -11267,10 +11268,10 @@ window.RATG = (function () {
     var r = a.ret || {}, v = a.vol || {}, F = fund(t) || {};
     if (L.c > 0 && a.bs) { var r0 = r; r = {}; ['1s', '1m', '3m', '1a', 'ytd'].forEach(function (k) { r[k] = a.bs[k] > 0 ? px / a.bs[k] - 1 : r0[k]; }); } // con precio en vivo, los retornos llegan hasta ahora (igual que Hoy)
     return { t: t, sec: secOf(t), panel: x.panel, px: px, d1: d1, live: L.c > 0, r1s: r['1s'], r1m: r['1m'], r3m: r['3m'], ytd: r.ytd, r1a: r['1a'], v20: v['20'], v252: v['252'], beta: a.beta, corr: a.corr, dd: a.dd_max,
-      amt: m.amt20, vh: L.v, rvol: m.v20 ? (L.v > 0 ? L.v / (m.v20 * sessFrac()) : (m.vl || 0) / m.v20) : null, cap: F.cap || null, pe: F.pe != null ? F.pe : null, pvl: F.pvl != null ? F.pvl : null, ev: F.ev != null ? F.ev : null, roe: R.roe, roa: R.roa, hasB: !!R.cierre_balance };
+      amt: m.amt20, vh: L.v > 0 && L.c > 0 ? L.v * L.c : null, rvol: m.v20 ? (L.v > 0 ? L.v / (m.v20 * sessFrac()) : (m.vl || 0) / m.v20) : null, cap: F.cap || null, pe: F.pe != null ? F.pe : null, pvl: F.pvl != null ? F.pvl : null, ev: F.ev != null ? F.ev : null, roe: R.roe, roa: R.roa, hasB: !!R.cierre_balance };
   }
   var COLS = [['t', 'Acción'], ['sec', 'Sector', 'l'], ['px', 'Precio'], ['d1', 'Hoy'], ['r1s', '1 sem.'], ['r1m', '1 mes'], ['r3m', '3 meses'], ['ytd', 'En el año'], ['r1a', '1 año'],
-    ['v20', 'Vol. 20r'], ['v252', 'Vol. 1 año'], ['beta', 'Beta'], ['corr', 'Correl.'], ['dd', 'Desde máx.'], ['amt', 'Monto prom. 20r'], ['vh', 'Volumen hoy'], ['rvol', 'RVOL'], ['cap', 'Capitalización'], ['pe', 'P/E'], ['pvl', 'P/VL'], ['ev', 'EV/EBITDA'], ['roe', 'ROE'], ['roa', 'ROA']];
+    ['v20', 'Vol. 20r'], ['v252', 'Vol. 1 año'], ['beta', 'Beta'], ['corr', 'Correl.'], ['dd', 'Desde máx.'], ['amt', 'Monto prom. 20r'], ['vh', 'Monto hoy'], ['rvol', 'RVOL'], ['cap', 'Capitalización'], ['pe', 'P/E'], ['pvl', 'P/VL'], ['ev', 'EV/EBITDA'], ['roe', 'ROE'], ['roa', 'ROA']];
   var dash = function (why) { return '<span class="why" data-tip="' + why + '">—</span>'; }; // dato que falta, con el motivo al pasar el mouse
   var heat = function (v, s, why) { if (v == null || !isFinite(v)) return why ? dash(why) : '—'; var a = Math.min(1, Math.abs(v) / s) * 0.32; return '<span class="hm" style="background:' + (v >= 0 ? 'rgba(52,211,153,' : 'rgba(255,107,139,') + a.toFixed(3) + ')">' + pc(v) + '</span>'; };
   var nrm = function (s) { return String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); };
@@ -11287,11 +11288,11 @@ window.RATG = (function () {
     $('accTab').innerHTML = '<thead><tr>' + COLS.map(function (c) { return '<th data-s="' + c[0] + '" class="' + (c[2] || '') + (c[0] === k ? ' on' : '') + '">' + c[1] + (c[0] === k ? (dir > 0 ? ' ▲' : ' ▼') : '') + '</th>'; }).join('') + '</tr></thead><tbody>' +
       RW.map(function (r) {
         var pk = ST.mon + r.t, p0 = PVP[pk], fl = r.live && p0 != null && r.px != null && r.px !== p0 ? (r.px > p0 ? ' class="fu"' : ' class="fd"') : ''; if (r.live && r.px != null) PVP[pk] = r.px; // solo entre dos precios en vivo
-        return '<tr data-t="' + r.t + '"' + (r.t === ST.sel ? ' class="sel"' : '') + '><td>' + logo(r.t, 18) + ' ' + r.t + '</td><td class="l"><i class="sd" style="background:' + SC[r.sec] + '"></i><span class="snm">' + SN[r.sec] + '</span></td><td' + fl + '>' + u + nf(r.px, ST.mon === 'ccl' ? 3 : r.px < 100 ? 2 : 0) + '</td>' +
+        return '<tr data-t="' + r.t + '"' + (r.t === ST.sel ? ' class="sel"' : '') + '><td>' + logo(r.t, 18) + ' ' + r.t + '</td><td class="l"><i class="sd" style="background:' + SC[r.sec] + '"></i><span class="snm" title="' + SN[r.sec] + '">' + (SSN[r.sec] || SN[r.sec]) + '</span></td><td' + fl + '>' + u + nf(r.px, ST.mon === 'ccl' ? 3 : r.px < 100 ? 2 : 0) + '</td>' +
           '<td' + cl(r.d1) + '>' + pc(r.d1, 2) + '</td><td>' + heat(r.r1s, .1) + '</td><td>' + heat(r.r1m, .2) + '</td><td>' + heat(r.r3m, .35) + '</td><td>' + heat(r.ytd, .6) + '</td><td>' + heat(r.r1a, .8) + '</td>' +
           '<td>' + pa(r.v20) + '</td><td>' + pa(r.v252) + '</td><td>' + nf(r.beta, 2) + '</td><td>' + nf(r.corr, 2) + '</td><td' + cl(r.dd) + '>' + pc(r.dd, 0) + '</td>' +
-          '<td>' + (r.amt ? '$ ' + big(r.amt) : '—') + '</td><td>' + big(r.vh) + '</td><td' + (r.rvol >= 2 ? ' class="up"' : '') + '>' + (r.rvol != null ? nf(r.rvol, 1) + 'x' : '—') + '</td><td>' + (r.cap ? '$ ' + big(r.cap) : dash('Sin balances en la CNV.')) + '</td><td>' + (r.pe > 0 ? nf(r.pe, 1) : r.pe != null ? NS : dash(nb(r))) + '</td><td>' + (r.pvl != null ? nf(r.pvl, 2) : dash(nb(r))) + '</td><td>' + (r.ev > 0 ? nf(r.ev, 1) : r.ev != null ? NSE : dash(r.sec === 'ban' ? 'Bancos: sin EV/EBITDA, la deuda es su materia prima.' : r.hasB ? 'Sin EBITDA de 12 meses en los balances de la CNV.' : nb(r))) + '</td><td>' + (r.roe != null ? pa(r.roe, 1) : dash(r.pe != null ? 'Patrimonio neto negativo.' : nb(r))) + '</td><td>' + (r.roa != null ? pa(r.roa, 1) : dash(nb(r))) + '</td></tr>';
-      }).join('') + '</tbody>';
+          '<td>' + (r.amt ? '$ ' + big(r.amt) : '—') + '</td><td>' + (r.vh ? '$ ' + big(r.vh) : '—') + '</td><td' + (r.rvol >= 2 ? ' class="up"' : '') + '>' + (r.rvol != null ? nf(r.rvol, 1) + 'x' : '—') + '</td><td>' + (r.cap ? '$ ' + big(r.cap) : dash('Sin balances en la CNV.')) + '</td><td>' + (r.pe > 0 ? nf(r.pe, 1) : r.pe != null ? NS : dash(nb(r))) + '</td><td>' + (r.pvl != null ? nf(r.pvl, 2) : dash(nb(r))) + '</td><td>' + (r.ev > 0 ? nf(r.ev, 1) : r.ev != null ? NSE : dash(r.sec === 'ban' ? 'Bancos: sin EV/EBITDA, la deuda es su materia prima.' : r.hasB ? 'Sin EBITDA de 12 meses en los balances de la CNV.' : nb(r))) + '</td><td>' + (r.roe != null ? pa(r.roe, 1) : dash(r.pe != null ? 'Patrimonio neto negativo.' : nb(r))) + '</td><td>' + (r.roa != null ? pa(r.roa, 1) : dash(nb(r))) + '</td></tr>';
+      }).join('') + '</tbody>'; if (edge) edge();
     var lv = RW.filter(function (r) { return r.live && r.d1 != null; }), avg = lv.length ? mean(lv.map(function (r) { return r.d1; })) : null;
     var up = lv.filter(function (r) { return r.d1 > 0; }).length, dn = lv.filter(function (r) { return r.d1 < 0; }).length, best = lv.slice().sort(function (a, b) { return b.d1 - a.d1; });
     var il = IDX ? IDX[ST.mon] : null, ilr = function (n) { return il && il.length > n ? il[il.length - 1][1] / il[il.length - 1 - n][1] - 1 : null; }, yn = il ? il.filter(function (x) { return x[0] >= il[il.length - 1][0].slice(0, 4); }).length : null;
@@ -11304,6 +11305,8 @@ window.RATG = (function () {
     $('accTs').textContent = (ST.pn === 'lider' ? 'Panel líder' : ST.pn === 'general' ? 'Panel general' : 'Todas las acciones') + ' · ' + RW.length + ' acciones · ' + (ST.mon === 'ccl' ? 'en dólares CCL (AL30 / AL30C)' : 'en pesos') + (LOADING === 1 ? ' · calculando con el histórico ajustado (' + DONE + ' de ' + IX.length + ')…' : '');
     $('accTn').innerHTML = 'Precio y variación de hoy en vivo (data912). Retornos y volatilidad (anualizada, de los retornos logarítmicos diarios) al último cierre, con precios ajustados por splits. Beta y correlación: 252 ruedas contra el panel líder ponderado por capitalización' + (ST.bx === 'con' ? '' : ', sin la propia acción') + '. Monto: precio × volumen, promedio de 20 ruedas. P/E, P/VL y capitalización con el precio de ahora y el último balance de la CNV (TTM). RVOL: volumen de hoy contra el promedio de 20 ruedas, ajustado por la parte de la rueda que ya pasó. El precio parpadea en verde o rojo cuando cambia. Tocá una fila para verla en el gráfico.';
   }
+  var edge = function () { var w = $('accTab').parentNode; w.classList.toggle('mr', w.scrollLeft + w.clientWidth < w.scrollWidth - 4); }; // se esfuma el borde derecho mientras haya columnas por ver
+  $('accTab').parentNode.addEventListener('scroll', edge, { passive: true }); window.addEventListener('resize', edge);
   $('accTab').onclick = function (e) {
     var th = e.target.closest('th[data-s]');
     if (th) { var k = th.getAttribute('data-s'); if (ST.sort === k) ST.dir = -ST.dir; else { ST.sort = k; ST.dir = k === 't' || k === 'sec' || k === 'pe' || k === 'pvl' || k === 'ev' ? 1 : -1; } save(); table(); return; }
@@ -11575,7 +11578,7 @@ window.RATG = (function () {
       $('accFo').innerHTML = '<thead><tr><th class="l">Instrumento</th><th>Vence</th><th>Rinde</th><th>Duración</th></tr></thead><tbody>' +
         '<tr><td class="l"><b>' + t + '</b> earnings yield (12 meses)</td><td>—</td><td' + cl(ey) + '>' + pa(ey, 1) + '</td><td>—</td></tr>' +
         (g30 != null ? '<tr><td class="l">GD30 (soberano)</td><td>09/07/2030</td><td>' + pa(g30, 2) + '</td><td>—</td></tr>' : '') +
-        (L2.length ? L2.map(function (r) { return '<tr><td class="l">ON ' + r.k + '</td><td>' + fr(r.mat) + '</td><td>' + pa(r.tir, 2) + '</td><td>' + (r.md ? nf(r.md, 1) + ' años' : '—') + '</td></tr>'; }).join('') : '<tr><td class="l" colspan="4">' + (iss ? 'Sin ONs en dólares con precio de ' + iss + '.' : 'La empresa no tiene ONs cargadas.') + '</td></tr>') + '</tbody>';
+        (L2.length ? L2.map(function (r) { return '<tr><td class="l">ON ' + r.k + ' <span style="color:var(--mu);font-weight:400">' + iss + '</span></td><td>' + fr(r.mat) + '</td><td>' + pa(r.tir, 2) + '</td><td>' + (r.md ? nf(r.md, 1) + ' años' : '—') + '</td></tr>'; }).join('') : '<tr><td class="l" colspan="4">' + (iss ? 'Sin ONs en dólares con precio de ' + iss + '.' : 'La empresa no tiene ONs cargadas.') + '</td></tr>') + '</tbody>';
     };
     onRows([]);
     if (iss && window.ONSQ) {
@@ -11816,16 +11819,20 @@ window.RATG = (function () {
     ADRS.forEach(function (x) {
       var L = LV[x[0]] || {}, A = LA[x[1]] || {}, m = mt(x[0]).ars || {}, loc = L.c > 0 ? L.c : m.precio, k = x[2];
       if (cc && loc > 0 && A.c > 0) { var kk = A.c * cc / loc; if (Math.abs(Math.log(kk / k)) > 0.5 && kk >= 0.5) k = Math.round(kk); }
-      ADRK[x[0]] = k; var imp = loc > 0 && A.c > 0 ? loc * k / A.c : null;
-      rs.push({ t: x[0], a: x[1], k: k, k0: k !== x[2], pa: A.c, va: A.pct, pl: loc, vl: L.pct, imp: imp });
+      ADRK[x[0]] = k; var imp = loc > 0 && A.c > 0 ? loc * k / A.c : null, wh = []; // avisos: precios que pueden estar desfasados
+      var lvOn = Object.keys(LV).length > 0; if (imp && lvOn && !(L.c > 0)) wh.push('la acción local no operó hoy: se usa el último cierre'); else if (L.q != null && L.q < 20) wh.push('la acción local tiene pocas operaciones hoy (' + L.q + ')');
+      if (L.b > 0 && L.a > 0 && (L.a - L.b) / ((L.a + L.b) / 2) > 0.02) wh.push('las puntas locales están separadas más de 2%');
+      if (imp && A.c > 0 && A.v === 0) wh.push('el ADR no operó hoy');
+      rs.push({ t: x[0], a: x[1], k: k, k0: k !== x[2], pa: A.c, va: A.pct, pl: loc, vl: L.pct, imp: imp, wh: wh });
     });
     var ok = rs.filter(function (r) { return r.imp; }), mi = med(ok.map(function (r) { return r.imp; }));
+    var wn = function (r) { var w = r.wh.slice(); if (r.imp && mi && Math.abs(r.imp / mi - 1) > 0.05) w.unshift('se aleja más de 5% de la mediana: puede ser un precio desfasado, un dividendo cortado en un solo mercado o un ratio distinto. Verificalo antes de tomarlo como arbitraje'); return w.length ? ' <span class="why" style="border:0;color:#ffc542" data-tip="' + w.join('; ').replace(/^./, function (c) { return c.toUpperCase(); }) + '.">⚠</span>' : ''; };
     $('accAk').innerHTML = '<div><small>CCL de los ADRs (mediana)</small><b>' + (mi ? '$ ' + nf(mi, 2) : '—') + '</b><span>' + ok.length + ' de ' + rs.length + ' ADRs con precio</span></div>' +
       '<div><small>CCL de AL30 (último cierre)</small><b>' + (cc ? '$ ' + nf(cc, 2) : '—') + '</b><span>' + (mi && cc ? 'ADRs contra AL30: ' + sg((mi / cc - 1) * 100, 2) + '%' : '') + '</span></div>' +
       '<div><small>ADRs, mediana del día</small><b' + cl(med(ok.map(function (r) { return r.va; }))) + '>' + (ok.length ? sg(med(ok.map(function (r) { return r.va; })), 2) + '%' : '—') + '</b><span>en dólares</span></div>';
     $('accAtab').innerHTML = '<thead><tr><th>Local</th><th class="l">ADR</th><th>Ratio</th><th>ADR (US$)</th><th>Var. ADR</th><th>Local ($)</th><th>Var. local</th><th>CCL implícito</th><th>vs. mediana</th>' + (cc ? '<th>vs. AL30</th>' : '') + '</tr></thead><tbody>' +
-      rs.map(function (r) { return '<tr data-t="' + r.t + '"><td>' + r.t + '</td><td class="l">' + r.a + '</td><td' + (r.k0 ? ' title="Ratio deducido del precio: no coincide con el registrado"' : '') + '>' + r.k + ':1' + (r.k0 ? '*' : '') + '</td><td>' + nf(r.pa, 2) + '</td><td' + cl(r.va) + '>' + (r.va != null ? sg(r.va, 2) + '%' : '—') + '</td><td>' + nf(r.pl, 2) + '</td><td' + cl(r.vl) + '>' + (r.vl != null ? sg(r.vl, 2) + '%' : '—') + '</td><td>' + (r.imp ? nf(r.imp, 2) : '—') + '</td><td' + cl(r.imp && mi ? r.imp / mi - 1 : null) + '>' + (r.imp && mi ? sg((r.imp / mi - 1) * 100, 2) + '%' : '—') + '</td>' + (cc ? '<td>' + (r.imp ? sg((r.imp / cc - 1) * 100, 2) + '%' : '—') + '</td>' : '') + '</tr>'; }).join('') + '</tbody>';
-    $('accAn').textContent = 'CCL implícito = precio local × acciones por ADR / precio del ADR. Si una acción tiene el CCL más alto que la mediana, está más cara en Buenos Aires que en Nueva York; si lo tiene más bajo, más barata. Precios en vivo de data912 (usa_adrs y arg_stocks); fuera de horario, el último precio. * ratio deducido del precio.';
+      rs.map(function (r) { return '<tr data-t="' + r.t + '"><td>' + r.t + '</td><td class="l">' + r.a + '</td><td' + (r.k0 ? ' title="Ratio deducido del precio: no coincide con el registrado"' : '') + '>' + r.k + ':1' + (r.k0 ? '*' : '') + '</td><td>' + nf(r.pa, 2) + '</td><td' + cl(r.va) + '>' + (r.va != null ? sg(r.va, 2) + '%' : '—') + '</td><td>' + nf(r.pl, 2) + '</td><td' + cl(r.vl) + '>' + (r.vl != null ? sg(r.vl, 2) + '%' : '—') + '</td><td>' + (r.imp ? nf(r.imp, 2) : '—') + '</td><td' + cl(r.imp && mi ? r.imp / mi - 1 : null) + '>' + (r.imp && mi ? sg((r.imp / mi - 1) * 100, 2) + '%' : '—') + wn(r) + '</td>' + (cc ? '<td>' + (r.imp ? sg((r.imp / cc - 1) * 100, 2) + '%' : '—') + '</td>' : '') + '</tr>'; }).join('') + '</tbody>';
+    $('accAn').textContent = 'CCL implícito = precio local × acciones por ADR / precio del ADR. Si una acción tiene el CCL más alto que la mediana, está más cara en Buenos Aires que en Nueva York; si lo tiene más bajo, más barata. Precios en vivo de data912 (usa_adrs y arg_stocks); fuera de horario, el último precio. * ratio deducido del precio. ⚠ precio que puede estar desfasado (poca liquidez, sin operar hoy o lejos de la mediana): pasá el mouse para ver por qué.';
   }
   $('accAtab').onclick = function (e) { var tr = e.target.closest('tr[data-t]'); if (tr) pick(tr.getAttribute('data-t'), 1); };
 
@@ -11876,7 +11883,7 @@ window.RATG = (function () {
       for (var i = Math.max(1, k0); i < N; i++) { X.push(Math.log(P[i][3] / P[i - 1][3])); Y.push(Math.log(P[i][2] / P[i - 1][2])); } var co = reg(X, Y), zl = z[N - 1];
       $('accPk2').innerHTML = '<div><small>Ratio ' + A + ' / ' + Bt + '</small><b>' + nf(last, dec) + '</b><span>en el período ' + pc(last / Rr[k0] - 1) + '</span></div>' +
         '<div><small>Contra la media de ' + w + '</small><b' + cl(zl == null ? null : -zl) + '>z ' + sg(zl, 2) + '</b><span>media ' + nf(mu[N - 1], dec) + ' · bandas ±2σ</span></div>' +
-        '<div><small>Percentil en el período</small><b>' + nf(pct * 100, 0) + '%</b><span>mín ' + nf(Math.min.apply(null, rg), dec) + ' · máx ' + nf(Math.max.apply(null, rg), dec) + '</span></div>' +
+        '<div><small>Percentil en el período (' + String(ST.pr).toUpperCase() + ')</small><b>' + nf(pct * 100, 0) + '%</b><span>en las últimas ' + w + ' ruedas: ' + nf(Rr.slice(-w).filter(function (v) { return v <= last; }).length / Math.min(w, N) * 100, 0) + '% · mín ' + nf(Math.min.apply(null, rg), dec) + ' · máx ' + nf(Math.max.apply(null, rg), dec) + '</span></div>' +
         '<div><small>Correlación diaria</small><b>' + nf(co ? co[1] : null, 2) + '</b><span>beta de ' + A + ' contra ' + Bt + ': ' + nf(co ? co[0] : null, 2) + '</span></div>' +
         '<div><small>Lectura</small><b style="font-size:15px;white-space:normal">' + (zl == null ? '—' : zl > 2 ? A + ' cara contra ' + Bt : zl < -2 ? A + ' barata contra ' + Bt : zl > 1 ? A + ' algo cara' : zl < -1 ? A + ' algo barata' : 'en su media') + '</b><span>' + (fk ? 'en precio ' + sg(zl, 1) + 'σ; en ' + VXN[fk] + ' relativo ' + sg(zfl, 1) + 'σ (línea violeta)' : 'sin balances de las dos para comparar múltiplos') + '</span></div>';
       $('accPn2').innerHTML = 'Ratio = precio de ' + A + ' / precio de ' + Bt + ', en pesos y ajustado por splits. Media y desvío en logaritmos sobre las últimas ' + w + ' ruedas; z-score = cuántos desvíos está el ratio de su media (abajo de −2: ' + A + ' históricamente barata contra ' + Bt + '; arriba de +2: cara). Ctrl + rueda para el zoom y doble clic para volver.';
