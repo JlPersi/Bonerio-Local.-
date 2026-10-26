@@ -477,6 +477,10 @@ body.sn-mini { --snw: 70px }
 #sideNav .sn-it:hover { background: var(--bd); color: var(--tx) }
 #sideNav .sn-it.on { background: var(--ac); color: var(--acx) }
 #sideNav .sn-sep { height: 1px; background: var(--bd); margin: 8px 6px }
+#sideNav .sn-hd { margin: 14px 12px 4px; font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--mu); white-space: nowrap }
+#sideNav nav > .sn-hd:first-child { margin-top: 4px }
+body.sn-mini #sideNav .sn-hd { height: 1px; margin: 8px 6px; overflow: hidden; color: transparent; background: var(--bd) }
+@media (max-width: 900px) { body.sn-mini #sideNav .sn-hd { height: auto; margin: 14px 12px 4px; color: var(--mu); background: none } }
 #sideNav .sn-car { margin-left: auto; width: 16px !important; height: 16px !important; opacity: .7; transition: transform .2s }
 #sideNav .sn-g.open > .sn-it .sn-car { transform: rotate(90deg) }
 #sideNav .sn-sub { display: none; margin: 0 0 6px 21px; padding-left: 8px; border-left: 1px solid var(--bd) }
@@ -8315,16 +8319,16 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   IC.exp = P('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'); IC.expi = IC.exp; IC.expd = IC.dol; IC.expf = IC.curva;
   DESC.expi = 'La inflación que descuentan los bonos CER contra la tasa fija, bono por bono y en el tiempo, contra el REM.'; DESC.expd = 'La devaluación que descuentan los dólar linked contra la tasa fija, bono por bono y en el tiempo, contra el REM.'; DESC.expf = 'La tasa de cada tramo entre vencimientos de cada familia y las forwards entre pares en el tiempo.'; DESC.thist = 'La tasa de cada bono día por día y su precio relativo contra la curva.';
   var CAR = P('<path d="m9 6 6 6-6 6"/>').replace('<svg ', '<svg class="sn-car" '), has = function (id) { return id === 'home' || TB.some(function (t) { return t[0] === id; }); };
-  var GR = [['home', 'Inicio'], ['dash', 'Dashboard'], ['port', 'Portfolio'], ['fav', 'Favoritos'], ['cal', 'Calendario de cobros'], { g: 'usd', t: 'Bonos en dólares', ic: 'hd', it: [['curva', 'Globales y Bonares'], ['tabla', 'Tabla de retornos'], ['desglose', 'Flujos y total return', 'usd']] },
+  var GR = [{ h: 'Mi cuenta' }, ['home', 'Inicio'], ['dash', 'Dashboard'], ['port', 'Portfolio'], ['fav', 'Favoritos'], ['cal', 'Calendario de cobros'], { h: 'Renta fija' }, { g: 'usd', t: 'Bonos en dólares', ic: 'hd', it: [['curva', 'Globales y Bonares'], ['tabla', 'Tabla de retornos'], ['desglose', 'Flujos y total return', 'usd']] },
     { g: 'ars', t: 'Bonos en pesos', ic: 'pesos', it: [['pesos', 'Curva Pesos'], ['desglose', 'Flujos y total return', 'ars'], ['lic', 'Licitaciones']] },
     { g: 'ons', t: 'Obligaciones negociables', ic: 'ons', it: [['ons', 'Curva y tabla'], ['ons', 'Por calificación', 'onsRt'], ['onsf', 'Flujos y total return']] },
     { g: 'pvs', t: 'Bonos provinciales', ic: 'pvs', it: [['pvs', 'Curva y tabla'], ['pvs', 'Por calificación', 'pvsRt'], ['pvsf', 'Flujos y total return']] },
-    ['acc', 'Acciones'], { g: 'mkt', t: 'Mercado del día', ic: 'vard', it: [['vard', 'Variación diaria'], ['vol', 'Volumen'], ['rot', 'Rotación']] }, ['dol', 'Dólar'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['brc', 'Brecha y canje'],
-    { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards']] },
-    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, ['cons', 'Consultame']];
+    { h: 'Acciones' }, ['acc', 'Acciones'], { h: 'Dólar y tasas' }, ['dol', 'Dólar'], ['brc', 'Brecha y canje'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'],
+    { h: 'Mercado' }, { g: 'mkt', t: 'Mercado del día', ic: 'vard', it: [['vard', 'Variación diaria'], ['vol', 'Volumen'], ['rot', 'Rotación']] }, { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards']] },
+    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { sep: 1 }, ['cons', 'Consultame']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
   sn.innerHTML = '<div class="sn-h"><img src="/favicon.svg?v=2" alt=""><b>BONERÍO LOCAL</b></div><nav>' +
-    GR.map(function (g, i) { return (i === 4 ? '<div class="sn-sep"></div>' : '') + (Array.isArray(g) ? item(g) : '<div class="sn-g" data-gr="' + g.g + '"><button class="sn-it" data-g="' + g.g + '" title="' + g.t + '">' + IC[g.ic] + '<span>' + g.t + '</span>' + CAR + '</button><div class="sn-sub">' + g.it.map(function (t) { return item(t, 1); }).join('') + '</div></div>'); }).join('') +
+    GR.map(function (g, i) { return g.h ? '<div class="sn-hd">' + g.h + '</div>' : g.sep ? '<div class="sn-sep"></div>' : (Array.isArray(g) ? item(g) : '<div class="sn-g" data-gr="' + g.g + '"><button class="sn-it" data-g="' + g.g + '" title="' + g.t + '">' + IC[g.ic] + '<span>' + g.t + '</span>' + CAR + '</button><div class="sn-sub">' + g.it.map(function (t) { return item(t, 1); }).join('') + '</div></div>'); }).join('') +
     '</nav><div class="sn-f"><button class="sn-it sn-col" data-col title="Achicar o agrandar el menú">' + IC.col + '<span>Achicar menú</span></button></div>';
   document.body.appendChild(sn);
   var sh = document.createElement('div'); sh.id = 'snShade'; document.body.appendChild(sh);
