@@ -280,8 +280,8 @@ def main():
             u = lambda v: round(v * esc / fx / 1e6, 1) if v is not None else None  # millones de dólares
             s = p.get("situacion", {}); pn = s.get("patrimonio_neto_controlante", s.get("patrimonio_neto"))
             trim.append([p["cierre"], u(q("ventas")), u(ebit + da if ebit is not None and da is not None else None), u(ni), u(pn),
-                         u(s.get("deuda_financiera")), u(s.get("caja_inversiones"))])
-        res["trim_cols"] = ["cierre", "ventas", "ebitda", "ni", "pn", "deuda", "caja"]
+                         u(s.get("deuda_financiera")), u(s.get("caja_inversiones")), u(s.get("activo_total"))])
+        res["trim_cols"] = ["cierre", "ventas", "ebitda", "ni", "pn", "deuda", "caja", "activo"]
         res["trim"] = trim[-16:]
         out["t"][t] = res
     json.dump(out, open(os.path.join(DIR, "ratios.json"), "w"), separators=(",", ":"))
