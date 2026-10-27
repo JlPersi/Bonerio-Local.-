@@ -167,30 +167,61 @@ def curvas(en_vivo=False):
 
 
 def grafico(rows, titulo, xlab, color, lab_hoy, lab_ayer, ley=None):
+    """PNG de la curva: los puntos de hoy (llenos) y los de ayer (huecos, en gris) unidos por un trazo fino que muestra cuánto se movió cada
+    bono, y una curva ajustada (logarítmica) por grupo: la de hoy en color, la de ayer punteada. Sin unir los puntos entre sí."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=(8, 3.8), dpi=110)
-    grupos = [rows] if not ley else [[r for r in rows if r[0].startswith(p)] for p in ley]
-    cols = [color] if not ley else ["#2563eb", "#16a34a"]
-    for g, c, nm in zip(grupos, cols, ley or [""]):
+    import numpy as np
+    from matplotlib.ticker import FuncFormatter
+    INK, MUTED, GRID, GRAY = "#18181b", "#71717a", "#ececec", "#a1a1aa"
+    plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 10})
+    fig, ax = plt.subplots(figsize=(6.4, 3.5), dpi=250)
+    grupos = [("", rows, color)] if not ley else [(p, [r for r in rows if r[0].startswith(p)], c) for p, c in zip(ley, ["#2563eb", "#d97706"])]
+    xs = [r[1] for r in rows]
+    span = (max(xs) - min(xs)) or 1
+    for nm, g, c in grupos:
         if not g:
             continue
-        x = [r[1] for r in g]
-        ax.plot(x, [r[3] * 100 for r in g], "--o", color="#a1a1aa", ms=3.5, lw=1.2, label=lab_ayer if c == cols[0] else None)
-        ax.plot(x, [r[2] * 100 for r in g], "-o", color=c, ms=5, lw=2, label=lab_hoy + (" · ley " + ("NY" if nm == "GD" else "local") if nm else ""))
-        for r in g:
-            ax.annotate(r[0], (r[1], r[2] * 100), textcoords="offset points", xytext=(0, 7), ha="center", fontsize=7.5, color="#3f3f46")
-    ax.set_xlabel(xlab, fontsize=9, color="#52525b")
-    ax.set_ylabel("%", fontsize=9, color="#52525b")
-    ax.grid(alpha=0.25)
-    for s in ("top", "right"):
-        ax.spines[s].set_visible(False)
-    ax.tick_params(labelsize=8, colors="#52525b")
-    ax.legend(fontsize=8, frameon=False, loc="best")
-    fig.tight_layout()
+        x = np.array([r[1] for r in g], float)
+        yh, ya = np.array([r[2] * 100 for r in g]), np.array([r[3] * 100 for r in g])
+        for xi, a, b in zip(x, ya, yh):
+            ax.plot([xi, xi], [a, b], color=c, lw=1.2, alpha=.45, zorder=2, solid_capstyle="round")
+        if len(g) >= 3 and (x > 0).all():  # curva ajustada: y = a + b ln(x)
+            xx = np.linspace(x.min(), x.max(), 120)
+            for y, st, cc, lw in ((ya, (0, (3, 3)), GRAY, 1.3), (yh, "-", c, 2)):
+                b_, a_ = np.polyfit(np.log(x), y, 1)
+                ax.plot(xx, a_ + b_ * np.log(xx), linestyle=st, color=cc, lw=lw, zorder=1, alpha=.9)
+        ax.scatter(x, ya, s=26, facecolor="white", edgecolor=GRAY, linewidth=1.2, zorder=3)
+        ax.scatter(x, yh, s=36, color=c, edgecolor="white", linewidth=1, zorder=4,
+                   label=(("Globales" if nm == "GD" else "Bonares") + " (" + lab_hoy.split(" (")[0].lower() + ")") if nm else lab_hoy)
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:.0f}%" if abs(v - round(v)) < 1e-9 else f"{v:.1f}%".replace(".", ",")))
+    ax.grid(axis="y", color=GRID, lw=1)
+    ax.set_axisbelow(True)
+    for sp in ("top", "right", "left"):
+        ax.spines[sp].set_visible(False)
+    ax.spines["bottom"].set_color("#d4d4d8")
+    ax.tick_params(axis="both", labelsize=8.5, colors=MUTED, length=0, pad=6)
+    from matplotlib.transforms import Bbox
+    ax.scatter([], [], s=26, facecolor="white", edgecolor=GRAY, linewidth=1.2, label=lab_ayer)
+    ax.set_xlabel(xlab, fontsize=9, color=MUTED, labelpad=6)
+    ax.margins(x=.06, y=.18)
+    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3, frameon=False, fontsize=8.5, handletextpad=.4, columnspacing=1.4, borderaxespad=.2)
+    fig.tight_layout()  # antes de ubicar las etiquetas: después ya no se mueve nada
+    fig.canvas.draw()
+    # etiquetas: arriba del punto de hoy; si choca, abajo, a la derecha o a la izquierda; si no entra en ningún lado, va sin etiqueta (está en la tabla)
+    rend, k = fig.canvas.get_renderer(), fig.dpi / 72 * 3.5  # los puntos también ocupan lugar
+    puestas = [Bbox.from_extents(px - k, py - k, px + k, py + k) for px, py in ax.transData.transform([(r[1], r[2] * 100) for r in rows])]
+    for r in sorted(rows, key=lambda r: r[2]):
+        for off, ha in (((0, 8), "center"), ((0, -15), "center"), ((7, -4), "left"), ((-7, -4), "right")):
+            t = ax.annotate(r[0], (r[1], r[2] * 100), textcoords="offset points", xytext=off, ha=ha, fontsize=8, color=INK, zorder=5)
+            bb = t.get_window_extent(rend).expanded(1.08, 1.15)
+            if not any(bb.overlaps(q) for q in puestas):
+                puestas.append(bb)
+                break
+            t.remove()
     buf = io.BytesIO()
-    fig.savefig(buf, format="png")
+    fig.savefig(buf, format="png", facecolor="white")
     plt.close(fig)
     return buf.getvalue()
 

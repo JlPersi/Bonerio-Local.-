@@ -138,12 +138,17 @@ def armar(en_vivo=False):
         if len(rows) < 2:
             return ""
         IMG[key] = RC.grafico(rows, titulo, xlab, color, lab_h, lab_a, ley)
-        bp = lambda r: (r[2] - r[3]) * 1e4
+        bp = lambda r: round((r[2] - r[3]) * 1e4) + 0  # + 0: sin «-0»
         med = sorted(bp(r) for r in rows)[len(rows) // 2]
-        cel = [f'<td style="padding:4px 6px;font-size:12px;text-align:center;border-top:1px solid #e4e4e7"><b>{r[0]}</b><br>{n(r[2] * 100, 2)}%<br><span style="color:{"#b91c1c" if bp(r) > 0 else "#15803d" if bp(r) < 0 else "#52525b"}">{"+" if bp(r) > 0 else ""}{n(bp(r), 0)} pb</span></td>' for r in rows]
+        td = 'style="padding:7px 8px;font-size:13px;border-top:1px solid #f0f0f0'
+        cel = [f'<td {td};font-weight:600">{r[0]}</td><td {td};text-align:right">{n(r[2] * 100, 2)}%</td><td {td};text-align:right;color:{"#b91c1c" if bp(r) > 0 else "#15803d" if bp(r) < 0 else "#71717a"}">{"+" if bp(r) > 0 else ""}{n(bp(r), 0)} pb</td>' for r in rows]
+        half = (len(cel) + 1) // 2
+        hd = '<th style="padding:6px 8px;font-size:11px;font-weight:600;color:#71717a;text-align:{}">{}</th>'
+        hdr = "".join(hd.format(a, t) for a, t in (("left", "Bono"), ("right", "TIR"), ("right", "Cambio")))
         return (f'<h3 style="font-size:15px;margin:24px 0 2px">{titulo}</h3><p style="margin:0 0 6px;font-size:13px;color:#71717a">Mediana del cambio: <b>{"+" if med > 0 else ""}{n(med, 0)} pb</b> (en rojo sube la tasa, el precio baja)</p>'
-                f'<img src="cid:{key}" alt="{titulo}" width="560" style="width:100%;max-width:560px;border:1px solid #e4e4e7;border-radius:8px">'
-                '<table style="border-collapse:collapse;margin-top:6px;width:100%">' + "".join("<tr>" + "".join(cel[i:i + 8]) + "</tr>" for i in range(0, len(cel), 8)) + "</table>")
+                f'<img src="cid:{key}" alt="{titulo}" width="552" style="display:block;width:100%;max-width:552px;height:auto;margin:6px 0 4px">'
+                '<table style="border-collapse:collapse;margin-top:4px;width:100%"><tr>' + hdr + '<th style="width:18px"></th>' + hdr + "</tr>"
+                + "".join("<tr>" + cel[i] + '<td></td>' + (cel[i + half] if i + half < len(cel) else '<td colspan="3"></td>') + "</tr>" for i in range(half)) + "</table>")
     curvas_html = (curva("fija", "Tasa fija: TEA de Lecaps y Boncaps", "días al vencimiento", "#d97706", maxx=800)
                    + curva("cer", "CER: TIR real", "días al vencimiento", "#0d9488", maxx=2000)
                    + curva("usd", "Hard dollar: TIR en dólares", "duration (años)", "#2563eb", ley=["GD", "A"]))
