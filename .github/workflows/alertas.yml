@@ -1,0 +1,17 @@
+name: Alertas ahora
+# Revisa las alertas de los usuarios una vez, a mano (la rueda las revisa sola cada 3 minutos dentro de tasas.yml).
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  alertas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q pywebpush
+      - env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+        run: python3 scripts/alertas.py
