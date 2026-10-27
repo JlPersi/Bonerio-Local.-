@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Intradiario de los bonos y letras (data912, el mismo precio en vivo de la página): data/intra_bonos.json.
-{fecha: {especie: [[minuto del día (hora Argentina), último operado], ...]}}: un punto por especie cada vez que cambia el último
-operado, con la foto que saca la corrida de la rueda de tasas.yml (cada pocos minutos, de 10:30 a 17:05). Quedan las dos últimas ruedas,
+{fecha: {especie: [[minuto del día (hora Argentina), último operado, volumen nominal acumulado del día], ...]}}: un punto por especie
+cada vez que cambia el último operado o el volumen (el volumen sirve para comparar el monto de hoy con el de la rueda anterior a la misma hora), con la foto que saca la corrida de la rueda de tasas.yml (cada pocos minutos, de 10:30 a 17:05). Quedan las dos últimas ruedas,
 así fuera del horario la ficha de cada bono muestra la anterior.
 La corrida acumula en un archivo fuera del repo (ACUM, para que los git pull de cada foto no lo pisen) y lo copia a data/ al commitear:
   save_intra_bonos.py          foto: agrega los precios de ahora a ACUM (si ACUM no existe, arranca de lo que ya está en data/)
@@ -44,9 +44,9 @@ def precios():
     for u in URLS:
         req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"})
         for r in json.load(urllib.request.urlopen(req, timeout=30)) or []:
-            s, c = (r or {}).get("symbol"), (r or {}).get("c")
+            s, c, v = (r or {}).get("symbol"), (r or {}).get("c"), (r or {}).get("v")
             if s and isinstance(c, (int, float)) and c > 0:
-                out[s] = round(float(c), 4)
+                out[s] = (round(float(c), 4), round(float(v)) if isinstance(v, (int, float)) and v > 0 else 0)
     return out
 
 
@@ -64,14 +64,14 @@ def foto():
         return
     d = o.setdefault(hoy, {})
     nuevos = 0
-    for s, c in px.items():
+    for s, (c, v) in px.items():
         a = d.setdefault(s, [])
-        if a and a[-1][1] == c:
+        if a and a[-1][1] == c and (len(a[-1]) < 3 or a[-1][2] == v):
             continue
         if a and a[-1][0] == m:
-            a[-1][1] = c
+            a[-1][1:] = [c, v]
         else:
-            a.append([m, c])
+            a.append([m, c, v])
         nuevos += 1
     for k in sorted(o)[:-RUEDAS]:
         del o[k]

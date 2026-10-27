@@ -4176,6 +4176,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     return (VCACHE[ds] = out);
   }
   function volLive() { var q = window.PXQ || {}, out = {}; for (var t in q) if (q[t] && q[t].v > 0 && q[t].c > 0) out[t] = { e: q[t].v * q[t].c / 100, c: q[t].c }; return out; } // lo operado hoy hasta ahora (data912)
+  function volAt(ds, M) { // monto y precio de cada especie en la rueda ds hasta el minuto M, del intradiario que guarda la corrida (data/intra_bonos.json: [minuto, precio, volumen nominal acumulado])
+    var ib = window.BNIB ? window.BNIB(later) : null, D = ib && ib[ds], out = {}, f = 1e4; if (!D) return null;
+    for (var t in D) { var a = D[t], c = 0, v = 0, i; for (i = 0; i < a.length; i++) { if (a[i].length > 2 && a[i][0] < f) f = a[i][0]; if (a[i][0] <= M) { c = a[i][1]; if (a[i].length > 2) v = a[i][2]; } } if (c > 0) out[t] = { e: v * c / 100, c: c }; }
+    return f <= 640 ? out : null; // solo si el volumen se guardó desde el arranque de esa rueda
+  }
   function montoOf(k, V) { // en pesos, sumando las especies del bono; las de dólares al MEP o CCL de AL30 (o GD30) de esa rueda
     var fx = function (s) { var a = V.AL30, b = V['AL30' + s]; if (!(a && b && a.c > 0 && b.c > 0)) { a = V.GD30; b = V['GD30' + s]; } return a && b && a.c > 0 && b.c > 0 ? a.c / b.c : null; };
     var m = 0; [['', 1], ['D', fx('D')], ['C', fx('C')]].forEach(function (p) { var o = V[k + p[0]]; if (o && o.e > 0 && p[1]) m += o.e * p[1]; }); return m;
@@ -4210,6 +4215,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var A = rows.map(function (r) { return montoOf(r.k, V1); }), Bv = rows.map(function (r) { return montoOf(r.k, V0); }), sa = A.reduce(function (s, x) { return s + x; }, 0), sb = Bv.reduce(function (s, x) { return s + x; }, 0);
     var hm = null, el0 = null; if (live) { var g = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()).forEach(function (q) { g[q.type] = q.value; }); hm = (+g.hour % 24) + ':' + g.minute; el0 = Math.max(0, Math.min(390, (+g.hour % 24) * 60 + (+g.minute) - 630)); } // rueda de 10:30 a 17
     var open = live && typeof mktOpen === 'function' && mktOpen(), dur = function (m) { return Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) + ' min' : ''); };
+    if (open) { var VW = volAt(d0, 630 + el0); if (VW) { var Bw = rows.map(function (r) { return montoOf(r.k, VW); }), sw = Bw.reduce(function (s, x) { return s + x; }, 0), Mw = function (v) { return '$ ' + fm(v / 1e6, 0) + ' M'; }; // misma ventana: hoy hasta ahora contra la rueda anterior hasta la misma hora
+      el.innerHTML = 'Hoy, hasta las ' + hm + ', contra la rueda del ' + dfull(t0) + ' hasta la misma hora: <b>' + Mw(sa) + '</b> contra ' + Mw(sw) + (sw > 0 ? ' (<b style="color:' + (sa >= sw ? 'var(--ok)' : 'var(--bad)') + '">' + sg((sa / sw - 1) * 100, 0) + '%</b>)' : '') + ', en los bonos del gráfico. Monto en pesos; las especies en dólares, al MEP o al CCL de AL30.';
+      return volChart(rows, A, Bw, 'Hoy hasta las ' + hm, 'Rueda del ' + dstr(t0) + ' hasta las ' + hm, function (i) { return Bw[i] > 0 ? sg((A[i] / Bw[i] - 1) * 100, 0) + '% contra la rueda anterior a la misma hora' : ''; }); } }
     var lab1 = live ? (open ? 'Hoy hasta las ' + hm : 'Hoy') : 'Rueda del ' + dstr(t1), lab0 = 'Rueda del ' + dstr(t0), M = function (v) { return '$ ' + fm(v / 1e6, 0) + ' M'; };
     el.innerHTML = (live ? (open ? 'Hoy, hasta las ' + hm + ' (van ' + dur(el0) + ' de las 6 h 30 min de rueda), contra toda la rueda del ' : 'Hoy, con la rueda cerrada, contra la del ') : 'Rueda del ' + dfull(t1) + ' contra la del ') + dfull(t0) + ': ' +
       '<b>' + M(sa) + '</b> contra ' + M(sb) + (sb > 0 ? ' (<b style="color:' + (sa >= sb ? 'var(--ok)' : 'var(--bad)') + '">' + (open ? fm(sa / sb * 100, 0) + '% de lo de la rueda del ' + dstr(t0) : sg((sa / sb - 1) * 100, 0) + '%') + '</b>)' : '') + ', en los bonos del gráfico. Monto en pesos; las especies en dólares, al MEP o al CCL de AL30.';
