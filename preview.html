@@ -7564,10 +7564,24 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     });
     return out;
   }
+  function xRows() { // ONs y provinciales (en dólares y en pesos) con los flujos y la TIR de su ficha; van a la familia de su moneda y su ajuste, así toman los escenarios de esa curva
+    var out = [], mep = mepNow(), G = { usd: 'usd', fija: 'fija', ars: 'fija', cer: 'cer', dl: 'dl', tamar: 'tamar', badlar: 'tamar' };
+    [[window.ONSQ, 'ON'], [window.PVSQ, 'Provincial']].forEach(function (z) {
+      var Q = z[0]; if (!Q || !Q.bono) return;
+      Q.bono(function () { if (window.renderPortfolio) window.renderPortfolio(); }).forEach(function (r) {
+        var g = G[r.ty]; if (!g || r.tir == null || r.odd) return; var usd = g === 'usd';
+        var tipo = r.xo ? 'Badlar · Bono de Consolidación' : z[1] + ' ' + (r.tipo || '').replace(/^hard dollar/, 'en dólares');
+        out.push({ k: r.k, grp: g, fams: [g], tipo: tipo, P: r.P, pccy: usd ? 'USD' : 'ARS', pars: usd ? (mep ? r.P * mep : null) : r.P, mat: r.mat, d: r.d, tir: r.tir, tna: r.tna, tem: r.tem, md: r.md,
+          krFl: r.krFl || r.fl, krP: r.krP || r.P, krY: r.krY != null ? r.krY : r.tir, fl: r.fl, xr: 1, fccy: usd ? 'USD' : 'ARS', feat: [tipo, usd ? 'Paga en dólares' : 'Paga en pesos'], tl: r.tl || 'TIR' });
+      });
+    });
+    return out;
+  }
   function universe() {
     var s = day($('d0').value), rows = [];
     try { rows = rows.concat(usdRows(s)); } catch (e) { console.error('port usd', e); }
     try { var sn = X.snap(1); SCN = sn.sc; rows = rows.concat(psRows(sn)); } catch (e) { console.error('port pesos', e); }
+    try { rows = rows.concat(xRows()); } catch (e) { console.error('port extra', e); }
     rows.forEach(function (r) { var a = krd(r.krFl, s, r.krP, r.krY); r.kr = a.kr; r.conv = a.conv; r.s = s; if (r.flt) effDur(r); });
     return rows;
   }
@@ -10014,7 +10028,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var U = [], UT = 0, MAP = {}, CU = []; // CU: ONs y provinciales (en MAP para la ficha, fuera de U)
   function uni(force) {
     if (force || !U.length || Date.now() - UT > 60000) {
-      try { U = window.PFQ.universe() || []; } catch (e) { console.error('bono', e); }
+      try { U = (window.PFQ.universe() || []).filter(function (r) { return !r.xr; }); } catch (e) { console.error('bono', e); }
       UT = Date.now(); MAP = {}; U.forEach(function (r) { MAP[r.k] = r; lastClose(r); });
       CU = []; [window.ONSQ, window.PVSQ].forEach(function (Q) { if (!Q || !Q.bono) return; try { Q.bono(function () { UT = 0; if (root.classList.contains('active') && K && (!MAP[K] || MAP[K].corp)) render(); }).forEach(function (r) { if (!MAP[r.k]) { MAP[r.k] = r; CU.push(r); } }); } catch (e) { console.error('bono corp', e); } });
     }
@@ -10113,6 +10127,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       o.rows = r.cfl.slice(); o.res = r.res; o.acc = r.ai != null ? r.ai : null; o.vt = r.vt != null ? r.vt : null; o.accL = 'Intereses corridos'; o.iss = r.iss;
       if (r.cpn != null) { o.cpn = r.cpn; o.cpnL = /tamar|badlar/.test(r.ty) ? 'Margen sobre ' + r.ty.toUpperCase() : 'Cupón (anual)'; }
       if (!r.usdOn && /tamar|badlar/.test(r.ty)) o.note = 'Los cupones futuros se estiman con la última ' + r.ty.toUpperCase() + ' publicada más el margen.';
+      if (r.k === 'PR17') o.note = 'El residual pasa de 100 porque el bono capitalizó la Badlar trimestralmente hasta el 02/02/2026: los 100 VN originales llegaron a 821,60 y desde mayo de 2026 amortiza ese capital ajustado (7%, 9% y 12% por cuota). ' + o.note;
       o.par = o.vt > 0 ? r.P / o.vt : null; return o;
     }
     if (r.bop) { // BOPREAL: renta y amortización salen de los flujos (las cuotas son de a 50 o 100 VN)
@@ -10525,7 +10540,11 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       (up.length ? up.map(function (f) {
         return '<tr data-cal-go="' + f.k + '"><td>' + dmy(f.t) + ' <small>' + DOW[(f.t + 3) % 7] + '</small></td><td><b>' + f.k + '</b></td><td>' + esc(FAM[f.r.grp] ? FAM[f.r.grp][0] : f.r.grp) + '</td><td>' + (f.ty === 'vto' ? '<b class="calTy calVto">Vencimiento</b>' : f.ty === 'am' ? '<b class="calTy calAm">Cupón y amortización</b>' : 'Cupón') + '</td><td>' + fm(f.renta, 4) + '</td><td>' + fm(f.amort, 4) + '</td><td>' + cur(f) + fm(f.total, 4) + '</td>' + (pf ? '<td>' + fm(f.vn, 0) + '</td><td><b>' + cur(f) + fm(amt(f), 2) + '</b></td>' : '') + '</tr>';
       }).join('') : '<tr><td colspan="9">Sin cobros en los próximos 90 días.</td></tr>') + '</tbody></table></div></div>';
-    cRoot.innerHTML = head + chips + grid + tb;
+    var pt = ''; if (pf) { var byK = {}; F.forEach(function (f) { if (f.t < td) return; var o = byK[f.k] = byK[f.k] || { f: f, n: 0, y: 0, all: 0 }; o.n++; o.all += amt(f); if (f.t < td + 365) o.y += amt(f); }); // por título: lo que cobrás de cada bono del portfolio
+      var PK = Object.keys(byK).sort(function (x, y) { return byK[x].f.t - byK[y].f.t; });
+      pt = '<div data-norf class="card calC"><div class="fvH"><div class="fvT"><i style="--fc:var(--tx)"></i><b>Por título</b><span>' + PK.length + '</span></div></div><div class="fvW"><table class="fvTb calTb"><thead><tr><th>Ticker</th><th>Familia</th><th>VN</th><th>Próximo cobro</th><th>Monto</th><th>Próximos 12 meses</th><th>Pagos que faltan</th><th>Total hasta el vencimiento</th></tr></thead><tbody>' +
+        (PK.length ? PK.map(function (k) { var o = byK[k], f = o.f, c = cur(f); return '<tr data-cal-go="' + k + '"><td><b>' + k + '</b></td><td>' + esc(FAM[f.r.grp] ? FAM[f.r.grp][0] : f.r.grp) + '</td><td>' + fm(f.vn, 0) + '</td><td>' + dmy(f.t) + '</td><td>' + c + fm(amt(f), 2) + '</td><td>' + c + fm(o.y, 2) + '</td><td>' + o.n + '</td><td>' + c + fm(o.all, 2) + '</td></tr>'; }).join('') : '<tr><td colspan="8">Tus bonos no tienen cobros pendientes.</td></tr>') + '</tbody></table></div></div>'; }
+    cRoot.innerHTML = head + chips + pt + grid + tb;
   }
   if (cRoot) cRoot.addEventListener('click', function (e) {
     var b = e.target.closest('[data-cal-src],[data-cal-fam],[data-cal-mv],[data-cal-go],[data-cal-day]'); if (!b) return;
