@@ -3881,6 +3881,15 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     Object.keys(dd).map(Number).sort(function (a, b) { return a - b; }).forEach(function (t) { rows.push([{ v: bxDayStr(t) }].concat(ks.map(function (k) { return m[t][k] == null ? { v: '' } : { v: m[t][k], z: '0.00' }; }))); });
     return rows;
   };
+  function idxOf(k, t) { // los índices que ajustan el pago de t, con los supuestos de la tarjeta de su familia: CER (10 hábiles antes), A3500 (3 hábiles antes) y TAMAR promedio; fijo = ya publicado
+    var ins = INST[k]; if (!ins) return []; var kd = ins.k, out = [];
+    var cer = function () { var T = bdBack(t, 10); out.push({ nm: 'CER', d: T, v: cerAt(T, scenFor(2)), fijo: T <= lastOf(IDX.CER) }); };
+    var dl = function () { var T = bdBack(t, 3); out.push({ nm: 'A3500', d: T, v: fxAt(T, scenFor(4)), fijo: T <= lastOf(IDX.FX) }); };
+    var tam = function () { var sc = scenFor(3), a = 0, n = 0, t0 = bdBack(ins.iss, 10), t1 = bdBack(t, 10); for (var d = t0; d <= t1; d++) { if (!bxIsBiz(d) || BANKH[d]) continue; var r = tamAt(d, sc); if (isFinite(r)) { a += r; n++; } } if (n) out.push({ nm: 'TAMAR prom.', d: t1, v: a / n * 100, pct: 1, fijo: t1 <= lastOf(IDX.TAMAR) }); };
+    if (kd === 'cer0' || kd === 'cerc') cer(); else if (kd === 'dl') dl(); else if (kd === 'tamar' || kd === 'dualtf') tam();
+    else if (kd === 'dual') { if (rowOf(ins, 'CER')) cer(); if (rowOf(ins, 'DOLLAR_LINKED')) dl(); if (rowOf(ins, 'TAMAR')) tam(); }
+    return out;
+  }
   function bondCF(k) { // flujo de un bono en pesos con cupones o amortizaciones, por 100 VN originales: renta y amortización de cada pago (CER proyectado con los supuestos de la tarjeta CER)
     var ins = INST[k]; if (!ins || ins.r.length < 2 || (ins.k !== 'cerc' && ins.k !== 'cpn')) return null;
     var s = day($('d0').value), cer = ins.k === 'cerc', sc = cer ? scenFor(2) : scen(), fl = flowsOf(ins, s, sc); if (!fl || !fl.length) return null;
@@ -3889,7 +3898,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     fut.forEach(function (r, i) { var f = fl[i] ? fl[i][1] / r[1] : 1; am += r[2]; rows.push({ t: r[0], renta: r[4] * f, amort: (r[1] - r[4]) * f, total: r[1] * f, res: Math.max(0, 100 - am) }); }); // r = [fecha, pago, amortización (% del VN), tasa, renta, …]
     return { s: s, P: P, rows: rows, fl: fl, tea: P > 0 ? tirOf(fl, s, P) : null, cer: cer, pi: cer ? parseFloat(cardV(2, 'psPi')) : null, mat: ins.r[ins.r.length - 1][0], name: cer ? 'CER con cupones' : 'Tasa fija con cupones' };
   }
-  window.PSX = { cerD: function (t) { var o = IDX.CER; return o && t >= o.s && t <= lastOf(o) ? o.v[t - o.s] : null; }, cerOrig: cerOrig, bondCF: bondCF, pvAt: bxPvPS, cfList: function () { var s = day($('d0').value); return Object.keys(INST).filter(function (k) { var ins = INST[k]; return ins.r.length > 1 && (ins.k === 'cerc' || ins.k === 'cpn') && ins.r[ins.r.length - 1][0] > s && PRICE[k] > 0; }).sort(function (a, b) { return INST[a].r[INST[a].r.length - 1][0] - INST[b].r[INST[b].r.length - 1][0]; }); }, snap: function (n) { var s0 = day($('d0').value), sc0 = n === 1 ? scen() : scenFor(n); return { s: s0, sc: sc0, S: snapshot(s0, sc0) }; }, INST: INST, ptsOf: ptsOf, yieldAt: yieldAt, durAt: durAt, yieldLab: yieldLab, famOf: famOf, FAM: FAM, paidFlows: paidFlows, LABELS: LABELS, fairFit: fairFit, css: css, fm: fm, sg: sg, rgba: rgba, bdBack: bdBack, mdOf: mdOf, flowsOf: flowsOf, mkSc: mkSc, fxAt: fxAt, ZERO: function () { return ZERO; }, views: function () { if (!window.PSV || !window.PSV.c1) window.renderPesos(); return window.PSV; }, hasPts: function (k) { return !!HIST[k]; } };
+  window.PSX = { cerD: function (t) { var o = IDX.CER; return o && t >= o.s && t <= lastOf(o) ? o.v[t - o.s] : null; }, cerOrig: cerOrig, bondCF: bondCF, pvAt: bxPvPS, cfList: function () { var s = day($('d0').value); return Object.keys(INST).filter(function (k) { var ins = INST[k]; return ins.r.length > 1 && (ins.k === 'cerc' || ins.k === 'cpn') && ins.r[ins.r.length - 1][0] > s && PRICE[k] > 0; }).sort(function (a, b) { return INST[a].r[INST[a].r.length - 1][0] - INST[b].r[INST[b].r.length - 1][0]; }); }, snap: function (n) { var s0 = day($('d0').value), sc0 = n === 1 ? scen() : scenFor(n); return { s: s0, sc: sc0, S: snapshot(s0, sc0) }; }, INST: INST, ptsOf: ptsOf, yieldAt: yieldAt, durAt: durAt, yieldLab: yieldLab, famOf: famOf, FAM: FAM, paidFlows: paidFlows, LABELS: LABELS, fairFit: fairFit, css: css, fm: fm, sg: sg, rgba: rgba, bdBack: bdBack, mdOf: mdOf, flowsOf: flowsOf, mkSc: mkSc, fxAt: fxAt, ZERO: function () { return ZERO; }, idxOf: idxOf, ixProj: function (nm, t) { var T = nm === 'CER' ? bdBack(t, 10) : bdBack(t, 3), o = nm === 'CER' ? IDX.CER : IDX.FX; return { nm: nm, d: T, v: nm === 'CER' ? cerAt(T, scenFor(2)) : fxAt(T, scenFor(4)), fijo: T <= lastOf(o) }; }, views: function () { if (!window.PSV || !window.PSV.c1) window.renderPesos(); return window.PSV; }, hasPts: function (k) { return !!HIST[k]; } };
   window.addEventListener('load', function () {
     window.psLive = live; live(); setInterval(live, 30000); window.loadClosesARS();
     setInterval(function () { if (root.classList.contains('active')) window.renderPesos(); }, 60000);
@@ -7229,10 +7238,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
 /*@@MACRO_END@@*/
 /*@@ALERT_START@@*/
 /* =====================================================================
-   PESTAÑA ALERTAS: el usuario arma alertas (precio, variación, MEP, CCL, canje, brecha, ratio, riesgo país) y elige cómo le llegan:
+   PESTAÑA ALERTAS: el usuario arma alertas de casi cualquier dato (precio, variación, volumen, TIR, TNA, paridad, duration, spread,
+   MEP, CCL, canje, brecha, oficial, futuros y su tasa implícita, caución, ratio, riesgo país) y elige cómo le llegan:
    notificación (web push, también en el celular con la página instalada) o mail. Se guardan en Supabase (tabla alertas, cada uno ve
    solo las suyas) y las revisa scripts/alertas.py en la rueda, cada 3 minutos. Acá también: el reporte diario por mail (tabla reporte)
-   y la guía para instalar la página en el celular.
+   y la guía para instalar la página en el celular. TIR, futuros y caución salen de data/alertas_vivo.json, la foto que deja el mismo
+   script (scripts/metricas.py), así el «Ahora» es lo que revisa el servidor. Abajo del formulario, la tarjeta del activo (el panel Ticker).
    ===================================================================== */
 ;(function () {
   var root = document.getElementById('alert'); if (!root) return;
@@ -7241,36 +7252,62 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
   var isAct = function () { return root.classList.contains('active'); };
-  var M = { // métrica: [nombre, usa ticker, usa ticker2, decimales, unidad]
-    precio: ['Precio de una especie', 1, 0, 2, ''], var: ['Variación del día de una especie', 1, 0, 2, '%'], mep: ['Dólar MEP (AL30)', 0, 0, 2, ''], ccl: ['Dólar CCL (AL30)', 0, 0, 2, ''],
-    canje: ['Canje (CCL contra MEP)', 0, 0, 2, '%'], brecha: ['Brecha MEP contra oficial', 0, 0, 2, '%'], ratio: ['Ratio entre dos especies', 1, 1, 4, ''], riesgo: ['Riesgo país', 0, 0, 0, ' pb']
+  var M = { // métrica: [nombre, ticker (0 no, 1 sí, 2 opcional), usa ticker2, decimales, unidad, grupo, etiqueta y ejemplo del ticker]
+    precio: ['Precio', 1, 0, 2, '', 'Especie'], var: ['Variación del día', 1, 0, 2, '%', 'Especie'], volumen: ['Volumen del día (nominales)', 1, 0, 0, '', 'Especie'],
+    tir: ['TIR', 1, 0, 2, '%', 'Bonos', ['Bono', 'AL30']], tna: ['TNA (Lecaps y Boncaps)', 1, 0, 2, '%', 'Bonos', ['Letra', 'S13N6']], paridad: ['Paridad (bonos en dólares)', 1, 0, 2, '%', 'Bonos', ['Bono', 'GD30']],
+    dur: ['Duration', 1, 0, 2, ' años', 'Bonos', ['Bono', 'GD35']], spread: ['Spread de TIR entre dos bonos', 1, 1, 0, ' pb', 'Bonos', ['Bono', 'GD30']],
+    mep: ['Dólar MEP', 2, 0, 2, '', 'Dólar', ['Bono (opcional)', 'AL30']], ccl: ['Dólar CCL', 2, 0, 2, '', 'Dólar', ['Bono (opcional)', 'AL30']], oficial: ['Dólar oficial (A3500)', 0, 0, 2, '', 'Dólar'],
+    canje: ['Canje (CCL contra MEP)', 2, 0, 2, '%', 'Dólar', ['Bono (opcional)', 'AL30']], brecha: ['Brecha MEP contra oficial', 0, 0, 2, '%', 'Dólar'], brechaccl: ['Brecha CCL contra oficial', 0, 0, 2, '%', 'Dólar'],
+    futuro: ['Futuro de dólar', 2, 0, 2, '', 'Futuros y tasas', ['Contrato', 'NOV26 o 1']], implicita: ['Tasa implícita de un futuro (TNA)', 2, 0, 2, '%', 'Futuros y tasas', ['Contrato', 'NOV26 o 1']],
+    caucion: ['Caución en pesos (TNA)', 2, 0, 2, '%', 'Futuros y tasas', ['Plazo (días)', '1']], ratio: ['Ratio entre dos especies', 1, 1, 4, '', 'Especie'], riesgo: ['Riesgo país', 0, 0, 0, ' pb', 'Dólar']
   };
+  var GRP = ['Especie', 'Bonos', 'Dólar', 'Futuros y tasas'];
   var CAN = { ambos: 'Notificación y mail', push: 'Solo notificación', mail: 'Solo mail' };
-  var PX = {}, OFI = null, RP = null, pxT = 0, AL = null, REP = null, NOCANAL = false, busy = false;
+  var PX = {}, OFI = null, RP = null, AV = null, pxT = 0, AL = null, REP = null, NOCANAL = false, busy = false, CARD = null, cardT = 0;
   function auth() { return window.BLAUTH ? window.BLAUTH() : null; }
   function loadPx() {
     if (Date.now() - pxT < 60000) return; pxT = Date.now();
     ['arg_bonds', 'arg_notes', 'arg_corp', 'arg_stocks'].forEach(function (ep) {
-      fetch('https://data912.com/live/' + ep).then(function (r) { return r.json(); }).then(function (rows) { (rows || []).forEach(function (r) { if (r && r.symbol && r.c > 0) PX[r.symbol] = { c: r.c, pct: r.pct_change }; }); list(); draw(); }).catch(function () {});
+      fetch('https://data912.com/live/' + ep).then(function (r) { return r.json(); }).then(function (rows) { (rows || []).forEach(function (r) { if (r && r.symbol && r.c > 0) PX[r.symbol] = { c: r.c, pct: r.pct_change, v: r.v }; }); list(); draw(); now(); }).catch(function () {});
     });
     fetch('data/dolar.json?v=' + Math.floor(Date.now() / 36e5)).then(function (r) { return r.json(); }).then(function (o) { var a = o && o.A3500 || {}, k = Object.keys(a).sort(); OFI = k.length ? a[k[k.length - 1]] : null; draw(); }).catch(function () {});
+    fetch('data/alertas_vivo.json?v=' + Math.floor(Date.now() / 6e4)).then(function (r) { return r.json(); }).then(function (o) { AV = o && o.bon ? o : null; if (AV && AV.ofi) OFI = AV.ofi; list(); draw(); now(); }).catch(function () {});
     fetch('data/riesgo_vivo.json?v=' + Math.floor(Date.now() / 6e4)).then(function (r) { return r.json(); }).then(function (o) { RP = o && +o.v || null; draw(); }).catch(function () {});
   }
+  var bk = function (t) { t = (t || '').trim().toUpperCase(); if (!AV) return null; var B = AV.bon; if (B[t]) return t; if (AV.al && AV.al[t]) return AV.al[t]; if (B[t + 'D']) return t + 'D'; if (/[OC]$/.test(t) && B[t.slice(0, -1) + 'D']) return t.slice(0, -1) + 'D'; return null; };
+  var futK = function (t) { // el contrato: DLR/NOV26, NOV26, o 1 y 2 (el primero y el segundo que no vencieron)
+    if (!AV || !AV.fut) return null; var L = Object.keys(AV.fut).sort(function (a, b) { return AV.fut[a][1] < AV.fut[b][1] ? -1 : 1; }); t = (t || '1').trim().toUpperCase();
+    if (/^\d+$/.test(t)) return L[+t - 1] || null; t = /^DLR\//.test(t) ? t : 'DLR/' + t; return AV.fut[t] ? t : null;
+  };
   function val(a) { // el valor de hoy de una alerta, con la misma cuenta que scripts/alertas.py
-    var c = function (s) { var q = PX[(s || '').toUpperCase()]; return q ? q.c : null; }, al = c('AL30'), d = c('AL30D'), cc = c('AL30C'), mep = al && d ? al / d : null, ccl = al && cc ? al / cc : null;
+    var c = function (s) { var q = PX[(s || '').toUpperCase()]; return q ? q.c : null; }, tk = (a.ticker || '').trim().toUpperCase(), bo = /^(mep|ccl|canje)$/.test(a.metrica) && tk ? tk : 'AL30';
+    var al = c(bo), d = c(bo + 'D'), cc = c(bo + 'C'), mep = al && d ? al / d : null, ccl = al && cc ? al / cc : null, bx = function (t, i) { var k = bk(t); return k && AV.bon[k][i] != null ? AV.bon[k][i] : null; };
     switch (a.metrica) {
-      case 'precio': return c(a.ticker);
-      case 'var': var q = PX[(a.ticker || '').toUpperCase()]; return q && q.pct != null ? +q.pct : null;
-      case 'mep': return mep; case 'ccl': return ccl;
+      case 'precio': return c(tk);
+      case 'var': var q = PX[tk]; return q && q.pct != null ? +q.pct : null;
+      case 'volumen': var q2 = PX[tk]; return q2 && q2.v != null ? +q2.v : null;
+      case 'mep': return mep; case 'ccl': return ccl; case 'oficial': return OFI;
       case 'canje': return mep && ccl ? (ccl / mep - 1) * 100 : null;
       case 'brecha': return mep && OFI ? (mep / OFI - 1) * 100 : null;
-      case 'ratio': var x = c(a.ticker), y = c(a.ticker2); return x && y ? x / y : null;
+      case 'brechaccl': return ccl && OFI ? (ccl / OFI - 1) * 100 : null;
+      case 'ratio': var x = c(tk), y = c(a.ticker2); return x && y ? x / y : null;
       case 'riesgo': return RP || (window.RIESGO_PAIS && +window.RIESGO_PAIS.v) || null;
+      case 'tir': return bx(tk, 0); case 'tna': return bx(tk, 1); case 'paridad': return bx(tk, 2); case 'dur': return bx(tk, 3);
+      case 'spread': var s1 = bx(tk, 0), s2 = bx(a.ticker2, 0); return s1 != null && s2 != null ? (s1 - s2) * 100 : null;
+      case 'futuro': case 'implicita': var fk = futK(tk); return fk ? AV.fut[fk][a.metrica === 'futuro' ? 0 : 2] : null;
+      case 'caucion': return AV && AV.cau ? AV.cau[/^\d+$/.test(tk) ? String(+tk) : '1'] || null : null;
     }
     return null;
   }
   var fv = function (v, m) { var d = M[m] || M.precio; return v == null ? '—' : nf(v, d[3]) + d[4]; };
-  var name = function (a) { var t = { precio: 'Precio', var: 'Variación', mep: 'Dólar MEP', ccl: 'Dólar CCL', canje: 'Canje', brecha: 'Brecha', ratio: 'Ratio', riesgo: 'Riesgo país' }[a.metrica] || a.metrica; if (a.metrica === 'precio' || a.metrica === 'var') t += ' de ' + (a.ticker || '').toUpperCase(); if (a.metrica === 'ratio') t += ' ' + (a.ticker || '').toUpperCase() + '/' + (a.ticker2 || '').toUpperCase(); return t; };
+  var name = function (a) {
+    var m = a.metrica, tk = (a.ticker || '').toUpperCase(), t = { precio: 'Precio', var: 'Variación', volumen: 'Volumen', mep: 'Dólar MEP', ccl: 'Dólar CCL', oficial: 'Dólar oficial', canje: 'Canje', brecha: 'Brecha MEP', brechaccl: 'Brecha CCL', ratio: 'Ratio', riesgo: 'Riesgo país', tir: 'TIR', tna: 'TNA', paridad: 'Paridad', dur: 'Duration', spread: 'Spread', futuro: 'Futuro', implicita: 'Tasa implícita', caucion: 'Caución' }[m] || m;
+    if (m === 'ratio' || m === 'spread') return t + ' ' + tk + (m === 'spread' ? ' / ' : '/') + (a.ticker2 || '').toUpperCase();
+    if (/^(futuro|implicita)$/.test(m)) return t + ' ' + (!tk || /^\d+$/.test(tk) ? ((tk || '1') === '1' ? '1.er contrato' : tk + '.º contrato') : tk.replace(/^DLR\//, ''));
+    if (m === 'caucion') return t + ' a ' + (tk || '1') + ' día' + ((tk || '1') === '1' ? '' : 's');
+    if (/^(mep|ccl|canje)$/.test(m)) return t + (tk ? ' (' + tk + ')' : '');
+    return M[m] && M[m][1] && tk ? t + ' de ' + tk : t;
+  };
   var phone = function (k) { // dibujo del celular con el paso a tocar
     var ios = k === 'ios', bar = ios ? '<rect x="18" y="214" width="124" height="22" rx="4" fill="rgba(var(--fr),.18)"/><path d="M72 218v10M68 222l4-4 4 4M66 226v6h12v-6" stroke="var(--fc)" stroke-width="1.8" fill="none" stroke-linecap="round"/>' : '<rect x="18" y="26" width="124" height="20" rx="4" fill="rgba(var(--fr),.12)"/><circle cx="132" cy="31" r="1.6" fill="var(--fc)"/><circle cx="132" cy="36" r="1.6" fill="var(--fc)"/><circle cx="132" cy="41" r="1.6" fill="var(--fc)"/>';
     var menu = ios ? '<rect x="22" y="128" width="116" height="78" rx="8" fill="var(--card)" stroke="var(--bd)"/><text x="32" y="148" font-size="9" fill="var(--mu)">Copiar</text><text x="32" y="166" font-size="9" fill="var(--mu)">Agregar a favoritos</text><rect x="26" y="174" width="108" height="20" rx="5" fill="rgba(var(--fr),.2)"/><text x="32" y="188" font-size="9.5" font-weight="700" fill="var(--tx)">Agregar a inicio</text><rect x="118" y="178" width="11" height="11" rx="2" stroke="var(--fc)" fill="none"/><path d="M123.5 180.5v6M120.5 183.5h6" stroke="var(--fc)"/>'
@@ -7283,18 +7320,19 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '#alert .ab{background:var(--tx);color:var(--bg);border:0;border-radius:9px;padding:9px 16px;font:inherit;font-weight:700;font-size:13.5px;cursor:pointer}#alert .ab.sec{background:none;color:var(--tx);border:1px solid var(--bd)}#alert .ab:disabled{opacity:.5;cursor:default}' +
       '#alert .ag{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:16px}#alert .bx{border:1px solid var(--bd);border-radius:14px;padding:14px 16px}#alert .bx h4{margin:0 0 4px;font-size:15px}#alert .bx p{margin:0 0 10px;color:var(--mu);font-size:13px}' +
       '#alert .st{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;padding:3px 10px;border-radius:999px}#alert .st.ok{background:rgba(52,211,153,.14);color:var(--ok)}#alert .st.no{background:rgba(161,161,170,.14);color:var(--mu)}' +
+      '#alert #alCard{margin-top:10px}#alert #alCard .dbF{border:1px solid var(--bd);border-radius:14px;overflow:hidden;max-width:760px}#alert #alCard .ct{font-size:12.5px;color:var(--mu);margin:0 0 6px}#alert .li b.nm{cursor:pointer}' +
       '#alert .rs{margin-top:22px;padding-top:18px}#alert .li{display:grid;grid-template-columns:minmax(0,1.4fr) 120px 170px 170px auto;gap:12px;align-items:center;border:1px solid var(--bd);border-radius:12px;padding:10px 14px;margin-bottom:8px}#alert .li small{display:block;color:var(--mu);font-size:12px}#alert .li b{font-variant-numeric:tabular-nums}#alert .li.off{opacity:.6}#alert .li .bt{display:flex;gap:6px;justify-content:flex-end}#alert .li .bt button{background:none;border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:5px 10px;font:inherit;font-size:12px;cursor:pointer}' +
       '#alert .inst{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}#alert .inst .bx{display:flex;gap:14px;align-items:center}#alert .inst ol{margin:0;padding-left:18px;font-size:13.5px;line-height:1.6}#alert .msg{font-size:13px;margin-top:8px;min-height:18px}' +
       '@media(max-width:900px){#alert .ag,#alert .inst{grid-template-columns:1fr}#alert .li{grid-template-columns:1fr 1fr}#alert .li .bt{grid-column:1/-1;justify-content:flex-start}#alert .inst .bx{flex-direction:column;align-items:flex-start}}</style>' +
-      '<div class="card"><p style="margin:0;color:var(--tx);font-size:18px;font-weight:700">Alertas</p><p class="note" style="margin-top:4px">Te avisamos cuando un precio, el dólar, el canje, la brecha, un ratio o el riesgo país cruzan el valor que elijas. Se revisan durante la rueda cada 3 minutos; cada alerta salta una vez y queda pausada hasta que la reactives.</p>' +
+      '<div class="card"><p style="margin:0;color:var(--tx);font-size:18px;font-weight:700">Alertas</p><p class="note" style="margin-top:4px">Te avisamos cuando un precio, el volumen, una TIR, TNA o paridad, el spread entre dos bonos, cualquier dólar, el canje, la brecha, un futuro y su tasa implícita, la caución, un ratio o el riesgo país cruzan el valor que elijas. Se revisan durante la rueda cada 3 minutos; cada alerta salta una vez y queda pausada hasta que la reactives.</p>' +
       '<div id="alNo" style="display:none" class="hl"><p>Para armar alertas tenés que entrar con tu cuenta.</p></div><div id="alIn">' +
       '<div class="ag"><div class="bx"><h4>Notificaciones en este dispositivo</h4><p>Llegan aunque tengas la página cerrada. En el iPhone primero hay que instalarla (abajo te mostramos cómo).</p><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="alPs"></span><button class="ab sec" id="alPb">Activar</button></div><div class="msg" id="alPm"></div></div>' +
       '<div class="bx"><h4>Reporte diario por mail</h4><p>Al cierre de cada rueda: dólares, riesgo país, lo que más se movió y lo que viene en el calendario.</p><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="alRs"></span><button class="ab sec" id="alRb">Suscribirme</button></div><div class="msg" id="alRm"></div></div></div>' +
-      '<div class="rs"><h4 style="margin:0 0 12px">Nueva alerta</h4><div class="rc"><label>Qué mirar<select id="alM">' + Object.keys(M).map(function (k) { return '<option value="' + k + '">' + M[k][0] + '</option>'; }).join('') + '</select></label>' +
-      '<label id="alT1l">Especie<input class="tk" id="alT1" list="alDl" placeholder="AL30"></label><label id="alT2l">Contra<input class="tk" id="alT2" list="alDl" placeholder="AL30"></label>' +
+      '<div class="rs"><h4 style="margin:0 0 12px">Nueva alerta</h4><div class="rc"><label>Qué mirar<select id="alM">' + GRP.map(function (g) { return '<optgroup label="' + g + '">' + Object.keys(M).filter(function (k) { return M[k][5] === g; }).map(function (k) { return '<option value="' + k + '">' + M[k][0] + '</option>'; }).join('') + '</optgroup>'; }).join('') + '</select></label>' +
+      '<label id="alT1l"><span>Especie</span><input class="tk" id="alT1" list="alDl" placeholder="AL30"></label><label id="alT2l">Contra<input class="tk" id="alT2" list="alDl" placeholder="AL30"></label>' +
       '<label>Cuando<select id="alOp" style="width:200px"><option value=">">sube por encima de</option><option value="<">baja por debajo de</option></select></label><label>Valor<input id="alV" type="number" step="any"></label>' +
       '<label>Avisarme por<select id="alC" style="width:190px">' + Object.keys(CAN).map(function (k) { return '<option value="' + k + '">' + CAN[k] + '</option>'; }).join('') + '</select></label><label>Nota (opcional)<input class="nt" id="alN" maxlength="120" placeholder="ej. vender la mitad"></label>' +
-      '<button class="ab" id="alAdd">Crear alerta</button></div><datalist id="alDl"></datalist><div class="msg" id="alNow"></div></div>' +
+      '<button class="ab" id="alAdd">Crear alerta</button></div><datalist id="alDl"></datalist><div class="msg" id="alNow"></div><div id="alCard"></div></div>' +
       '<div class="rs"><h4 style="margin:0 0 12px">Mis alertas</h4><div id="alL"><p class="note">Cargando…</p></div></div></div></div>' +
       '<div class="card" style="margin-top:16px"><p style="margin:0 0 4px;color:var(--tx);font-size:16px;font-weight:700">Instalala en el celular</p><p class="note" style="margin:0 0 14px">Queda como una app más en la pantalla de inicio, abre en pantalla completa y recibe las notificaciones de las alertas.</p><div class="inst">' +
       '<div class="bx">' + phone('ios') + '<div><h4>iPhone (Safari)</h4><ol><li>Abrí boneriolocal.com.ar en <b>Safari</b>.</li><li>Tocá <b>Compartir</b> (el cuadrado con la flecha, abajo).</li><li>Elegí <b>Agregar a inicio</b> y después <b>Agregar</b>.</li><li>Abrila desde el ícono y activá las notificaciones acá.</li></ol><p style="margin-top:8px">Las notificaciones en iPhone necesitan iOS 16.4 o posterior y la página instalada.</p></div></div>' +
@@ -7302,15 +7340,48 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     root.addEventListener('change', function (e) { if (e.target.id === 'alM') form(); if (/^alT[12]$|^alM$/.test(e.target.id)) now(); });
     root.addEventListener('input', function (e) { if (/^alT[12]$/.test(e.target.id)) now(); });
     root.addEventListener('click', function (e) {
+      var sv = e.target.closest('[data-see]'); if (sv) { var x = (AL || []).filter(function (y) { return y.id === sv.getAttribute('data-see'); })[0]; if (x) { $('alM').value = x.metrica; $('alT1').value = x.ticker || ''; $('alT2').value = x.ticker2 || ''; form(); $('alCard').scrollIntoView({ behavior: 'smooth', block: 'center' }); } return; }
       var t = e.target.closest('button'); if (!t || !root.contains(t)) return;
       if (t.id === 'alAdd') add(); else if (t.id === 'alPb') pushOn(); else if (t.id === 'alRb') repToggle();
       else if (t.hasAttribute('data-tg')) toggle(t.getAttribute('data-tg')); else if (t.hasAttribute('data-del')) del(t.getAttribute('data-del'));
     });
     form();
   }
-  function form() { var m = M[$('alM').value]; $('alT1l').style.display = m[1] ? '' : 'none'; $('alT2l').style.display = m[2] ? '' : 'none'; $('alT1l').firstChild.textContent = m[2] ? 'Especie' : 'Especie'; now(); }
-  function now() { var a = { metrica: $('alM').value, ticker: $('alT1').value, ticker2: $('alT2').value }, v = val(a); $('alNow').innerHTML = v != null ? 'Ahora: <b>' + fv(v, a.metrica) + '</b>' : (M[a.metrica][1] && !a.ticker ? '' : '<span style="color:var(--mu)">Sin precio en vivo para eso todavía.</span>'); if (v != null && !$('alV').value) $('alV').placeholder = nf(v, M[a.metrica][3]).replace(/\./g, '').replace(',', '.'); }
-  function list() { var dl = $('alDl'); if (dl && dl.children.length < Object.keys(PX).length) dl.innerHTML = Object.keys(PX).sort().map(function (k) { return '<option value="' + esc(k) + '">'; }).join(''); }
+  function form() {
+    var m = M[$('alM').value], lb = m[6] || ['Especie', 'AL30']; $('alT1l').style.display = m[1] ? '' : 'none'; $('alT2l').style.display = m[2] ? '' : 'none';
+    $('alT1l').firstChild.textContent = lb[0]; $('alT1').placeholder = lb[1]; $('alT1').style.width = /NOV26/.test(lb[1]) ? '130px' : ''; list(); now();
+  }
+  function now() {
+    var a = { metrica: $('alM').value, ticker: $('alT1').value, ticker2: $('alT2').value }, v = val(a), m = M[a.metrica], srv = /^(tir|tna|paridad|dur|spread|futuro|implicita|caucion)$/.test(a.metrica);
+    var hh = srv && AV && AV.ts ? ' <span style="color:var(--mu)">(foto de las ' + new Date(AV.ts.replace('Z', ':00Z')).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false }) + ')</span>' : '';
+    $('alNow').innerHTML = v != null ? 'Ahora: <b>' + fv(v, a.metrica) + '</b>' + hh : (m[1] === 1 && !a.ticker ? '' : '<span style="color:var(--mu)">' + (a.metrica === 'tna' ? 'La TNA es para Lecaps y Boncaps.' : a.metrica === 'paridad' ? 'La paridad es para bonos en dólares (Globales, Bonares, ONs y provinciales).' : 'Sin dato en vivo para eso todavía.') + '</span>');
+    if (v != null && !$('alV').value) $('alV').placeholder = String(+v.toFixed(m[3])); card();
+  }
+  function cardK() { // qué activo mostrar abajo: el del ticker, o el que mueve ese dato
+    var m = $('alM').value, t = $('alT1').value.trim().toUpperCase();
+    if (/^(precio|var|volumen|tir|tna|paridad|dur|spread|ratio)$/.test(m)) return t ? { tk: t, sp: '' } : null;
+    if (/^(mep|ccl|canje)$/.test(m)) return { tk: t || 'AL30', sp: m === 'mep' ? 'D' : m === 'ccl' ? 'C' : '' };
+    if (/^(oficial|brecha|brechaccl)$/.test(m)) return { tk: 'A3500', sp: '' };
+    if (/^(futuro|implicita)$/.test(m)) { var k = futK(t); return k ? { tk: k, sp: '' } : null; }
+    if (m === 'caucion') return { tk: 'CAUCION', sp: '' };
+    return null;
+  }
+  function card() { // la tarjeta del activo (el panel Ticker del botón flotante, embebido): precio, puntas, volumen y gráfico
+    clearTimeout(cardT); cardT = setTimeout(function () {
+      var box = $('alCard'), c = cardK(), key = c ? c.tk + '|' + c.sp : ''; if (!box || key === CARD) return; CARD = key;
+      if (!c || !window.DBFRAME) { box.innerHTML = ''; return; }
+      box.innerHTML = '<p class="ct">' + esc(c.tk) + ': precio, puntas, volumen y gráfico</p>'; box.appendChild(window.DBFRAME({ k: 'tk', t: 'Ticker', tk: c.tk, sp: c.sp, r: 'in', s: 1 }, {}));
+    }, 700);
+  }
+  function list() {
+    var dl = $('alDl'), m = $('alM') ? $('alM').value : '', L; if (!dl) return;
+    if (/^(futuro|implicita)$/.test(m)) L = AV && AV.fut ? Object.keys(AV.fut).map(function (k) { return k.slice(4); }) : [];
+    else if (m === 'caucion') L = AV && AV.cau ? Object.keys(AV.cau) : [];
+    else if (/^(tir|tna|paridad|dur|spread)$/.test(m)) L = AV ? Object.keys(AV.bon).filter(function (k) { return m !== 'tna' || AV.bon[k][1] != null; }).filter(function (k) { return m !== 'paridad' || AV.bon[k][2] != null; }) : [];
+    else L = Object.keys(PX);
+    var key = m.replace(/^(precio|var|volumen|mep|ccl|canje|ratio)$/, 'px') + L.length; if (dl.getAttribute('data-k') === key) return; dl.setAttribute('data-k', key);
+    dl.innerHTML = L.sort().map(function (k) { return '<option value="' + esc(k) + '">'; }).join('');
+  }
   function msg(id, t, ok) { var m = $(id); if (m) { m.textContent = t || ''; m.style.color = ok === false ? 'var(--bad)' : 'var(--mu)'; } }
   function fetchAll() {
     var A = auth(); if (!A) return;
@@ -7319,7 +7390,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
   function add() {
     var A = auth(); if (!A || busy) return; var m = $('alM').value, t1 = $('alT1').value.trim().toUpperCase(), t2 = $('alT2').value.trim().toUpperCase(), v = parseFloat($('alV').value);
-    if (M[m][1] && !t1) return msg('alNow', 'Poné la especie (por ejemplo AL30 o GGAL).', false); if (M[m][2] && !t2) return msg('alNow', 'Poné la segunda especie del ratio.', false); if (!isFinite(v)) return msg('alNow', 'Poné el valor.', false);
+    if (M[m][1] === 1 && !t1) return msg('alNow', 'Poné ' + ((M[m][6] || ['la especie'])[0]).toLowerCase().replace(/^bono$/, 'el bono').replace(/^letra$/, 'la letra').replace(/^especie$/, 'la especie') + ' (por ejemplo ' + (M[m][6] || [0, 'AL30'])[1] + ').', false); if (M[m][2] && !t2) return msg('alNow', 'Poné la segunda especie.', false);
+    if (m === 'caucion' && t1 && !/^\d+$/.test(t1)) return msg('alNow', 'El plazo de la caución va en días (1, 7, 30…).', false); if (!isFinite(v)) return msg('alNow', 'Poné el valor.', false);
     var row = { email: A.user.email, metrica: m, ticker: M[m][1] ? t1 : null, ticker2: M[m][2] ? t2 : null, op: $('alOp').value, valor: v, nota: $('alN').value.trim() || null, activa: true };
     if (!NOCANAL) row.canal = $('alC').value;
     busy = true; $('alAdd').disabled = true;
@@ -7358,7 +7430,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     if (AL == null) return;
     $('alL').innerHTML = AL.length ? AL.map(function (a) {
       var v = val(a), dis = a.disparada_en ? new Date(a.disparada_en).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : null;
-      return '<div class="li' + (a.activa ? '' : ' off') + '"><div><b>' + esc(name(a)) + '</b><small>' + (a.op === '>' ? 'sube por encima de ' : 'baja por debajo de ') + fv(a.valor, a.metrica) + (a.nota ? ' · ' + esc(a.nota) : '') + '</small></div>' +
+      return '<div class="li' + (a.activa ? '' : ' off') + '"><div><b class="nm" data-see="' + a.id + '" title="Ver el activo">' + esc(name(a)) + '</b><small>' + (a.op === '>' ? 'sube por encima de ' : 'baja por debajo de ') + fv(a.valor, a.metrica) + (a.nota ? ' · ' + esc(a.nota) : '') + '</small></div>' +
         '<div><small>Ahora</small><b>' + fv(v, a.metrica) + '</b></div><div><small>Aviso</small>' + esc(CAN[a.canal] || CAN.ambos) + '</div>' +
         '<div><small>Estado</small>' + (a.activa ? '<span class="st ok">Activa</span>' : dis ? '<span class="st no">Saltó el ' + dis + '</span>' : '<span class="st no">Pausada</span>') + '</div>' +
         '<div class="bt"><button data-tg="' + a.id + '">' + (a.activa ? 'Pausar' : 'Reactivar') + '</button><button data-del="' + a.id + '">Borrar</button></div></div>';
@@ -9778,6 +9850,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 #bono .bnT tr.z td{background:rgba(var(--fr),.10);font-weight:700}
 #bono .bnT tfoot td{font-weight:700;border-bottom:0}
 #bono .bnTw{overflow:auto;max-height:430px}
+#bono .bnFv{display:flex;flex-direction:column;gap:4px;font:700 10.5px Inter,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--mu)}
+#bono .bnFv input{width:150px;font:600 14px Inter,system-ui,sans-serif;text-transform:none;letter-spacing:0;border-radius:10px;background:var(--pill);border-color:var(--pillb);padding:7px 10px}
 #bono .bnCalc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
 #bono .bnCalc label{display:flex;flex-direction:column;gap:5px;font:700 10.5px Inter,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--mu)}
 #bono .bnCalc input{width:100%;font:600 16px Inter,system-ui,sans-serif;text-transform:none;letter-spacing:0;border-radius:12px;background:var(--pill);border-color:var(--pillb)}
@@ -10144,7 +10218,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
           '<div class="bnCalc"><label>Precio (' + (usd || r.usdOn ? 'US$' : '$') + ' c/100 VN)<input type="number" step="0.01" id="bnCp"></label><label>' + esc(tlS) + ' (%)<input type="number" step="0.01" id="bnCy"></label><label>Nominales (VN)<input type="number" step="1" min="0" id="bnCn"></label></div>' +
           '<div class="bnRes" id="bnCr"></div><p class="bnNt" data-html2canvas-ignore="true"><button type="button" class="bnLink" id="bnCx">Volver al precio de mercado</button></p><div class="bnPy"><canvas id="bnPyC"></canvas></div></div>' +
         '<div data-norf class="card" id="bnCSe"><div class="bnH"><div><p class="qh">Sensibilidad</p><p class="qs">Cuánto cambia el precio si la TIR se mueve, desde el precio de la calculadora.</p></div>' + dlb('bnCSe', 'Sensibilidad') + '</div><div style="overflow-x:auto"><table class="bnT" id="bnSe"></table></div><p class="bnNt" id="bnSeN"></p></div></div>' +
-      '<div data-norf class="card" id="bnCFl"><div class="bnH"><div><p class="qh">Flujo de fondos</p><p class="qs" id="bnFlS">&nbsp;</p></div>' + dlb('bnCFl', 'Flujos') + '</div><div class="bnFc"><canvas id="bnFlC"></canvas></div><div class="bnTw"><table class="bnT" id="bnFl"></table></div><p class="bnNt" id="bnFlN"></p></div>';
+      '<div data-norf class="card" id="bnCFl"><div class="bnH"><div><p class="qh">Flujo de fondos</p><p class="qs" id="bnFlS">&nbsp;</p></div><div style="display:flex;gap:10px;align-items:flex-end"><label class="bnFv">Nominales (VN)<input type="number" step="1" min="0" id="bnFn" placeholder="100"></label>' + dlb('bnCFl', 'Flujos') + '</div></div><div class="bnFc"><canvas id="bnFlC"></canvas></div><div class="bnTw"><table class="bnT" id="bnFl"></table></div><p class="bnNt" id="bnFlN"></p></div>';
     drawLive(); drawChart(); drawCurve(r); calc(r, T);
     if (!RAW && !RAWask && window.VOLX && window.VOLX.raw) { RAWask = true; window.VOLX.raw(function (d) { RAW = d || false; uni(true); if (root.classList.contains('active') && K) render(); }); } // con los cierres, los bonos sin precio en vivo toman el último
   }
@@ -10255,7 +10329,9 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     }
     ip.oninput = function () { var v = parseFloat(this.value); if (!(v > 0)) return; CALC.p = v; CALC.y = tirP(v); iy.value = CALC.y != null ? (CALC.y * 100).toFixed(2) : ''; out(); };
     iy.oninput = function () { var v = parseFloat(this.value); if (!isFinite(v) || v <= -95) return; CALC.y = v / 100; CALC.p = pxY(CALC.y); ip.value = CALC.p.toFixed(2); out(); };
-    iv.oninput = function () { var v = parseFloat(this.value); CALC.vn = v > 0 ? v : 0; saveSt(); out(); };
+    var fv = document.getElementById('bnFn'); if (fv) fv.value = CALC.vn || ''; // los nominales también se cargan en el flujo de fondos: los dos campos van juntos
+    iv.oninput = function () { var v = parseFloat(this.value); CALC.vn = v > 0 ? v : 0; if (fv) fv.value = this.value; saveSt(); out(); };
+    if (fv) fv.oninput = function () { var v = parseFloat(this.value); CALC.vn = v > 0 ? v : 0; iv.value = this.value; saveSt(); out(); };
     document.getElementById('bnCx').onclick = function () { CALC.p = r.P; CALC.y = y0; ip.value = r.P.toFixed(2); iy.value = y0 != null ? (y0 * 100).toFixed(2) : ''; out(); };
     out();
   }
@@ -10281,14 +10357,17 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   }
   function flows(r, T, vn) {
     var t = document.getElementById('bnFl'), cv = document.getElementById('bnFlC'); if (!t) return;
-    var usd = r.grp === 'usd', u = usd ? 'US$ ' : '$ ', rows = T.rows, split = rows.some(function (x) { return x.renta != null; }), sr = rows.reduce(function (a, x) { return a + (x.renta || 0); }, 0), sa = rows.reduce(function (a, x) { return a + (x.amort || 0); }, 0), st = rows.reduce(function (a, x) { return a + x.total; }, 0);
+    var usd = r.grp === 'usd', u = usd ? 'US$ ' : '$ ', rows = T.rows, IX = rows.map(function (x) { return x.ix ? [x.ix] : !usd && !r.corp && X.idxOf ? X.idxOf(r.k, x.t) : []; }), I0 = IX.filter(function (q) { return q.length; })[0], NI = I0 ? I0.map(function (q) { return q.nm; }) : []; // el índice que ajusta cada pago (CER, A3500, TAMAR) y si ya está publicado
+    var cK = function (i) { return IX[i] && IX[i].length && IX[i].every(function (q) { return q.fijo; }); };
+    var split = rows.some(function (x) { return x.renta != null; }), sr = rows.reduce(function (a, x) { return a + (x.renta || 0); }, 0), sa = rows.reduce(function (a, x) { return a + (x.amort || 0); }, 0), st = rows.reduce(function (a, x) { return a + x.total; }, 0);
     document.getElementById('bnFlS').textContent = rows.length + (rows.length === 1 ? ' pago' : ' pagos') + ' por delante, por 100 VN' + (usd ? ' originales, en dólares' : ', en pesos') + (vn > 0 ? '; la última columna, para tus ' + fm0(vn, 0) + ' VN' : '') + '.';
-    var h = '<thead><tr><th>Fecha</th>' + (split ? '<th>Renta</th><th>Amortización</th>' : '') + '<th>Total</th>' + (rows.some(function (x) { return x.res != null && x.res > 0; }) ? '<th>Residual</th>' : '') + (vn > 0 ? '<th>Cobrás</th>' : '') + '</tr></thead><tbody>', hasRes = /Residual/.test(h);
-    rows.forEach(function (x) { h += '<tr><td>' + dmy(x.t) + '</td>' + (split ? '<td>' + fm(x.renta, 4) + '</td><td>' + (x.amort ? fm(x.amort, 4) : '—') + '</td>' : '') + '<td>' + fm(x.total, 4) + '</td>' + (hasRes ? '<td>' + (x.res != null ? fm(x.res, 2) + '%' : '—') + '</td>' : '') + (vn > 0 ? '<td>' + u + fm(x.total * vn / 100, 2) + '</td>' : '') + '</tr>'; });
-    h += '</tbody><tfoot><tr><td>Total</td>' + (split ? '<td>' + fm(sr, 4) + '</td><td>' + fm(sa, 4) + '</td>' : '') + '<td>' + fm(st, 4) + '</td>' + (hasRes ? '<td></td>' : '') + (vn > 0 ? '<td>' + u + fm(st * vn / 100, 2) + '</td>' : '') + '</tr></tfoot>';
+    var h = '<thead><tr><th>Fecha</th>' + NI.map(function (n) { return '<th>' + n + '</th>'; }).join('') + (split ? '<th>Renta</th><th>Amortización</th>' : '') + '<th>Total</th>' + (rows.some(function (x) { return x.res != null && x.res > 0; }) ? '<th>Residual</th>' : '') + (vn > 0 ? '<th>Cobrás</th>' : '') + '</tr></thead><tbody>', hasRes = /Residual/.test(h);
+    rows.forEach(function (x, i) { h += '<tr><td>' + dmy(x.t) + '</td>' + (IX[i] && IX[i].length ? IX[i] : NI.map(function () { return { v: NaN }; })).map(function (q) { return q.v !== q.v ? '<td>—</td>' : '<td title="' + q.nm + ' del ' + dmy(q.d) + '">' + (isFinite(q.v) ? (q.pct ? fm(q.v, 2) + '%' : fm(q.v, 4)) : '—') + ' <small style="color:' + (q.fijo ? 'var(--ok);font-weight:700">publicado' : 'var(--mu)">proyectado') + '</small></td>'; }).join('') + (split ? '<td>' + fm(x.renta, 4) + '</td><td>' + (x.amort ? fm(x.amort, 4) : '—') + '</td>' : '') + '<td>' + fm(x.total, 4) + '</td>' + (hasRes ? '<td>' + (x.res != null ? fm(x.res, 2) + '%' : '—') + '</td>' : '') + (vn > 0 ? '<td>' + u + fm(x.total * vn / 100, 2) + '</td>' : '') + '</tr>'; });
+    h += '</tbody><tfoot><tr><td>Total</td>' + NI.map(function () { return '<td></td>'; }).join('') + (split ? '<td>' + fm(sr, 4) + '</td><td>' + fm(sa, 4) + '</td>' : '') + '<td>' + fm(st, 4) + '</td>' + (hasRes ? '<td></td>' : '') + (vn > 0 ? '<td>' + u + fm(st * vn / 100, 2) + '</td>' : '') + '</tr></tfoot>';
     t.innerHTML = h;
-    var kd = !usd && X.INST[r.k] ? X.INST[r.k].k : '';
-    document.getElementById('bnFlN').textContent = kd === 'cer0' || kd === 'cerc' ? 'Los pagos se ajustan por CER: están proyectados con la inflación de la tarjeta CER de Curva Pesos.' : kd === 'tamar' ? 'El pago capitaliza la TAMAR: está proyectado con la TAMAR de la tarjeta TAMAR de Curva Pesos.' : kd === 'dl' ? 'El pago se ajusta por el A3500: está proyectado con la devaluación de la tarjeta Dólar linked de Curva Pesos.' : kd === 'dual' || kd === 'dualtf' ? 'Cobra la rama que gane: está proyectado con los supuestos de Curva Pesos.' : '';
+    var kd = r.corp ? ({ cer: 'cerc', dl: 'cdl', tamar: 'cvar', badlar: 'cvar' })[r.ty] || '' : !usd && X.INST[r.k] ? X.INST[r.k].k : '';
+    var fx = rows.filter(function (x, i) { return cK(i); }), fx1 = fx[fx.length - 1], fi = fx1 ? IX[rows.indexOf(fx1)][0] : null;
+    document.getElementById('bnFlN').textContent = kd === 'cer0' || kd === 'cerc' ? 'Cada pago se ajusta por el CER de 10 días hábiles antes (sin contar el Día del Bancario). ' + (fx.length ? (fx.length === rows.length ? 'Todos los pagos ya tienen ese CER publicado: están fijos en pesos.' : (fx.length === 1 ? 'El pago del ' + dmy(fx1.t) + ' ya tiene su CER publicado (el del ' + dmy(fi.d) + '), así que está fijo; ' : 'Los pagos hasta el ' + dmy(fx1.t) + ' ya tienen su CER publicado y están fijos; ') + 'los demás están proyectados con la inflación de la tarjeta CER de Curva Pesos.') : 'Ninguno tiene todavía su CER publicado: están proyectados con la inflación de la tarjeta CER de Curva Pesos.') : kd === 'cdl' ? 'Cada pago se ajusta por el A3500 de 3 días hábiles antes: el ya publicado está fijo y el resto, proyectado con la devaluación de la tarjeta Dólar linked de Curva Pesos.' : kd === 'cvar' ? 'La renta de cada cupón es la ' + (r.ty === 'tamar' ? 'TAMAR' : 'BADLAR') + ' promedio del período (con rezago) más el margen: lo ya publicado es real y para adelante va la última tasa publicada.' : kd === 'tamar' ? 'El pago capitaliza la TAMAR: está proyectado con la TAMAR de la tarjeta TAMAR de Curva Pesos.' : kd === 'dl' ? 'El pago se ajusta por el A3500: está proyectado con la devaluación de la tarjeta Dólar linked de Curva Pesos.' : kd === 'dual' || kd === 'dualtf' ? 'Cobra la rama que gane: está proyectado con los supuestos de Curva Pesos.' : '';
     if (!cv || typeof Chart === 'undefined') return; kill('fl');
     var col = FAM[r.grp][1], mu = css('--mu'), bd = css('--bd'), L = rows.map(function (x) { return dmy(x.t).slice(3); });
     var ds = split ? [{ label: 'Renta', data: rows.map(function (x) { return x.renta; }), backgroundColor: col + '99', borderRadius: 3, stack: 's', maxBarThickness: 64 }, { label: 'Amortización', data: rows.map(function (x) { return x.amort; }), backgroundColor: col, borderRadius: 3, stack: 's', maxBarThickness: 64 }] : [{ label: 'Pago', data: rows.map(function (x) { return x.total; }), backgroundColor: col, borderRadius: 3, maxBarThickness: 64 }];
@@ -10554,7 +10633,7 @@ window.RATG = (function () {
   }
   function pesoFl(o, fl) { // flujos de las ONs a tasa variable: índice (promedio del período, con 10 hábiles de rezago) + margen, sobre el residual, act/365
     var S = IXS[o.t]; if (!S || o.r == null) return null; var prev = dn(o.lc), res = o.res, out = [];
-    for (var i = 0; i < fl.length; i++) { var f = fl[i], am = Math.max(0, f[1] - f[2]), r = ixAvg(S, prev - 14, f[0] - 14); if (r == null) return null; var it = res * (r + o.r) / 100 * (f[0] - prev) / (o.b || 365); out.push([f[0], am + it, it]); res -= am; prev = f[0]; }
+    for (var i = 0; i < fl.length; i++) { var f = fl[i], am = Math.max(0, f[1] - f[2]), r = ixAvg(S, prev - 14, f[0] - 14); if (r == null) return null; var it = res * (r + o.r) / 100 * (f[0] - prev) / (o.b || 365); out.push([f[0], am + it, it, r, f[0] - 14 <= S.d[S.d.length - 1]]); res -= am; prev = f[0]; } // [fecha, pago, renta, tasa promedio usada, ya publicada]
     return out;
   }
 
@@ -10924,8 +11003,13 @@ window.RATG = (function () {
       if ((!lvT || Date.now() - lvT > 30000) && Date.now() - vdAsk > 30000) { vdAsk = Date.now(); live().then(function () { if (lvT && cb) cb(); }); }
       return rows().filter(function (e) { return e.tir != null && e.fl && e.fl.length && (e.t !== 'cer' && e.t !== 'dl' || e.fm > 0); }).map(function (e) {
         var o = J.on[e.k], usd = e.t === 'usd', ix = e.t === 'cer' || e.t === 'dl', fm = ix ? e.fm : 1, res = o.res, tem = Math.pow(1 + e.tir, 30 / 365) - 1;
-        var pfl = ix ? e.fl.map(function (f) { return [f[0], f[1] * fm, f[2] * fm]; }) : e.fl; // CER y dollar linked: los flujos en pesos con el índice de hoy constante; la TIR va con los de la base (krFl)
-        var cfl = e.fl.map(function (f) { var am = Math.max(0, f[1] - f[2]), x = { t: f[0], renta: f[2] * fm, amort: am * fm, total: f[1] * fm, res: Math.max(0, res - am) }; res = x.res; return x; });
+        var PS = window.PSX, b0 = e.t === 'cer' ? cer10(dn(o.iss)) : null, FQ = e.fl.map(function (f) { // el índice de cada pago: CER (10 hábiles antes) o A3500 publicados, o proyectados con las tarjetas de Curva Pesos; TAMAR y BADLAR, la tasa promedio usada
+          if (!ix) return [1, f[3] != null ? { nm: (e.t === 'tamar' ? 'TAMAR' : 'BADLAR') + ' prom.', v: f[3], pct: 1, d: f[0] - 14, fijo: !!f[4] } : null];
+          var q = PS && PS.ixProj ? PS.ixProj(e.t === 'cer' ? 'CER' : 'A3500', f[0]) : null; if (!q || !(q.v > 0) || (e.t === 'cer' && !(b0 > 0))) return [fm, null];
+          return [e.t === 'cer' ? q.v / b0 : q.v, q];
+        });
+        var pfl = ix ? e.fl.map(function (f, i) { return [f[0], f[1] * FQ[i][0], f[2] * FQ[i][0]]; }) : e.fl; // CER y dollar linked: los flujos en pesos con el índice de cada pago; la TIR va con los de la base (krFl)
+        var cfl = e.fl.map(function (f, i) { var m = ix ? FQ[i][0] : fm, am = Math.max(0, f[1] - f[2]), x = { t: f[0], renta: f[2] * m, amort: am * m, total: f[1] * m, res: Math.max(0, res - am), ix: FQ[i][1] }; res = x.res; return x; });
         return { k: e.k, grp: 'on', corp: 1, usdOn: usd, ty: e.t, al: e.sym, tipo: (usd ? 'hard dollar' : e.t === 'ars' || e.t === 'fija' ? 'tasa fija en pesos' : e.t === 'dl' ? 'dollar linked' : e.t.toUpperCase()) + (e.em ? ' · ' + e.em : ''), feat: [], tl: usd ? 'TIR en dólares' : e.t === 'cer' ? 'TIR real (sobre CER)' : e.t === 'dl' ? 'TIR en dólares (A3500 constante)' : 'TIR',
           P: e.p, fl: pfl, krFl: ix ? e.fl : null, krP: ix ? e.p / fm : null, krY: ix ? e.tir : null, s: e.s, mat: dn(o.mat), d: e.d, tir: e.tir, tem: tem, tna: tem * 365 / 30, md: e.md, conv: e.cvx, odd: !!e.odd, cfl: cfl, res: o.res, vt: e.vt, ai: e.ai, iss: o.iss ? dn(o.iss) : null, cpn: o.r != null ? o.r / 100 : null,
           q: function () { var L = LV[e.sym] || {}, u = L.c > 0 && L.c < 5 ? 100 : 1; return { c: L.c > 0 ? L.c * u : null, pct: L.pct, bid: L.bid > 0 ? L.bid * u : null, ask: L.ask > 0 ? L.ask * u : null, v: L.v, nop: L.n }; } };
@@ -11095,7 +11179,7 @@ window.RATG = (function () {
   }
   function pesoFl(o, fl) { // flujos de los provinciales a tasa variable: índice (promedio del período, con 10 hábiles de rezago) + margen, sobre el residual, act/365
     var S = IXS[o.t]; if (!S || o.r == null) return null; var prev = dn(o.lc), res = o.res, out = [];
-    for (var i = 0; i < fl.length; i++) { var f = fl[i], am = Math.max(0, f[1] - f[2]), r = ixAvg(S, prev - 14, f[0] - 14); if (r == null) return null; var it = res * (r + o.r) / 100 * (f[0] - prev) / (o.b || 365); out.push([f[0], am + it, it]); res -= am; prev = f[0]; }
+    for (var i = 0; i < fl.length; i++) { var f = fl[i], am = Math.max(0, f[1] - f[2]), r = ixAvg(S, prev - 14, f[0] - 14); if (r == null) return null; var it = res * (r + o.r) / 100 * (f[0] - prev) / (o.b || 365); out.push([f[0], am + it, it, r, f[0] - 14 <= S.d[S.d.length - 1]]); res -= am; prev = f[0]; } // [fecha, pago, renta, tasa promedio usada, ya publicada]
     return out;
   }
 
@@ -11472,8 +11556,13 @@ window.RATG = (function () {
       if ((!lvT || Date.now() - lvT > 30000) && Date.now() - vdAsk > 30000) { vdAsk = Date.now(); live().then(function () { if (lvT && cb) cb(); }); }
       return rows().filter(function (e) { return e.tir != null && e.fl && e.fl.length && (e.t !== 'cer' && e.t !== 'dl' || e.fm > 0); }).map(function (e) {
         var o = J.on[e.k], usd = e.t === 'usd', ix = e.t === 'cer' || e.t === 'dl', fm = ix ? e.fm : 1, res = o.res, tem = Math.pow(1 + e.tir, 30 / 365) - 1;
-        var pfl = ix ? e.fl.map(function (f) { return [f[0], f[1] * fm, f[2] * fm]; }) : e.fl; // CER y dollar linked: los flujos en pesos con el índice de hoy constante; la TIR va con los de la base (krFl)
-        var cfl = e.fl.map(function (f) { var am = Math.max(0, f[1] - f[2]), x = { t: f[0], renta: f[2] * fm, amort: am * fm, total: f[1] * fm, res: Math.max(0, res - am) }; res = x.res; return x; });
+        var PS = window.PSX, b0 = e.t === 'cer' ? cer10(dn(o.iss)) : null, FQ = e.fl.map(function (f) { // el índice de cada pago: CER (10 hábiles antes) o A3500 publicados, o proyectados con las tarjetas de Curva Pesos; TAMAR y BADLAR, la tasa promedio usada
+          if (!ix) return [1, f[3] != null ? { nm: (e.t === 'tamar' ? 'TAMAR' : 'BADLAR') + ' prom.', v: f[3], pct: 1, d: f[0] - 14, fijo: !!f[4] } : null];
+          var q = PS && PS.ixProj ? PS.ixProj(e.t === 'cer' ? 'CER' : 'A3500', f[0]) : null; if (!q || !(q.v > 0) || (e.t === 'cer' && !(b0 > 0))) return [fm, null];
+          return [e.t === 'cer' ? q.v / b0 : q.v, q];
+        });
+        var pfl = ix ? e.fl.map(function (f, i) { return [f[0], f[1] * FQ[i][0], f[2] * FQ[i][0]]; }) : e.fl; // CER y dollar linked: los flujos en pesos con el índice de cada pago; la TIR va con los de la base (krFl)
+        var cfl = e.fl.map(function (f, i) { var m = ix ? FQ[i][0] : fm, am = Math.max(0, f[1] - f[2]), x = { t: f[0], renta: f[2] * m, amort: am * m, total: f[1] * m, res: Math.max(0, res - am), ix: FQ[i][1] }; res = x.res; return x; });
         return { k: e.k, grp: 'pv', corp: 1, usdOn: usd, ty: e.t, al: e.sym, tipo: (usd ? 'hard dollar' : e.t === 'ars' || e.t === 'fija' ? 'tasa fija en pesos' : e.t === 'dl' ? 'dollar linked' : e.t.toUpperCase()) + (e.em ? ' · ' + e.em : ''), feat: [], tl: usd ? 'TIR en dólares' : e.t === 'cer' ? 'TIR real (sobre CER)' : e.t === 'dl' ? 'TIR en dólares (A3500 constante)' : 'TIR',
           P: e.p, fl: pfl, krFl: ix ? e.fl : null, krP: ix ? e.p / fm : null, krY: ix ? e.tir : null, s: e.s, mat: dn(o.mat), d: e.d, tir: e.tir, tem: tem, tna: tem * 365 / 30, md: e.md, conv: e.cvx, odd: !!e.odd, cfl: cfl, res: o.res, vt: e.vt, ai: e.ai, iss: o.iss ? dn(o.iss) : null, cpn: o.r != null ? o.r / 100 : null,
           q: function () { var L = LV[e.sym] || {}, u = L.c > 0 && L.c < 5 ? 100 : 1; return { c: L.c > 0 ? L.c * u : null, pct: L.pct, bid: L.bid > 0 ? L.bid * u : null, ask: L.ask > 0 ? L.ask * u : null, v: L.v, nop: L.n }; } };
