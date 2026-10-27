@@ -1,0 +1,16 @@
+name: Reporte diario de prueba
+# Manda a los suscriptos un ejemplo del reporte con los precios de ahora contra el último cierre (no marca el reporte del día como enviado).
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  prueba:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q matplotlib
+      - env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: python3 scripts/reporte.py --prueba-envio
