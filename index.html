@@ -692,6 +692,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cal')">Calendario de cobros</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('vard')">Variación diaria</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('rot')">Rotación</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('macro')">Calendario macro</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('vol')">Volumen</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('dol')">Dólar</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('tcor')">Mercado de dinero</button>
@@ -866,6 +867,7 @@ window.curveFitUSD = function (pts, model, minN) {
 </div>
 <div id="vard" class="tab-content"></div>
 <div id="rot" class="tab-content"></div>
+<div id="macro" class="tab-content"></div>
 <div id="vol" class="tab-content"></div>
 <div id="dol" class="tab-content"></div>
 <div id="tcor" class="tab-content"></div>
@@ -4822,7 +4824,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var c = function (t, v, s) { return '<div class="rchip"><small>' + t + '</small><b>' + v + '</b><span>' + s + '</span></div>'; };
     document.getElementById('vlChips').innerHTML =
       c('Total del período', mon(totAll), (dlt == null ? 'sin período previo comparable' : sg(dlt, 0) + '% vs. ' + (w === 1 ? 'la rueda anterior' : 'las ' + w + ' ruedas anteriores'))) +
-      (w === 1 ? c('Rueda anterior', prevAll > 0 ? mon(prevAll) : '—', 'para comparar con la del ' + fr(d1)) : c('Promedio por rueda', mon(totAll / w), w + ' ruedas · ' + fr(d0) + ' al ' + fr(d1))) + // con una rueda, el promedio repetiría el total
+      (w === 1 ? c('Rueda anterior', prevAll > 0 ? mon(prevAll) : '—', (DATES[M.a0 - 1] ? 'la del ' + fr(DATES[M.a0 - 1]) + ', contra la del ' : 'contra la del ') + fr(d1) + (d1 === bxDayStr(bxToday()) ? ' (hoy, incompleta)' : '')) : c('Promedio por rueda', mon(totAll / w), w + ' ruedas · ' + fr(d0) + ' al ' + fr(d1))) + // con una rueda, el promedio repetiría el total
       (fl ? c('Familia líder', '<i style="color:' + FAMS[fl][1] + ';font-style:normal">●</i> ' + FAMS[fl][0], nf(famTot[fl] / totAll * 100, 0) + '% del total') : '') +
       (lead[0] ? c('Más operado', lead[0].key, nf(lead[0].tot / totAll * 100, 1) + '% del total') : '') +
       c('Concentración', nf(top5 / totAll * 100, 0) + '%', 'de los 5 primeros bonos');
@@ -7128,6 +7130,94 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   window.CARRYX = { techo: function (t) { return techo(t); }, ipc: function (s) { return ipc(mi(s)); } };
 })();
 /*@@CARRY_END@@*/
+/*@@MACRO_START@@*/
+/* =====================================================================
+   PESTAÑA CALENDARIO MACRO: lo que viene en los próximos dos meses (y lo de las últimas dos semanas, con el dato)
+   - INDEC: data/calendario.json (fechas del calendario de difusión); esperado = mediana del REM (window.PSREM), dato = el IPC que sale del CER
+   - Tesoro: llamado, licitación y liquidación (el CAL de licitaciones.html)
+   - Banda cambiaria: el 1 de cada mes el techo pasa a subir el IPC de dos meses antes
+   - Pagos de renta y amortización de Globales y Bonares (PX), vencimientos de bonos en pesos (PSX) y de futuros de dólar
+   ===================================================================== */
+;(function () {
+  var root = document.getElementById('macro'); if (!root) return;
+  var $ = function (id) { return document.getElementById(id); };
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); };
+  var isAct = function () { return root.classList.contains('active'); };
+  var MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  var DIA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  var mi = function (s) { return +s.slice(0, 4) * 12 + (+s.slice(5, 7) - 1); }, ms = function (m) { return Math.floor(m / 12) + '-' + ('0' + (m % 12 + 1)).slice(-2); };
+  var TP = { indec: ['INDEC', '#ff8fb3'], tes: ['Tesoro', '#ffc542'], banda: ['Banda', '#5cc8ff'], pago: ['Pagos', '#b8e986'], venc: ['Vencimientos', '#c9a0ff'], fut: ['Futuros', '#fdba74'] };
+  var ST = { f: 'all' }, J = null, CER = null, CAL = null, ask = false;
+  function load() {
+    if (ask) return; ask = true;
+    var j = function (u) { return fetch(u + '?v=' + Math.floor(Date.now() / 36e5), { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
+    Promise.all([j('data/calendario.json'), j('data/indices.json'), fetch('licitaciones.html', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.text() : ''; }).catch(function () { return ''; })]).then(function (R) {
+      J = R[0] || { eventos: [] }; CER = R[1] && R[1].CER || {}; try { var m = /const CAL=(\[[\s\S]*?\]);/.exec(R[2] || ''); CAL = m ? JSON.parse(m[1]) : []; } catch (e) { CAL = []; }
+      render();
+    });
+  }
+  function ipcCer(m) { // el IPC del mes m sale del CER: del 16 de m+1 al 15 de m+2 crece ese IPC
+    var a = ms(m + 1) + '-16', e = ms(m + 2) + '-15', b = bxDayNum(ms(m + 2) + '-16') - bxDayNum(a);
+    return CER && CER[a] > 0 && CER[e] > 0 ? Math.pow(CER[e] / CER[a], b / (b - 1)) - 1 : null;
+  }
+  function remPi(m) { var R = window.PSREM; if (!R || !R.pi) return null; var i = m - R.m0; return i >= 0 && i < R.pi.length ? R.pi[i] : null; }
+  function events(t0, t1) {
+    var E = [], add = function (t, tp, n, d, ex, dt) { if (t >= t0 && t <= t1) E.push({ t: t, tp: tp, n: n, d: d || '', ex: ex, dt: dt }); };
+    (J.eventos || []).forEach(function (e) {
+      var t = bxDayNum(e.f), ex = null, dt = null;
+      if (e.ipc) { var m = mi(e.ipc), r = remPi(m), c = ipcCer(m); ex = r != null ? nf(r * 100, 1) + '%' : null; dt = c != null ? nf(c * 100, 1) + '%' : null; }
+      add(t, e.t || 'indec', e.n, (e.h ? e.h + ' h' : '') + (e.d ? ' · ' + e.d : ''), ex, dt);
+    });
+    (CAL || []).forEach(function (c) {
+      add(bxDayNum(c[0]), 'tes', 'Llamado a licitación del Tesoro', 'Se conocen los bonos que se ofrecen');
+      add(bxDayNum(c[1]), 'tes', 'Licitación del Tesoro', 'Liquida el ' + c[2].split('-').reverse().join('/') + '. Resultado en la pestaña Licitaciones');
+      add(bxDayNum(c[2]), 'tes', 'Liquidación de la licitación', 'Se pagan los vencimientos y entran los bonos nuevos');
+    });
+    for (var m = mi(bxDayStr(t0)); m <= mi(bxDayStr(t1)) + 1; m++) { // banda: el 1 de cada mes cambia el ajuste del techo
+      var c = ipcCer(m - 2), r = remPi(m - 2), v = c != null ? c : r;
+      add(bxDayNum(ms(m) + '-01'), 'banda', 'Banda cambiaria: el techo sube ' + (v != null ? nf(v * 100, 2) + '%' : 'el IPC') + ' en ' + MES[m % 12], 'Con el IPC de ' + MES[(m + 10) % 12] + (c != null ? ' (INDEC)' : r != null ? ' (estimado con el REM, todavía no salió)' : ''));
+      var e = bxDayNum(ms(m + 1) + '-01') - 1; while (!bxIsBiz(e)) e--; // el futuro de dólar vence el último día hábil del mes
+      add(e, 'fut', 'Vence el futuro de dólar de ' + MES[m % 12], 'A3 Mercados: se liquida contra el A3500 del día');
+    }
+    if (typeof PX !== 'undefined') { // renta y amortización de Globales y Bonares (por cada 100 VN), juntando GD y AL del mismo día
+      var G = {}; Object.keys(PX.S).forEach(function (k) { (PX.S[k].r || []).forEach(function (f) { if (f[0] < t0 || f[0] > t1 || !(f[1] > 0 || f[2] > 0)) return; var g = G[f[0]] = G[f[0]] || {}; var u = function (v) { return Number(v).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }); }, key = u(f[1]) + '|' + (f[2] > 0 ? u(f[2]) : ''); (g[key] = g[key] || []).push(k); }); });
+      Object.keys(G).forEach(function (t) { Object.keys(G[t]).forEach(function (key) { var p = key.split('|'), ks = G[t][key].sort(); add(+t, 'pago', 'Pago de ' + ks.join(', '), 'Por cada 100 VN: renta US$ ' + p[0] + (p[1] ? ' + amortización US$ ' + p[1] : '')); }); });
+    }
+    try { var sn = window.PSX && window.PSX.snap ? window.PSX.snap(1) : null, V = {};
+      if (sn) sn.S.forEach(function (o) { if (o.mat >= t0 && o.mat <= t1) { var n = window.PSX.FAM && window.PSX.FAM[o.fam] ? window.PSX.FAM[o.fam].n : o.fam; (V[o.mat] = V[o.mat] || []).push(o.k + ' (' + n + ')'); } });
+      Object.keys(V).forEach(function (t) { add(+t, 'venc', 'Vence ' + V[t].join(', '), 'Bonos en pesos'); });
+    } catch (e) {}
+    return E.sort(function (a, b) { return a.t - b.t || Object.keys(TP).indexOf(a.tp) - Object.keys(TP).indexOf(b.tp); });
+  }
+  function html() {
+    root.innerHTML = '<style>#macro .mc-f{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}#macro .mc-f button{background:none;border:1px solid var(--bd);border-radius:999px;color:var(--mu);padding:5px 12px;font:inherit;font-size:12.5px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}#macro .mc-f button.on{color:var(--tx);border-color:var(--tx);font-weight:700}#macro .mc-f i{width:8px;height:8px;border-radius:50%;display:inline-block}' +
+      '#macro .mc-d{margin-top:16px}#macro .mc-d h5{margin:0 0 6px;font-size:13px;color:var(--mu);text-transform:capitalize;font-weight:700}#macro .mc-d.hoy h5{color:var(--tx)}#macro .mc-d.pas{opacity:.62}' +
+      '#macro .mc-e{display:grid;grid-template-columns:110px minmax(0,1fr) 120px;gap:10px;align-items:center;border:1px solid var(--bd);border-left-width:4px;border-radius:10px;padding:9px 12px;margin-bottom:6px}#macro .mc-e small{color:var(--mu);font-size:12px;font-weight:700}#macro .mc-e b{font-size:14px}#macro .mc-e p{margin:2px 0 0;color:var(--mu);font-size:12.5px}#macro .mc-e .v{text-align:right;font-size:12.5px;color:var(--mu)}#macro .mc-e .v b{display:block;color:var(--tx);font-variant-numeric:tabular-nums}' +
+      '@media(max-width:700px){#macro .mc-e{grid-template-columns:1fr}#macro .mc-e .v{text-align:left}}</style>' +
+      '<div class="card"><p style="margin:0;color:var(--tx);font-size:18px;font-weight:700">Calendario macro</p><p class="note" style="margin-top:4px">Lo que viene en los próximos dos meses y lo de las últimas dos semanas: datos del INDEC (con lo que espera el REM y el dato), licitaciones del Tesoro, la banda cambiaria, pagos de Globales y Bonares, vencimientos de bonos en pesos y de futuros de dólar.</p>' +
+      '<div class="mc-f" id="mcF"></div><div id="mcL"></div>' +
+      '<p class="note" style="margin-top:14px">Las fechas del INDEC salen de su calendario de difusión. El IPC esperado es la mediana del REM del BCRA y el dato se toma del CER, así que aparece solo al día siguiente de que lo publica el INDEC. Los pagos son por cada 100 VN, en dólares.</p></div>';
+    root.addEventListener('click', function (e) { var b = e.target.closest('#mcF button'); if (b) { ST.f = b.getAttribute('data-f'); render(); } });
+  }
+  function render() {
+    if (!isAct()) return;
+    if (!$('mcL')) html(); load();
+    if (!J) { $('mcL').innerHTML = '<p class="note">Cargando…</p>'; return; }
+    var hoy = bxToday(), E = events(hoy - 14, hoy + 62), cnt = {}; E.forEach(function (e) { cnt[e.tp] = (cnt[e.tp] || 0) + 1; });
+    $('mcF').innerHTML = '<button data-f="all"' + (ST.f === 'all' ? ' class="on"' : '') + '>Todos</button>' + Object.keys(TP).filter(function (k) { return cnt[k]; }).map(function (k) { return '<button data-f="' + k + '"' + (ST.f === k ? ' class="on"' : '') + '><i style="background:' + TP[k][1] + '"></i>' + TP[k][0] + ' (' + cnt[k] + ')</button>'; }).join('');
+    var by = {}, ks = []; E.filter(function (e) { return ST.f === 'all' || e.tp === ST.f; }).forEach(function (e) { if (!by[e.t]) { by[e.t] = []; ks.push(e.t); } by[e.t].push(e); });
+    $('mcL').innerHTML = ks.length ? ks.map(function (t) {
+      var d = new Date(t * 864e5), s = DIA[d.getUTCDay()] + ' ' + d.getUTCDate() + ' de ' + MES[d.getUTCMonth()] + (t === hoy ? ' · hoy' : t === hoy + 1 ? ' · mañana' : '');
+      return '<div class="mc-d' + (t < hoy ? ' pas' : t === hoy ? ' hoy' : '') + '"><h5>' + s + '</h5>' + by[t].map(function (e) {
+        var v = e.ex || e.dt ? '<div class="v">' + (e.ex ? 'Esperado (REM)<b>' + e.ex + '</b>' : '') + (e.dt ? 'Dato<b>' + e.dt + '</b>' : '') + '</div>' : '<div></div>';
+        return '<div class="mc-e" style="border-left-color:' + TP[e.tp][1] + '"><small>' + TP[e.tp][0] + '</small><div><b>' + e.n + '</b>' + (e.d ? '<p>' + e.d + '</p>' : '') + '</div>' + v + '</div>';
+      }).join('') + '</div>';
+    }).join('') : '<p class="note">Nada en este período.</p>';
+  }
+  var _sw = window.switchTab; window.switchTab = function (id) { _sw(id); if (id === 'macro') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
+  window.MACROX = { events: function (a, b) { return J ? events(a, b) : null; }, load: load };
+})();
+/*@@MACRO_END@@*/
 /*@@PORT_START@@*/
 /* =====================================================================
    PESTAÑA PORTFOLIO: favoritos + nominales → métricas de riesgo del portfolio
@@ -8534,6 +8624,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     fav: P('<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/>'),
     vard: P('<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>'),
     rot: P('<path d="M4 9h13l-3-3M20 15H7l3 3"/>'),
+    macro: P('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
     vol: P('<path d="M5 20v-6M10 20V8M15 20v-9M20 20V5"/>'),
     dol: P('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>'),
     hd: P('<path d="M3 6v12M3 12h7M10 6v12M14 6h3a5 6 0 0 1 0 12h-3z"/>'),
@@ -8562,6 +8653,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     cons: '¿Un bono que falta, una TIR que no cierra o una idea? Escribime.',
     vard: 'Qué subió y qué bajó contra el cierre anterior, en precio y en tasa.',
     rot: 'Los pares que conviene rotar después de costos.',
+    macro: 'IPC con lo que espera el REM, licitaciones del Tesoro, la banda, pagos de bonos y vencimientos de los próximos dos meses.',
     vol: 'Cada rueda desde 2023 por bono, familia y plazo, con la de hoy en vivo.',
     dol: 'MEP, cable y oficial, la brecha y el canje.',
     tcor: 'Caución en pesos, MEP y cable, Lecaps cortas y plazo fijo: dónde dejar la liquidez.',
@@ -8595,7 +8687,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     { g: 'ons', t: 'Obligaciones negociables', ic: 'ons', it: [['ons', 'Curva y tabla'], ['ons', 'Por calificación', 'onsRt'], ['onsf', 'Flujos y total return']] },
     { g: 'pvs', t: 'Bonos provinciales', ic: 'pvs', it: [['pvs', 'Curva y tabla'], ['pvs', 'Por calificación', 'pvsRt'], ['pvsf', 'Flujos y total return']] },
     { h: 'Acciones' }, ['acc', 'Acciones'], { h: 'Dólar y tasas' }, ['dol', 'Dólar'], ['brc', 'Brecha y canje'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['carry', 'Carry trade'],
-    { h: 'Mercado' }, { g: 'mkt', t: 'Mercado del día', ic: 'vard', it: [['vard', 'Variación diaria'], ['vol', 'Volumen'], ['rot', 'Rotación']] }, { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards']] },
+    { h: 'Mercado' }, ['macro', 'Calendario macro'], { g: 'mkt', t: 'Mercado del día', ic: 'vard', it: [['vard', 'Variación diaria'], ['vol', 'Volumen'], ['rot', 'Rotación']] }, { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards']] },
     { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { sep: 1 }, ['cons', 'Consultame']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
   sn.innerHTML = '<div class="sn-h"><img src="/favicon.svg?v=2" alt=""><b>BONERÍO LOCAL</b></div><nav>' +
@@ -9098,6 +9190,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     vard: 'variacion diaria hoy movimiento suba baja curva cambio pb puntos basicos',
     vol: 'volumen operado monto liquidez negociado',
     rot: 'rotacion flujo de dinero familias hacia donde va la plata',
+    macro: 'calendario macro agenda ipc indec rem licitacion tesoro banda pagos cupones vencimientos futuros',
     dol: 'dolar mep ccl cable oficial brecha a3500 tipo de cambio',
     tcor: 'mercado de dinero caucion plazo fijo badlar tamar tasas cortas lecaps',
     tfut: 'futuros dolar futuro rofex a3 devaluacion implicita caucion tasa implicita',
