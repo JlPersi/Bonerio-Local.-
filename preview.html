@@ -6130,12 +6130,16 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     return (sn ? sn.S : []).filter(function (o) { return o.ins.k === 'cap' && o.tea != null && o.tnas != null && o.d >= 1 && !o.miss && o.P > 0; }).sort(function (a, b) { return a.d - b.d; });
   }
   function lecRef(L) { // la curva de Lecaps ajustada como en Curva Pesos (TNA % por días al vencimiento): {f, sigma, name, x0, x1, at(d)}
-    L = L || lecapsAll(); var L3 = L.filter(function (o) { return o.d >= 21; }); if (L3.length >= 3) L = L3; // sin las de menos de 3 semanas: a tan pocos días, un error chico de precio mueve mucho la tasa
+    L = L || lecapsAll(); var LA = L, L3 = L.filter(function (o) { return o.d >= 21; }); if (L3.length >= 3) L = L3; // sin las de menos de 3 semanas: a tan pocos días, un error chico de precio mueve mucho la tasa
     var X = window.PSX, q = null; if (!X || !X.fairFit || L.length < 3) return null;
     try { q = X.fairFit(L.map(function (o) { return { x: o.d, y: o.tnas * 100, k: o.k }; }), 'auto'); } catch (e) { q = null; }
     if (!q) return null;
     var x0 = L[0].d, x1 = L[L.length - 1].d;
-    return { f: q.f, sigma: q.sigma, name: q.name, x0: x0, x1: x1, at: function (d) { return d >= x0 - 3 && d <= x1 + 3 ? q.f(Math.min(x1, Math.max(x0, d))) : null; } };
+    return { f: q.f, sigma: q.sigma, name: q.name, x0: x0, x1: x1, at: function (d) {
+      if (d >= x0 - 3 && d <= x1 + 3) return q.f(Math.min(x1, Math.max(x0, d)));
+      if (d < x0) { var lo = null; LA.forEach(function (o) { if (o.d <= d && o.d > 0 && (!lo || o.d > lo.d)) lo = o; }); // antes del primer punto de la curva: lineal entre la Lecap corta más cercana y el arranque de la curva
+        if (lo) return lo.tnas * 100 + (q.f(x0) - lo.tnas * 100) * (d - lo.d) / (x0 - lo.d); }
+      return null; } };
   }
   var LBL = function () { return window.PSX && window.PSX.LABELS ? [window.PSX.LABELS] : []; }; // rótulos con el ticker, sin superponerse (los de Curva Pesos)
   var futH = function (ts) { var t = String(ts || '').slice(11, 16); return t >= '15:00' ? 'cerró a las 15' : t; }; // los futuros de A3 operan hasta las 15: la foto de después es la rueda ya cerrada
@@ -6149,7 +6153,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       o.h = h; o.i = intraOf('cau', m); o.n = dsc;
       var b = S.B && S.B[m] ? S.B[m].filter(function (r) { return cp(r); })[0] : null, hk = keys(h), l = hk[hk.length - 1];
       var bc = TJ && TJ.bcau && TJ.bcau[td] && TJ.bcau[td][m]; // BYMA ya cerró: su cierre de hoy [días, cierre, vwap, monto]
-      if (bc && bc[1] != null) { o.v = bc[1]; o.vs = 'BYMA, ' + dias(bc[0]) + ', cierre de hoy'; }
+      if (bc && m === 'EXT' && bc[2] != null) { o.v = bc[2]; o.vs = 'BYMA, ' + dias(bc[0]) + ', promedio ponderado de hoy' + (bc[3] ? ' · US$ ' + nf(bc[3] / 1e6, 1) + ' M' : '') + (bc[1] != null && Math.abs(bc[1] - bc[2]) >= 1 ? ' · última operación ' + P(bc[1]) : ''); } // en cable opera poco: una operación suelta al cierre mueve el último precio, el promedio ponderado no
+      else if (bc && bc[1] != null) { o.v = bc[1]; o.vs = 'BYMA, ' + dias(bc[0]) + ', cierre de hoy'; }
       else if (o.i && o.i.d === td) { var lp = o.i.p[o.i.p.length - 1]; o.v = lp[1]; o.vs = 'BYMA, ' + (o.i.dias ? dias(o.i.dias) + ', ' : '') + 'hoy ' + hm(lp[0]); }
       else if (b) { o.v = cp(b); o.vs = 'BYMA, ' + dias(b[0]) + ', hoy ' + (S.bts || '').slice(11, 16); }
       if (o.v != null && l && l < td) o.prev = h[l];
@@ -6166,7 +6171,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (u) o.kv = [['Plazo', dias(u[0])], ['Liquida', fr(u[5])], ['Cierre A3', P(u[1])], ['Mín. A3', P(u[2])], ['Máx. A3', P(u[3])], ['Monto A3', 'US$ ' + nf(u[4] / 1e6, 1) + ' M']];
       if (bu && bu[1] && bu[2]) o.bk = [['Tomadora', P(bu[1])], ['Colocadora', P(bu[2])]];
     } else if (k === 'CAUCION CABLE') {
-      var be = cauX(map(TJ.bcau || {}, function (x) { return x.EXT ? x.EXT[1] : null; }), 'EXT', '1 día hábil · BYMA · TNA');
+      var be = cauX(map(TJ.bcau || {}, function (x) { return x.EXT ? (x.EXT[2] != null ? x.EXT[2] : x.EXT[1]) : null; }), 'EXT', '1 día hábil · BYMA · TNA');
       o.t = 'Caución en dólares cable';
       if (be && be[1] && be[2]) o.bk = [['Tomadora', P(be[1])], ['Colocadora', P(be[2])]];
       if (o.v == null && !keys(o.h).length) return null;
@@ -6488,8 +6493,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       document.getElementById('tcRc').innerHTML = pills('data-rc', ST.rc, RG);
       document.getElementById('tcRd').innerHTML = pills('data-rd', ST.rd, RG);
       CH.d = cauChart('tcCh4', 'tcE4', ST.rc, [{ label: 'Caución en pesos', h: map(S.corta, function (r) { return r[1]; }), i: intraOf('cau', 'ARS'), col: C_CAU }], '');
-      var cab = map(TJ.bcau || {}, function (x) { return x.EXT ? x.EXT[1] : null; }), dset = [{ label: 'MEP (A3)', h: map(S.cortaD, function (r) { return r[1]; }), i: intraOf('cau', 'USD'), col: C_USD }];
-      if (keys(cab).length || intraOf('cau', 'EXT')) dset.push({ label: 'Cable (BYMA)', h: cab, i: intraOf('cau', 'EXT'), col: C_EXT });
+      var cab = map(TJ.bcau || {}, function (x) { return x.EXT ? (x.EXT[2] != null ? x.EXT[2] : x.EXT[1]) : null; }), dset = [{ label: 'MEP (A3)', h: map(S.cortaD, function (r) { return r[1]; }), i: intraOf('cau', 'USD'), col: C_USD }];
+      if (keys(cab).length || intraOf('cau', 'EXT')) dset.push({ label: 'Cable (BYMA, prom. ponderado)', h: cab, i: intraOf('cau', 'EXT'), col: C_EXT });
       CH.c = cauChart('tcCh3', 'tcE3', ST.rd, dset, '');
     }
     function history() {
@@ -6538,7 +6543,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         '<div class="rs" id="tfS7"><div style="' + HD + '"><h4 id="tfT7">Volumen e interés abierto</h4>' + dl('tfS7', 'Futuros_Volumen', 'Descargar en HD') + '</div>' +
         '<div class="rg"><div class="cw" style="height:300px"><canvas id="tfCh6"></canvas></div><div class="cw" style="height:300px"><canvas id="tfCh7"></canvas></div></div></div>' +
         '<div class="rs" id="tfS8"><div style="' + HD + '"><h4>Tasas forward</h4>' + dl('tfS8', 'Futuros_Forward', 'Descargar en HD') + '</div>' +
-        '<div class="cw" style="height:300px"><canvas id="tfCh8"></canvas></div><p class="ft">La devaluación mensual que descuenta cada tramo: del spot al primer contrato, del primero al segundo, y así. En gris, el mismo tramo hace un mes.</p></div>' +
+        '<div class="cw" style="height:300px"><canvas id="tfCh8"></canvas></div><p class="ft">La devaluación mensual que descuenta cada tramo: del spot al primer contrato, del primero al segundo, y así. En gris, el mismo tramo hace un mes. Las barras huecas son tramos ilíquidos (algún contrato con menos de 1.000 de interés abierto): su precio de ajuste es teórico.</p></div>' +
         '<div class="rs" id="tfS2"><div style="' + HD + '"><h4 id="tfT2">Historia de las tasas del dólar futuro</h4>' + dl('tfS2', 'Futuros_Historia', 'Descargar la historia en HD') + '</div>' +
         '<div class="bar"><span id="tfSer"></span><span id="tfW"></span></div><div class="cw" style="height:340px"><canvas id="tfCh2"></canvas></div>' +
         '<p class="ft">La tasa a 3 meses se interpola entre los contratos de 30 días o más, en cada rueda desde 2020; la devaluación mensual sale de esa tasa. Para la cotización de un contrato, tocá su fila en la tabla.</p></div>' +
@@ -6703,13 +6708,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     }
     function forwards() {
       if (CH.h) { CH.h.destroy(); CH.h = null; }
-      var c = fc(), now = fwd(c), ago = fwd(A(S.futAgo || []), c), lb = c.map(function (f) { return name(f.s).replace('DLR ', ''); }), tx = css('--tx'), bd = css('--bd');
+      var c = fc(), now = fwd(c), ago = fwd(A(S.futAgo || []), c), OI = 1000, ilq = function (i) { return [c[i], i ? c[i - 1] : null].some(function (f) { return f && !(f.oi >= OI); }); }, lb = c.map(function (f) { return name(f.s).replace('DLR ', ''); }), tx = css('--tx'), bd = css('--bd');
       CH.h = new Chart(document.getElementById('tfCh8').getContext('2d'), { type: 'bar', data: { labels: lb, datasets: [
-        { label: S.futV ? 'Hoy' : 'Cierre del ' + fr(S.df), data: c.map(function (f) { return now[f.s] != null ? now[f.s] : null; }), backgroundColor: C_FUT + 'dd', borderRadius: 4 },
+        { label: S.futV ? 'Hoy' : 'Cierre del ' + fr(S.df), data: c.map(function (f) { return now[f.s] != null ? now[f.s] : null; }), backgroundColor: c.map(function (f, i) { return ilq(i) ? C_FUT + '40' : C_FUT + 'dd'; }), borderColor: C_FUT, borderWidth: c.map(function (f, i) { return ilq(i) ? 1.5 : 0; }), borderRadius: 4 },
         { label: S.ago ? 'Hace un mes (' + fr(S.ago) + ')' : 'Hace un mes', data: c.map(function (f) { return ago[f.s] != null ? ago[f.s] : null; }), backgroundColor: 'rgba(161,161,170,.55)', borderRadius: 4 }] },
         options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
           plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, title: { display: true, text: 'Devaluación mensual implícita de cada tramo (%)', color: tx, font: { size: 13, weight: '600' } },
-            tooltip: { callbacks: { title: function (cc) { var f = c[cc[0].dataIndex], a = cc[0].dataIndex ? name(c[cc[0].dataIndex - 1].s) : 'Spot'; return a + ' → ' + name(f.s); }, label: function (cc) { return cc.dataset.label + ': ' + P(cc.parsed.y); } } } },
+            tooltip: { callbacks: { title: function (cc) { var f = c[cc[0].dataIndex], a = cc[0].dataIndex ? name(c[cc[0].dataIndex - 1].s) : 'Spot'; return a + ' → ' + name(f.s); }, label: function (cc) { return cc.dataset.label + ': ' + P(cc.parsed.y); }, afterBody: function (cc) { var i = cc[0].dataIndex; return ilq(i) ? 'Tramo ilíquido: menos de ' + nf(OI, 0) + ' contratos de interés abierto (precio de ajuste teórico)' : ''; } } } },
           scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: true }, grid: { display: false } }, y: { title: { display: true, text: 'Devaluación mensual (%)', color: tx }, ticks: { color: tx, stepSize: 0.5, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
     }
     function history() {
@@ -6760,7 +6765,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var ctd = function (c) { return c ? c.n + (c.ip ? ' <span class="mu" title="El bono vence antes del fin de mes: se usa este contrato desarmándolo al vencimiento; el precio es interpolado y queda riesgo de base">*</span>' : '') : '<span class="mu">—</span>'; };
     var ncl = function (n) { return n && Math.abs(n.g) <= 60 ? n.k + ' · ' + P(n.v) + (Math.abs(n.g) > 3 ? ' <span class="mu">(' + (n.g > 0 ? '+' : '−') + Math.abs(n.g) + ' d)</span>' : '') : '<span class="mu">—</span>'; };
     var tem = function (tea) { return tea == null ? null : (Math.pow(1 + tea / 100, 30 / 365) - 1) * 100; }; // TEM equivalente a la TEA (%): 30 días, como en Curva Pesos y Futuros
-    var bp = function (v) { return v == null || !isFinite(v) ? 'n/a' : sg(v * 100, 0); }, cls = function (v) { return v == null ? 'mu' : v > 0 ? 'up' : v < 0 ? 'dn' : 'mu'; };
+    var TIE = 5, tie = function (v) { return v != null && Math.abs(v * 100) < TIE; }; // menos de 5 pb: empate (y sin «-0»)
+    var bp = function (v) { return v == null || !isFinite(v) ? 'n/a' : tie(v) ? '0' : sg(v * 100, 0); }, cls = function (v) { return v == null || tie(v) ? 'mu' : v > 0 ? 'up' : v < 0 ? 'dn' : 'mu'; };
     var dp = function (x) { return bxDayNum(String(x).slice(0, 10)); };
     var fc = function () { return S.futV && S.futV.length ? S.futV : S.fut; };
     var sh = function (s) { return name(s).replace(/^DLR /, ''); };
@@ -6834,12 +6840,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       mk('syA', { type: 'scatter', data: { datasets: sets }, plugins: [].concat(LBL()), options: xEnd(dateOpt(D, 'Tasa en dólares oficiales por vencimiento (TEA %)', function (v) { return nf(v, 1) + '%'; }, 'r'), up.concat(dpts)) });
       bars('syB', D.usd.filter(function (r) { return r.df != null && r.o.d >= MIN; }).map(function (r) { return { l: r.o.k, v: r.df, r: r }; }), 'Sintético menos el dollar linked del mismo plazo (pb)', function (x) { return 'Sintético ' + P(x.r.u) + ' · ' + (x.r.rf.k || 'curva de dollar linked') + ' ' + P(x.r.rf.v); });
       document.getElementById('syH').textContent = 'Cada Lecap con el futuro de su vencimiento';
-      var h = '<thead><tr><th class="l">Lecap</th><th>Precio</th><th>Pago</th><th>Contrato</th><th>Futuro al venc.</th><th>Vence</th><th>Días</th><th>USD hoy</th><th>USD al venc.</th><th class="lc">TEA en USD</th><th>TEM</th><th>Dollar linked (curva)</th><th>Dif. curva (pb)</th><th class="l">Dollar linked más cercano</th><th>Dif. (pb)</th><th class="l">Conviene</th></tr></thead><tbody>';
-      D.usd.forEach(function (r) { var df = r.df; h += '<tr data-qv="' + r.o.k + '"><td class="l"><b>' + r.o.k + '</b></td><td>' + nf(r.o.P, 2) + '</td><td>' + nf(r.pay, 2) + '</td><td>' + ctd(r.ct) + '</td><td>' + nf(r.F, 1) + '</td><td>' + fr(bxDayStr(r.o.mat)) + '</td><td>' + r.o.d + '</td><td>' + nf(r.u0, 4) + '</td><td>' + nf(r.u1, 4) + '</td><td class="lc">' + P(r.u) + '</td><td>' + P(tem(r.u)) + '</td><td>' + (r.dl == null ? '<span class="mu">sin dollar linked</span>' : P(r.dl)) + '</td><td class="' + cls(r.dc) + '">' + bp(r.dc) + '</td><td class="l">' + ncl(r.nd) + '</td><td class="' + cls(df) + '"><b>' + bp(df) + '</b></td><td class="l">' + (df == null ? '—' : (df > 0 ? 'Sintético' : 'Dollar linked') + (r.rf.k ? ' <span class="mu">vs. ' + r.rf.k + '</span>' : '')) + '</td></tr>'; });
-      document.getElementById('syT').innerHTML = h + (D.usd.length ? '' : '<tr><td class="l mu" colspan="15">No hay Lecaps dentro de la curva de futuros.</td></tr>') + '</tbody>';
+      var h = '<thead><tr><th class="l">Lecap</th><th>Precio</th><th>Pago</th><th>Contrato</th><th>Futuro al venc.</th><th>Vence</th><th>Días</th><th title="Cuántos dólares oficiales te llevás al vencimiento por cada US$ 100 que ponés hoy (Lecap + futuro)">US$ 100 hoy, al venc.</th><th class="lc">TEA en USD</th><th>TEM</th><th>Dollar linked (curva)</th><th>Dif. curva (pb)</th><th class="l">Dollar linked más cercano</th><th>Dif. (pb)</th><th class="l">Conviene</th></tr></thead><tbody>';
+      D.usd.forEach(function (r) { var df = r.df; h += '<tr data-qv="' + r.o.k + '"><td class="l"><b>' + r.o.k + '</b></td><td>' + nf(r.o.P, 2) + '</td><td>' + nf(r.pay, 2) + '</td><td>' + ctd(r.ct) + '</td><td>' + nf(r.F, 1) + '</td><td>' + fr(bxDayStr(r.o.mat)) + '</td><td>' + r.o.d + '</td><td>' + (r.u0 > 0 ? nf(100 * r.u1 / r.u0, 2) : '—') + '</td><td class="lc">' + P(r.u) + '</td><td>' + P(tem(r.u)) + '</td><td>' + (r.dl == null ? '<span class="mu">sin dollar linked</span>' : P(r.dl)) + '</td><td class="' + cls(r.dc) + '">' + bp(r.dc) + '</td><td class="l">' + ncl(r.nd) + '</td><td class="' + cls(df) + '"><b>' + bp(df) + '</b></td><td class="l">' + (df == null ? '—' : (tie(df) ? 'Empate' : df > 0 ? 'Sintético' : 'Dollar linked') + (r.rf.k ? ' <span class="mu">vs. ' + r.rf.k + '</span>' : '')) + '</td></tr>'; });
+      document.getElementById('syT').innerHTML = h + (D.usd.length ? '' : '<tr><td class="l mu" colspan="14">No hay Lecaps dentro de la curva de futuros.</td></tr>') + '</tbody>';
       document.getElementById('syN').innerHTML = '<p><b>Cómo se lee</b></p><ul>' +
         '<li><b>La estrategia</b>: comprás la Lecap y comprás futuro de dólar por el mismo monto. Al vencimiento cobrás pesos y con el futuro los pasás a dólares oficiales: queda una tasa en dólares.</li>' +
-        '<li><b>USD hoy</b> = precio / A3500 de hoy. <b>USD al vencimiento</b> = pago de la Lecap / futuro de su vencimiento. TEA = (USD al venc. / USD hoy)<sup>365/días</sup> − 1 y TEM = (1 + TEA)<sup>30/365</sup> − 1.</li>' +
+        '<li><b>US$ 100 hoy, al venc.</b>: lo que te llevás en dólares oficiales por cada US$ 100 de hoy, o sea 100 × (pago de la Lecap / futuro de su vencimiento) / (precio / A3500 de hoy). TEA = (ese valor / 100)<sup>365/días</sup> − 1 y TEM = (1 + TEA)<sup>30/365</sup> − 1.</li>' +
         '<li><b>Contra qué se compara</b>: si hay un dollar linked que vence a una semana o menos, contra ese bono (es la alternativa real); si no, contra la curva ajustada de dollar linked al mismo plazo (la misma del gráfico, sin los de menos de 3 semanas). Las dos se miden con el A3500. <b>Dif. (pb)</b> y <b>Conviene</b> usan esa comparación; <b>Dif. curva</b> es siempre contra la curva.</li>' +
         '<li><b>Contrato</b>: el futuro del mes en que vence la Lecap. Con <b>*</b>, la Lecap vence antes de fin de mes: el precio del futuro se interpola a su fecha y, como el contrato se desarma ese día, queda riesgo de base.</li>' +
         '<li><b>Qué entra</b>: Lecaps y Boncaps; los CER con el índice ya fijado, solo si elegís «Con CER fijados». Los que vencen en menos de 3 semanas van solo en la tabla: a tan pocos días la TEA anualiza cualquier diferencia chica.</li></ul>';
@@ -10014,7 +10020,7 @@ window.RATG = (function () {
       var p = lvOk ? L.c : cl ? cl[0] : null, ch = lvOk && L.pct != null ? L.pct : null;
       var e = { k: k, sym: sym, em: EM[k] || '', t: o.t, mat: o.mat, iss: o.iss, r: o.r, res: o.res, p: p, ch: ch, v: lvOk ? L.v * L.c / 100 : cl ? cl[2] : 0, v20: cl ? cl[3] : null, n20: cl && cl[4] != null ? cl[4] : null, live: !!lvOk, d: dn(o.mat) - s, s: s, bid: L && L.bid, ask: L && L.ask };
       if (!(p > 0)) return;
-      var fl = o.fl.map(function (f) { return [dn(f[0]), f[1], f[2]]; }).filter(function (f) { return f[0] > s; }); e.fl = fl;
+      var fl = o.fl.map(function (f) { return [dn(f[0]), f[1], f[2]]; }).filter(function (f) { return f[0] > s; }); e.fl = fl; if (!fl.length) return; // ya vencido o pagado entero: fuera de la tabla
       if (usd && fl.length) {
         var u = p > 0 && p < 5 ? 100 : 1; if (u > 1) p = e.p = p * u; // alguna cotiza por 1 VN
         e.tir = tirAt(fl, s, p);
@@ -10164,10 +10170,10 @@ window.RATG = (function () {
       sets.push(Object.assign({ label: o.n, data: d, borderColor: o.c, backgroundColor: hexA(o.c, 0.1), fill: FO.length <= 2 ? si : false }, LN)); });
     var cy = G.concat(O).concat([].concat.apply([], sets.slice(3).map(function (d) { return d.data; }))).map(function (q) { return q.y; }), py = pts.map(function (q) { return q.y; }).concat(sp.map(function (q) { return q.y; })), ymn = Math.max(Math.min.apply(null, py), Math.min.apply(null, cy) - 4), ymx = Math.min(Math.max.apply(null, py), Math.max.apply(null, cy) + 4), nOff = pts.filter(function (q) { return q.y < ymn || q.y > ymx; }).length; // el eje sigue a las curvas: las ONs muy alejadas quedan afuera
     var inO = function (x) { var a = Math.min.apply(null, pts.map(function (p) { return p.x; })), b = Math.max.apply(null, pts.map(function (p) { return p.x; })); return x >= a && x <= b; };
-    var at = function (y) { var x = y * 365; return fO && inO(x) ? (fO(x) - SV.f(x)) * 100 : null; };
+    var at = function (y) { var x = y * 365; return fO && inO(x) && x >= SV.x0 - 30 ? (fO(x) - SV.f(x)) * 100 : null; };
     var lab = { id: 'onsSvLab', afterDatasetsDraw: function (c) { var g = c.ctx; g.save(); g.font = '600 11px Inter, sans-serif'; g.textBaseline = 'middle'; [[1, sp, CS], [0, pts, tx]].forEach(function (z) { if (z[0] === 0 && pts.length > 30) return; var m = c.getDatasetMeta(z[0]); g.fillStyle = z[2]; m.data.forEach(function (el, i) { g.fillText(z[1][i].k, el.x + 8, el.y); }); }); g.restore(); } };
     var mk = { id: 'onsSvMk', afterDatasetsDraw: function (c) { // el spread marcado sobre el gráfico a 1, 2, 3 y 5 años
-      var CU = fO ? [{ f: fO, c: CO, v: at }] : FO.length <= 3 ? FO.map(function (o) { return { f: o.f, c: o.c, v: function (yr) { var x = yr * 365; return x >= o.x0 && x <= o.x1 ? (o.f(x) - SV.f(x)) * 100 : null; } }; }) : []; // con más de 3 empresas, los valores quedan solo en las tarjetas
+      var CU = fO ? [{ f: fO, c: CO, v: at }] : FO.length <= 3 ? FO.map(function (o) { return { f: o.f, c: o.c, v: function (yr) { var x = yr * 365; return x >= o.x0 && x <= o.x1 && x >= SV.x0 - 30 ? (o.f(x) - SV.f(x)) * 100 : null; } }; }) : []; // con más de 3 empresas, los valores quedan solo en las tarjetas
       if (!CU.length) return; var g = c.ctx, X = c.scales.x, Y = c.scales.y, A = c.chartArea; g.save(); g.font = '700 11.5px Inter, sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'center';
       [1, 2, 3, 5].forEach(function (yr) { var used = []; CU.forEach(function (u) { var CO = u.c, fO = u.f, v = u.v(yr); if (v == null) return; var px = X.getPixelForValue(yr * 365), y1 = Y.getPixelForValue(SV.f(yr * 365)), y2 = Y.getPixelForValue(fO(yr * 365)); if (px < A.left || px > A.right) return;
         g.strokeStyle = tx; g.globalAlpha = 0.55; g.setLineDash([3, 3]); g.lineWidth = 1.2; g.beginPath(); g.moveTo(px, Math.max(A.top, Math.min(A.bottom, y1))); g.lineTo(px, Math.max(A.top, Math.min(A.bottom, y2))); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
@@ -10182,8 +10188,8 @@ window.RATG = (function () {
       scales: { x: { type: 'linear', title: { display: true, text: 'Duración modificada (años)', color: mu }, ticks: { color: mu, stepSize: 365, callback: function (v) { return nf(v / 365, 0); } }, grid: { color: bd } }, y: { min: Math.floor(ymn), max: Math.ceil(ymx), title: { display: true, text: 'TIR en dólares (TEA, %)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
     $('onsSvK').innerHTML = [1, 2, 3, 5].map(function (y) {
       var t = '<small>Spread a ' + y + ' año' + (y > 1 ? 's' : '') + '</small>';
-      if (MU) return '<div>' + t + FO.map(function (o) { var x = y * 365, v = x >= o.x0 && x <= o.x1 ? (o.f(x) - SV.f(x)) * 100 : null; return '<span class="emK"><i style="background:' + o.c + '"></i>' + esc(o.n) + '<b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b></span>'; }).join('') + '</div>';
-      var v = at(y); return '<div>' + t + '<b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b><span>' + (v == null ? 'fuera del tramo de las ONs' : 'curva de ONs − curva soberana') + '</span></div>'; }).join('');
+      if (MU) return '<div>' + t + FO.map(function (o) { var x = y * 365, v = x >= o.x0 && x <= o.x1 && x >= SV.x0 - 30 ? (o.f(x) - SV.f(x)) * 100 : null; return '<span class="emK"><i style="background:' + o.c + '"></i>' + esc(o.n) + '<b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b></span>'; }).join('') + '</div>';
+      var v = at(y); return '<div>' + t + '<b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b><span>' + (v == null ? (y * 365 < SV.x0 - 30 ? 'antes del Global más corto: sin curva soberana' : 'fuera del tramo de las ONs') : 'curva de ONs − curva soberana') + '</span></div>'; }).join('');
     $('onsSvS').textContent = (MU ? 'Curvas de las ONs de ' + ST.em.join(', ') : 'Curva de ' + (ST.em.length ? 'las ONs de ' + ST.em[0] : 'las ONs hard dollar')) + ' contra la de los Globales, todas en ' + (spG() === 'D' ? 'MEP' : 'cable') + (MU ? '; cada empresa en su color' + (FO.length <= 2 ? ', con su spread sombreado y marcado a 1, 2, 3 y 5 años.' : FO.length <= 3 ? ', con su spread marcado a 1, 2, 3 y 5 años.' : '; el spread de cada una, en las tarjetas.') : '; el área entre las dos es el spread, marcado a 1, 2, 3 y 5 años.');
     $('onsSvN').textContent = 'Las curvas son ajustes logarítmicos de TIR contra duración modificada' + (fo && fo.n ? '; la de ONs sin las ' + fo.n + ' que se alejan más de 2 σ' : '') + (MU ? '; la de cada empresa, con sus ONs y en su tramo de duración' : '') + '. Spread = curva de ONs menos curva soberana a la misma duración: negativo, las ONs rinden menos que los Globales. Antes del Global más corto (' + nf(SV.x0 / 365, 1) + ' años) y después del más largo (' + nf(SV.x1 / 365, 1) + ') la curva soberana es el mismo ajuste extendido.' + (nOff ? ' ' + nOff + ' ON' + (nOff > 1 ? 's quedan' : ' queda') + ' fuera de la escala, lejos de las curvas (están en el gráfico de arriba).' : '') + ' Usa los mismos filtros de arriba (tipo, liquidez, empresa y búsqueda). Tocá una ON para ver su ficha.';
   }
@@ -10556,7 +10562,7 @@ window.RATG = (function () {
       var p = lvOk ? L.c : cl ? cl[0] : null; if (p > 0 && fxp !== 1) p = p / fxp; var ch = lvOk && L.pct != null ? L.pct : null;
       var e = { k: k, sym: sym, em: EM[k] || '', t: o.t, mat: o.mat, iss: o.iss, r: o.r, res: o.res, p: p, ch: ch, v: lvOk ? L.v * L.c / 100 : cl ? cl[2] : 0, v20: cl ? cl[3] : null, n20: cl && cl[4] != null ? cl[4] : null, live: !!lvOk, d: dn(o.mat) - s, s: s, bid: L && L.bid, ask: L && L.ask };
       if (!(p > 0)) return;
-      var fl = o.fl.map(function (f) { return [dn(f[0]), f[1], f[2]]; }).filter(function (f) { return f[0] > s; }); e.fl = fl;
+      var fl = o.fl.map(function (f) { return [dn(f[0]), f[1], f[2]]; }).filter(function (f) { return f[0] > s; }); e.fl = fl; if (!fl.length) return; // ya vencido o pagado entero: fuera de la tabla
       if (usd && fl.length) {
         var u = p > 0 && p < 5 ? 100 : 1; if (u > 1) p = e.p = p * u; // alguna cotiza por 1 VN
         e.tir = tirAt(fl, s, p);
@@ -10704,7 +10710,7 @@ window.RATG = (function () {
     FO.forEach(function (o) { var d = []; for (var i = 0; i <= 120; i++) { var x = o.x0 + (o.x1 - o.x0) * i / 120; d.push({ x: x, y: o.f(x) }); } sets.push(Object.assign({ label: o.n, data: d, borderColor: o.c, backgroundColor: o.c, fill: false }, LN)); });
     var cy = G.concat(O).concat([].concat.apply([], sets.slice(4).map(function (d) { return d.data; }))).map(function (q) { return q.y; }), py = pts.map(function (q) { return q.y; }).concat(sp.map(function (q) { return q.y; })), ymn = Math.max(Math.min.apply(null, py), Math.min.apply(null, cy) - 4), ymx = Math.min(Math.max.apply(null, py), Math.max.apply(null, cy) + 4), nOff = pts.filter(function (q) { return q.y < ymn || q.y > ymx; }).length; // el eje sigue a las curvas: los provinciales muy alejadas quedan afuera
     var inO = function (x) { var a = Math.min.apply(null, pts.map(function (p) { return p.x; })), b = Math.max.apply(null, pts.map(function (p) { return p.x; })); return x >= a && x <= b; };
-    var at = function (y) { var x = y * 365; return fO && inO(x) ? (fO(x) - SV.f(x)) * 100 : null; };
+    var at = function (y) { var x = y * 365; return fO && inO(x) && x >= SV.x0 - 30 ? (fO(x) - SV.f(x)) * 100 : null; };
     var lab = { id: 'pvsSvLab', afterDatasetsDraw: function (c) { var g = c.ctx; g.save(); g.font = '600 11px Inter, sans-serif'; g.textBaseline = 'middle'; [[1, sp, CS], [0, pts, tx]].forEach(function (z) { if (z[0] === 0 && pts.length > 30) return; var m = c.getDatasetMeta(z[0]); g.fillStyle = z[2]; m.data.forEach(function (el, i) { g.fillText(z[1][i].k, el.x + 8, el.y); }); }); g.restore(); } };
     var mk = { id: 'pvsSvMk', afterDatasetsDraw: function (c) { // el spread marcado sobre el gráfico a 1, 2, 3 y 5 años
       if (!fO) return; var g = c.ctx, X = c.scales.x, Y = c.scales.y, A = c.chartArea; g.save(); g.font = '700 11.5px Inter, sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'center';
@@ -10720,8 +10726,8 @@ window.RATG = (function () {
       scales: { x: { type: 'linear', title: { display: true, text: 'Duración modificada (años)', color: mu }, ticks: { color: mu, stepSize: 365, callback: function (v) { return nf(v / 365, 0); } }, grid: { color: bd } }, y: { min: Math.floor(ymn), max: Math.ceil(ymx), title: { display: true, text: 'TIR en dólares (TEA, %)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } });
     $('pvsSvK').innerHTML = [1, 2, 3, 5].map(function (y) {
       var t = '<small>Spread a ' + y + ' año' + (y > 1 ? 's' : '') + '</small>';
-      if (MU) return '<div>' + t + FO.map(function (o) { var x = y * 365, v = x >= o.x0 && x <= o.x1 ? (o.f(x) - SV.f(x)) * 100 : null; return '<span class="emK"><i style="background:' + o.c + '"></i>' + esc(o.n) + '<b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b></span>'; }).join('') + '</div>';
-      var v = at(y); return '<div>' + t + '<b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b><span>' + (v == null ? 'fuera del tramo de los provinciales' : 'curva de provinciales − curva soberana') + '</span></div>'; }).join('');
+      if (MU) return '<div>' + t + FO.map(function (o) { var x = y * 365, v = x >= o.x0 && x <= o.x1 && x >= SV.x0 - 30 ? (o.f(x) - SV.f(x)) * 100 : null; return '<span class="emK"><i style="background:' + o.c + '"></i>' + esc(o.n) + '<b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b></span>'; }).join('') + '</div>';
+      var v = at(y); return '<div>' + t + '<b>' + (v == null ? '—' : sg(v, 0) + ' pb') + '</b><span>' + (v == null ? (y * 365 < SV.x0 - 30 ? 'antes del Global más corto: sin curva soberana' : 'fuera del tramo de los provinciales') : 'curva de provinciales − curva soberana') + '</span></div>'; }).join('');
     $('pvsSvS').textContent = (MU ? 'Curvas de los provinciales de ' + ST.em.join(', ') : 'Curva de ' + (ST.em.length ? 'los provinciales de ' + ST.em[0] : 'los provinciales hard dollar')) + ' contra la de los Globales, todas en ' + (spG() === 'D' ? 'MEP' : 'cable') + (MU ? '; cada provincia en su color.' : '; el área entre las dos es el spread, marcado a 1, 2, 3 y 5 años.');
     $('pvsSvN').textContent = 'Las curvas son ajustes logarítmicos de TIR contra duración modificada' + (fo && fo.n ? '; la de provinciales sin las ' + fo.n + ' que se alejan más de 2 σ' : '') + (MU ? '; la de cada provincia, con sus bonos y en su tramo de duración' : '') + '. Spread = curva de provinciales menos curva soberana a la misma duración: negativo, los provinciales rinden menos que los Globales. Antes del Global más corto (' + nf(SV.x0 / 365, 1) + ' años) y después del más largo (' + nf(SV.x1 / 365, 1) + ') la curva soberana es el mismo ajuste extendido.' + (nOff ? ' ' + nOff + ' ON' + (nOff > 1 ? 's quedan' : ' queda') + ' fuera de la escala, lejos de las curvas (están en el gráfico de arriba).' : '') + ' Usa los mismos filtros de arriba (tipo, liquidez, provincia y búsqueda). Tocá un bono para ver su ficha.';
   }
