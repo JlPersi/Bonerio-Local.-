@@ -190,7 +190,7 @@ def enviar(asunto, html, img, mails):
 
 
 def suscriptos():
-    h = {"apikey": KEY}
+    h = {"apikey": KEY, "User-Agent": "bonerio-reporte/1.0"}  # Supabase rechaza la clave secret (401) si el User-Agent parece de un navegador
     if KEY.startswith("eyJ"):
         h["Authorization"] = "Bearer " + KEY
     subs = http(SB + "/rest/v1/reporte?activo=eq.true&select=email", headers=h) or []
