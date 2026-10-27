@@ -532,6 +532,12 @@ main > h1.hm-h1 { display: flex; align-items: center; gap: 12px }
 #home .hm-per button.on { background: var(--ac); color: var(--acx); border-color: var(--ac) }
 #home table.hm-tb { width: 100%; border-collapse: collapse; font-size: 13.5px }
 #home .hm-tb td { padding: 7px 4px; border-bottom: 1px solid var(--bd); font-variant-numeric: tabular-nums }
+#home .hm-op { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px }
+#home .hm-op .it { border: 1px solid var(--bd); border-radius: 12px; padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 3px; background: var(--pill) }
+#home .hm-op .it:hover { border-color: var(--ac) }
+#home .hm-op .tg { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ac) }
+#home .hm-op b { font-size: 14px; color: var(--tx) }
+#home .hm-op .d { font-size: 12.5px; color: var(--mu); line-height: 1.45 }
 #home .hm-tb td:first-child { font-weight: 700 } #home .hm-tb td:not(:first-child) { text-align: right }
 #home .hm-tb tr:last-child td { border-bottom: 0 }
 #home .hm-tb .f { color: var(--mu); font-weight: 500; font-size: 12px }
@@ -4531,6 +4537,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       detail(A, Bb); ranking();
     } catch (e) { console.error('rot', e); var d = document.getElementById('rtDet'); if (d) d.textContent = 'Error: ' + e.message; }
   }
+  window.ROTX = { scan: function () { // para el Inicio: los pares que convienen y el desvío de cada bono contra su curva, con la configuración por defecto y el filtro de liquidez
+    var VM = window.VOLX && window.VOLX.adtv, minV = ST.minV * 1e6, liq = function (o) { return !VM || (VM[o.k] || 0) >= minV; }, rows = [], res = [], keep = FIT;
+    try { ['fija', 'cer', 'tamar', 'dl', 'usd'].forEach(function (f) { var u; try { u = universe(f); fits(u); } catch (e) { return; } u = u.filter(liq);
+      u.forEach(function (o) { if (o.res != null) res.push({ k: o.k, fam: f, res: o.res * 100, d: o.d }); });
+      u.forEach(function (a) { u.forEach(function (b) { if (a === b) return; var r = pair(a, b); if (r && r.verd === 'Conviene' && r.ann != null && r.H <= 730) rows.push({ a: a.k, b: b.k, fam: f, adv: r.adv, ann: r.ann, H: r.H }); }); }); });
+    } finally { FIT = keep; }
+    rows.sort(function (x, y) { return y.ann - x.ann; }); return { rot: rows, res: res, name: function (f) { var x = famName(f); return x ? x[1] : f; } };
+  } };
   window.renderRotacion = render;
   window.rotState = function () { return { ST: ST, U: U }; };
 
@@ -6902,6 +6916,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         draw(D);
       } catch (x) { console.error('sint', x); var s2 = document.getElementById('sySub'); if (s2) s2.textContent = 'Error: ' + x.message; }
     }
+    window.SINTX = function (cb) { load(function () { var D = null; if (!err) { try { S = getS(); D = build(); } catch (e) { D = null; } } cb(D); }); }; // para el Inicio: Lecap + futuro contra dollar linked y al revés
     window.renderSinteticos = render;
   })();
 })();
@@ -8427,6 +8442,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   home.innerHTML =
     '<div class="hm-hero"><div><h2>El mercado de hoy</h2><p id="hmSub">Lo más importante de la renta fija argentina en una pantalla. Tocá cualquier tarjeta para ver el detalle.</p></div><button class="icon-btn" id="hmDl" data-html2canvas-ignore="true" title="Descargar el Inicio completo en HD (para compartir)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div>' +
     '<div class="hm-k">' + MK('rp', 'Riesgo país', 'curva:rpCard') + MK('mep', 'Dólar MEP · AL30', 'dol') + MK('ccl', 'CCL', 'dol') + MK('ofi', 'Oficial · A3500', 'dol') + MK('tam', 'TAMAR · TNA', 'pesos') + '</div>' +
+    card('hmOPP', 'Oportunidades que detecta la página', '', 'Señales que la página calcula con los precios de ahora: rotaciones, bonos lejos de su curva, dólar, futuros, volumen y breakevens. Tocá cada una para ver el detalle. No son recomendaciones de inversión.', '<div id="hmOPPb"><p class="qs">Calculando…</p></div>') +
     '<div class="hm-g">' +
       card('hmRP', 'Riesgo país', 'curva:rpCard', '', '<div class="hm-per" id="hmRPp"><button data-n="21">1M</button><button data-n="63">3M</button><button data-n="126" class="on">6M</button><button data-n="252">1A</button></div><div class="hm-ch"><canvas id="hmRPc"></canvas></div>') +
       card('hmUSD', 'Curva Globales y Bonares', 'curva', 'TIR contra duración modificada, al precio de la especie elegida arriba (MEP o cable).', '<div class="hm-ch"><canvas id="hmUSDc"></canvas></div>') +
@@ -8565,6 +8581,76 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     $('hmMOVb').innerHTML = '<p class="qs" style="margin-top:0">' + sub + ' Solo bonos con más de $300 M operados por día.</p><table class="hm-tb"><tbody>' + (up.length ? up.map(row).join('') : '<tr><td colspan="3" class="f">Ninguno sube</td></tr>') + '<tr><td colspan="3" style="padding:2px"></td></tr>' + (dn.length ? dn.map(row).join('') : '<tr><td colspan="3" class="f">Ninguno baja</td></tr>') + '</tbody></table>';
   }
 
+  /* ---------- oportunidades: las señales que ya calcula la página (Rotación, Curva Pesos, Dólar, Sintéticos, Volumen), juntas ---------- */
+  var SX = null, sxT = 0;
+  function opps() {
+    var el = $('hmOPPb'); if (!el) return;
+    var X = window.PSX, q = window.PXQ || {}, A = window.VOLX && window.VOLX.adtv, MIN = 300e6, D = DATA || {}, out = [];
+    var ok = function (x) { return x && x.c > 0; }, sgn = function (v, d) { return (v > 0 ? '+' : '') + nf(v, d || 0); };
+    var add = function (cat, go, t, d) { out.push('<div class="it" data-go="' + go + '"><span class="tg">' + cat + '</span><b>' + t + '</b><span class="d">' + d + '</span></div>'); };
+    var stat = function (a) { var m = a.reduce(function (s, x) { return s + x; }, 0) / a.length, v = a.reduce(function (s, x) { return s + (x - m) * (x - m); }, 0) / Math.max(1, a.length - 1); return { m: m, sd: Math.sqrt(v) }; };
+    if (window.SINTX && Date.now() - sxT > 180000) { sxT = Date.now(); window.SINTX(function (d) { SX = d; if (home.classList.contains('active')) opps(); }); }
+    // 1) rotación y caro o barato contra la curva (desde 60 días: los cortos anualizan cualquier diferencia chica; más de 500 pb suele ser un precio viejo)
+    var R = null; try { R = window.ROTX && window.ROTX.scan(); } catch (e) { console.error('opps rot', e); }
+    if (R) {
+      var used = {}, n = 0; R.rot.forEach(function (r) { if (n >= 3 || used[r.a] || used[r.b]) return; used[r.a] = used[r.b] = 1; n++;
+        add('Rotación', 'rot', 'Vender ' + r.a + ' → comprar ' + r.b, 'Ventaja neta de ' + nf(r.adv * 100, 2) + '% en ' + nf(r.H) + ' días (' + nf(r.ann * 100, 1) + '% anual), después de costos · ' + R.name(r.fam) + '.'); });
+      var rs = R.res.filter(function (o) { return Math.abs(o.res) >= 15 && Math.abs(o.res) <= 500 && o.d >= 60; }).sort(function (a, b) { return Math.abs(b.res) - Math.abs(a.res); }), cnt = { b: 0, c: 0 };
+      rs.forEach(function (o) { var cheap = o.res > 0, k = cheap ? 'b' : 'c'; if (cnt[k] >= 2) return; cnt[k]++;
+        add('Caro o barato', o.fam === 'usd' ? 'curva' : 'pesos', o.k + (cheap ? ' barato' : ' caro') + ' contra su curva', 'Rinde ' + nf(Math.abs(o.res)) + ' pb ' + (cheap ? 'más' : 'menos') + ' que la curva ajustada de ' + R.name(o.fam) + ' al mismo plazo.'); });
+    }
+    // 2) dólar: el MEP con AL30 contra GD30 y el canje CCL/MEP contra su historia
+    var mepA = ok(q.AL30) && ok(q.AL30D) ? q.AL30.c / q.AL30D.c : null, mepG = ok(q.GD30) && ok(q.GD30D) ? q.GD30.c / q.GD30D.c : null, cclA = ok(q.AL30) && ok(q.AL30C) ? q.AL30.c / q.AL30C.c : null;
+    if (mepA && mepG && Math.abs(mepG / mepA - 1) >= 0.003) { var gB = mepG < mepA; add('Dólar', 'dol', 'MEP más barato con ' + (gB ? 'GD30' : 'AL30'), 'Con ' + (gB ? 'GD30' : 'AL30') + ' sale $ ' + nf(gB ? mepG : mepA, 2) + ' y con ' + (gB ? 'AL30' : 'GD30') + ' $ ' + nf(gB ? mepA : mepG, 2) + ' (' + nf(Math.abs(mepG / mepA - 1) * 100, 2) + '% de diferencia, a último operado).'); }
+    if (D.dl && D.dl.d) {
+      var hs = lastN(D.dl.d, 120).map(function (x) { var m = x[1].mep && x[1].mep.AL30 && x[1].mep.AL30.close, c = x[1].ccl && (x[1].ccl.vw || x[1].ccl.med); return m > 0 && c > 0 ? (c / m - 1) * 100 : null; }).filter(function (v) { return v != null; });
+      var cj = mepA && cclA ? (cclA / mepA - 1) * 100 : hs[hs.length - 1];
+      if (hs.length >= 30 && cj != null) { var st = stat(hs), z = st.sd > 0 ? (cj - st.m) / st.sd : 0;
+        if (Math.abs(z) >= 1) add('Dólar', 'brc', 'Canje CCL/MEP ' + (z > 0 ? 'alto' : 'bajo') + ': ' + nf(cj, 1) + '%', 'Promedio de ' + hs.length + ' ruedas: ' + nf(st.m, 1) + '% (' + sgn(z, 1) + ' desvíos). ' + (z > 0 ? 'El cable está caro contra el MEP.' : 'El cable está barato contra el MEP.')); }
+    }
+    // 3) ley local contra ley NY: GD contra AL, contra las últimas ruedas
+    var cD = D.cl && D.cl.D, ds = Object.keys(cD || {}).sort(), best = null;
+    [['AL29', 'GD29'], ['AL30', 'GD30'], ['AL35', 'GD35'], ['AE38', 'GD38'], ['AL41', 'GD41']].forEach(function (p) {
+      var h = ds.map(function (d) { var a = cD[d][p[0]], b = cD[d][p[1]]; return a > 0 && b > 0 ? (b / a - 1) * 100 : null; }).filter(function (v) { return v != null; });
+      var now = ok(q[p[0] + 'D']) && ok(q[p[1] + 'D']) ? (q[p[1] + 'D'].c / q[p[0] + 'D'].c - 1) * 100 : h[h.length - 1]; if (h.length < 8 || now == null) return;
+      var st = stat(h), z = st.sd > 0 ? (now - st.m) / st.sd : 0; if (Math.abs(z) >= 1.5 && (!best || Math.abs(z) > Math.abs(best.z))) best = { p: p, now: now, m: st.m, z: z, n: h.length };
+    });
+    if (best) add('Ley local o NY', 'curva', 'Rotar de ' + (best.z > 0 ? best.p[1] + ' a ' + best.p[0] : best.p[0] + ' a ' + best.p[1]), best.p[1] + ' cotiza ' + nf(best.now, 1) + '% sobre ' + best.p[0] + ', contra ' + nf(best.m, 1) + '% de promedio en ' + best.n + ' ruedas: la ley ' + (best.z > 0 ? 'NY' : 'local') + ' está cara.');
+    // 4) futuros: Lecap + futuro contra dollar linked, y dollar linked + venta de futuro contra Lecap
+    if (SX) {
+      var bu = (SX.usd || []).filter(function (r) { return r.df != null && r.o.d >= 60; }).sort(function (a, b) { return b.df - a.df; })[0];
+      if (bu && bu.df * 100 >= 20) add('Futuros', 'sint', 'Dólar sintético: ' + bu.o.k + ' + futuro', 'Rinde ' + nf(bu.df * 100) + ' pb más en dólares que ' + (bu.rf && bu.rf.k ? bu.rf.k : 'el dollar linked del mismo plazo') + '.');
+      var bl = (SX.dlr || []).filter(function (x) { return x.df != null && x.o.d >= 60; }).sort(function (a, b) { return b.df - a.df; })[0];
+      if (bl && bl.df * 100 >= 20) add('Futuros', 'sint', 'Lecap sintética: ' + bl.o.k + ' + venta de futuro', 'Rinde ' + nf(bl.df * 100) + ' pb más que ' + (bl.rf && bl.rf.k ? bl.rf.k : 'la Lecap del mismo plazo') + ', neta de base.');
+    }
+    // 5) breakevens contra el REM: devaluación (dollar linked contra Lecap) e inflación (CER contra Lecap)
+    var RM = window.PSREM, nowM = (function () { var t = bxDayStr(bxToday()); return +t.slice(0, 4) * 12 + (+t.slice(5, 7) - 1); })();
+    if (SX && RM && RM.fx) {
+      var bd = null; (SX.dlr || []).forEach(function (x) { if (!x.be || x.o.d < 60 || x.o.d > 450 || (A && (A[x.o.k] || 0) < MIN)) return; var m = +bxDayStr(x.o.mat).slice(0, 4) * 12 + (+bxDayStr(x.o.mat).slice(5, 7) - 1), r = RM.fx[m - RM.m0]; if (!(r > 0)) return; var g = x.be / r - 1; if (!bd || Math.abs(g) > Math.abs(bd.g)) bd = { o: x.o, be: x.be, r: r, g: g }; });
+      if (bd && Math.abs(bd.g) >= 0.02) add('Breakeven', 'pesos', 'Devaluación: conviene ' + (bd.g > 0 ? 'la Lecap' : 'el dollar linked') + ' si creés en el REM', 'Lecap contra ' + bd.o.k + ': el mercado descuenta un dólar de $ ' + nf(bd.be) + ' al vencimiento, ' + nf(Math.abs(bd.g) * 100, 1) + '% ' + (bd.g > 0 ? 'sobre' : 'bajo') + ' el REM ($ ' + nf(bd.r) + ').');
+    }
+    if (X && X.snap && RM && RM.pi) { try {
+      var S = X.snap(1).S, fx = S.filter(function (o) { return !o.miss && X.famOf(o.ins) === 'fija' && o.tea != null && o.d >= 21; }), fit = fx.length >= 3 ? X.fairFit(fx.map(function (o) { return { x: o.d, y: o.tea * 100, k: o.k }; }), 'auto') : null, bi = null;
+      if (fit) { var x0 = Math.min.apply(null, fx.map(function (o) { return o.d; })), x1 = Math.max.apply(null, fx.map(function (o) { return o.d; }));
+        S.forEach(function (o) { if (o.miss || X.famOf(o.ins) !== 'cer' || o.realTea == null || o.d < 60 || o.d > x1 || (A && (A[o.k] || 0) < MIN)) return;
+          var im = Math.pow((1 + fit.f(Math.max(x0, o.d)) / 100) / (1 + o.realTea), 30.4375 / 365) - 1, nm = Math.max(1, Math.round(o.d / 30.4375)), i0 = nowM - RM.m0, pr = 1, j;
+          for (j = 0; j < nm; j++) pr *= 1 + (RM.pi[Math.max(0, Math.min(RM.pi.length - 1, i0 + j))] || 0); var rm = Math.pow(pr, 1 / nm) - 1, g = (im - rm) * 100;
+          if (!bi || Math.abs(g) > Math.abs(bi.g)) bi = { o: o, im: im, rm: rm, g: g }; }); }
+      if (bi && Math.abs(bi.g) >= 0.1) add('Breakeven', 'pesos', 'Inflación: conviene ' + (bi.g > 0 ? 'la tasa fija' : 'el CER') + ' si creés en el REM', 'Lecap contra ' + bi.o.k + ': el mercado descuenta ' + nf(bi.im * 100, 2) + '% mensual de inflación y el REM ' + nf(bi.rm * 100, 2) + '% (promedio hasta el vencimiento).');
+    } catch (e) { console.error('opps be', e); } }
+    // 6) volumen fuera de lo normal: lo operado hoy contra el promedio de 20 ruedas, a la misma altura de la rueda
+    if (A && typeof mktStarted === 'function' && mktStarted() && mepA) {
+      var g2 = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()).forEach(function (p) { g2[p.type] = p.value; });
+      var el0 = (+g2.hour % 24) * 60 + (+g2.minute) - 630, fr = Math.min(1, el0 / 390), tod = {};
+      if (el0 >= 30) {
+        Object.keys(q).forEach(function (t) { var o = q[t]; if (!(o && o.v > 0 && o.c > 0)) return; var b = t, f = 1; if (/[DC]$/.test(t) && q[t.slice(0, -1)]) { b = t.slice(0, -1); f = t.slice(-1) === 'D' ? mepA : (cclA || mepA); } tod[b] = (tod[b] || 0) + o.v * o.c / 100 * f; });
+        Object.keys(tod).map(function (k) { return { k: k, v: tod[k], r: A[k] >= MIN ? tod[k] / (A[k] * fr) : 0 }; }).filter(function (x) { return x.r >= 2; }).sort(function (a, b) { return b.r - a.r; }).slice(0, 3).forEach(function (x) {
+          add('Volumen', 'vol', x.k + ': ' + nf(x.r, 1) + ' veces lo normal', '$ ' + nf(x.v / 1e6) + ' M operados hoy, contra $ ' + nf(A[x.k] * fr / 1e6) + ' M que se operan en promedio hasta esta hora (20 ruedas).'); });
+      }
+    }
+    el.innerHTML = out.length ? '<div class="hm-op">' + out.join('') + '</div>' : '<p class="qs">Hoy no hay señales fuertes: los bonos están cerca de sus curvas y el dólar, en su rango.</p>';
+  }
+
   function licit() {
     var C = DATA && DATA.cal; if (!C) { $('hmLICb').innerHTML = '<p class="qs">Abrí la pestaña Licitaciones para ver el cronograma.</p>'; return; }
     var hoy = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10), i = C.findIndex(function (x) { return x[1] >= hoy; }); if (i < 0) i = C.length - 1;
@@ -8576,7 +8662,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 
   function render() {
     if (!home.classList.contains('active')) return;
-    tiles(); drawRP(); drawUSD(); drawPesos(); movers(); licit();
+    tiles(); drawRP(); drawUSD(); drawPesos(); movers(); licit(); try { opps(); } catch (e) { console.error('opps', e); }
   }
   Promise.all([get('data/dolar.json'), get('data/indices.json'), get('data/closes.json'), get('data/closes_ars.json'), fetch('licitaciones.html', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.text() : ''; }).catch(function () { return ''; })]).then(function (R) {
     var cal = null; try { var m = /const CAL=(\[[\s\S]*?\]);/.exec(R[4] || ''); if (m) cal = JSON.parse(m[1]); } catch (e) {}
@@ -8591,6 +8677,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   }
   may(); setInterval(may, 120000);
   setInterval(function () { if (home.classList.contains('active')) tiles(); }, 30000); // MEP y CCL con el precio en vivo
+  setInterval(function () { if (home.classList.contains('active')) try { opps(); } catch (e) { console.error('opps', e); } }, 60000);
   var tt = window.toggleTheme; if (typeof tt === 'function') window.toggleTheme = function () { var r = tt.apply(this, arguments); setTimeout(render, 0); return r; };
   ['bmep', 'bccl'].forEach(function (id) { var b = $(id); if (b) b.addEventListener('click', function () { setTimeout(drawUSD, 50); }); });
   document.addEventListener('rpdata', function () { if (DATA) render(); });
