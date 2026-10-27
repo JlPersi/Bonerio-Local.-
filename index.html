@@ -6966,11 +6966,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
 /*@@TCOR_END@@*/
 /*@@CARRY_START@@*/
 /* =====================================================================
-   PESTAÑA CARRY TRADE: cuánto rinde en dólares una Lecap o Boncap según dónde termine el dólar oficial
-   - escenarios al vencimiento: dólar constante, futuro de dólar (A3), REM y techo de la banda cambiaria
-   - dólar de breakeven de cada Lecap (el que deja el carry en cero) contra el techo de la banda en esa fecha
-   Banda: data/bandas.json (techo al cierre de un mes e IPC del INDEC). Desde enero de 2026 el techo sube cada mes el IPC de dos meses antes;
-   los meses cuyo IPC todavía no salió usan la mediana del REM (window.PSREM). Precios y futuros: los de Sintéticos (window.SINTX).
+   PESTAÑA CARRY TRADE: cuánto rinde en dólares una Lecap o Boncap según dónde termine el dólar
+   - dólar de entrada: MEP (AL30/AL30D), CCL (AL30/AL30C) u oficial A3500; carry a dólares fijos de salida, al futuro, al REM y al techo de la banda
+   - calculadora de un bono y gráfico del dólar de breakeven de cada Lecap contra el techo de la banda
+   Banda: data/bandas.json (el techo al cierre de un mes). Desde enero de 2026 el techo sube cada mes el IPC de dos meses antes.
+   El IPC sale solo del CER de data/indices.json: del 16 de un mes al 15 del siguiente el CER crece el IPC del mes anterior.
+   Los meses cuyo IPC todavía no salió usan la mediana del REM (window.PSREM). Precios y futuros: los de Sintéticos (window.SINTX).
    ===================================================================== */
 ;(function () {
   var root = document.getElementById('carry'); if (!root) return;
@@ -6978,10 +6979,20 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); };
   var sg = function (v, d) { return v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : '') + nf(v, d); };
   var fr = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
+  var $ = function (id) { return document.getElementById(id); };
   var isAct = function () { return root.classList.contains('active'); };
-  var BJ = null, D = null, CH = null, ask = false, sxT = 0;
+  var KEY = 'carrySt', ST = { b: 'mep', m: 'd', cu: null, k: null, vn: 1000, px: null, fx1: null };
+  try { var sv = JSON.parse(localStorage.getItem(KEY) || '{}'); ['b', 'm', 'cu', 'k', 'vn'].forEach(function (k) { if (sv[k] != null) ST[k] = sv[k]; }); } catch (e) {}
+  var save = function () { try { localStorage.setItem(KEY, JSON.stringify({ b: ST.b, m: ST.m, cu: ST.cu, k: ST.k, vn: ST.vn })); } catch (e) {} };
+  var BJ = null, CER = null, D = null, CH = null, ask = false, sxT = 0, pxT = 0, ROWS = [], X = null;
   var mi = function (s) { return +s.slice(0, 4) * 12 + (+s.slice(5, 7) - 1); }, ms = function (m) { return Math.floor(m / 12) + '-' + ('0' + (m % 12 + 1)).slice(-2); };
-  function ipc(m) { // IPC del mes m (decimal): el del INDEC si ya salió, si no la mediana del REM
+  var MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  function ipcCer(m) { // IPC del mes m sacado del CER: del 16 de m+1 al 15 de m+2 el CER crece ese IPC, repartido por días
+    if (!CER) return null; var a = ms(m + 1) + '-16', e = ms(m + 2) + '-15', b = bxDayNum(ms(m + 2) + '-16') - bxDayNum(a);
+    return CER[a] > 0 && CER[e] > 0 ? Math.pow(CER[e] / CER[a], b / (b - 1)) - 1 : null;
+  }
+  function ipc(m) { // IPC del mes m (decimal): el del INDEC (vía CER, o cargado a mano) y si todavía no salió, la mediana del REM
+    var c = ipcCer(m); if (c != null) return { v: Math.round(c * 1e4) / 1e4, f: 'INDEC' };
     var k = ms(m); if (BJ && BJ.ipc && BJ.ipc[k] != null) return { v: BJ.ipc[k] / 100, f: 'INDEC' };
     var R = window.PSREM; if (R && R.pi) { var i = m - R.m0; if (i >= 0 && i < R.pi.length && R.pi[i] != null) return { v: R.pi[i], f: 'REM' }; if (i >= R.pi.length) return { v: R.pi[R.pi.length - 1], f: 'REM' }; }
     return { v: 0.02, f: 'supuesto' };
@@ -6993,67 +7004,125 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     return c * Math.pow(1 + ipc(m - 2).v, +s.slice(8, 10) / dim);
   }
   function remFx(t) { var R = window.PSREM; if (!R || !R.fx) return null; var i = mi(bxDayStr(t)) - R.m0; return i >= 0 && i < R.fx.length && R.fx[i] > 0 ? R.fx[i] : null; }
-  function load() {
-    if (!BJ && !ask) { ask = true; fetch('data/bandas.json?v=' + Math.floor(Date.now() / 36e5), { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (o) { BJ = o; render(); }).catch(function () { BJ = {}; render(); }); }
-    if (window.SINTX && Date.now() - sxT > 180000) { sxT = Date.now(); window.SINTX(function (d) { D = d; render(); }); }
+  function fx0() { // el dólar de entrada: MEP y CCL con el AL30 de data912, el oficial A3500
+    var Q = window.PXQ || {}, p = function (s) { var q = Q[s]; return q && q.c > 0 ? q.c : null; }, a = p('AL30');
+    var o = { ofi: D ? D.fx : null, mep: a && p('AL30D') ? a / p('AL30D') : null, ccl: a && p('AL30C') ? a / p('AL30C') : null };
+    return o;
   }
+  function load() {
+    var j = function (u) { return fetch(u + '?v=' + Math.floor(Date.now() / 36e5), { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
+    if (!ask) { ask = true; Promise.all([j('data/bandas.json'), j('data/indices.json')]).then(function (r) { BJ = r[0] || {}; CER = r[1] && r[1].CER || null; render(); }); }
+    if (window.SINTX && Date.now() - sxT > 180000) { sxT = Date.now(); window.SINTX(function (d) { D = d; render(); }); }
+    if (Date.now() - pxT > 60000) { pxT = Date.now(); fetch('https://data912.com/live/arg_bonds').then(function () { setTimeout(render, 400); }).catch(function () {}); }
+  }
+  var seg = function (id, a, cur) { return '<span class="cy-sg" id="' + id + '">' + a.map(function (o) { return '<button data-v="' + o[0] + '"' + (o[0] === cur ? ' class="on"' : '') + '>' + o[1] + '</button>'; }).join('') + '</span>'; };
   function html() {
-    root.innerHTML = '<style>#carry .rt{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}#carry .rt th,#carry .rt td{padding:7px 8px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--bd)}#carry .rt th{color:var(--mu);font-size:12px;font-weight:600}#carry .rt .l{text-align:left}#carry .up{color:var(--ok)}#carry .dn{color:var(--bad)}#carry .cy{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}#carry .cy div{border:1px solid var(--bd);border-radius:12px;padding:10px 12px;background:var(--bg)}#carry .cy small{display:block;color:var(--mu);font-size:12px;font-weight:600}#carry .cy b{font-size:22px;font-variant-numeric:tabular-nums}#carry .cy span{display:block;color:var(--mu);font-size:12px;margin-top:2px}@media(max-width:900px){#carry .cy{grid-template-columns:1fr 1fr}}</style>' +
+    root.innerHTML = '<style>#carry .rt{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}#carry .rt th,#carry .rt td{padding:7px 8px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--bd)}#carry .rt th{color:var(--mu);font-size:12px;font-weight:600}#carry .rt .l{text-align:left}#carry .up{color:var(--ok)}#carry .dn{color:var(--bad)}' +
+      '#carry .cy{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}#carry .cy div{border:1px solid var(--bd);border-radius:12px;padding:10px 12px;background:var(--bg)}#carry .cy small{display:block;color:var(--mu);font-size:12px;font-weight:600}#carry .cy b{font-size:22px;font-variant-numeric:tabular-nums}#carry .cy span{display:block;color:var(--mu);font-size:12px;margin-top:2px}' +
+      '#carry .cy-bar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:4px 0 12px}#carry .cy-sg{display:inline-flex;border:1px solid var(--bd);border-radius:9px;overflow:hidden}#carry .cy-sg button{background:none;border:0;color:var(--mu);padding:6px 11px;font:inherit;font-size:12.5px;cursor:pointer}#carry .cy-sg button.on{background:var(--tx);color:var(--bg);font-weight:700}#carry .cy-sg button small{opacity:.7;margin-left:4px}' +
+      '#carry input.cy-in{background:var(--bg);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:6px 9px;font:inherit;font-size:13px;width:110px}#carry .hm{font-weight:600}' +
+      '#carry .cy-c{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:18px;margin-top:22px}#carry .cy-f{display:grid;grid-template-columns:1fr 1fr;gap:10px}#carry .cy-f label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu);font-weight:600}#carry .cy-f input,#carry .cy-f select{width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:7px 9px;font:inherit;font-size:13.5px}' +
+      '#carry .cy-o{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}#carry .cy-o div{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--bd);border-radius:9px;padding:8px 10px;font-size:13px}#carry .cy-o span{color:var(--mu);font-size:12px}#carry .cy-o b{font-variant-numeric:tabular-nums}' +
+      '@media(max-width:1000px){#carry .cy{grid-template-columns:1fr 1fr}#carry .cy-c{grid-template-columns:1fr}}</style>' +
       '<div class="card" id="cyCap"><p style="margin:0;color:var(--tx);font-size:18px;font-weight:700">Carry trade con la banda cambiaria</p><p class="note" style="margin-top:4px" id="cySub"></p>' +
       '<div class="cy" id="cyK"></div>' +
-      '<div style="position:relative;height:420px"><canvas id="cyCh"></canvas></div><p class="note" id="cyN" style="margin-top:8px"></p>' +
-      '<h4 style="margin:22px 0 8px">Cada Lecap y Boncap: retorno en dólares según dónde termine el oficial</h4><div class="sc" style="overflow:auto"><table class="rt" id="cyT"></table></div>' +
-      '<div class="hl" style="margin-top:16px"><p><b>Cómo se lee</b></p><ul>' +
-      '<li><b>El carry</b>: pasás dólares a pesos al oficial de hoy, comprás la Lecap y al vencimiento volvés a dólares. Retorno en USD = (pago / precio) × (dólar de hoy / dólar al vencimiento) − 1.</li>' +
-      '<li><b>Dólar de breakeven</b>: el oficial al vencimiento que deja el carry en cero. Si está <b>por encima del techo de la banda</b>, el carry le gana al dólar aunque el oficial termine en el techo (mientras la banda siga vigente).</li>' +
-      '<li><b>El techo de la banda</b>: desde enero de 2026 sube cada mes el IPC de dos meses antes (en octubre, el de agosto), en proporción a los días del mes. Para los meses cuyo IPC todavía no salió se usa la mediana del REM: <b>es una estimación</b> y se corrige cuando sale cada dato del INDEC. El piso de la banda baja con el mismo IPC y está muy lejos (en torno a $ 800), así que no se muestra.</li>' +
-      '<li><b>Escenarios</b>: dólar constante (el de hoy), el futuro de dólar de A3 a esa fecha, el tipo de cambio del REM de ese mes y el techo de la banda. TEA = (1 + retorno)<sup>365/días</sup> − 1.</li></ul></div></div>';
+      '<div class="cy-bar"><span id="cyB"></span>' + seg('cyM', [['d', 'Tasa directa'], ['t', 'TEA']], ST.m) + '<label style="font-size:12.5px;color:var(--mu);display:flex;gap:6px;align-items:center">Dólar de salida propio <input class="cy-in" id="cyCu" type="number" step="10"></label></div>' +
+      '<div class="sc" style="overflow:auto"><table class="rt" id="cyT"></table></div><p class="note" id="cyTN" style="margin-top:6px"></p>' +
+      '<div class="cy-c"><div><h4 style="margin:0 0 10px">Calculadora</h4><div class="cy-f">' +
+      '<label>Bono<select id="cyK1"></select></label><label>Nominales<input id="cyVN" type="number" step="100"></label>' +
+      '<label>Precio (cada 100 VN)<input id="cyPx" type="number" step="0.01"></label><label>Dólar al vencimiento<input id="cyF1" type="number" step="1"></label></div>' +
+      '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap" id="cyQ"><button class="mini" data-q="techo">Techo de la banda</button><button class="mini" data-q="fut">Futuro</button><button class="mini" data-q="rem">REM</button><button class="mini" data-q="hoy">Dólar de hoy</button></div>' +
+      '<div class="cy-o" id="cyO"></div></div>' +
+      '<div><h4 style="margin:0 0 10px">Dólar de breakeven contra el techo de la banda</h4><div style="position:relative;height:400px"><canvas id="cyCh"></canvas></div></div></div>' +
+      '<div class="hl" style="margin-top:18px"><p><b>Cómo se lee</b></p><ul>' +
+      '<li><b>El carry</b>: vendés dólares al MEP, CCL u oficial de hoy, comprás la Lecap y al vencimiento volvés a dólares al valor de cada columna. Retorno en USD = (pago / precio) × (dólar de hoy / dólar al vencimiento) − 1. Con <b>TEA</b> se anualiza: (1 + retorno)<sup>365/días</sup> − 1.</li>' +
+      '<li><b>Dólar de breakeven</b>: el dólar al vencimiento que deja el carry en cero. Si está <b>por encima del techo de la banda</b>, el carry le gana al dólar aunque el oficial termine en el techo (mientras la banda siga vigente).</li>' +
+      '<li><b>El techo de la banda</b>: desde enero de 2026 sube cada mes el IPC de dos meses antes (en octubre, el de agosto), en proporción a los días del mes. El IPC sale solo del CER; para los meses que todavía no salieron se usa la mediana del REM: <b>es una estimación</b> y se corrige sola cuando sale cada dato del INDEC. El piso de la banda baja con el mismo IPC y está muy lejos, así que no se muestra.</li>' +
+      '<li>Las columnas en dólares fijos usan el dólar de entrada elegido; la del techo compara contra el oficial, así que con MEP o CCL suma o resta la brecha.</li></ul></div></div>';
+    root.addEventListener('click', function (e) {
+      var b = e.target.closest('#cyB button,#cyM button'); if (b) { if (b.parentNode.id === 'cyB') ST.b = b.getAttribute('data-v'); else ST.m = b.getAttribute('data-v'); save(); ST.fx1 = null; render(); return; }
+      var q = e.target.closest('[data-q]'); if (q && X) { var t = q.getAttribute('data-q'), r = X.r; ST.fx1 = t === 'techo' ? r.tc : t === 'fut' ? r.F : t === 'rem' ? r.rm : X.S0; if (ST.fx1) ST.fx1 = Math.round(ST.fx1 * 100) / 100; render(); return; }
+      var c = e.target.closest('[data-qv]'); if (c && window.QV && window.QV.show) window.QV.show(c.getAttribute('data-qv'));
+    });
+    root.addEventListener('change', function (e) {
+      var id = e.target.id, v = parseFloat(e.target.value);
+      if (id === 'cyCu') { ST.cu = v > 0 ? v : null; save(); render(); }
+      else if (id === 'cyK1') { ST.k = e.target.value; ST.px = null; save(); render(); }
+      else if (id === 'cyVN') { ST.vn = v > 0 ? v : 1000; save(); calc(); }
+      else if (id === 'cyPx') { ST.px = v > 0 ? v : null; calc(); }
+      else if (id === 'cyF1') { ST.fx1 = v > 0 ? v : null; calc(); }
+    });
+  }
+  var tea = function (x, d) { return x == null || x <= -1 ? null : Math.pow(1 + x, 365 / d) - 1; };
+  function calc() { // la calculadora de un bono
+    var o = $('cyO'); if (!o || !X) return; var r = X.r; if (!r) { o.innerHTML = ''; return; }
+    var P = ST.px || r.o.P, vn = ST.vn || 1000, S1 = ST.fx1 || r.tc || X.S0, g = r.pay / P, inv = vn * P / 100, fin = vn * r.pay / 100, ru = g * X.S0 / S1 - 1;
+    var it = function (a, b) { return '<div><span>' + a + '</span><b>' + b + '</b></div>'; };
+    o.innerHTML = it('Días al vencimiento', r.o.d) + it('Vence', fr(r.o.mat)) + it('Inversión en pesos', '$ ' + nf(inv, 2)) + it('Cobro al vencimiento', '$ ' + nf(fin, 2)) +
+      it('Inversión en dólares', 'US$ ' + nf(inv / X.S0, 2)) + it('Cobro en dólares', 'US$ ' + nf(fin / S1, 2)) + it('Tasa directa en pesos', nf((g - 1) * 100, 2) + '%') +
+      it('Tasa directa en dólares', '<span class="' + (ru >= 0 ? 'up' : 'dn') + '">' + sg(ru * 100, 2) + '%</span>') + it('TEA en dólares', '<span class="' + (ru >= 0 ? 'up' : 'dn') + '">' + sg(tea(ru, r.o.d) * 100, 1) + '%</span>') + it('Dólar de breakeven', '$ ' + nf(X.S0 * g, 2));
+    var f = $('cyF1'); if (f && document.activeElement !== f) f.value = Math.round(S1 * 100) / 100; var p = $('cyPx'); if (p && document.activeElement !== p) p.value = Math.round(P * 100) / 100;
   }
   function render() {
     if (!isAct()) return;
     try {
       if (typeof Chart === 'undefined') return;
-      if (!document.getElementById('cyT')) html();
-      load(); var sub = document.getElementById('cySub');
+      if (!$('cyT')) html();
+      load(); var sub = $('cySub');
       if (!D || !BJ) { sub.textContent = 'Cargando precios, futuros y la banda…'; return; }
-      var S0 = D.fx, s0 = D.s0, rows = D.fija.filter(function (o) { return o.d >= 7 && o.tnas != null; }).map(function (o) {
-        var pay = o.P * (1 + o.tnas * o.d / 365), g = pay / o.P, be = S0 * g, tc = techo(o.mat), F = D.Fat(o.mat), rm = remFx(o.mat);
-        var r = function (S) { return S > 0 ? g * S0 / S - 1 : null; }, tea = function (x) { return x == null || x <= -1 ? null : Math.pow(1 + x, 365 / o.d) - 1; };
-        return { o: o, g: g, be: be, tc: tc, F: F, rm: rm, rs: r(S0), rf: r(F), rr: r(rm), rt: r(tc), ts: tea(r(S0)), tf: tea(r(F)), tr: tea(r(rm)), tt: tea(r(tc)), mg: tc ? be / tc - 1 : null };
+      var FX = fx0(); if (!FX[ST.b]) ST.b = FX.mep ? 'mep' : 'ofi';
+      var S0 = FX[ST.b], s0 = D.s0, NM = { mep: 'MEP', ccl: 'CCL', ofi: 'Oficial' };
+      $('cyB').innerHTML = seg('cyBs', ['mep', 'ccl', 'ofi'].filter(function (k) { return FX[k]; }).map(function (k) { return [k, NM[k] + '<small>' + nf(FX[k], 2) + '</small>']; }), ST.b).replace('id="cyBs"', 'id="cyB2"');
+      $('cyB').firstChild.id = 'cyB'; $('cyB').parentNode.replaceChild($('cyB').firstChild, $('cyB'));
+      document.querySelectorAll('#cyM button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-v') === ST.m); });
+      var r0 = Math.round(S0 / 100) * 100, LV = [r0 - 100, r0, r0 + 100, r0 + 200, r0 + 300]; if (ST.cu) LV.push(ST.cu); LV = LV.filter(function (v, i, a) { return v > 0 && a.indexOf(v) === i; }).sort(function (a, b) { return a - b; });
+      var cu = $('cyCu'); if (cu && document.activeElement !== cu) cu.value = ST.cu || '';
+      ROWS = D.fija.filter(function (o) { return o.d >= 1 && o.tnas != null; }).map(function (o) {
+        var pay = o.P * (1 + o.tnas * o.d / 365), g = pay / o.P, tc = techo(o.mat);
+        return { o: o, pay: pay, g: g, be: S0 * g, tc: tc, F: D.Fat(o.mat), rm: remFx(o.mat), mg: tc ? S0 * g / tc - 1 : null };
       });
-      var tHoy = techo(s0), ip = ipc(mi(bxDayStr(s0)) - 2);
-      sub.innerHTML = 'Lecaps y Boncaps a precio de Curva Pesos, dólar oficial A3500 ' + (D.fxD ? 'del ' + D.fxD.split('-').reverse().join('/') + ' ' : '') + '$ ' + nf(S0, 2) + ' y futuros de A3. Techo de la banda: $ ' + nf(tHoy, 2) + ' hoy (sube ' + nf(ip.v * 100, 2) + '% este mes, el IPC de ' + ms(mi(bxDayStr(s0)) - 2) + ').';
-      var safe = rows.filter(function (r) { return r.mg != null && r.mg > 0; }), best = rows.slice().sort(function (a, b) { return (b.tt == null ? -9 : b.tt) - (a.tt == null ? -9 : a.tt); })[0];
-      document.getElementById('cyK').innerHTML =
-        '<div><small>Dólar oficial hoy</small><b>$ ' + nf(S0, 2) + '</b><span>A3500</span></div>' +
-        '<div><small>Techo de la banda hoy</small><b>$ ' + nf(tHoy, 2) + '</b><span>' + nf((tHoy / S0 - 1) * 100, 1) + '% sobre el oficial</span></div>' +
-        '<div><small>Lecaps que le ganan al techo</small><b>' + safe.length + ' de ' + rows.length + '</b><span>breakeven por encima del techo al vencimiento</span></div>' +
-        '<div><small>Mejor TEA en USD si el oficial va al techo</small><b class="' + (best && best.tt > 0 ? 'up' : 'dn') + '">' + (best && best.tt != null ? sg(best.tt * 100, 1) + '%' : '—') + '</b><span>' + (best ? best.o.k + ' · ' + best.o.d + ' días' : '') + '</span></div>';
-      var P = function (x) { return x == null ? '—' : '<span class="' + (x >= 0 ? 'up' : 'dn') + '">' + sg(x * 100, 1) + '%</span>'; };
-      document.getElementById('cyT').innerHTML = '<thead><tr><th class="l">Bono</th><th>Vence</th><th>Días</th><th>TNA</th><th>Dólar breakeven</th><th>Techo al venc.</th><th>Breakeven vs. techo</th><th>TEA USD · dólar constante</th><th>· futuro</th><th>· REM</th><th>· techo</th></tr></thead><tbody>' +
-        rows.map(function (r) { return '<tr data-qv="' + r.o.k + '" style="cursor:pointer"><td class="l"><b>' + r.o.k + '</b></td><td>' + fr(r.o.mat) + '</td><td>' + r.o.d + '</td><td>' + nf(r.o.tnas * 100, 2) + '%</td><td><b>$ ' + nf(r.be, 0) + '</b></td><td>' + (r.tc ? '$ ' + nf(r.tc, 0) : '—') + '</td><td>' + P(r.mg) + '</td><td>' + P(r.ts) + '</td><td>' + P(r.tf) + '</td><td>' + P(r.tr) + '</td><td>' + P(r.tt) + '</td></tr>'; }).join('') + '</tbody>';
+      var cr = function (r, S) { var x = S > 0 ? r.g * S0 / S - 1 : null; return ST.m === 't' ? tea(x, r.o.d) : x; };
+      var tHoy = techo(bxToday()), mm = mi(bxDayStr(bxToday())), ip = ipc(mm - 2);
+      sub.innerHTML = 'Lecaps y Boncaps a precio de Curva Pesos y futuros de A3. Dólar de entrada: ' + NM[ST.b] + ' $ ' + nf(S0, 2) + '. Techo de la banda hoy: $ ' + nf(tHoy, 2) + ' (en ' + MES[mm % 12] + ' sube ' + nf(ip.v * 100, 2) + '%, el IPC de ' + MES[(mm - 2 + 12) % 12] + (ip.f === 'REM' ? ', estimado con el REM' : '') + ').';
+      var safe = ROWS.filter(function (r) { return r.mg != null && r.mg > 0; }), best = ROWS.slice().sort(function (a, b) { return (b.mg == null ? -9 : b.mg) - (a.mg == null ? -9 : a.mg); })[0];
+      $('cyK').innerHTML =
+        '<div><small>Dólar de entrada</small><b>$ ' + nf(S0, 2) + '</b><span>' + NM[ST.b] + (ST.b !== 'ofi' && FX.ofi ? ' · oficial $ ' + nf(FX.ofi, 2) : '') + '</span></div>' +
+        '<div><small>Techo de la banda hoy</small><b>$ ' + nf(tHoy, 2) + '</b><span>' + sg((tHoy / S0 - 1) * 100, 1) + '% sobre el dólar de entrada</span></div>' +
+        '<div><small>Lecaps que le ganan al techo</small><b>' + safe.length + ' de ' + ROWS.length + '</b><span>breakeven por encima del techo al vencimiento</span></div>' +
+        '<div><small>La más cerca del techo</small><b class="' + (best && best.mg > 0 ? 'up' : 'dn') + '">' + (best ? sg(best.mg * 100, 1) + '%' : '—') + '</b><span>' + (best ? best.o.k + ' · breakeven $ ' + nf(best.be, 0) + ' vs. techo $ ' + nf(best.tc, 0) : '') + '</span></div>';
+      var all = []; ROWS.forEach(function (r) { LV.forEach(function (v) { var x = cr(r, v); if (x != null) all.push(Math.abs(x)); }); }); var mx = Math.max.apply(null, all.concat([0.01]));
+      var H = function (x) { if (x == null) return '<td>—</td>'; var a = Math.min(1, Math.abs(x) / mx) * 0.55 + 0.08; return '<td class="hm" style="background:' + (x >= 0 ? 'rgba(52,211,153,' : 'rgba(248,113,113,') + a.toFixed(2) + ')">' + sg(x * 100, ST.m === 't' ? 1 : 2) + '%</td>'; };
+      var P = function (x) { return x == null ? '—' : '<span class="' + (x >= 0 ? 'up' : 'dn') + '">' + sg(x * 100, ST.m === 't' ? 1 : 2) + '%</span>'; };
+      $('cyT').innerHTML = '<thead><tr><th class="l">Bono</th><th>Precio</th><th>Días</th><th>Vence</th><th>Pago final</th><th>' + (ST.m === 't' ? 'TEA' : 'Retorno directo') + ' en pesos</th><th>Dólar breakeven</th>' +
+        LV.map(function (v) { return '<th' + (v === ST.cu ? ' style="color:var(--tx)"' : '') + '>Sale a $ ' + nf(v, 0) + '</th>'; }).join('') + '<th>Al futuro</th><th>Al REM</th><th>Al techo de la banda</th></tr></thead><tbody>' +
+        ROWS.map(function (r) { var dp = ST.m === 't' ? tea(r.g - 1, r.o.d) : r.g - 1; return '<tr><td class="l" data-qv="' + r.o.k + '" style="cursor:pointer"><b>' + r.o.k + '</b></td><td>$ ' + nf(r.o.P, 2) + '</td><td>' + r.o.d + '</td><td>' + fr(r.o.mat) + '</td><td>$ ' + nf(r.pay, 2) + '</td><td>' + nf(dp * 100, 2) + '%</td><td><b>$ ' + nf(r.be, 0) + '</b></td>' +
+          LV.map(function (v) { return H(cr(r, v)); }).join('') + '<td>' + P(cr(r, r.F)) + '</td><td>' + P(cr(r, r.rm)) + '</td><td>' + P(cr(r, r.tc)) + (r.tc ? ' <small style="color:var(--mu)">$ ' + nf(r.tc, 0) + '</small>' : '') + '</td></tr>'; }).join('') + '</tbody>';
+      $('cyTN').textContent = (ST.m === 't' ? 'TEA en dólares' : 'Retorno directo en dólares hasta el vencimiento') + ' saliendo al dólar de cada columna. El futuro, el REM y el techo son del oficial a la fecha de vencimiento.';
+      // calculadora
+      var sel = $('cyK1'); if (!ST.k || !ROWS.some(function (r) { return r.o.k === ST.k; })) ST.k = ROWS.length > 2 ? ROWS[2].o.k : ROWS[0] && ROWS[0].o.k;
+      sel.innerHTML = ROWS.map(function (r) { return '<option' + (r.o.k === ST.k ? ' selected' : '') + '>' + r.o.k + '</option>'; }).join('');
+      var vn = $('cyVN'); if (document.activeElement !== vn) vn.value = ST.vn;
+      X = { S0: S0, r: ROWS.filter(function (r) { return r.o.k === ST.k; })[0] }; calc();
       // gráfico: el techo de la banda, los futuros, el REM y el breakeven de cada Lecap, por fecha de vencimiento
-      var x1 = Math.max.apply(null, rows.map(function (r) { return r.o.mat; }).concat([s0 + 60])) + 10, tp = [], k;
+      var x1 = Math.max.apply(null, ROWS.map(function (r) { return r.o.mat; }).concat([s0 + 60])) + 10, tp = [], k;
       for (k = s0; k <= x1; k += 5) tp.push({ x: k, y: techo(k) });
       var fu = (D.fCurve || []).filter(function (p) { return p[0] <= x1; }).map(function (p) { return { x: p[0], y: p[1] }; }), re = [];
       var R = window.PSREM; if (R && R.fx) R.fx.forEach(function (v, i) { var m = R.m0 + i, d = bxDayNum(ms(m) + '-15'); if (v > 0 && d > s0 && d <= x1) re.push({ x: d, y: v }); });
-      var mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), ac = css('--ac') || '#ffc542';
+      var mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), ac = '#ffc542';
       if (CH) { CH.destroy(); CH = null; }
-      CH = new Chart(document.getElementById('cyCh').getContext('2d'), { type: 'scatter', data: { datasets: [
+      CH = new Chart($('cyCh').getContext('2d'), { type: 'scatter', data: { datasets: [
         { type: 'line', label: 'Techo de la banda', data: tp, borderColor: '#ff6b8b', backgroundColor: 'rgba(255,107,139,.08)', borderWidth: 2, pointRadius: 0, fill: 'end', order: 3 },
         { type: 'line', label: 'Futuros de dólar (A3)', data: fu, borderColor: '#5cc8ff', borderWidth: 2, pointRadius: 3, order: 2 },
         { type: 'line', label: 'REM', data: re, borderColor: mu, borderDash: [5, 4], borderWidth: 1.6, pointRadius: 2, order: 2 },
-        { label: 'Dólar breakeven de cada Lecap', data: rows.map(function (r) { return { x: r.o.mat, y: r.be, k: r.o.k }; }), backgroundColor: ac, borderColor: ac, pointRadius: 5, pointHoverRadius: 7, order: 1 }] },
-        options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { labels: { color: tx, usePointStyle: true } }, tooltip: { callbacks: { label: function (c) { return (c.raw.k ? c.raw.k + ' · breakeven' : c.dataset.label) + ': $ ' + nf(c.parsed.y, 0) + ' · ' + fr(Math.round(c.parsed.x)); } } } },
+        { label: 'Dólar breakeven (' + NM[ST.b] + ')', data: ROWS.map(function (r) { return { x: r.o.mat, y: r.be, k: r.o.k }; }), backgroundColor: ac, borderColor: ac, pointRadius: 5, pointHoverRadius: 7, order: 1 }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { labels: { color: tx, usePointStyle: true, boxWidth: 8 } }, tooltip: { callbacks: { label: function (c) { return (c.raw.k ? c.raw.k + ' · breakeven' : c.dataset.label) + ': $ ' + nf(c.parsed.y, 0) + ' · ' + fr(Math.round(c.parsed.x)); } } } },
           scales: { x: { type: 'linear', min: s0, max: x1, ticks: { color: mu, callback: function (v) { var s = bxDayStr(Math.round(v)); return s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(2, 4); } }, grid: { display: false } }, y: { title: { display: true, text: '$ por dólar', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 0); } }, grid: { color: bd } } } } });
-      document.getElementById('cyN').textContent = 'Los puntos por encima de la línea roja son Lecaps cuyo breakeven supera el techo de la banda al vencimiento: con la banda vigente, el carry no pierde en dólares. El techo de los meses cuyo IPC todavía no salió es una estimación con la mediana del REM.';
-    } catch (e) { console.error('carry', e); var s = document.getElementById('cySub'); if (s) s.textContent = 'Error: ' + e.message; }
+    } catch (e) { console.error('carry', e); var s = $('cySub'); if (s) s.textContent = 'Error: ' + e.message; }
   }
-  var _sw = window.switchTab; window.switchTab = function (id) { _sw(id); if (id === 'carry') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
+  var _sw = window.switchTab; window.switchTab = function (id) { _sw(id); if (id === 'carry') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
   var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(render, 0); };
-  root.addEventListener('click', function (e) { var c = e.target.closest('[data-qv]'); if (c && window.QV && window.QV.show) window.QV.show(c.getAttribute('data-qv')); });
   setInterval(function () { if (isAct()) { load(); render(); } }, 5 * 60000);
-  window.CARRYX = { techo: function (t) { return techo(t); } };
+  window.CARRYX = { techo: function (t) { return techo(t); }, ipc: function (s) { return ipc(mi(s)); } };
 })();
 /*@@CARRY_END@@*/
 /*@@PORT_START@@*/
@@ -8495,7 +8564,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     tcor: 'Caución en pesos, MEP y cable, Lecaps cortas y plazo fijo: dónde dejar la liquidez.',
     tfut: 'Dólar futuro y futuros de caución: tasa implícita, devaluación esperada, volumen y forwards.',
     sint: 'Dólar sintético (Lecap + compra de futuro) y Lecap sintética (dollar linked + venta de futuro), contra el bono del mismo plazo.',
-    carry: 'Cuánto rinde en dólares cada Lecap según dónde termine el oficial: dólar constante, futuro, REM y techo de la banda (con el IPC de dos meses antes).',
+    carry: 'Cuánto rinde en dólares cada Lecap entrando por MEP, CCL u oficial y saliendo a distintos dólares, al futuro, al REM o al techo de la banda. Con calculadora.',
     brc: 'Ratios de brecha y canje: MEP, CCL, futuros y oficial, contra su historia y con el nivel de entrada long y short.',
     ons: 'Obligaciones negociables: TIR, duración y paridad con el precio en vivo, y la curva de cada tipo.',
     onsf: 'Flujo de fondos de cada ON hard dollar y su total return hasta la fecha de corte, separado en capital y cupones.',
