@@ -39,6 +39,13 @@ jobs:
         if: always()
         continue-on-error: true
         run: python3 scripts/save_acciones.py && python3 scripts/metricas_acciones.py && python3 scripts/ratios_acciones.py && python3 scripts/volumen_acciones.py
+      - name: Reporte diario por mail (a los suscriptos, una vez por rueda)
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: python3 scripts/reporte.py
       - name: Commit
         if: always()
         run: |
