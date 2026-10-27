@@ -226,6 +226,92 @@ def grafico(rows, titulo, xlab, color, lab_hoy, lab_ayer, ley=None):
     return buf.getvalue()
 
 
+def ajuste(rows, i=2):
+    """Curva logarítmica y = a + b ln(x) por los puntos (x = rows[k][1], y = rows[k][i]); None si hay menos de 3."""
+    import math
+    pts = [(math.log(r[1]), r[i]) for r in rows if r[1] > 0 and r[i] is not None]
+    if len(pts) < 3:
+        return None
+    n_ = len(pts)
+    mx, my = sum(p[0] for p in pts) / n_, sum(p[1] for p in pts) / n_
+    sxx = sum((p[0] - mx) ** 2 for p in pts)
+    b = sum((p[0] - mx) * (p[1] - my) for p in pts) / sxx if sxx else 0
+    a = my - b * mx
+    return lambda x: a + b * math.log(x)
+
+
+def _fig(w=6.4, h=3.3):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 10})
+    return plt, plt.subplots(figsize=(w, h), dpi=250)
+
+
+def _estilo(ax, pct=True):
+    from matplotlib.ticker import FuncFormatter
+    if pct:
+        ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:.0f}%" if abs(v - round(v)) < 1e-9 else f"{v:.1f}%".replace(".", ",")))
+    ax.grid(axis="y", color="#ececec", lw=1)
+    ax.set_axisbelow(True)
+    for sp in ("top", "right", "left"):
+        ax.spines[sp].set_visible(False)
+    ax.spines["bottom"].set_color("#d4d4d8")
+    ax.tick_params(axis="both", labelsize=8.5, colors="#71717a", length=0, pad=6)
+
+
+def _png(plt, fig):
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", facecolor="white")
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def barras(items, color="#2563eb"):
+    """Barras horizontales [(nombre, valor en millones)], de mayor a menor, con el valor al final de cada una."""
+    plt, (fig, ax) = _fig(6.4, 0.42 * len(items) + 0.6)
+    items = items[::-1]
+    y = range(len(items))
+    v = [x[1] for x in items]
+    ax.barh(y, v, color=color, height=.62, edgecolor="white", linewidth=1)
+    ax.set_yticks(list(y))
+    ax.set_yticklabels([x[0] for x in items])
+    mx = max(v) or 1
+    for yi, vi in zip(y, v):
+        ax.text(vi + mx * .015, yi, "$ " + f"{vi:,.0f}".replace(",", ".") + " M", va="center", fontsize=8.5, color="#18181b")
+    ax.set_xlim(0, mx * 1.22)
+    ax.set_xticks([])
+    _estilo(ax, pct=False)
+    ax.grid(False)
+    ax.spines["bottom"].set_visible(False)
+    ax.tick_params(axis="y", labelsize=9, colors="#18181b")
+    fig.tight_layout()
+    return _png(plt, fig)
+
+
+def tasas_fut(lecaps, fut):
+    """TNA de Lecaps (puntos y curva ajustada) contra la tasa implícita de los futuros de dólar, por días al vencimiento."""
+    import numpy as np
+    plt, (fig, ax) = _fig()
+    if lecaps:
+        x = np.array([r[0] for r in lecaps], float)
+        ax.scatter(x, [r[1] for r in lecaps], s=36, color="#d97706", edgecolor="white", linewidth=1, zorder=4, label="Lecaps y Boncaps (TNA)")
+        f = ajuste([(None, r[0], r[1]) for r in lecaps])
+        if f:
+            xx = np.linspace(x.min(), x.max(), 120)
+            ax.plot(xx, [f(v) for v in xx], color="#d97706", lw=2, alpha=.9, zorder=2)
+    if fut:
+        ax.plot([r[0] for r in fut], [r[1] for r in fut], "-o", color="#2563eb", lw=2, ms=5.5, mec="white", mew=1, zorder=3, label="Futuros de dólar (tasa implícita)")
+        for r in fut[:6]:
+            ax.annotate(r[2], (r[0], r[1]), textcoords="offset points", xytext=(0, -14), ha="center", fontsize=7.5, color="#52525b")
+    ax.set_xlabel("días al vencimiento", fontsize=9, color="#71717a", labelpad=6)
+    ax.margins(x=.05, y=.2)
+    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2, frameon=False, fontsize=8.5, handletextpad=.4, columnspacing=1.4, borderaxespad=.2)
+    _estilo(ax)
+    fig.tight_layout()
+    return _png(plt, fig)
+
+
 def dolar(hoy, ayer):
     """Filas (nombre, hoy, ayer) del dólar con los AL30 y GD30 de los mismos cierres."""
     q = lambda P, a, b: P.get(a) / P.get(b) if P.get(a) and P.get(b) else None
