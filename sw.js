@@ -29,3 +29,16 @@ self.addEventListener('fetch', function (e) {
     e.respondWith(caches.match(r).then(function (m) { return m || fetch(r).then(function (res) { return put(r, res); }); }));
   }
 });
+
+// alertas: la notificación que manda scripts/alertas.py (web push). Al tocarla abre la pestaña Alertas.
+self.addEventListener('push', function (e) {
+  var d = {}; try { d = e.data ? e.data.json() : {}; } catch (x) { d = { title: 'Bonerio Local', body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'Bonerio Local', { body: d.body || '', icon: '/icon-192.png', badge: '/icon-192.png', tag: d.tag, data: { url: d.url || '/' } }));
+});
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close(); var url = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (cs) {
+    for (var i = 0; i < cs.length; i++) if ('focus' in cs[i]) { cs[i].navigate(url).catch(function () {}); return cs[i].focus(); }
+    return self.clients.openWindow(url);
+  }));
+});

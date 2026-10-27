@@ -310,10 +310,11 @@
     var u = user || {}, m = u.user_metadata || {}, name = m.full_name || m.name || u.email || 'Vista previa', pic = m.avatar_url || m.picture;
     var d = document.createElement('div'); d.id = 'blUser'; d.setAttribute('data-html2canvas-ignore', 'true');
     d.innerHTML = '<button title="' + esc(name) + '">' + (pic ? '<img src="' + esc(pic) + '" alt="" referrerpolicy="no-referrer">' : esc((name || '?').charAt(0).toUpperCase())) + '</button>' +
-      '<div class="mn"><div>' + esc(u.email || name) + '</div><button data-out>Cerrar sesión</button></div>';
+      '<div class="mn"><div>' + esc(u.email || name) + '</div><button data-al>Mis alertas</button><button data-out>Cerrar sesión</button></div>';
     bar.appendChild(d);
     d.firstChild.onclick = function (e) { e.stopPropagation(); d.classList.toggle('on'); };
     d.querySelector('[data-out]').onclick = function () { d.classList.remove('on'); logout(); };
+    d.querySelector('[data-al]').onclick = function () { d.classList.remove('on'); if (window.switchTab) window.switchTab('alert'); };
     document.addEventListener('click', function (e) { if (!d.contains(e.target)) d.classList.remove('on'); });
     if (LV.adm) lvBtn();
   }
@@ -367,6 +368,9 @@
     if (sb) sb.auth.signOut().then(function () { lock(); }); else lock();
   }
 
+  // para la pestaña Alertas: el cliente de Supabase con la sesión del usuario (sus alertas, sus avisos y el reporte por mail; la base deja tocar solo lo propio)
+  window.BLAUTH = function () { return sb && user ? { sb: sb, user: user } : null; };
+
   // arranque: quien ya entró ve la terminal directo; el resto, la portada
   if (RESET) { lock(); view('reset'); } else if (stored() || returning) document.documentElement.classList.remove('blg'); else lock();
   if (!ON) return;
@@ -376,7 +380,7 @@
     sb.auth.onAuthStateChange(function (ev, ses) {
       if (ses && /[?&](code|reset)=/.test(location.search)) history.replaceState(null, '', back() + location.hash);
       if (ses && ses.user && (RESET || ev === 'PASSWORD_RECOVERY')) { RESET = true; user = ses.user; lock(); if (V !== 'reset') view('reset'); return; } // primero elige la contraseña nueva
-      if (ses && ses.user) { user = ses.user; unlock(); }
+      if (ses && ses.user) { user = ses.user; unlock(); try { document.dispatchEvent(new Event('bl-auth')); } catch (e) { } }
       else if ((ev === 'SIGNED_OUT' || ev === 'INITIAL_SESSION') && !RESET) { user = null; var c = document.getElementById('blUser'); if (c) c.remove(); lock(); }
     });
   };
