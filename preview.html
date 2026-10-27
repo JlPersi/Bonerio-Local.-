@@ -5389,8 +5389,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var css = X.css || function (n) { return getComputedStyle(document.body).getPropertyValue(n).trim(); };
   var isAct = function () { return root.classList.contains('active'); };
   var fr = function (s) { return s.split('-').reverse().join('/'); };
-  var PERIODS = [[1, 'Última rueda'], [5, '5 ruedas'], [20, '20 ruedas (≈ 1 mes)'], [60, '60 ruedas (≈ 3 meses)'], [120, '120 ruedas (≈ 6 meses)'], [250, '250 ruedas (≈ 1 año)'], [0, 'Todo el historial']];
-  var ST = { w: 20, live: false, top: 20, log: false }, VD = null, DJ = null, IX = null, err = null, loading = false, S = null, ADR = null, adrT = 0, CH = {};
+  var PERIODS = [['h', 'Hoy'], [1, 'Día anterior'], [5, '5 ruedas'], [10, '10 ruedas (≈ 2 semanas)'], [20, '20 ruedas (≈ 1 mes)'], [60, '60 ruedas (≈ 3 meses)'], [120, '120 ruedas (≈ 6 meses)'], [250, '250 ruedas (≈ 1 año)'], [0, 'Todo el historial']];
+  var ST0 = typeof mktStarted === 'function' && mktStarted(), ST = { w: ST0 ? 1 : 20, live: ST0, top: 20, log: false }, VD = null, DJ = null, IX = null, err = null, loading = false, S = null, ADR = null, adrT = 0, CH = {};
   var C_MEP = '#5cc8ff', C_CCL = '#c9a0ff', C_CAN = '#ff8fb3', C_ARS = '#a1a1aa';
   // hitos: primera rueda después de cada evento (cada uno coincide con un salto del MEP o del oficial en la serie)
   var EVS = [['2023-08-14', 'PASO', 'PASO y devaluación del oficial'], ['2023-10-23', 'Generales', 'elecciones generales'], ['2023-11-21', 'Balotaje', 'balotaje'], ['2023-12-13', 'Devaluación', 'devaluación del oficial de $ 366 a $ 800'], ['2025-04-14', 'Fin del cepo', 'salida del cepo y bandas cambiarias'], ['2025-09-22', 'EE.UU.', 'anuncio de apoyo de EE.UU.'], ['2025-10-09', 'Tesoro EE.UU.', 'el Tesoro de EE.UU. compra pesos'], ['2025-10-27', 'Legislativas', 'elecciones legislativas']];
@@ -5516,7 +5516,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<li><b>Dólar real (¿caro o barato?)</b>: el MEP de cada día llevado a pesos del último día con el CER, para ver si el dólar está caro o barato en términos reales (el CER sigue a la inflación con unas semanas de atraso). <b>Volatilidad</b>: cuánto se movió el MEP o el CCL por día en las últimas 20 ruedas, anualizado.</li>' +
       '<li><b>Variaciones y estadísticas</b>: cuánto cambió cada cotización en cada plazo (en la brecha y el canje, en puntos porcentuales) y dónde está hoy cada indicador contra su historia desde la salida del cepo (14/04/2025): el percentil dice qué parte de las ruedas tuvo un valor menor o igual.</li></ul></div></div></div>';
     var on = function (id, ev, fn) { document.getElementById(id)[ev] = fn; };
-    on('dxW', 'onchange', function () { ST.w = +this.value; render(); }); on('dxL', 'onchange', function () { ST.live = this.checked; render(); }); on('dxTop', 'onchange', function () { ST.top = +this.value; render(); }); on('dxLg', 'onchange', function () { ST.log = this.checked; render(); });
+    on('dxW', 'onchange', function () { if (this.value === 'h') { ST.w = 1; ST.live = true; } else { ST.w = +this.value; if (ST.w === 1) ST.live = false; } render(); }); on('dxL', 'onchange', function () { ST.live = this.checked; render(); }); on('dxTop', 'onchange', function () { ST.top = +this.value; render(); }); on('dxLg', 'onchange', function () { ST.log = this.checked; render(); });
   }
 
   /* ---------- cuentas del período ---------- */
@@ -5539,7 +5539,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
       if (!VD) { sub.textContent = 'Cargando la serie de AL30…'; load(); return; }
       adr(); may(); build();
-      document.getElementById('dxW').value = ST.w; document.getElementById('dxL').checked = ST.live; document.getElementById('dxTop').value = ST.top; document.getElementById('dxLg').checked = ST.log;
+      var wSel = document.getElementById('dxW'), hOk = typeof mktStarted === 'function' && mktStarted(); wSel.options[0].hidden = !hOk; wSel.value = ST.w === 1 && ST.live && hOk ? 'h' : ST.w; document.getElementById('dxL').checked = ST.live; document.getElementById('dxTop').value = ST.top; document.getElementById('dxLg').checked = ST.log;
       var n = S.n, w = ST.w === 0 ? n - 1 : Math.min(ST.w, n - 1), a0 = n - w, b = lastV(S.MEP, a0 - 1), e = lastV(S.MEP, n - 1), D = S.dates;
       sub.innerHTML = 'Serie diaria de AL30 en pesos, MEP (AL30D) y cable (AL30C) desde el ' + fr(D[0]) + ' y oficial del BCRA (A3500).' + (S.live ? ' Incluye la rueda de hoy, ' + (liveOpen() ? 'todavía incompleta.' : 'ya cerrada.') : ST.live && !mktStarted() ? ' Hoy no hay rueda o todavía no empezó: se muestra hasta el ' + fr(D[D.length - 1]) + '.' : '') + '<span class="xp"> Cuánto se pagó el dólar en el mercado de bonos, cuánta brecha hubo con el oficial y hacia dónde fue la plata: de pesos a dólares o al revés.</span>';
       var ch = function (Y, i0, i1) { return Y[i0] > 0 && Y[i1] > 0 ? Y[i1] / Y[i0] - 1 : null; };
