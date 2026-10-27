@@ -310,11 +310,14 @@
     var u = user || {}, m = u.user_metadata || {}, name = m.full_name || m.name || u.email || 'Vista previa', pic = m.avatar_url || m.picture;
     var d = document.createElement('div'); d.id = 'blUser'; d.setAttribute('data-html2canvas-ignore', 'true');
     d.innerHTML = '<button title="' + esc(name) + '">' + (pic ? '<img src="' + esc(pic) + '" alt="" referrerpolicy="no-referrer">' : esc((name || '?').charAt(0).toUpperCase())) + '</button>' +
-      '<div class="mn"><div>' + esc(u.email || name) + '</div><button data-al>Mis alertas</button><button data-out>Cerrar sesión</button></div>';
+      '<div class="mn"><div>' + esc(u.email || name) + '</div><button data-out>Cerrar sesión</button></div>';
     bar.appendChild(d);
     d.firstChild.onclick = function (e) { e.stopPropagation(); d.classList.toggle('on'); };
     d.querySelector('[data-out]').onclick = function () { d.classList.remove('on'); logout(); };
-    d.querySelector('[data-al]').onclick = function () { d.classList.remove('on'); if (window.switchTab) window.switchTab('alert'); };
+    var al = document.createElement('button'); al.id = 'alBell'; al.className = 'icon-btn'; al.title = 'Alertas'; al.setAttribute('aria-label', 'Alertas'); al.setAttribute('data-html2canvas-ignore', 'true');
+    al.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+    al.onclick = function () { if (window.switchTab) window.switchTab('alert'); };
+    bar.insertBefore(al, d);
     document.addEventListener('click', function (e) { if (!d.contains(e.target)) d.classList.remove('on'); });
     if (LV.adm) lvBtn();
   }
@@ -326,7 +329,9 @@
     if (!sb || !user || !LV.ok || document.visibilityState !== 'visible') return;
     var m = user.user_metadata || {};
     sb.from('presencia').upsert({ user_id: user.id, email: user.email || null, nombre: m.full_name || m.name || null, pestana: lvTab(), dispositivo: /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent) ? 'Celular' : 'Compu', desde: LV.since, visto: new Date().toISOString() }, { onConflict: 'user_id' })
-      .then(function (r) { if (r.error) { LV.ok = false; clearInterval(LV.t); LV.t = null; return; } if (!LV.ask) admin(); }, function () { }); // sin la tabla (o sin permiso) deja de intentar hasta recargar
+      .then(function (r) { // si falla no se apaga: guarda el error (se ve en «Conectados ahora») y vuelve a probar en el próximo aviso
+        LV.err = r.error ? (r.error.message || r.error.code || 'error') + ' · ' + new Date().toLocaleTimeString('es-AR') : null; if (r.error) console.warn('presencia', r.error);
+        if (!LV.ask) admin(); }, function (e) { LV.err = String(e && e.message || e); if (!LV.ask) admin(); });
   }
   function live() {
     if (!sb || !user || LV.t) return; ping(); LV.t = setInterval(ping, 60000);
@@ -355,14 +360,14 @@
         var who = function (x) { return '<b>' + esc(x.nombre || x.email || '—') + '</b>' + (x.nombre && x.email ? '<div class="mu" style="margin:2px 0 0">' + esc(x.email) + '</div>' : ''); };
         b.innerHTML = '<h4>En este momento: ' + on.length + '</h4>' + (on.length ? '<div class="tw"><table><tr><th>Usuario</th><th>Pestaña</th><th>Equipo</th><th>Entró</th></tr>' + on.map(function (x) { return '<tr><td><span class="dot"></span>' + who(x) + '</td><td>' + esc(x.pestana || '—') + '</td><td>' + esc(x.dispositivo || '') + '</td><td>' + ago(x.desde) + '</td></tr>'; }).join('') + '</table></div>' : '<p class="mu">Nadie más que vos.</p>') +
           '<h4>Últimas 24 horas: ' + day.length + '</h4>' + (day.length ? '<div class="tw"><table><tr><th>Usuario</th><th>Última pestaña</th><th>Equipo</th><th>Visto</th></tr>' + day.map(function (x) { return '<tr><td>' + who(x) + '</td><td>' + esc(x.pestana || '—') + '</td><td>' + esc(x.dispositivo || '') + '</td><td>' + hm(x.visto) + '<div class="mu" style="margin:2px 0 0">' + ago(x.visto) + '</div></td></tr>'; }).join('') + '</table></div>' : '<p class="mu">Nadie.</p>') +
-          '<p class="mu">Cuenta como conectado quien tiene la página a la vista (avisa cada minuto). Se actualiza solo cada 20 segundos.</p>';
+          (LV.err ? '<p class="mu" style="color:#dc2626">Tu conexión no se pudo registrar: ' + esc(LV.err) + '</p>' : '') + '<p class="mu">Cuenta como conectado quien tiene la página a la vista (avisa cada minuto). Se actualiza solo cada 20 segundos.</p>';
       }, function () { });
     };
     load(); clearInterval(LV.rt); LV.rt = setInterval(function () { if (!document.getElementById('blLive')) { clearInterval(LV.rt); return; } load(); }, 20000);
   }
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function logout() {
-    var c = document.getElementById('blUser'); if (c) c.remove();
+    ['blUser', 'alBell'].forEach(function (i) { var c = document.getElementById(i); if (c) c.remove(); });
     if (sb && user && LV.ok) { try { sb.from('presencia').delete().eq('user_id', user.id).then(function () { }, function () { }); } catch (e) { } }
     user = null; clearInterval(LV.t); LV.t = null;
     if (sb) sb.auth.signOut().then(function () { lock(); }); else lock();
@@ -381,7 +386,7 @@
       if (ses && /[?&](code|reset)=/.test(location.search)) history.replaceState(null, '', back() + location.hash);
       if (ses && ses.user && (RESET || ev === 'PASSWORD_RECOVERY')) { RESET = true; user = ses.user; lock(); if (V !== 'reset') view('reset'); return; } // primero elige la contraseña nueva
       if (ses && ses.user) { user = ses.user; unlock(); try { document.dispatchEvent(new Event('bl-auth')); } catch (e) { } }
-      else if ((ev === 'SIGNED_OUT' || ev === 'INITIAL_SESSION') && !RESET) { user = null; var c = document.getElementById('blUser'); if (c) c.remove(); lock(); }
+      else if ((ev === 'SIGNED_OUT' || ev === 'INITIAL_SESSION') && !RESET) { user = null; ['blUser', 'alBell'].forEach(function (i) { var c = document.getElementById(i); if (c) c.remove(); }); lock(); }
     });
   };
   s.onerror = function () { if (!stored()) lock(); else unlock(); }; // sin el servicio de cuentas, quien ya había entrado sigue entrando

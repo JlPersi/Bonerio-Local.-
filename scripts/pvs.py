@@ -28,7 +28,8 @@ EMIS = {"BA37D": "Buenos Aires", "BB37D": "Buenos Aires", "BC37D": "Buenos Aires
         "BAF27": "Municipalidad de Córdoba", "BAM27": "Municipalidad de Córdoba", "BAO27": "Municipalidad de Córdoba", "BAS27": "Municipalidad de Córdoba",
         "BBD26": "Buenos Aires", "PBA27": "Buenos Aires", "PBA28": "Buenos Aires", "PBM27": "Buenos Aires", "PVC7O": "Banco Provincia de Buenos Aires",
         "BGD26": "Río Negro", "RND25": "Río Negro", "BRA27": "Municipalidad de Río Cuarto", "RIF25": "La Rioja (bono verde)", "SJO35": "San Juan",
-        "BU2M7": "Chubut", "BU2N6": "Chubut", "BU3N6": "Chubut", "BU4N6": "Chubut", "BU5N6": "Chubut", "BUM27": "Chubut", "BUN26": "Chubut", "PUL26": "Chubut", "PUA36": "Chubut"}
+        "BU2M7": "Chubut", "BU2N6": "Chubut", "BU3N6": "Chubut", "BU4N6": "Chubut", "BU5N6": "Chubut", "BUM27": "Chubut", "BUN26": "Chubut", "PUL26": "Chubut", "PUA36": "Chubut",
+        "PR17": "Estado Nacional (Bono de Consolidación)"}
 
 
 def main():
@@ -58,6 +59,10 @@ def main():
         if t in SPEC:
             o["d"], o["c"] = SPEC[t]
         out[t] = o
+    try:  # los que se cargan a mano (x: 1, solo aparecen si se los busca, como PR17) no salen de la planilla: se conservan
+        out.update({k: v for k, v in json.load(open(os.path.join(DATA, "pvs.json")))["on"].items() if v.get("x")})
+    except Exception:
+        pass
     json.dump({"hoy": hoy, "on": out}, open(os.path.join(DATA, "pvs.json"), "w"), separators=(",", ":"), ensure_ascii=False)
     json.dump({k: v for k, v in EMIS.items() if k in out}, open(os.path.join(DATA, "pvs_emisores.json"), "w"), ensure_ascii=False, separators=(",", ":"))
     print(len(out), "bonos provinciales vigentes")
