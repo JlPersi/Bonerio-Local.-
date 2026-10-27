@@ -92,23 +92,8 @@ def dur(fl, y, t0):
     return sum((t - t0) / 365 * v for t, v in pv) / s if s else None
 
 
-def curvas(en_vivo=False):
-    """Devuelve (fecha hoy, fecha ayer, etiqueta hoy, {curva: [(ticker, x, tir_hoy, tir_ayer)]}, precios hoy, precios ayer)."""
-    PX, PSD, V = datos()
-    k = len(V["dates"]) - 1
-    C = cierres(V, k)
-    if en_vivo:
-        live = vivo()
-        hoy = {t: live.get(t) for t in C}
-        ayer = {t: C[t][0] for t in C}
-        f_hoy, f_ayer, lab = dt.date.today().isoformat(), V["dates"][k], "Ahora"
-    else:
-        hoy = {t: C[t][0] for t in C}
-        ayer = {t: C[t][1] for t in C}
-        f_hoy, f_ayer, lab = V["dates"][k], V["dates"][k - 1], "Hoy"
-    biz = habil(PX.get("HOL", []))
-    st = lambda f: next(t for t in range(day(dt.date.fromisoformat(f)) + 1, day(dt.date.fromisoformat(f)) + 10) if biz(t))  # T+1
-
+def cer10f(PSD, biz):
+    """CER(t): el de 10 días hábiles antes de t (con la serie embebida en index.html más data/indices.json)."""
     cer = {}
     o = PSD["IDX"]["CER"]
     for i, v in enumerate(o["v"]):
@@ -128,6 +113,27 @@ def curvas(en_vivo=False):
         while d not in cer and d > t - 40:
             d -= 1
         return cer.get(d)
+    return cer10
+
+
+def curvas(en_vivo=False):
+    """Devuelve (fecha hoy, fecha ayer, etiqueta hoy, {curva: [(ticker, x, tir_hoy, tir_ayer)]}, precios hoy, precios ayer)."""
+    PX, PSD, V = datos()
+    k = len(V["dates"]) - 1
+    C = cierres(V, k)
+    if en_vivo:
+        live = vivo()
+        hoy = {t: live.get(t) for t in C}
+        ayer = {t: C[t][0] for t in C}
+        f_hoy, f_ayer, lab = dt.date.today().isoformat(), V["dates"][k], "Ahora"
+    else:
+        hoy = {t: C[t][0] for t in C}
+        ayer = {t: C[t][1] for t in C}
+        f_hoy, f_ayer, lab = V["dates"][k], V["dates"][k - 1], "Hoy"
+    biz = habil(PX.get("HOL", []))
+    st = lambda f: next(t for t in range(day(dt.date.fromisoformat(f)) + 1, day(dt.date.fromisoformat(f)) + 10) if biz(t))  # T+1
+
+    cer10 = cer10f(PSD, biz)
 
     out = {"fija": [], "cer": [], "usd": []}
     for t, ins in PSD["INST"].items():

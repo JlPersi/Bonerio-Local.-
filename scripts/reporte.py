@@ -211,7 +211,7 @@ def main(prueba=False):
     try:
         mails = suscriptos()
     except Exception as e:
-        print("supabase", e)
+        print("supabase", e, "| clave:", "sb_secret" if KEY.startswith("sb_secret_") else "JWT service_role/anon" if KEY.startswith("eyJ") else "sb_publishable (no sirve)" if KEY.startswith("sb_publishable_") else "formato desconocido", len(KEY), "caracteres")  # para ver qué se cargó sin mostrarla
         return
     if not mails:
         print("nadie suscripto")
