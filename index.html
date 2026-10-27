@@ -3880,24 +3880,34 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     Object.keys(dd).map(Number).sort(function (a, b) { return a - b; }).forEach(function (t) { rows.push([{ v: bxDayStr(t) }].concat(ks.map(function (k) { return m[t][k] == null ? { v: '' } : { v: m[t][k], z: '0.00' }; }))); });
     return rows;
   };
+  // la proyección propia de la ficha del bono (Flujo de fondos): lo que se carga ahí manda sobre la tarjeta de Curva Pesos sin tocarla. Rige en idxOf e ixProj
+  // (solo los usa la ficha) y, mientras la ficha calcula (OVR.on), en snap y bondCF
+  var OVR = { on: false, pi: null, tam: null, dev: null }, OVC = {};
+  function scFor(n, ficha) {
+    var base = n === 1 ? scen() : scenFor(n); if ((!ficha && !OVR.on) || (OVR.pi == null && OVR.tam == null && OVR.dev == null)) return base;
+    var key = [n, OVR.pi, OVR.tam, OVR.dev, cardV(n, 'psPi'), cardV(n, 'psTam'), cardV(n, 'psDev')].join('|'); if (OVC[key]) return OVC[key];
+    var c = function (v) { return function () { return v; }; };
+    if (Object.keys(OVC).length > 40) OVC = {};
+    return (OVC[key] = mkSc(OVR.pi != null ? c(OVR.pi) : base.piF, OVR.tam != null ? c(OVR.tam) : base.tamF, OVR.dev != null ? c(OVR.dev) : base.devF));
+  }
   function idxOf(k, t) { // los índices que ajustan el pago de t, con los supuestos de la tarjeta de su familia: CER (10 hábiles antes), A3500 (3 hábiles antes) y TAMAR promedio; fijo = ya publicado
     var ins = INST[k]; if (!ins) return []; var kd = ins.k, out = [];
-    var cer = function () { var T = bdBack(t, 10); out.push({ nm: 'CER', d: T, v: cerAt(T, scenFor(2)), fijo: T <= lastOf(IDX.CER) }); };
-    var dl = function () { var T = bdBack(t, 3); out.push({ nm: 'A3500', d: T, v: fxAt(T, scenFor(4)), fijo: T <= lastOf(IDX.FX) }); };
-    var tam = function () { var sc = scenFor(3), a = 0, n = 0, t0 = bdBack(ins.iss, 10), t1 = bdBack(t, 10); for (var d = t0; d <= t1; d++) { if (!bxIsBiz(d) || BANKH[d]) continue; var r = tamAt(d, sc); if (isFinite(r)) { a += r; n++; } } if (n) out.push({ nm: 'TAMAR prom.', d: t1, v: a / n * 100, pct: 1, fijo: t1 <= lastOf(IDX.TAMAR) }); };
+    var cer = function () { var T = bdBack(t, 10); out.push({ nm: 'CER', d: T, v: cerAt(T, scFor(2, 1)), fijo: T <= lastOf(IDX.CER) }); };
+    var dl = function () { var T = bdBack(t, 3); out.push({ nm: 'A3500', d: T, v: fxAt(T, scFor(4, 1)), fijo: T <= lastOf(IDX.FX) }); };
+    var tam = function () { var sc = scFor(3, 1), a = 0, n = 0, t0 = bdBack(ins.iss, 10), t1 = bdBack(t, 10); for (var d = t0; d <= t1; d++) { if (!bxIsBiz(d) || BANKH[d]) continue; var r = tamAt(d, sc); if (isFinite(r)) { a += r; n++; } } if (n) out.push({ nm: 'TAMAR prom.', d: t1, v: a / n * 100, pct: 1, fijo: t1 <= lastOf(IDX.TAMAR) }); };
     if (kd === 'cer0' || kd === 'cerc') cer(); else if (kd === 'dl') dl(); else if (kd === 'tamar' || kd === 'dualtf') tam();
     else if (kd === 'dual') { if (rowOf(ins, 'CER')) cer(); if (rowOf(ins, 'DOLLAR_LINKED')) dl(); if (rowOf(ins, 'TAMAR')) tam(); }
     return out;
   }
   function bondCF(k) { // flujo de un bono en pesos con cupones o amortizaciones, por 100 VN originales: renta y amortización de cada pago (CER proyectado con los supuestos de la tarjeta CER)
     var ins = INST[k]; if (!ins || ins.r.length < 2 || (ins.k !== 'cerc' && ins.k !== 'cpn')) return null;
-    var s = day($('d0').value), cer = ins.k === 'cerc', sc = cer ? scenFor(2) : scen(), fl = flowsOf(ins, s, sc); if (!fl || !fl.length) return null;
+    var s = day($('d0').value), cer = ins.k === 'cerc', sc = cer ? scFor(2) : scFor(1), fl = flowsOf(ins, s, sc); if (!fl || !fl.length) return null;
     var fut = ins.r.filter(function (r) { return r[0] > s; }), am = 0, P = PRICE[k], rows = [];
     ins.r.forEach(function (r) { if (r[0] <= s) am += r[2]; });
     fut.forEach(function (r, i) { var f = fl[i] ? fl[i][1] / r[1] : 1; am += r[2]; rows.push({ t: r[0], renta: r[4] * f, amort: (r[1] - r[4]) * f, total: r[1] * f, res: Math.max(0, 100 - am) }); }); // r = [fecha, pago, amortización (% del VN), tasa, renta, …]
     return { s: s, P: P, rows: rows, fl: fl, tea: P > 0 ? tirOf(fl, s, P) : null, cer: cer, pi: cer ? parseFloat(cardV(2, 'psPi')) : null, mat: ins.r[ins.r.length - 1][0], name: cer ? 'CER con cupones' : 'Tasa fija con cupones' };
   }
-  window.PSX = { cerD: function (t) { var o = IDX.CER; return o && t >= o.s && t <= lastOf(o) ? o.v[t - o.s] : null; }, cerOrig: cerOrig, bondCF: bondCF, pvAt: bxPvPS, cfList: function () { var s = day($('d0').value); return Object.keys(INST).filter(function (k) { var ins = INST[k]; return ins.r.length > 1 && (ins.k === 'cerc' || ins.k === 'cpn') && ins.r[ins.r.length - 1][0] > s && PRICE[k] > 0; }).sort(function (a, b) { return INST[a].r[INST[a].r.length - 1][0] - INST[b].r[INST[b].r.length - 1][0]; }); }, snap: function (n) { var s0 = day($('d0').value), sc0 = n === 1 ? scen() : scenFor(n); return { s: s0, sc: sc0, S: snapshot(s0, sc0) }; }, INST: INST, ptsOf: ptsOf, yieldAt: yieldAt, durAt: durAt, yieldLab: yieldLab, famOf: famOf, FAM: FAM, paidFlows: paidFlows, LABELS: LABELS, fairFit: fairFit, css: css, fm: fm, sg: sg, rgba: rgba, bdBack: bdBack, mdOf: mdOf, flowsOf: flowsOf, mkSc: mkSc, fxAt: fxAt, ZERO: function () { return ZERO; }, idxOf: idxOf, ixProj: function (nm, t) { var T = nm === 'CER' ? bdBack(t, 10) : bdBack(t, 3), o = nm === 'CER' ? IDX.CER : IDX.FX; return { nm: nm, d: T, v: nm === 'CER' ? cerAt(T, scenFor(2)) : fxAt(T, scenFor(4)), fijo: T <= lastOf(o) }; }, views: function () { if (!window.PSV || !window.PSV.c1) window.renderPesos(); return window.PSV; }, hasPts: function (k) { return !!HIST[k]; } };
+  window.PSX = { cerD: function (t) { var o = IDX.CER; return o && t >= o.s && t <= lastOf(o) ? o.v[t - o.s] : null; }, cerOrig: cerOrig, bondCF: bondCF, pvAt: bxPvPS, cfList: function () { var s = day($('d0').value); return Object.keys(INST).filter(function (k) { var ins = INST[k]; return ins.r.length > 1 && (ins.k === 'cerc' || ins.k === 'cpn') && ins.r[ins.r.length - 1][0] > s && PRICE[k] > 0; }).sort(function (a, b) { return INST[a].r[INST[a].r.length - 1][0] - INST[b].r[INST[b].r.length - 1][0]; }); }, snap: function (n) { var s0 = day($('d0').value), sc0 = scFor(n); return { s: s0, sc: sc0, S: snapshot(s0, sc0) }; }, INST: INST, ptsOf: ptsOf, yieldAt: yieldAt, durAt: durAt, yieldLab: yieldLab, famOf: famOf, FAM: FAM, paidFlows: paidFlows, LABELS: LABELS, fairFit: fairFit, css: css, fm: fm, sg: sg, rgba: rgba, bdBack: bdBack, mdOf: mdOf, flowsOf: flowsOf, mkSc: mkSc, fxAt: fxAt, ZERO: function () { return ZERO; }, idxOf: idxOf, ixProj: function (nm, t) { var T = nm === 'CER' ? bdBack(t, 10) : bdBack(t, 3), o = nm === 'CER' ? IDX.CER : IDX.FX; return { nm: nm, d: T, v: nm === 'CER' ? cerAt(T, scFor(2, 1)) : fxAt(T, scFor(4, 1)), fijo: T <= lastOf(o) }; }, ovr: OVR, ovrBase: function (n, id) { return cardV(n, id); }, views: function () { if (!window.PSV || !window.PSV.c1) window.renderPesos(); return window.PSV; }, hasPts: function (k) { return !!HIST[k]; } };
   window.addEventListener('load', function () {
     window.psLive = live; live(); setInterval(live, 30000); window.loadClosesARS();
     setInterval(function () { if (root.classList.contains('active')) window.renderPesos(); }, 60000);
@@ -10177,7 +10187,11 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var qOf = function () { var r = MAP[K]; if (r && r.corp && r.q) return r.q(); return (window.PXQ || {})[symOf()] || {}; };
   var ruedaHoy = function () { try { var f = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()), g = {}; f.forEach(function (p) { g[p.type] = p.value; }); return g.weekday !== 'Sat' && g.weekday !== 'Sun' && (+g.hour % 24) * 60 + (+g.minute) >= 630; } catch (e) { return true; } }; // ya arrancó la rueda de hoy (10:30 hora Argentina, días hábiles)
   function prevClose(sym) { var h = hist(sym, K), td = todayBA(); for (var i = h.length - 1; i >= 0; i--) if (h[i][0] < td) return h[i]; return null; }
-  function render() {
+  function render() { // la ficha calcula con su propia proyección (si se cargó una): el universo se rehace con ella y, al salir, queda para rehacer sin ella (Calendario, buscador)
+    var O = X.ovr, own = O && (O.pi != null || O.tam != null || O.dev != null); if (O) O.on = true; if (own) UT = 0;
+    try { return render0(); } finally { if (O) O.on = false; if (own) UT = 0; }
+  }
+  function render0() {
     if (!root.classList.contains('active')) return;
     uni(); Object.keys(CH).forEach(kill);
     if (!K) { try { K = localStorage.getItem('bnLast1') || ''; } catch (e) { } if (K && MAP[K]) { open(K); return; } K = ''; }
@@ -10355,16 +10369,16 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     t.innerHTML = h + '</tbody>';
     document.getElementById('bnSeN').textContent = r.mdS != null ? 'En los TAMAR y duales la tabla mueve la TIR con los flujos proyectados fijos, como si cambiara el margen que pide el mercado (duración de margen ' + fm(du && du.md, 2) + '). Si la TAMAR acompaña a la tasa, el precio casi no se mueve: la duración efectiva es ' + fm(r.md, 2) + '.' : 'Revaluación completa con los flujos del bono; la última columna es la aproximación por duración y convexidad.';
   }
-  function pjCard(NI, IX) { // proyección de los índices que faltan publicar, sin ir a Curva Pesos: son los mismos supuestos de sus tarjetas (CER, TAMAR y dólar linked)
-    var box = document.getElementById('bnPj'); if (!box) return;
+  function pjCard(NI, IX) { // proyección de los índices que faltan publicar, propia de la ficha: arranca con la de Curva Pesos y lo que cargues acá no la toca (ni al revés)
+    var box = document.getElementById('bnPj'), O = X.ovr; if (!box || !O) return;
     var open = function (nm) { return IX.some(function (q) { return (q || []).some(function (x) { return x.nm.indexOf(nm) === 0 && !x.fijo; }); }); };
-    var F = [['CER', 'psPi2', 'Inflación mensual (%)'], ['TAMAR', 'psTam3', 'TAMAR (TNA, %)'], ['A3500', 'psDev4', 'Devaluación mensual (%)']].filter(function (f) { return open(f[0]) && document.getElementById(f[1]); });
+    var F = [['CER', 'pi', 2, 'psPi', 'Inflación mensual (%)'], ['TAMAR', 'tam', 3, 'psTam', 'TAMAR (TNA, %)'], ['A3500', 'dev', 4, 'psDev', 'Devaluación mensual (%)']].filter(function (f) { return open(f[0]); });
     box.hidden = !F.length; if (!F.length) { box.innerHTML = ''; return; }
-    var val = function (id) { var e = document.getElementById(id); return e.value !== '' ? e.value : e.placeholder; };
-    box.innerHTML = '<b>Proyección de los pagos que falta publicar</b>' + F.map(function (f) { return '<label class="bnFv">' + f[2] + '<input type="number" step="0.1" data-pjto="' + f[1] + '" value="' + esc(val(f[1])) + '"></label>'; }).join('') +
-      '<button type="button" class="bnLink" data-pjgo>Mes a mes, en Curva Pesos</button><small>Es la misma proyección de las tarjetas de Curva Pesos: si la cambiás acá, cambia allá también (y al revés).</small>';
-    box.onchange = function (e) { var id = e.target.getAttribute && e.target.getAttribute('data-pjto'), t = id && document.getElementById(id); if (!t || !isFinite(parseFloat(e.target.value))) return; t.value = e.target.value; t.dispatchEvent(new Event('input', { bubbles: true })); t.dispatchEvent(new Event('change', { bubbles: true })); UT = 0; render(); };
-    box.onclick = function (e) { if (e.target.closest('[data-pjgo]') && window.switchTab) window.switchTab('pesos'); };
+    var any = F.some(function (f) { return O[f[1]] != null; });
+    box.innerHTML = '<b>Proyección de los pagos que falta publicar</b>' + F.map(function (f) { var b = X.ovrBase(f[2], f[3]); return '<label class="bnFv">' + f[4] + '<input type="number" step="0.1" data-pjk="' + f[1] + '" placeholder="' + esc(b) + '" value="' + (O[f[1]] != null ? +(O[f[1]] * 100).toFixed(4) : '') + '"></label>'; }).join('') +
+      (any ? '<button type="button" class="bnLink" data-pjrst>Volver a la de Curva Pesos</button>' : '') + '<small>Es propia de esta ficha: arranca con la proyección de Curva Pesos (en gris) y lo que cargues acá no la cambia. Vacío, usa la de Curva Pesos.</small>';
+    box.onchange = function (e) { var k = e.target.getAttribute && e.target.getAttribute('data-pjk'); if (!k) return; var v = parseFloat(e.target.value); O[k] = isFinite(v) ? v / 100 : null; UT = 0; render(); };
+    box.onclick = function (e) { if (!e.target.closest('[data-pjrst]')) return; O.pi = O.tam = O.dev = null; UT = 0; render(); };
   }
   function flows(r, T, vn) {
     var t = document.getElementById('bnFl'), cv = document.getElementById('bnFlC'); if (!t) return;
