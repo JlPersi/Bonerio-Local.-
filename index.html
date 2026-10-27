@@ -10036,7 +10036,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       if (s >= 0) out.push({ r: r, s: s, sp: k === base ? sp : '' });
     });
     if (window.ONSQ && q) window.ONSQ.find(q).forEach(function (o) { out.push({ r: { k: o.k, grp: 'on', tipo: 'ON ' + o.tn.toLowerCase() + (o.em ? ' · ' + o.em : ''), P: o.p, mat: o.mat, usd: o.usd }, s: o.s + 0.5, sp: '', on: 1 }); }); // ONs (sección Obligaciones negociables)
-    if (window.PVSQ && q) window.PVSQ.find(q).forEach(function (o) { if (out.some(function (x) { return x.r.k === o.k; })) return; out.push({ r: { k: o.k, grp: 'pv', tipo: 'Provincial ' + o.tn.toLowerCase() + (o.em ? ' · ' + o.em : ''), P: o.p, mat: o.mat, usd: o.usd }, s: o.s + 0.5, sp: '', pv: 1 }); }); // bonos provinciales (su sección)
+    if (window.PVSQ && q) window.PVSQ.find(q).forEach(function (o) { if (out.some(function (x) { return x.r.k === o.k; })) return; out.push({ r: { k: o.k, grp: 'pv', tipo: (o.x ? 'Bono nacional ' : 'Provincial ') + o.tn.toLowerCase() + (o.em ? ' · ' + o.em : ''), P: o.p, mat: o.mat, usd: o.usd }, s: o.s + 0.5, sp: '', pv: 1 }); }); // bonos provinciales (su sección)
     if (window.ACCQ && q) window.ACCQ.find(q).forEach(function (o) { if (out.some(function (x) { return x.r.k === o.k; })) return; out.push({ r: { k: o.k, grp: 'acc', tipo: 'Acción · ' + o.sec, P: o.p }, s: o.s + 0.5, sp: '', ac: 1 }); }); // acciones (su sección)
     out.sort(function (a, b) { return a.s - b.s || (a.r.mat || 0) - (b.r.mat || 0); });
     return out.slice(0, 40);
@@ -11620,9 +11620,9 @@ window.RATG = (function () {
       Object.keys(J.on).forEach(function (k) {
         var o = J.on[k], em = EM[k] || '', nm = em.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, ''), sc = -1;
         if (k === base) sc = 0; else if (k.indexOf(base) === 0) sc = 1; else if (q.length >= 3 && nm.indexOf(q) >= 0) sc = 2; else if (base.length >= 3 && k.indexOf(base) > 0) sc = 3;
-        if (sc < 0 || o.x || dn(o.mat) < settle()) return;
+        if (sc < 0 || dn(o.mat) < settle()) return;
         var sym = o.t === 'usd' ? usym(k, spG()) || o.o : o.o, L = LV[sym], cl = C.px[sym], p = L && L.c ? L.c : cl ? cl[0] : null;
-        out.push({ k: k, s: sc, em: em, t: o.t, tn: TN[o.t], usd: o.t === 'usd', p: p, mat: dn(o.mat) });
+        out.push({ k: k, s: sc, em: em, t: o.t, tn: TN[o.t], usd: o.t === 'usd', p: p, mat: dn(o.mat), x: !!o.x });
       });
       out.sort(function (a, b) { return a.s - b.s || (b.p > 0) - (a.p > 0) || a.mat - b.mat; });
       return out.slice(0, 12);
