@@ -54,7 +54,7 @@ def http(url, data=None, method=None, headers=None, timeout=30):
 
 
 def sb(path, data=None, method=None):
-    h = {"apikey": KEY, "Prefer": "return=minimal"}
+    h = {"apikey": KEY, "Prefer": "return=minimal", "User-Agent": "bonerio-alertas/1.0"}  # Supabase rechaza la clave secret (401) si el User-Agent parece de un navegador
     if KEY.startswith("eyJ"):  # la service_role vieja es un JWT; la secret nueva (sb_secret_) va solo en apikey
         h["Authorization"] = "Bearer " + KEY
     return http(SB + "/rest/v1/" + path, data, method, h)
