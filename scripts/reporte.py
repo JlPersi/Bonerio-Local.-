@@ -2,13 +2,15 @@
 
 Corre en cierre.yml después de guardar los datos del día. Sale una vez por rueda: la fecha enviada queda en data/reporte_enviado.json
 (el cierre corre hasta tres veces) y solo se manda si data/volumen.json ya tiene la rueda de hoy.
-Formato de informe de research: lo más importante del día (texto armado con los datos), KPIs, dólar día contra día, las curvas de tasa fija,
-CER y hard dollar de hoy contra la rueda anterior con su lectura, la inflación implícita (Lecaps contra CER), los futuros de dólar contra las
-Lecaps, el volumen por familia, lo más operado, subas y bajas y la agenda. Gráficos: scripts/reporte_curvas.py, pegados en el mail.
+Las curvas, gráficos y tablas salen de la propia página (scripts/reporte_web.js la abre en Chromium y lee sus pestañas), así son los mismos
+que se ven en la terminal: Variación diaria (hard dollar, Lecaps, CER, TAMAR, duales, dólar linked, ONs y provinciales en dólares, acciones
+del panel líder), Dólar, Futuros, Inflación y Devaluación implícita y Forwards. De acá: riesgo país, caución, volumen por familia y agenda.
+El mail tiene la estética de la página (fondo oscuro, colores de cada familia).
 Prueba: scripts/reporte.py --prueba-envio manda a los suscriptos un ejemplo con los precios de ahora contra el último cierre.
+Revisar sin mandar: scripts/reporte.py --html [--web datos.json] (deja el HTML y las imágenes en /tmp).
 Secrets: SUPABASE_SERVICE_KEY y RESEND_API_KEY.
 """
-import json, os, re, sys, urllib.request, urllib.error, datetime as dt
+import base64, json, os, re, subprocess, sys, urllib.request, urllib.error, datetime as dt
 
 D = os.path.join(os.path.dirname(__file__), "..", "data")
 SB = "https://sbvebxqeltvkerrarzqn.supabase.co"
@@ -57,14 +59,14 @@ def last2(o):
     return (o[k[-1]] if k else None), (o[k[-2]] if len(k) > 1 else None)
 
 
-def ruedas():
+def ruedas(esp="P"):
     v = load("volumen.json")
     if not v:
         return None, None, {}
     dates, T = v["dates"], {}
     L = len(dates) - 1
     for t, o in v["t"].items():
-        if o.get("s") != "P":
+        if o.get("s") != esp:
             continue
         acc, row = 0, {}
         for di, e, c in zip(o["i"], o["e"], o["c"]):
@@ -112,165 +114,279 @@ def familia(t, PX, PSD, ON, PV):
     return "Otros"
 
 
-# estilos del mail (todo en línea: los clientes de correo ignoran las hojas de estilo)
-INK, MU, BD, AC = "#18181b", "#71717a", "#e4e4e7", "#0f172a"
-H2 = f'style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:{MU};margin:30px 0 4px;font-weight:700"'
-H3 = f'style="font-size:17px;margin:0 0 6px;color:{INK}"'
-PP = f'style="font-size:14px;line-height:1.6;color:#3f3f46;margin:0 0 10px"'
-IMGS = 'width="592" style="display:block;width:100%;max-width:592px;height:auto;margin:8px 0 6px"'
 
 
-def sec(num, rubro, titulo, cuerpo):
-    return (f'<tr><td style="padding:0 28px"><p {H2}>{num} · {rubro}</p><h3 {H3}>{titulo}</h3>{cuerpo}</td></tr>')
+# estilos del mail: los de la página en modo oscuro (todo en línea: los clientes de correo ignoran las hojas de estilo)
+BG, CARD, TX, MU, BD, AC, OK, BAD = "#0a0a0b", "#131314", "#f4f4f5", "#a1a1aa", "#232326", "#ffc542", "#34d399", "#ff6b8b"
+FC = {"usd": "#b8e986", "fija": "#ffc542", "cer": "#2fd4a7", "tamar": "#ff8fb3", "dl": "#5cc8ff", "dual": "#c9a0ff", "on": "#f0abfc", "pv": "#fdba74", "acc": "#e4e4e7", "fut": "#5cc8ff", "dol": "#5cc8ff", "exp": "#c9a0ff", "vol": "#ffc542"}
+FONT = "Inter,'Helvetica Neue',Helvetica,Arial,sans-serif"
+FH = "'Bricolage Grotesque',Inter,Helvetica,Arial,sans-serif"
+PP = f'style="font-size:14px;line-height:1.6;color:#d4d4d8;margin:0 0 12px"'
+NOTE = f'style="font-size:12px;line-height:1.5;color:{MU};margin:8px 0 0"'
+IMGS = f'width="560" style="display:block;width:100%;max-width:560px;height:auto;margin:6px 0 10px;border-radius:10px;border:1px solid {BD}"'
+TD = f"padding:7px 6px;font-size:12.5px;border-top:1px solid {BD};color:{TX};font-variant-numeric:tabular-nums"
+TH = f"padding:6px 6px;font-size:10.5px;font-weight:600;color:{MU};text-transform:uppercase;letter-spacing:.05em"
 
 
-def armar(en_vivo=False):
-    """(asunto, html, imágenes {cid: png}). en_vivo: precios de ahora (data912) contra el último cierre, para la prueba."""
+def num(s):
+    """'−1.234,5%' de la página a float."""
+    if s is None:
+        return None
+    m = re.search(r"[-−+]?[\d.]*\d(?:,\d+)?", str(s).replace("−", "-"))
+    return float(m.group(0).replace(".", "").replace(",", ".")) if m else None
+
+
+def sg(v, d=0, u=""):
+    return "—" if v is None else ("+" if round(v, d) > 0 else "") + n(round(v, d) + 0, d) + u
+
+
+def cv(v, inv=False, eps=0.0):
+    """Color de una variación: verde si sube (o si baja, con inv: tasas), rojo al revés."""
+    if v is None or abs(v) <= eps:
+        return MU
+    return OK if (v > 0) != inv else BAD
+
+
+def tabla(head, rows, align=None, w=None):
+    """head: títulos; rows: listas de celdas (texto o (texto, color)). La primera columna va a la izquierda y en negrita."""
+    al = align or (["left"] + ["right"] * (len(head) - 1))
+    h = "".join(f'<th style="{TH};text-align:{a}{";width:" + w[i] if w and w[i] else ""}">{t}</th>' for i, (t, a) in enumerate(zip(head, al)))
+    b = ""
+    for r in rows:
+        b += "<tr>" + "".join(
+            f'<td style="{TD};text-align:{al[i]};{"font-weight:700;" if i == 0 else ""}color:{c[1] if isinstance(c, tuple) else (TX if i == 0 else "#e4e4e7")}">{c[0] if isinstance(c, tuple) else c}</td>'
+            for i, c in enumerate(r)) + "</tr>"
+    return f'<table role="presentation" style="border-collapse:collapse;width:100%">{"<tr>" + h + "</tr>"}{b}</table>'
+
+
+def chips(items):
+    """Tarjetitas como las de la página: (título, valor, detalle, color del detalle)."""
+    cel = [f'<td style="width:{100 // 3}%;padding:4px;vertical-align:top"><div style="background:{BG};border:1px solid {BD};border-radius:10px;padding:10px 12px">'
+           f'<div style="font-size:10.5px;color:{MU};text-transform:uppercase;letter-spacing:.06em;font-weight:600">{t}</div>'
+           f'<div style="font-family:{FH};font-size:19px;font-weight:700;color:{TX};margin:3px 0 1px;white-space:nowrap">{v}</div>'
+           f'<div style="font-size:12px;color:{c or MU}">{s}</div></div></td>' for t, v, s, c in items]
+    return ('<table role="presentation" style="border-collapse:collapse;width:100%;margin:0 0 6px">'
+            + "".join("<tr>" + "".join(cel[i:i + 3]) + ("<td></td>" * (3 - len(cel[i:i + 3]))) + "</tr>" for i in range(0, len(cel), 3)) + "</table>")
+
+
+def sec(num_, rubro, titulo, cuerpo, color=AC):
+    return (f'<tr><td style="padding:10px 16px"><div style="background:{CARD};border:1px solid {BD};border-radius:14px;padding:18px 18px 16px">'
+            f'<div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:{color};font-weight:700;margin:0 0 4px">{num_} · {rubro}</div>'
+            f'<div style="font-family:{FH};font-size:20px;font-weight:700;color:{TX};margin:0 0 10px;letter-spacing:-.01em">{titulo}</div>{cuerpo}</div></td></tr>')
+
+
+def leyenda(g):
+    dot = lambda c, t, ring=False: f'<span style="white-space:nowrap;margin-right:12px"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;{"border:1.5px solid " + MU if ring else "background:" + c};vertical-align:middle;margin-right:5px"></span>{t}</span>'
+    lin = lambda c, t, dash=False: f'<span style="white-space:nowrap;margin-right:12px"><span style="display:inline-block;width:18px;border-top:{"2px dashed" if dash else "3px solid"} {c};vertical-align:middle;margin-right:5px"></span>{t}</span>'
+    cur = (lin(FC["usd"], "Curva de Globales (●)") + lin(FC["dual"], "Curva de Bonares (▲)")) if g == "usd" else lin(FC.get(g, AC), "Curva de hoy")
+    return (f'<p style="font-size:11.5px;line-height:1.9;color:{MU};margin:0 0 4px">{dot(OK, "la tasa bajó")}{dot(BAD, "la tasa subió")}{dot(MU, "sin cambio")}'
+            f'{dot("", "cierre anterior", True)}{cur}{lin(MU, "curva anterior", True)}</p>')
+
+
+def web_datos(path=None):
+    """Lo que se lee de la página (scripts/reporte_web.js)."""
+    if not path:
+        path = "/tmp/reporte_web.json"
+        r = subprocess.run(["node", os.path.join(os.path.dirname(__file__), "reporte_web.js"), path], capture_output=True, text=True, timeout=600)
+        print(r.stdout[-3000:], r.stderr[-3000:])
+        if r.returncode:
+            return None
+    with open(path) as f:
+        return json.load(f)
+
+
+def armar(en_vivo=False, web=None):
+    """(asunto, html, imágenes {cid: png}). en_vivo: la prueba, con los precios de ahora contra el último cierre."""
     sys.path.insert(0, os.path.dirname(__file__))
     import reporte_curvas as RC
     hoy = dt.datetime.now(dt.timezone(dt.timedelta(hours=-3))).date()
     L, P, T = ruedas()
+    _, _, TD_ = ruedas("D")
     if not en_vivo and L != hoy.isoformat():
         print("todavía no está la rueda de hoy en volumen.json:", L)
         return None, None, None
-    f_hoy, f_ayer, lab, CV, ph, pa = RC.curvas(en_vivo)
+    W = web_datos(web)
+    if not W:
+        print("no se pudo leer la página")
+        return None, None, None
     PX, PSD, _ = RC.datos()
-    dm = lambda s: s[8:10] + "/" + s[5:7]
-    lab_h, lab_a = (lab + " (" + dm(f_hoy) + ")"), "Cierre " + dm(f_ayer)
-    sg = lambda v, d=0, u="": "—" if v is None else ("+" if round(v, d) > 0 else "") + n(round(v, d) + 0, d) + u
-    col = lambda v, inv=False: MU if not v else ("#b91c1c" if (v > 0) != inv else "#15803d")
+    IMG = {}
+
+    def img(key, b64):
+        if not b64:
+            return ""
+        IMG[key] = base64.b64decode(b64)
+        return f'<img src="cid:{key}" alt="" {IMGS}>'
 
     # ---------- dólar, riesgo país, caución ----------
-    dl = load("dolar.json") or {}
-    a3, a3p = last2(dl.get("A3500"))
-    TJ = load("tasas.json") or {}
-    if en_vivo and (TJ.get("vivo") or {}).get("spot") and str(TJ["vivo"].get("ts", ""))[:10] == hoy.isoformat():
-        a3, a3p = float(TJ["vivo"]["spot"]), a3
+    dol = {r[0]: r for r in (W.get("dol") or {}).get("rows", [])}
+    dv = lambda k, i=1: num(dol[k][i]) if k in dol else None
+    mep, ccl, a3 = dv("MEP (AL30)"), dv("CCL (AL30)"), dv("Oficial (A3500)")
+    mep_d, ccl_d, a3_d = dv("MEP (AL30)", 2), dv("CCL (AL30)", 2), dv("Oficial (A3500)", 2)
+    bre, bre_d, can, can_d = dv("Brecha MEP"), dv("Brecha MEP", 2), dv("Canje CCL/MEP"), dv("Canje CCL/MEP", 2)
+    brc, brc_d = dv("Brecha CCL"), dv("Brecha CCL", 2)
     rv = load("riesgo_vivo.json") or {}
     rp, rpp = last2((load("riesgo_pais.json") or {}).get("d"))
     if en_vivo and rv.get("v"):
         rp, rpp = float(rv["v"]), rp
-    ch = lambda a, b: (a / b - 1) * 100 if a and b else None
-    dol = RC.dolar(ph, pa)
-    mep, mepp, ccl, cclp = dol[0][1], dol[0][2], dol[2][1], dol[2][2]
-    brecha = lambda m, o: (m / o - 1) * 100 if m and o else None
+    TJ = load("tasas.json") or {}
     cau = TJ.get("cau") or {}
     ck = sorted(cau)
     c1 = lambda d: next((r[1] for r in cau.get(d, []) if r[0] == 1), None)
     cau_h, cau_a = (c1(ck[-1]) if ck else None), (c1(ck[-2]) if len(ck) > 1 else None)
+    mm = lambda t, M=T: ((M[t][0][0] or 0) / 1e6, ((M[t][1] or (0, 0))[0] or 0) / 1e6) if t in M else (None, None)
+    vrows = []
+    for nm, tk, M, u in (("AL30 en pesos", "AL30", T, "$"), ("AL30 en dólares (MEP)", "AL30D", TD_, "US$"), ("GD30 en dólares (MEP)", "GD30D", TD_, "US$")):
+        a, b = mm(tk, M)
+        if a:
+            vrows.append([nm, f"{u} {n(a, 1)} M", (sg((a / b - 1) * 100, 0, "%") if b else "—", cv((a / b - 1) if b else None))])
+    dol_html = (chips([("MEP (AL30)", "$ " + n(mep), sg(mep_d, 2, "%"), cv(mep_d)), ("CCL (AL30)", "$ " + n(ccl), sg(ccl_d, 2, "%"), cv(ccl_d)), ("Oficial (A3500)", "$ " + n(a3), sg(a3_d, 2, "%"), cv(a3_d)),
+                        ("Brecha MEP", n(bre, 1) + "%", sg(bre_d, 1, " pp"), MU), ("Brecha CCL", n(brc, 1) + "%", sg(brc_d, 1, " pp"), MU), ("Canje CCL/MEP", n(can, 1) + "%", sg(can_d, 1, " pp"), MU)])
+                + tabla(["", "Último", "1 rueda", "1 semana", "1 mes"], [[r[0], r[1], (r[2], cv(num(r[2]))), (r[3], cv(num(r[3]))), (r[4], cv(num(r[4])))] for r in (W.get("dol") or {}).get("rows", []) if "real" not in r[0]])
+                + (f'<p style="font-size:13px;font-weight:700;color:{TX};margin:16px 0 2px">Volumen del dólar bolsa</p>' + tabla(["", "Monto", "Contra la rueda anterior"], vrows) if vrows else "")
+                + f'<p {NOTE}>MEP y CCL de AL30, como en la pestaña Dólar. Brecha y canje: variación en puntos porcentuales.</p>')
 
-    # ---------- curvas ----------
-    IMG = {}
-    rows_f = [r for r in CV["fija"] if r[1] <= 800 and -0.2 < r[2] < 2]
-    rows_c = [r for r in CV["cer"] if r[1] <= 2000 and -0.2 < r[2] < 2]
-    rows_u = [r for r in CV["usd"] if -0.2 < r[2] < 2]
-    bp = lambda r: round((r[2] - r[3]) * 1e4) + 0
-    med = lambda rs: sorted(bp(r) for r in rs)[len(rs) // 2] if rs else None
-    prom = lambda rs: sum(bp(r) for r in rs) / len(rs) if rs else None
+    # ---------- curvas (Variación diaria de la página) ----------
+    C = W.get("cur") or {}
+    short = lambda r, g: g not in ("usd", "on", "pv") and (r.get("d") or 0) < 30
+    med = lambda a: (sorted(a)[len(a) // 2] if len(a) % 2 else (sorted(a)[len(a) // 2 - 1] + sorted(a)[len(a) // 2]) / 2) if a else None
 
-    def tabla(rows):
-        td = 'style="padding:6px 8px;font-size:12.5px;border-top:1px solid #f0f0f0'
-        cel = [f'<td {td};font-weight:600">{r[0]}</td><td {td};text-align:right">{n(r[2] * 100, 2)}%</td><td {td};text-align:right;color:{col(bp(r))}">{sg(bp(r), 0, " pb")}</td>' for r in rows]
-        half = (len(cel) + 1) // 2
-        hd = f'<th style="padding:6px 8px;font-size:10.5px;font-weight:600;color:{MU};text-align:{{}};text-transform:uppercase;letter-spacing:.05em">{{}}</th>'
-        hdr = "".join(hd.format(a, t) for a, t in (("left", "Bono"), ("right", "TIR"), ("right", "Cambio")))
-        return ('<table style="border-collapse:collapse;width:100%"><tr>' + hdr + '<th style="width:16px"></th>' + hdr + "</tr>"
-                + "".join("<tr>" + cel[i] + "<td></td>" + (cel[i + half] if i + half < len(cel) else '<td colspan="3"></td>') + "</tr>" for i in range(half)) + "</table>")
+    def resumen(g):
+        rs = [r for r in C.get(g, {}).get("rows", []) if r.get("dpb") is not None and not short(r, g) and not r.get("tf")]
+        return (med([r["dpb"] for r in rs]), rs)
 
-    def tramo(rows, corte):
-        c, l = [r for r in rows if r[1] <= corte], [r for r in rows if r[1] > corte]
-        return prom(c), prom(l)
-
-    def lectura(rows, nombre, corte, unidad):
-        if not rows:
+    def lectura(g, nombre, corte):
+        m, rs = resumen(g)
+        if m is None:
             return ""
-        m, (c, l) = prom(rows), tramo(rows, corte)
-        mx = max(rows, key=lambda r: abs(bp(r)))
-        t = f"La curva de {nombre} {'subió' if m > 0.5 else 'bajó' if m < -0.5 else 'quedó sin cambios'}"
-        t += f" {n(abs(m), 0)} pb en promedio" if abs(m) > 0.5 else ""
-        if c is not None and l is not None and abs(c - l) >= 5:
-            empina = l > c
-            t += f": el tramo corto (hasta {corte} {unidad}) se movió {sg(c, 0, ' pb')} y el largo {sg(l, 0, ' pb')}, así que se {'empinó' if empina else 'aplanó'}"
-        t += f". El mayor movimiento fue {mx[0]} ({sg(bp(mx), 0, ' pb')}, a {n(mx[2] * 100, 2)}%)."
+        t = f"La curva de {nombre} {'subió' if m > 0.5 else 'bajó' if m < -0.5 else 'quedó sin cambios'}" + (f" {n(abs(m), 0)} pb (mediana)" if abs(m) > 0.5 else "")
+        c, l = [r["dpb"] for r in rs if r["d"] <= corte], [r["dpb"] for r in rs if r["d"] > corte]
+        if c and l and abs(med(c) - med(l)) >= 5:
+            t += f": el tramo corto se movió {sg(med(c), 0, ' pb')} y el largo {sg(med(l), 0, ' pb')}, así que se {'empinó' if med(l) > med(c) else 'aplanó'}"
+        mx = max(rs, key=lambda r: abs(r["dpb"]))
+        up, dn = sum(1 for r in C[g]["rows"] if (r.get("dpct") or 0) > 0.005), sum(1 for r in C[g]["rows"] if (r.get("dpct") or 0) < -0.005)
+        t += f". El mayor movimiento fue {mx['k']} ({sg(mx['dpb'], 0, ' pb')}, a {n(mx['y1'], 2)}%). En precio, {up} {'sube' if up == 1 else 'suben'} y {dn} {'baja' if dn == 1 else 'bajan'}."
         return f"<p {PP}>{t}</p>"
 
-    def curva(key, rows, xlab, color, ley=None):
-        if len(rows) < 2:
+    def curva(g, nombre, corte):
+        o = C.get(g) or {}
+        rs = sorted(o.get("rows", []), key=lambda r: r.get("d") or 0)
+        if not rs:
             return ""
-        IMG[key] = RC.grafico(rows, "", xlab, color, lab_h, lab_a, ley)
-        return f'<img src="cid:{key}" alt="" {IMGS}>' + tabla(rows)
+        usd = g in ("on", "pv")
+        yl = rs[0].get("yl") or "TIR"
+        filas = []
+        for r in rs:
+            v = (r.get("usdv") or 0) / 1e3 if usd else mm(r["k"])[0]
+            name = r["k"] + (f' <span style="font-weight:400;color:{MU}">{r["em"]}</span>' if usd and r.get("em") else "")
+            yl_r = r.get("yl") or yl
+            filas.append([name, n(r["P1"], 2), (sg(r["dpct"], 2, "%"), cv(r["dpct"], eps=0.005)),
+                          (n(r["y1"], 2) + "%" + ("" if yl_r == yl else f' <span style="color:{MU}">{yl_r}</span>')) if r.get("y1") is not None else "—",
+                          (sg(r["dpb"], 0), MU if short(r, g) or r.get("dpb") is None else cv(r["dpb"], True, 0.5)),
+                          (n(v, 0) if usd else n(v, 1)) if v else "—"])
+        return (lectura(g, nombre, corte) + leyenda(g) + img(g, o.get("png"))
+                + tabla(["Bono", "Precio", "Δ %", yl, "Δ pb", "Monto (US$ miles)" if usd else "Monto ($ M)"], filas)
+                + f'<p {NOTE}>{o.get("info", "").split(" · ")[0]}. Δ pb: cambio de la tasa' + ("" if usd or g == "usd" else "; los de menos de 30 días no se comparan (en gris) y quedan fuera de la curva") + ". Mismo gráfico que la pestaña Variación diaria.</p>")
 
-    # inflación implícita (breakeven): Lecaps contra CER al mismo plazo, con las dos curvas ajustadas
-    ff, fc = RC.ajuste(rows_f), RC.ajuste(rows_c)
-    ffa, fca = RC.ajuste(rows_f, 3), RC.ajuste(rows_c, 3)
-    be = []
-    if ff and fc and rows_f:
-        top_x = max(r[1] for r in rows_f)
-        for d in (60, 120, 180, 240, 300, 365):
-            if d <= top_x + 5 and d >= min(r[1] for r in rows_f) - 5:
-                bm = lambda f1, f2: ((1 + f1(d)) / (1 + f2(d))) ** (1 / 12) - 1
-                be.append((d, bm(ff, fc) * 100, bm(ffa, fca) * 100 if ffa and fca else None))
-    be_html = ""
-    if be:
-        td = 'style="padding:7px 8px;font-size:13px;border-top:1px solid #f0f0f0;text-align:right'
-        be_html = (f"<p {PP}>La diferencia entre la tasa de las Lecaps y la tasa real de los bonos CER al mismo plazo es la inflación que descuenta el mercado. "
-                   f"A {be[min(2, len(be) - 1)][0]} días da <b>{n(be[min(2, len(be) - 1)][1], 2)}% mensual</b> promedio.</p>"
-                   f'<table style="border-collapse:collapse;width:100%"><tr><th style="padding:6px 8px;font-size:10.5px;color:{MU};text-align:left;text-transform:uppercase;letter-spacing:.05em">Plazo</th><th style="padding:6px 8px;font-size:10.5px;color:{MU};text-align:right;text-transform:uppercase;letter-spacing:.05em">Inflación mensual implícita</th><th style="padding:6px 8px;font-size:10.5px;color:{MU};text-align:right;text-transform:uppercase;letter-spacing:.05em">Rueda anterior</th></tr>'
-                   + "".join(f'<tr><td {td};text-align:left;font-weight:600">{d} días</td><td {td}">{n(v, 2)}%</td><td {td};color:{MU}">{n(a, 2) + "%" if a is not None else "—"}</td></tr>' for d, v, a in be) + "</table>")
-
-    # hard dollar: spread entre ley local y ley NY en los pares
-    pares = []
-    U = {r[0]: r for r in rows_u}
-    for gd, al in (("GD29", "AL29"), ("GD30", "AL30"), ("GD35", "AL35"), ("GD38", "AE38"), ("GD41", "AL41")):
-        if gd in U and al in U:
-            pares.append((al + "/" + gd, (U[al][2] - U[gd][2]) * 1e4, (U[al][3] - U[gd][3]) * 1e4))
+    # spread ley local contra ley NY en los pares
+    U = {r["k"]: r for r in C.get("usd", {}).get("rows", [])}
+    pares = [((U[a]["y1"] - U[g]["y1"]) * 100, (U[a]["y0"] - U[g]["y0"]) * 100) for g, a in (("GD29", "AL29"), ("GD30", "AL30"), ("GD35", "AL35"), ("GD38", "AE38"), ("GD41", "AL41"))
+             if g in U and a in U and U[a].get("y0") is not None and U[g].get("y0") is not None]
     hd_txt = ""
-    if rows_u:
-        m = prom(rows_u)
-        hd_txt = f"<p {PP}>Los bonos en dólares {'comprimieron' if m < -0.5 else 'ampliaron' if m > 0.5 else 'quedaron estables'}" + (f": la TIR bajó {n(abs(m), 0)} pb en promedio" if m < -0.5 else f": la TIR subió {n(m, 0)} pb en promedio" if m > 0.5 else "")
-        if rp and rpp:
-            hd_txt += f", con el riesgo país en {n(rp, 0)} pb ({sg(rp - rpp, 0, ' pb')})"
-        hd_txt += "."
+    if rp:
+        hd_txt = f"<p {PP}>El <b>riesgo país</b> {'cerró' if not en_vivo else 'está'} en <b>{n(rp, 0)} pb</b>" + (f" ({sg(rp - rpp, 0, ' pb')} contra la rueda anterior)" if rpp else "") + "."
         if pares:
-            sp = sum(p[1] for p in pares) / len(pares)
-            spa = sum(p[2] for p in pares) / len(pares)
+            sp, spa = sum(p[0] for p in pares) / len(pares), sum(p[1] for p in pares) / len(pares)
             hd_txt += f" Los Bonares rinden en promedio <b>{n(sp, 0)} pb</b> más que los Globales del mismo vencimiento (el premio por ley local), {'más' if sp > spa else 'menos'} que en la rueda anterior ({n(spa, 0)} pb)."
         hd_txt += "</p>"
 
-    # futuros de dólar contra Lecaps
-    fut_rows, spot = [], a3
-    if en_vivo:
-        for r in (TJ.get("vivo") or {}).get("fut") or []:
-            p_ = r[4] or r[5]
-            if str(r[0]).startswith("DLR/") and p_ and r[1]:
-                fut_rows.append((r[0][4:], r[1], p_))
-    else:
-        fk = sorted(TJ.get("fut") or {})
-        if fk and fk[-1] == hoy.isoformat():
-            for r in TJ["fut"][fk[-1]]:
-                if str(r[0]).startswith("DLR") and r[2]:
-                    fut_rows.append((r[0][3:5] + "/" + r[0][7:9], r[1], r[2]))
-    fut_pts = []
-    for nm, vto, p_ in sorted(fut_rows, key=lambda x: x[1]):
-        d = (dt.date.fromisoformat(vto) - hoy).days
-        if d > 3 and spot and d <= 400:
-            fut_pts.append((d, (p_ / spot - 1) * 365 / d * 100, nm, p_))
-    lec = [(r[1], ((1 + r[2]) ** (r[1] / 365) - 1) * 365 / r[1] * 100) for r in rows_f if r[1] > 0]
-    fut_html = ""
-    if fut_pts and lec:
-        IMG["fut"] = RC.tasas_fut(lec, fut_pts)
-        fl = RC.ajuste([(None, x, y) for x, y in lec])
-        cmp_ = [(nm, d, y, fl(d)) for d, y, nm, _ in fut_pts if fl and min(x for x, _ in lec) - 10 <= d <= max(x for x, _ in lec) + 10]
-        txt = "Si la tasa en pesos de las Lecaps supera la devaluación que descuentan los futuros al mismo plazo, el carry cubierto rinde."
-        if cmp_:
-            c0 = cmp_[min(1, len(cmp_) - 1)]
-            dif = (c0[3] - c0[2]) * 100
-            txt += f" Al vencimiento de {c0[0]} ({c0[1]} días) la Lecap rinde {n(c0[3], 2)}% de TNA contra {n(c0[2], 2)}% del futuro: <b>{sg(dif, 0, ' pb')}</b> a favor de {'los pesos' if dif > 0 else 'la cobertura'}."
-        fut_html = (f"<p {PP}>{txt}</p>" + f'<img src="cid:fut" alt="" {IMGS}>'
-                    + '<table style="border-collapse:collapse;width:100%"><tr>' + "".join(f'<th style="padding:6px 6px;font-size:10.5px;color:{MU};text-align:right;text-transform:uppercase;letter-spacing:.05em">{h}</th>' for h in ("Contrato", "Precio", "Días", "TNA implícita")) + "</tr>"
-                    + "".join(f'<tr><td style="padding:6px;font-size:12.5px;border-top:1px solid #f0f0f0;text-align:right;font-weight:600">{nm}</td><td style="padding:6px;font-size:12.5px;border-top:1px solid #f0f0f0;text-align:right">$ {n(p_, 2)}</td><td style="padding:6px;font-size:12.5px;border-top:1px solid #f0f0f0;text-align:right">{d}</td><td style="padding:6px;font-size:12.5px;border-top:1px solid #f0f0f0;text-align:right">{n(y, 2)}%</td></tr>' for d, y, nm, p_ in fut_pts[:6]) + "</table>")
+    # ---------- futuros ----------
+    F = W.get("fut") or {}
+    fh = (F.get("tbl") or {}).get("head", [])
+    fi = lambda name: next((i for i, h in enumerate(fh) if h.upper().startswith(name)), None)
+    fr_ = [r for r in (F.get("tbl") or {}).get("rows", []) if r and r[0].startswith("DLR")]
+    cols = [("CONTRATO", "Contrato"), ("AJUSTE", "Ajuste"), ("VAR. %", "Var."), ("VOLUMEN", "Volumen"), ("I.A.", "Int. abierto"), ("VAR. I.A.", "Var. I.A."), ("TNA", "TNA"), ("DEV. MENSUAL", "Dev. mensual")]
+    ix = [fi(c) for c, _ in cols]
+    fut_html, fut_pts = "", []
+    if fr_ and None not in ix[:2]:
+        filas = []
+        for r in fr_[:10]:
+            row = []
+            for (c, _), i in zip(cols, ix):
+                v = r[i] if i is not None and i < len(r) else "—"
+                row.append((v, cv(num(v))) if c in ("VAR. %", "VAR. I.A.") else v.replace("DLR ", ""))
+            filas.append(row)
+        vol = sum(num(r[ix[3]]) or 0 for r in fr_) if ix[3] is not None else None
+        oi = sum(num(r[ix[4]]) or 0 for r in fr_) if ix[4] is not None else None
+        doi = sum(num(r[ix[5]]) or 0 for r in fr_) if ix[5] is not None else None
+        top = max(fr_, key=lambda r: num(r[ix[3]]) or 0) if ix[3] is not None else None
+        # forwards: devaluación mensual implícita entre contratos consecutivos (de un fin de mes al siguiente)
+        di = fi("DÍAS")
+        fw = []
+        for a, b in zip(fr_, fr_[1:7]):
+            pa, pb_, da, db = num(a[ix[1]]), num(b[ix[1]]), num(a[di]) if di is not None else None, num(b[di]) if di is not None else None
+            if pa and pb_ and da is not None and db and db > da:
+                fw.append((a[0].replace("DLR ", "") + " → " + b[0].replace("DLR ", ""), ((pb_ / pa) ** (30 / (db - da)) - 1) * 100))
+        fut_pts = fw
+        fut_html = (f"<p {PP}>Se operaron <b>{n(vol, 0)} contratos</b> de dólar futuro" + (f"; el interés abierto quedó en {n(oi, 0)} ({sg(doi, 0)})" if oi else "")
+                    + (f". El más operado fue {top[0].replace('DLR ', '')} ({top[ix[3]]} contratos, ajuste $ {top[ix[1]]}, {top[ix[2]]})." if top else ".") + "</p>"
+                    + img("fut", F.get("png")) + tabla([h for _, h in cols], filas)
+                    + (f'<p style="font-size:13px;font-weight:700;color:{TX};margin:16px 0 2px">Forwards entre contratos</p><p {NOTE} >La devaluación mensual que descuenta el mercado entre el vencimiento de un contrato y el siguiente.</p>'
+                       + tabla(["Tramo", "Devaluación mensual implícita"], [[a, n(v, 2) + "%"] for a, v in fw]) if fw else "")
+                    + f'<p {NOTE}>Ajustes de A3 de la pestaña Futuros. Volumen e interés abierto en contratos; TNA y devaluación mensual, implícitas contra el spot de A3.</p>')
 
-    # ---------- volumen ----------
+    # ---------- expectativas: inflación y devaluación implícitas, forwards de Lecaps ----------
+    def implicita(sx, que, contra):
+        B = W.get("be" + sx) or {}
+        pl = (B.get("plazos") or {}).get("rows", [])
+        ay = B.get("ayer") or {}
+        if not pl:
+            return "", None
+        filas, prim = [], None
+        for r in pl:
+            h, a = (ay.get(r[0]) or [None, None])
+            hv = h if h is not None else num(r[1])
+            prim = prim or (r[0], hv, a)
+            filas.append([r[0].replace(" (extrapolada", "<br><span style='font-weight:400;color:#a1a1aa;font-size:11px'>(extrapolada").replace(")", ")</span>") if "extrapolada" in r[0] else r[0],
+                          n(hv, 2) + "%", (sg((hv - a) * 100, 0, " pb"), MU) if a is not None else "—", r[2], r[5] if len(r) > 5 else "—", r[6] if len(r) > 6 else "—"])
+        bo = (B.get("bonos") or {})
+        bh = bo.get("head", [])
+        bi = [next((i for i, x in enumerate(bh) if x.upper().startswith(k)), None) for k in ("BONO", "DÍAS", "TIR", "BREAKEVEN MENSUAL", "REM")]
+        bf = [[r[bi[0]], r[bi[1]], r[bi[2]], r[bi[3]], r[bi[4]]] for r in bo.get("rows", []) if None not in bi][:10]
+        txt = (f"<p {PP}>Lo que descuenta el mercado comparando la curva de tasa fija con la de {contra} al mismo plazo: a {prim[0].split(' (')[0]}, "
+               f"<b>{n(prim[1], 2)}% mensual</b>" + (f" ({sg((prim[1] - prim[2]) * 100, 0, ' pb')} contra la rueda anterior)" if prim[2] is not None else "") + ".</p>")
+        return (txt + tabla(["Plazo", "Hoy", "Contra ayer", "Promedio", "REM", "Mercado − REM"], filas)
+                + f'<p style="font-size:13px;font-weight:700;color:{TX};margin:16px 0 2px">{que.capitalize()} breakeven de cada bono</p>' + img("be" + sx, B.get("png"))
+                + (tabla(["Bono", "Días", bh[bi[2]].replace("?", "").capitalize() if bi[2] is not None else "Tasa", "Breakeven mensual", "REM"], bf) if bf else "")
+                + f'<p {NOTE}>Breakeven: la {que} mensual que iguala lo que rinde cada bono con la Lecap del mismo plazo. Verde: el bono exige menos que la curva; rojo: conviene la tasa fija. La línea punteada es el REM.</p>'), prim
+
+    infl_html, infl = implicita("i", "inflación", "CER")
+    deva_html, deva = implicita("d", "devaluación", "dólar linked")
+    FW = W.get("fw") or {}
+    fwt = (FW.get("tbl") or {})
+    fw_html = ""
+    if fwt.get("rows"):
+        fw_html = (f"<p {PP}>{FW.get('txt', '')}</p>" + img("fw", FW.get("png"))
+                   + tabla(["Tramo", "Tasa implícita (TEA)", "Entre", "Días"], [r[:4] for r in fwt["rows"]])
+                   + f'<p {NOTE}>La tasa que el mercado paga por estirar de un vencimiento de Lecap o Boncap al siguiente.</p>')
+
+    # ---------- acciones del panel líder ----------
+    A = W.get("acc") or {}
+    ah = (A.get("tbl") or {}).get("head", [])
+    ar = (A.get("tbl") or {}).get("rows", [])
+    acc_html, acc_s = "", None
+    if ar:
+        ia = {k: next((i for i, x in enumerate(ah) if x.upper().startswith(k)), None) for k in ("ACCIÓN", "PRECIO", "VARIACIÓN", "MONTO", "VAR. MONTO")}
+        vs = [(r[ia["ACCIÓN"]], num(r[ia["VARIACIÓN"]])) for r in ar]
+        up, dn = sum(1 for _, v in vs if v and v > 0), sum(1 for _, v in vs if v and v < 0)
+        mvs = sorted(vs, key=lambda x: x[1] or 0)
+        acc_s = (up, dn, mvs[-1], mvs[0])
+        acc_html = (chips([("Suben / bajan", f"{up} / {dn}", f"de {len(vs)} acciones", MU), ("Mayor suba", mvs[-1][0], sg(mvs[-1][1], 2, "%"), cv(mvs[-1][1])), ("Mayor baja", mvs[0][0], sg(mvs[0][1], 2, "%"), cv(mvs[0][1]))])
+                    + img("acc", A.get("png"))
+                    + tabla(["Acción", "Precio", "Variación", "Monto", "Var. monto"], [[r[ia["ACCIÓN"]], r[ia["PRECIO"]], (r[ia["VARIACIÓN"]], cv(num(r[ia["VARIACIÓN"]]))), r[ia["MONTO"]], (r[ia["VAR. MONTO"]], cv(num(r[ia["VAR. MONTO"]])))] for r in ar])
+                    + f'<p {NOTE}>{A.get("sum", "").replace(" Tocá una acción para ver su ficha.", "")}</p>')
+
+    # ---------- volumen de renta fija ----------
     ON = (load("ons.json") or {}).get("on") or {}
     PV = (load("pvs.json") or {}).get("on") or {}
     fam = {}
@@ -279,87 +395,83 @@ def armar(en_vivo=False):
         fam[f] = fam.get(f, 0) + (a[0] or 0)
     fams = sorted(((k, v / 1e6) for k, v in fam.items() if v > 0), key=lambda x: -x[1])
     tot = sum(fam.values())
-    if fams:
-        IMG["vol"] = RC.barras(fams[:8])
     top = sorted(T.items(), key=lambda x: -(x[1][0][0] or 0))
-    liq = [x for x in top[:80] if x[1][1] and x[1][1][1] and x[1][0][1]]
-    mv = sorted(((t, (a[1] / b[1] - 1) * 100) for t, (a, b) in liq), key=lambda x: x[1])
-    vol_d = dm(L)
-    li = lambda xs: "".join(f'<tr><td style="padding:6px 0;font-size:13px;border-top:1px solid #f0f0f0"><b>{t}</b></td><td style="padding:6px 0;text-align:right;font-size:13px;border-top:1px solid #f0f0f0">{pc(v)}</td></tr>' for t, v in xs)
-    vol_html = (f"<p {PP}>Se operaron <b>$ {n(tot / 1e6, 0)} millones</b> en renta fija y ONs en pesos (rueda del {vol_d}). "
-                + (f"Lideró {fams[0][0].lower()} con el {n(fams[0][1] * 1e6 / tot * 100, 0)}% del total." if fams and tot else "") + "</p>"
-                + (f'<img src="cid:vol" alt="" {IMGS}>' if "vol" in IMG else "")
-                + f'<p style="font-size:13px;font-weight:700;margin:14px 0 4px">Lo más operado</p><table style="width:100%;border-collapse:collapse">'
-                + "".join(f'<tr><td style="padding:6px 0;font-size:13px;border-top:1px solid #f0f0f0"><b>{t}</b> <span style="color:{MU}">{familia(t, PX, PSD, ON, PV).lower()}</span></td><td style="padding:6px 0;text-align:right;font-size:13px;border-top:1px solid #f0f0f0">$ {n((a[0] or 0) / 1e6, 0)} M</td><td style="padding:6px 0 6px 12px;text-align:right;font-size:13px;border-top:1px solid #f0f0f0">{pc(ch(a[1], b[1] if b else None))}</td></tr>' for t, (a, b) in top[:6])
-                + "</table>"
-                + '<table style="width:100%;border-collapse:collapse;margin-top:16px"><tr><td style="width:50%;vertical-align:top;padding-right:12px"><p style="font-size:13px;font-weight:700;margin:0 0 4px">Mayores subas</p><table style="width:100%;border-collapse:collapse">'
-                + li(mv[::-1][:5]) + '</table></td><td style="width:50%;vertical-align:top;padding-left:12px"><p style="font-size:13px;font-weight:700;margin:0 0 4px">Mayores bajas</p><table style="width:100%;border-collapse:collapse">'
-                + li(mv[:5]) + "</table></td></tr></table>"
-                + f'<p style="font-size:12px;color:{MU};margin:6px 0 0">Entre las 80 especies más operadas.</p>')
+    mx = fams[0][1] if fams else 1
+    barras = "".join(f'<tr><td style="padding:5px 8px 5px 0;font-size:12.5px;color:#e4e4e7;white-space:nowrap;width:1%">{k}</td><td style="padding:5px 0;width:99%"><table role="presentation" style="border-collapse:collapse;width:100%"><tr>'
+                     f'<td style="width:{max(1, round(v / mx * 78))}%;background:{AC};height:14px;border-radius:3px"></td><td style="padding-left:8px;font-size:12px;color:{TX};white-space:nowrap">$ {n(v, 0)} M</td></tr></table></td></tr>' for k, v in fams[:8])
+    vol_html = (f"<p {PP}>Se operaron <b>$ {n(tot / 1e6, 0)} millones</b> en renta fija y ONs en pesos (rueda del {L[8:10]}/{L[5:7]})."
+                + (f" Lideró {fams[0][0].lower()} con el {n(fams[0][1] * 1e6 / tot * 100, 0)}% del total." if fams and tot else "") + "</p>"
+                + f'<table role="presentation" style="border-collapse:collapse;width:100%;margin-bottom:12px">{barras}</table>'
+                + f'<p style="font-size:13px;font-weight:700;color:{TX};margin:6px 0 2px">Lo más operado</p>'
+                + tabla(["Especie", "Familia", "Monto", "Var. precio"], [[t, familia(t, PX, PSD, ON, PV), f"$ {n((a[0] or 0) / 1e6, 0)} M", (sg((a[1] / b[1] - 1) * 100, 2, "%"), cv(a[1] / b[1] - 1)) if b and b[1] and a[1] else "—"] for t, (a, b) in top[:8]]))
 
-    # ---------- lo más importante (resumen arriba) ----------
+    # ---------- lo más importante ----------
     pts = []
-    if mep and mepp:
-        pts.append(f"El <b>MEP</b> {'subió' if mep > mepp else 'bajó'} {n(abs(ch(mep, mepp)), 2)}% a $ {n(mep)} y el <b>CCL</b> {'subió' if (ccl or 0) > (cclp or 0) else 'bajó'} {n(abs(ch(ccl, cclp) or 0), 2)}% a $ {n(ccl)}; la brecha con el oficial quedó en {n(brecha(mep, a3), 2)}%.")
-    if rp and rpp:
-        pts.append(f"El <b>riesgo país</b> {'subió' if rp > rpp else 'bajó' if rp < rpp else 'quedó'} {n(abs(rp - rpp), 0) + ' pb ' if rp != rpp else ''}a {n(rp, 0)} pb.")
-    if rows_f:
-        pts.append(f"<b>Tasa fija</b>: la curva {'subió' if prom(rows_f) > 0.5 else 'bajó' if prom(rows_f) < -0.5 else 'quedó estable'}" + (f" {n(abs(prom(rows_f)), 0)} pb en promedio" if abs(prom(rows_f)) > 0.5 else "") + (f"; la inflación implícita a {be[min(2, len(be) - 1)][0]} días es {n(be[min(2, len(be) - 1)][1], 2)}% mensual." if be else "."))
-    if fut_pts:
-        f0 = fut_pts[min(1, len(fut_pts) - 1)]
-        pts.append(f"El futuro de dólar de {f0[2]} cerró en $ {n(f0[3], 2)}, con una tasa implícita de {n(f0[1], 2)}% de TNA.")
+    if mep:
+        pts.append(f"<b>Dólar</b>: el MEP {'subió' if (mep_d or 0) > 0 else 'bajó' if (mep_d or 0) < 0 else 'quedó'} {n(abs(mep_d or 0), 2)}% a $ {n(mep)} y el CCL {'subió' if (ccl_d or 0) > 0 else 'bajó' if (ccl_d or 0) < 0 else 'quedó'} {n(abs(ccl_d or 0), 2)}% a $ {n(ccl)}; brecha {n(bre, 1)}% y canje {n(can, 1)}%.")
+    if rp:
+        pts.append(f"<b>Riesgo país</b> en {n(rp, 0)} pb" + (f" ({sg(rp - rpp, 0, ' pb')})" if rpp else "") + (f"; los Globales {'comprimieron' if resumen('usd')[0] < -0.5 else 'ampliaron' if resumen('usd')[0] > 0.5 else 'quedaron estables'} ({sg(resumen('usd')[0], 0, ' pb')} de mediana)." if resumen("usd")[0] is not None else "."))
+    pe = [(nm, resumen(g)[0]) for g, nm in (("fija", "Lecaps"), ("cer", "CER"), ("tamar", "TAMAR"), ("dual", "duales"), ("dl", "dólar linked")) if resumen(g)[0] is not None]
+    if pe:
+        pts.append("<b>Pesos</b>: " + ", ".join(f"{nm} {sg(v, 0, ' pb')}" for nm, v in pe) + " (mediana del cambio de tasa).")
+    if infl or deva:
+        pts.append("<b>Implícitas</b>: " + "; ".join(f"{t} a {p[0].split(' (')[0]} {n(p[1], 2)}% mensual" + (f" ({sg((p[1] - p[2]) * 100, 0, ' pb')})" if p[2] is not None else "") for t, p in (("inflación", infl), ("devaluación", deva)) if p) + ".")
+    if fr_ and ix[3] is not None:
+        pts.append(f"<b>Futuros</b>: {n(sum(num(r[ix[3]]) or 0 for r in fr_), 0)} contratos; " + ", ".join(f"{r[0].replace('DLR ', '')} $ {r[ix[1]]} ({r[ix[2]]})" for r in fr_[1:3]) + ".")
+    cor = [(nm, resumen(g)[0]) for g, nm in (("on", "ONs"), ("pv", "provinciales")) if resumen(g)[0] is not None]
+    if cor:
+        pts.append("<b>Corporativos y provincias</b>: " + ", ".join(f"{nm} {sg(v, 0, ' pb')}" for nm, v in cor) + " (mediana, ley NY).")
+    if acc_s:
+        pts.append(f"<b>Acciones</b>: en el panel líder suben {acc_s[0]} y bajan {acc_s[1]}; la mejor, {acc_s[2][0]} ({sg(acc_s[2][1], 2, '%')}), la peor, {acc_s[3][0]} ({sg(acc_s[3][1], 2, '%')}).")
     if fams:
-        pts.append(f"Se operaron $ {n(tot / 1e6, 0)} millones; lo más operado fue {top[0][0]} ($ {n((top[0][1][0][0] or 0) / 1e6, 0)} M).")
-    kpi = lambda k, v, d, inv=False: (f'<td style="width:33%;padding:12px 14px;border:1px solid {BD};vertical-align:top"><div style="font-size:10.5px;color:{MU};text-transform:uppercase;letter-spacing:.06em">{k}</div>'
-                                       f'<div style="font-size:19px;font-weight:700;margin:3px 0 1px;color:{INK}">{v}</div><div style="font-size:12px;color:{col(d[0], inv) if d[0] is not None else MU}">{d[1]}</div></td>')
-    kpis = ('<table style="width:100%;border-collapse:collapse;margin:14px 0 0"><tr>'
-            + kpi("Dólar MEP", "$ " + n(mep), (ch(mep, mepp), sg(ch(mep, mepp), 2, "%")))
-            + kpi("Dólar CCL", "$ " + n(ccl), (ch(ccl, cclp), sg(ch(ccl, cclp), 2, "%")))
-            + kpi("Oficial A3500", "$ " + n(a3), (ch(a3, a3p), sg(ch(a3, a3p), 2, "%"))) + "</tr><tr>"
-            + kpi("Riesgo país", n(rp, 0) + " pb", ((rp - rpp) if rp and rpp else None, sg((rp - rpp) if rp and rpp else None, 0, " pb")))
-            + kpi("Caución 1 día", (n(cau_h, 2) + "%") if cau_h else "—", ((cau_h - cau_a) if cau_h and cau_a else None, sg((cau_h - cau_a) * 100 if cau_h and cau_a else None, 0, " pb")))
-            + kpi("Brecha MEP", n(brecha(mep, a3), 2) + "%", (None, "contra " + n(brecha(mepp, a3p if not en_vivo else a3p), 2) + "% anterior"))
-            + "</tr></table>")
-    # colores de los KPI: suba del dólar en rojo no tiene sentido; se marca solo el signo
+        pts.append(f"<b>Volumen</b>: $ {n(tot / 1e6, 0)} millones en renta fija; lo más operado, {top[0][0]} ($ {n((top[0][1][0][0] or 0) / 1e6, 0)} M).")
+    kpis = chips([("Dólar MEP", "$ " + n(mep), sg(mep_d, 2, "%"), cv(mep_d)), ("Dólar CCL", "$ " + n(ccl), sg(ccl_d, 2, "%"), cv(ccl_d)), ("Oficial A3500", "$ " + n(a3), sg(a3_d, 2, "%"), cv(a3_d)),
+                  ("Riesgo país", n(rp, 0) + " pb" if rp else "—", sg((rp - rpp) if rp and rpp else None, 0, " pb"), cv((rp - rpp) if rp and rpp else None, True)),
+                  ("Caución 1 día", (n(cau_h, 2) + "%") if cau_h else "—", sg((cau_h - cau_a) * 100 if cau_h and cau_a else None, 0, " pb"), MU),
+                  ("Inflación implícita", (n(infl[1], 2) + "%") if infl else "—", (infl[0].split(" (")[0] + " · mensual") if infl else "", MU)])
+
     fecha = f"{DIA[hoy.weekday()]} {hoy.day} de {MES[hoy.month - 1]} de {hoy.year}"
     ev = semana(hoy)
-    tabla_dol = ('<table style="width:100%;border-collapse:collapse;font-size:13.5px"><tr>'
-                 + "".join(f'<th style="padding:6px 0;font-size:10.5px;color:{MU};text-align:{a};text-transform:uppercase;letter-spacing:.05em">{h}</th>' for a, h in (("left", ""), ("right", lab_h), ("right", lab_a), ("right", "Cambio")))
-                 + "</tr>"
-                 + "".join(f'<tr><td style="padding:7px 0;border-top:1px solid #f0f0f0;color:#3f3f46">{k}</td><td style="padding:7px 0;border-top:1px solid #f0f0f0;text-align:right"><b>{v1}</b></td><td style="padding:7px 0;border-top:1px solid #f0f0f0;text-align:right;color:{MU}">{v0}</td><td style="padding:7px 0;border-top:1px solid #f0f0f0;text-align:right">{d}</td></tr>'
-                           for k, v1, v0, d in ([("Oficial (A3500)", "$ " + n(a3), "$ " + n(a3p), pc(ch(a3, a3p)))]
-                                                + [(k, "$ " + n(a), "$ " + n(b), pc(ch(a, b))) for k, a, b in dol[:4]]
-                                                + [("Canje (CCL contra MEP)", n(dol[4][1]) + "%", n(dol[4][2]) + "%", sg((dol[4][1] or 0) - (dol[4][2] or 0), 2, " pp")),
-                                                   ("Brecha MEP contra oficial", n(brecha(mep, a3)) + "%", n(brecha(mepp, a3p)) + "%", sg((brecha(mep, a3) or 0) - (brecha(mepp, a3p) or 0), 2, " pp"))]))
-                 + "</table>")
-    cuerpo = (
-        sec("01", "Dólar", "Dólar y brecha", tabla_dol)
-        + sec("02", "Pesos", "Curva de tasa fija", lectura(rows_f, "Lecaps y Boncaps", 90, "días") + curva("fija", rows_f, "días al vencimiento", "#d97706"))
-        + sec("03", "Pesos", "Curva CER", lectura(rows_c, "bonos CER (TIR real)", 365, "días") + curva("cer", rows_c, "días al vencimiento", "#0d9488"))
-        + (sec("04", "Pesos", "Inflación implícita", be_html) if be_html else "")
-        + (sec("05", "Dólar", "Futuros de dólar contra Lecaps", fut_html) if fut_html else "")
-        + sec("06", "Dólares", "Curva hard dollar", hd_txt + curva("usd", rows_u, "duration (años)", "#2563eb", ley=["GD", "A"]))
-        + sec("07", "Mercado", "Volumen", vol_html)
-        + (sec("08", "Agenda", "Lo que viene esta semana", '<table style="width:100%;border-collapse:collapse">' + "".join(f'<tr><td style="padding:7px 0;font-size:13.5px;border-top:1px solid #f0f0f0;width:120px;font-weight:600">{DIA[f.weekday()].capitalize()} {f.day}</td><td style="padding:7px 0;font-size:13.5px;border-top:1px solid #f0f0f0">{t}</td></tr>' for f, t in ev) + "</table>") if ev else "")
-    )
+    S = [("Dólar", "Dólares: MEP, CCL, brecha y canje", dol_html, FC["dol"]),
+         ("Soberanos", "Curva hard dollar: Globales y Bonares", hd_txt + curva("usd", "Globales y Bonares", 1100), FC["usd"]),
+         ("Pesos", "Curva de Lecaps y Boncaps", curva("fija", "tasa fija", 90), FC["fija"]),
+         ("Pesos", "Curva CER", curva("cer", "bonos CER (tasa real)", 365), FC["cer"]),
+         ("Pesos", "Curva TAMAR", curva("tamar", "bonos TAMAR (margen)", 365), FC["tamar"]),
+         ("Pesos", "Curva de duales", curva("dual", "duales", 365), FC["dual"]),
+         ("Pesos", "Curva dólar linked", curva("dl", "dólar linked", 180), FC["dl"]),
+         ("Futuros", "Futuros de dólar", fut_html, FC["fut"]),
+         ("Expectativas", "Inflación implícita", infl_html, FC["cer"]),
+         ("Expectativas", "Devaluación implícita", deva_html, FC["dl"]),
+         ("Expectativas", "Forwards de tasa fija", fw_html, FC["fija"]),
+         ("Corporativos", "ONs en dólares: principales ley NY", curva("on", "ONs", 1100).replace("</p>", " Las más operadas de las emisoras con deuda en Nueva York.</p>", 1) if C.get("on", {}).get("rows") else "", FC["on"]),
+         ("Provincias", "Provinciales en dólares: principales ley NY", curva("pv", "provinciales", 1100) if C.get("pv", {}).get("rows") else "", FC["pv"]),
+         ("Acciones", "Panel líder", acc_html, FC["acc"]),
+         ("Mercado", "Volumen de renta fija", vol_html, FC["vol"])]
+    if ev:
+        S.append(("Agenda", "Lo que viene esta semana", tabla(["", ""], [[f"{DIA[f.weekday()].capitalize()} {f.day}", t] for f, t in ev], ["left", "left"], ["120px", None]), AC))
+    cuerpo, i = "", 0
+    for rub, tit, body, col in S:
+        if body:
+            i += 1
+            cuerpo += sec(f"{i:02d}", rub, tit, body, col)
     h = (
-        f'<div style="background:#f4f4f5;padding:20px 0;font-family:Inter,Helvetica,Arial,sans-serif;color:{INK}"><table role="presentation" style="max-width:648px;width:100%;margin:auto;background:#fff;border-collapse:collapse;border:1px solid {BD}">'
-        + (f'<tr><td style="padding:12px 28px;background:#fef3c7;color:#92400e;font-size:12.5px">Ejemplo con los precios de ahora contra el último cierre. El informe de verdad sale al cierre, con los cierres de hoy contra los de la rueda anterior.</td></tr>' if en_vivo else "")
-        + f'<tr><td style="padding:22px 28px 18px;background:{AC};color:#fff"><div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#a5b4fc;font-weight:700">Bonerio Local · Research</div>'
-        f'<div style="font-size:24px;font-weight:700;margin:6px 0 2px">Informe de cierre</div><div style="font-size:14px;color:#cbd5e1">{fecha.capitalize()}</div></td></tr>'
-        f'<tr><td style="padding:22px 28px 4px"><p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:{MU};margin:0 0 8px;font-weight:700">Lo más importante</p>'
-        f'<ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.65;color:#27272a">' + "".join(f"<li style='margin-bottom:4px'>{x}</li>" for x in pts) + "</ul>" + kpis + "</td></tr>"
+        f'<div style="background:{BG};padding:16px 0;font-family:{FONT};color:{TX}"><table role="presentation" bgcolor="{BG}" style="max-width:640px;width:100%;margin:auto;border-collapse:collapse;background:{BG}">'
+        + (f'<tr><td style="padding:6px 16px"><div style="padding:10px 14px;background:#2a2410;border:1px solid #4d3f12;border-radius:10px;color:{AC};font-size:12.5px">Prueba con los precios de ahora contra el último cierre. El informe de verdad sale al cierre, con los cierres de hoy contra los de la rueda anterior.</div></td></tr>' if en_vivo else "")
+        + f'<tr><td style="padding:14px 16px 6px"><div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:{AC};font-weight:700">Bonerio Local · Research</div>'
+        f'<div style="font-family:{FH};font-size:30px;font-weight:700;margin:6px 0 2px;color:{TX};letter-spacing:-.02em">Informe de cierre</div><div style="font-size:14px;color:{MU}">{fecha.capitalize()}</div></td></tr>'
+        f'<tr><td style="padding:10px 16px"><div style="background:{CARD};border:1px solid {BD};border-radius:14px;padding:18px">'
+        f'<div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:{AC};font-weight:700;margin:0 0 10px">Lo más importante</div>'
+        f'<ul style="margin:0 0 14px;padding-left:18px;font-size:14px;line-height:1.65;color:#d4d4d8">' + "".join(f"<li style='margin-bottom:5px'>{x}</li>" for x in pts) + "</ul>" + kpis + "</div></td></tr>"
         + cuerpo
-        + f'<tr><td style="padding:26px 28px 8px"><a href="{SITE}" style="display:inline-block;background:{AC};color:#fff;padding:11px 18px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Abrir la terminal</a></td></tr>'
-        f'<tr><td style="padding:14px 28px 24px;font-size:11.5px;line-height:1.55;color:#a1a1aa">Informe generado automáticamente con precios de BYMA (data912), A3 Mercados y el BCRA. Las TIR son con liquidación T+1; la inflación implícita surge de las curvas ajustadas de Lecaps y CER. '
-        'No es una recomendación de inversión. Te llega porque te suscribiste al reporte diario: lo podés dar de baja en la pestaña Alertas.</td></tr></table></div>'
+        + f'<tr><td style="padding:18px 16px 8px"><a href="{SITE}" style="display:inline-block;background:{AC};color:#141414;padding:12px 20px;border-radius:10px;text-decoration:none;font-size:14px;font-weight:700">Abrir la terminal</a></td></tr>'
+        f'<tr><td style="padding:12px 16px 24px;font-size:11.5px;line-height:1.55;color:#71717a">Informe generado automáticamente con los mismos datos y gráficos de la terminal: precios de BYMA (data912), A3 Mercados y el BCRA. '
+        'Tasas con liquidación T+1. No es una recomendación de inversión. Te llega porque te suscribiste al reporte diario: lo podés dar de baja en Alertas.</td></tr></table></div>'
     )
-    asunto = ("[Prueba] " if en_vivo else "") + f"Informe de cierre {hoy.day}/{hoy.month}: MEP $ {n(mep)} ({sg(ch(mep, mepp), 2, '%')}), riesgo país {n(rp, 0)} pb"
+    asunto = ("[Prueba] " if en_vivo else "") + f"Informe de cierre {hoy.day}/{hoy.month}: MEP $ {n(mep)} ({sg(mep_d, 2, '%')}), riesgo país {n(rp, 0)} pb"
     return asunto, h, IMG
 
 
 def enviar(asunto, html, img, mails):
-    import base64
     att = [{"filename": k + ".png", "content": base64.b64encode(v).decode(), "content_id": k} for k, v in img.items()]
     ok = 0
     for m in mails:  # de a uno: el envío en lote de Resend no acepta imágenes adjuntas
@@ -406,11 +518,13 @@ def main(prueba=False):
 
 
 if __name__ == "__main__":
-    if "--html" in sys.argv:  # arma el mail sin mandarlo, para revisarlo: scripts/reporte.py --html [--vivo] (deja las imágenes en /tmp)
-        a, h, img = armar("--vivo" in sys.argv)
+    if "--html" in sys.argv:  # arma el mail sin mandarlo, para revisarlo: scripts/reporte.py --html [--web datos.json] (deja el HTML y las imágenes en /tmp)
+        w = sys.argv[sys.argv.index("--web") + 1] if "--web" in sys.argv else None
+        a, h, img = armar(True, w)
         for k, v in (img or {}).items():
             open("/tmp/reporte_" + k + ".png", "wb").write(v)
             h = h.replace("cid:" + k, "/tmp/reporte_" + k + ".png")
-        print(h or "sin rueda de hoy")
+        open("/tmp/reporte.html", "w").write(h or "sin datos")
+        print(a)
     else:
         main("--prueba-envio" in sys.argv)
