@@ -7769,6 +7769,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '#port .pfchip small,#ampPn .pfchip small{display:block;color:var(--mu);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}#port .pfchip b,#ampPn .pfchip b{font-size:20px;font-variant-numeric:tabular-nums}#port .pfchip span,#ampPn .pfchip span{display:block;color:var(--mu);font-size:12px;margin-top:2px}' +
       '#port .pfg{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:16px;margin-top:14px}#port .pfcv{position:relative;height:320px}' +
       '#port .pfe{padding:28px 10px;text-align:center;color:var(--mu)}#port .pfdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}' +
+      '#ampPn .pft{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}#ampPn .pft th,#ampPn .pft td{padding:7px 9px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--bd)}#ampPn .pft th{font-size:12px;color:var(--mu)}#ampPn .pft .l{text-align:left}#ampPn .pft td.k{font-weight:700;text-align:left;color:var(--ok)}#ampPn tfoot td{font-weight:700;border-bottom:0}#ampPn .pfdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}' +
       '#port .pfnote,#ampPn .pfnote{color:var(--mu);font-size:12.5px;margin:10px 0 0;line-height:1.5}' +
       '</style>' +
       cardH('pfPick', 'Elegí tus bonos', 'Marcá con la estrella los bonos que querés seguir: pasan a tu portfolio, más abajo. Las tasas son las del sitio: CER en términos reales, dólar linked sobre dólares, TAMAR y duales con la proyección del escenario de Curva Pesos.',
@@ -7810,10 +7811,15 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var useP = function (n) { PS.s[PS.cur] = FAV; PS.cur = n; FAV = PS.s[n] || {}; save(); fillP(); render(); };
     fillP();
     g('pfP').onchange = function () { useP(this.value); };
-    g('pfNew').onclick = function () { var n = (prompt('Nombre del portfolio nuevo (arranca con los bonos y nominales de \u00ab' + PS.cur + '\u00bb; para empezar de cero, después tocá Vaciar portfolio):') || '').trim().slice(0, 40); if (!n) return; if (PS.s[n] && !confirm('Ya hay un portfolio \u00ab' + n + '\u00bb. ¿Reemplazarlo?')) return; PS.s[n] = JSON.parse(JSON.stringify(FAV)); useP(n); };
-    g('pfDel').onclick = function () { var ks = Object.keys(PS.s); if (ks.length < 2 || !confirm('¿Borrar el portfolio \u00ab' + PS.cur + '\u00bb?')) return; delete PS.s[PS.cur]; PS.cur = ks.filter(function (n) { return n !== PS.cur; })[0]; FAV = PS.s[PS.cur]; save(); fillP(); render(); };
+    g('pfNew').onclick = function () {
+      ask('Guardar como portfolio nuevo', 'Arranca con los bonos y nominales de \u00ab' + PS.cur + '\u00bb. Para empezar de cero, después tocá Vaciar portfolio.', '', 'Guardar', function (n) {
+        n = n.slice(0, 40); var put = function () { PS.s[n] = JSON.parse(JSON.stringify(FAV)); useP(n); };
+        if (PS.s[n] && n !== PS.cur) ask('Ya existe \u00ab' + n + '\u00bb', '¿Lo reemplazo con los bonos de \u00ab' + PS.cur + '\u00bb?', null, 'Reemplazar', put); else put();
+      });
+    };
+    g('pfDel').onclick = function () { var ks = Object.keys(PS.s); if (ks.length < 2) return; ask('Borrar portfolio', '¿Borrar \u00ab' + PS.cur + '\u00bb? No se puede deshacer.', null, 'Borrar', function () { delete PS.s[PS.cur]; PS.cur = ks.filter(function (n) { return n !== PS.cur; })[0]; FAV = PS.s[PS.cur]; save(); fillP(); render(); }); };
     g('pfDist').onclick = openDist; g('pfShp').onclick = openShape;
-    g('pfClr').onclick = function () { if (!Object.keys(FAV).length) return; if (confirm('¿Sacar todos los bonos de tu portfolio?')) { FAV = {}; save(); render(); } };
+    g('pfClr').onclick = function () { if (!Object.keys(FAV).length) return; ask('Vaciar portfolio', '¿Sacar todos los bonos de \u00ab' + PS.cur + '\u00bb?', null, 'Vaciar', function () { FAV = {}; save(); render(); }); };
     root.addEventListener('click', function (e) {
       var b = e.target.closest('.pfs'); if (b) { var k = b.getAttribute('data-k'); if (FAV[k] != null) delete FAV[k]; else FAV[k] = 0; save(); render(); return; }
       var tm = e.target.closest('#pfTab th[data-m]'); if (tm) { var m = tm.getAttribute('data-m'); ST.msort = m === 'grp' ? (ST.msort === 'grp' ? '-grp' : ST.msort === '-grp' ? '' : 'grp') : ST.msort === m ? '-' + m : ST.msort === '-' + m ? '' : m; render(); return; }
@@ -7899,6 +7905,17 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     ov.querySelector('#ampX').onclick = close;
     document.body.appendChild(ov); document.documentElement.style.overflow = 'hidden'; document.addEventListener('keydown', key);
     chs = build(ov) || []; ov.querySelector('#ampX').focus({ preventScroll: true });
+  }
+  function ask(title, msg, def, ok, cb) { // pregunta con el estilo de la página (no la ventanita del navegador); def != null pide un texto
+    popup(title, '<p class="pfnote" style="margin:0 0 14px;font-size:14px;color:var(--tx)">' + esc(msg) + '</p>' + (def != null ? '<input id="askIn" maxlength="40" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--bd);border-radius:9px;background:var(--bg);color:var(--tx);font:inherit;font-size:15px" value="' + esc(def) + '">' : '') +
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px"><button type="button" class="act" id="askNo">Cancelar</button><button type="button" class="act" id="askOk" style="border-color:var(--ac);color:var(--ac)">' + ok + '</button></div>', 'width:min(460px,94%);height:auto', function (ov) {
+      var dl = ov.querySelector('#ampDl'); if (dl) dl.remove();
+      var inp = ov.querySelector('#askIn'), x = function () { ov.querySelector('#ampX').click(); };
+      var go = function () { var v = inp ? inp.value.trim() : true; if (inp && !v) { inp.focus(); return; } x(); cb(v); };
+      ov.querySelector('#askNo').onclick = x; ov.querySelector('#askOk').onclick = go;
+      if (inp) { inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); }); setTimeout(function () { inp.focus(); inp.select(); }, 0); } else setTimeout(function () { ov.querySelector('#askOk').focus(); }, 0);
+      return [];
+    }, null, 'x');
   }
   function openDist() { // la torta: el peso de cada bono
     if (!PIE || !PIE.H.length) return; var H = PIE.H, tot = PIE.tot;
@@ -8051,13 +8068,28 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var g0 = SCN && X.fxAt ? X.fxAt(P.H[0].s, SCN) : NaN, dv = function (t) { var g = SCN && X.fxAt ? X.fxAt(t, SCN) / g0 : NaN; return isFinite(g) && g > 0 ? g : 1; }; // el MEP de cada fecha: el de hoy con la devaluación del escenario de Curva Pesos (la brecha queda igual)
     var tx = css('--tx'), mu = css('--mu'), bd = css('--bd'), fx = function (r, t) { return ST.ccy === 'USD' ? (r.fccy === 'USD' ? 1 : 1 / (mep * dv(t))) : (r.fccy === 'USD' ? mep * dv(t) : 1); };
     var M = {}, G = ORDER.filter(function (g) { return P.byG[g]; });
-    P.H.forEach(function (x) { if (!x.fl || !x.n) return; x.fl.forEach(function (c) { if (c[0] <= x.s) return; var f = fx(x, c[0]), d = bxDayStr(c[0]).slice(0, 7); if (!(f > 0) || !isFinite(f)) return; M[d] = M[d] || {}; M[d][x.grp] = (M[d][x.grp] || 0) + x.n * c[1] / 100 * f; }); });
+    var DT = {}; // cada pago del mes, para el detalle al tocar una barra
+    P.H.forEach(function (x) { if (!x.fl || !x.n) return; x.fl.forEach(function (c) { if (c[0] <= x.s) return; var f = fx(x, c[0]), d = bxDayStr(c[0]).slice(0, 7); if (!(f > 0) || !isFinite(f)) return; M[d] = M[d] || {}; M[d][x.grp] = (M[d][x.grp] || 0) + x.n * c[1] / 100 * f; (DT[d] = DT[d] || []).push({ x: x, t: c[0], a: x.n * c[1] / 100, v: x.n * c[1] / 100 * f }); }); });
     var ks0 = Object.keys(M).sort(), ks = []; if (ks0.length) { var y = +ks0[0].slice(0, 4), m = +ks0[0].slice(5, 7), end = ks0[ks0.length - 1]; while (ks.length < 120) { var kk = y + '-' + (m < 10 ? '0' : '') + m; ks.push(kk); if (kk >= end) break; if (++m > 12) { m = 1; y++; } } } // meses corridos (también los que no pagan), hasta 10 años
     ks.forEach(function (k) { M[k] = M[k] || {}; });
     var lab = ks.map(function (k) { return new Date(k + '-15T00:00:00Z').toLocaleDateString('es-AR', { month: 'short', year: '2-digit', timeZone: 'UTC' }); });
     CH.pfFlC = new Chart(cv, { type: 'bar', data: { labels: lab, datasets: G.map(function (g) { return { label: GN[g], data: ks.map(function (k) { return M[k][g] || 0; }), backgroundColor: GC[g], borderRadius: 2, maxBarThickness: 36 }; }) },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: tx, usePointStyle: true } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + money(c.raw); } } } },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: tx, usePointStyle: true } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + money(c.raw); }, footer: function (it) { return it.length && DT[ks[it[0].dataIndex]] ? 'Tocá para ver el detalle del mes' : ''; } } } },
+        onHover: function (e, el, c) { var a = c.getElementsAtEventForMode(e, 'index', { intersect: false }, false); c.canvas.style.cursor = a.length && DT[ks[a[0].index]] ? 'pointer' : ''; },
+        onClick: function (e, el, c) { var a = c.getElementsAtEventForMode(e, 'index', { intersect: false }, false); if (a.length) flowMonth(ks[a[0].index], lab[a[0].index], DT[ks[a[0].index]]); },
         scales: { x: { stacked: true, ticks: { color: tx, maxRotation: 0, autoSkip: true }, grid: { display: false } }, y: { stacked: true, ticks: { color: tx, callback: function (v) { return money(v); } }, grid: { color: bd }, title: { display: true, text: ST.ccy === 'USD' ? 'Dólares' : 'Pesos', color: mu } } } } });
+  }
+  function flowMonth(k, lab, L) { // el mes ampliado: cada pago, por fecha y bono
+    if (!L || !L.length) return;
+    L = L.slice().sort(function (a, b) { return a.t - b.t || b.v - a.v; });
+    var tot = L.reduce(function (s, q) { return s + q.v; }, 0), dd = function (t) { return bxDayStr(t).split('-').reverse().slice(0, 2).join('/'); }, org = function (q) { return (q.x.fccy === 'USD' ? 'US$ ' : '$ ') + fm(q.a, q.x.fccy === 'USD' ? 2 : 0); };
+    var tb = '<thead><tr><th class="l">Fecha</th><th class="l">Bono</th><th class="l">Grupo</th><th>Nominales</th><th>Cobro</th><th>' + (ST.ccy === 'USD' ? 'En dólares' : 'En pesos') + '</th><th>Peso</th></tr></thead><tbody>' + L.map(function (q) { return '<tr><td class="l">' + dd(q.t) + '</td><td class="k">' + q.x.k + '</td><td class="l"><i class="pfdot" style="background:' + GC[q.x.grp] + '"></i>' + esc(q.x.tipo) + '</td><td>' + fm(q.x.n, 0) + '</td><td>' + org(q) + '</td><td>' + money(q.v) + '</td><td>' + fm(q.v / tot * 100, 1) + '%</td></tr>'; }).join('') + '</tbody><tfoot><tr><td class="l" colspan="5">Total del mes (' + L.length + (L.length > 1 ? ' pagos' : ' pago') + ')</td><td>' + money(tot) + '</td><td>100%</td></tr></tfoot>';
+    popup('Flujo de ' + lab + ' · ' + money(tot), '<div style="height:280px"><canvas></canvas></div><div style="overflow:auto;margin-top:14px"><table class="pft">' + tb + '</table></div><p class="pfnote">Los dólares se pasan a pesos con el MEP de hoy ajustado por la devaluación del escenario de Curva Pesos. Si el día de pago no es hábil, cobrás el siguiente día hábil.</p>', 'width:min(920px,94%);height:auto;max-height:88%;overflow:auto', function (ov) {
+      var tx = css('--tx'), bd = css('--bd');
+      return [new Chart(ov.querySelector('canvas'), { type: 'bar', data: { labels: L.map(function (q) { return [q.x.k, dd(q.t)]; }), datasets: [{ data: L.map(function (q) { return q.v; }), backgroundColor: L.map(function (q) { return GC[q.x.grp]; }), borderRadius: 3, maxBarThickness: 60 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { var q = L[c.dataIndex]; return q.x.tipo + ': ' + org(q) + (q.x.fccy === 'USD' && ST.ccy !== 'USD' ? ' = ' + money(q.v) : ''); } } } },
+          scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: false }, grid: { display: false } }, y: { ticks: { color: tx, callback: function (v) { return money(v); } }, grid: { color: bd } } } } })];
+    }, 'pfFlC', 'Flujo_' + k);
   }
   function renderVar(P) {
     kill('pfVarC');
