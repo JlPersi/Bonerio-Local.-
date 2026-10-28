@@ -348,17 +348,17 @@ def armar(en_vivo=False, web=None):
             hv = h if h is not None else num(r[1])
             prim = prim or (r[0], hv, a)
             filas.append([r[0].replace(" (extrapolada", "<br><span style='font-weight:400;color:#a1a1aa;font-size:11px'>(extrapolada").replace(")", ")</span>") if "extrapolada" in r[0] else r[0],
-                          n(hv, 2) + "%", (sg((hv - a) * 100, 0, " pb"), MU) if a is not None else "—", r[2], r[5] if len(r) > 5 else "—", r[6] if len(r) > 6 else "—"])
+                          n(hv, 2) + "%", (sg((hv - a) * 100, 0, " pb"), MU) if a is not None else "—", r[2]])
         bo = (B.get("bonos") or {})
         bh = bo.get("head", [])
-        bi = [next((i for i, x in enumerate(bh) if x.upper().startswith(k)), None) for k in ("BONO", "DÍAS", "TIR", "BREAKEVEN MENSUAL", "REM")]
-        bf = [[r[bi[0]], r[bi[1]], r[bi[2]], r[bi[3]], r[bi[4]]] for r in bo.get("rows", []) if None not in bi][:10]
+        bi = [next((i for i, x in enumerate(bh) if x.upper().startswith(k)), None) for k in ("BONO", "DÍAS", "TIR", "BREAKEVEN MENSUAL")]
+        bf = [[r[bi[0]], r[bi[1]], r[bi[2]], r[bi[3]]] for r in bo.get("rows", []) if None not in bi][:10]
         txt = (f"<p {PP}>Lo que descuenta el mercado comparando la curva de tasa fija con la de {contra} al mismo plazo: a {prim[0].split(' (')[0]}, "
                f"<b>{n(prim[1], 2)}% mensual</b>" + (f" ({sg((prim[1] - prim[2]) * 100, 0, ' pb')} contra la rueda anterior)" if prim[2] is not None else "") + ".</p>")
-        return (txt + tabla(["Plazo", "Hoy", "Contra ayer", "Promedio", "REM", "Mercado − REM"], filas)
+        return (txt + tabla(["Plazo", "Hoy", "Contra ayer", "Promedio"], filas)
                 + f'<p style="font-size:13px;font-weight:700;color:{TX};margin:16px 0 2px">{que.capitalize()} breakeven de cada bono</p>' + img("be" + sx, B.get("png"))
-                + (tabla(["Bono", "Días", bh[bi[2]].replace("?", "").capitalize() if bi[2] is not None else "Tasa", "Breakeven mensual", "REM"], bf) if bf else "")
-                + f'<p {NOTE}>Breakeven: la {que} mensual que iguala lo que rinde cada bono con la Lecap del mismo plazo. Verde: el bono exige menos que la curva; rojo: conviene la tasa fija. La línea punteada es el REM.</p>'), prim
+                + (tabla(["Bono", "Días", bh[bi[2]].replace("?", "").capitalize() if bi[2] is not None else "Tasa", "Breakeven mensual"], bf) if bf else "")
+                + f'<p {NOTE}>Breakeven: la {que} mensual que iguala lo que rinde cada bono con la Lecap del mismo plazo. Verde: el bono exige menos que la curva; rojo: conviene la tasa fija. Sin proyecciones: solo lo que paga el mercado.</p>'), prim
 
     infl_html, infl = implicita("i", "inflación", "CER")
     deva_html, deva = implicita("d", "devaluación", "dólar linked")
@@ -465,7 +465,10 @@ def armar(en_vivo=False, web=None):
         + cuerpo
         + f'<tr><td style="padding:18px 16px 8px"><a href="{SITE}" style="display:inline-block;background:{AC};color:#141414;padding:12px 20px;border-radius:10px;text-decoration:none;font-size:14px;font-weight:700">Abrir la terminal</a></td></tr>'
         f'<tr><td style="padding:12px 16px 24px;font-size:11.5px;line-height:1.55;color:#71717a">Informe generado automáticamente con los mismos datos y gráficos de la terminal: precios de BYMA (data912), A3 Mercados y el BCRA. '
-        'Tasas con liquidación T+1. No es una recomendación de inversión. Te llega porque te suscribiste al reporte diario: lo podés dar de baja en Alertas.</td></tr></table></div>'
+        'Tasas con liquidación T+1. Te llega porque te suscribiste al reporte diario: lo podés dar de baja en Alertas.'
+        f'<div style="margin-top:12px;padding:12px 14px;border:1px solid {BD};border-radius:10px;color:{MU};font-size:11.5px;line-height:1.55"><b style="color:{TX}">Aviso legal.</b> '
+        'Este informe tiene carácter exclusivamente informativo y no constituye una recomendación de inversión ni una oferta o invitación a comprar o vender valores. '
+        'Los datos y cálculos pueden contener errores u omisiones; verificalos antes de operar. Rendimientos pasados no garantizan resultados futuros.</div></td></tr></table></div>'
     )
     asunto = ("[Prueba] " if en_vivo else "") + f"Informe de cierre {hoy.day}/{hoy.month}: MEP $ {n(mep)} ({sg(mep_d, 2, '%')}), riesgo país {n(rp, 0)} pb"
     return asunto, h, IMG

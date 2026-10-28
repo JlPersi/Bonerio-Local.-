@@ -108,10 +108,11 @@ async function extract(page, log = console.log) {
   for (const [tab, sx, cv] of [['expi', 'i', 'psCB2'], ['expd', 'd', 'psCB4']]) {
     await page.evaluate(t => window.switchTab(t), tab);
     await until(page, sx => document.querySelectorAll('#thBB' + sx + ' tr').length > 2 && document.querySelectorAll('#thBE' + sx + ' tr').length > 1, sx, 25000);
-    await page.evaluate(sx => { var b = document.getElementById('bePjSw' + sx); if (b && b.getAttribute('aria-pressed') !== 'true' && window.BEPJT) window.BEPJT(sx); }, sx); await wait(1500); // con el REM en el gráfico
+    await page.evaluate(sx => { var b = document.getElementById('bePjSw' + sx); if (b && b.getAttribute('aria-pressed') === 'true' && window.BEPJT) window.BEPJT(sx); }, sx); await wait(1500); // sin proyección: solo lo que paga el mercado
     out['be' + sx] = await page.evaluate(([sx, cv]) => {
       var ts = document.querySelectorAll('#thBE' + sx + ' table'), plz = ts.length ? window.__tbl(ts[ts.length - 1]) : null, ch = window.Chart && Chart.getChart && Chart.getChart('thBEC' + sx), ayer = {};
       if (ch) ch.data.datasets.forEach(function (d) { var p = d.data.filter(function (x) { return x && x.y != null; }); if (p.length > 1 && d.label && !/promedio|desv/i.test(d.label)) ayer[d.label] = [p[p.length - 1].y, p[p.length - 2].y]; }); // hoy y la rueda anterior de cada plazo
+      var cb = window.Chart && Chart.getChart && Chart.getChart(cv); if (cb) { cb.options.plugins.legend.labels.filter = function (it) { return !/proyecci/i.test(it.text); }; cb.update('none'); } // sin la leyenda de la proyección apagada
       return { bonos: window.__tbl(document.querySelector('#thBB' + sx + ' table')), plazos: plz, ayer: ayer, png: window.__png(cv) };
     }, [sx, cv]);
     log('breakeven', sx, out['be' + sx].bonos ? out['be' + sx].bonos.rows.length : 0);
