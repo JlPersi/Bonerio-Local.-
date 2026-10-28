@@ -4225,7 +4225,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
 
   /* ---------- volumen de la rueda contra la anterior ---------- */
   var VJ = null, vjAsk = false, VCACHE = {}, CV = null;
-  function vjLoad() { if (VJ || vjAsk || !window.VOLX || !window.VOLX.raw) return; vjAsk = true; window.VOLX.raw(function (d) { VJ = d || null; if (VJ && isAct()) later(); }); } // data/volumen.json, el mismo archivo de Volumen
+  var VJW = []; // los que esperan data/volumen.json (Portfolio)
+  function vjLoad() { if (VJ || vjAsk || !window.VOLX || !window.VOLX.raw) return; vjAsk = true; window.VOLX.raw(function (d) { VJ = d || null; if (VJ && isAct()) later(); VJW.splice(0).forEach(function (f) { try { f(); } catch (e) {} }); }); } // data/volumen.json, el mismo archivo de Volumen
   function volDay(ds) { // monto y cierre de cada especie en una rueda guardada
     if (VCACHE[ds]) return VCACHE[ds]; if (!VJ) return null; var j = VJ.dates.indexOf(ds); if (j < 0) return null;
     var out = {}, t, o, k, acc; for (t in VJ.t) { o = VJ.t[t]; acc = 0; for (k = 0; k < o.i.length; k++) { acc += o.i[k]; if (acc === j) { out[t] = { e: o.e[k] || 0, c: o.c[k] }; break; } if (acc > j) break; } }
@@ -4328,6 +4329,15 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
   window.renderVarDiaria = render;
   window.vardData = function () { return DATA || build(); };
+  var VA = null, vaT = 0;
+  window.vardAll = function (cb) { // Portfolio: la variación del día de todos los bonos, también ONs y provinciales hard dollar (cb: cuando llegan más datos)
+    if (VA && Date.now() - vaT < 20000) return VA;
+    vjLoad(); if (!VJ && cb && VJW.indexOf(cb) < 0) VJW.push(cb);
+    var rows = []; try { rows = rows.concat(usdRows()); } catch (e) {} try { rows = rows.concat(psRows()); } catch (e) {}
+    [window.ONSQ, window.PVSQ].forEach(function (Q) { try { if (Q && Q.ready && Q.ready() && Q.vard) rows = rows.concat(Q.vard(cb || function () {}).map(finish)); } catch (e) {} });
+    var o = {}; rows.forEach(function (r) { if (r.dpct != null && isFinite(r.dpct)) o[r.k] = r; });
+    if (VJ) { VA = o; vaT = Date.now(); } return o;
+  };
   function later() { if (timer) clearTimeout(timer); timer = setTimeout(render, 250); }
 
   var _sw = window.switchTab;
@@ -7852,22 +7862,26 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
   function chip(t, v, sub) { return '<div class="pfchip"><small>' + t + '</small><b>' + v + '</b><span>' + sub + '</span></div>'; }
   function kill(id) { if (CH[id]) { try { CH[id].destroy(); } catch (e) {} CH[id] = null; } }
+  var dvT = 0, dvc = function (v, t) { return v == null || !isFinite(v) ? '—' : '<span style="color:var(' + (v > 0 ? '--ok' : v < 0 ? '--bad' : '--mu') + ')">' + t + '</span>'; };
   function renderMine(Hh, mep) {
     var H = Hh.filter(function (h) { return h.val > 0; }), tot = H.reduce(function (a, h) { return a + h.val; }, 0);
-    document.getElementById('pfMineSub').textContent = Hh.length ? 'Cargá los nominales (valor nominal, no pesos) de cada bono. Valuado a precio de hoy' + (mep ? ' · MEP $ ' + fm(mep, 2) : '') + '. Quedan guardados en este navegador.' : 'Todavía no marcaste bonos. Tocá la estrella ☆ al lado de cada bono en la lista de arriba.';
+    document.getElementById('pfMineSub').textContent = Hh.length ? 'Cargá los nominales (valor nominal, no pesos) de cada bono. Valuado a precio de hoy' + (mep ? ' · MEP $ ' + fm(mep, 2) : '') + '. Var. día: contra el cierre anterior, en la moneda de cada bono y con los cupones cobrados. Quedan guardados en este navegador.' : 'Todavía no marcaste bonos. Tocá la estrella ☆ al lado de cada bono en la lista de arriba.';
+    var DV = window.vardAll ? window.vardAll(function () { if (!dvT) dvT = setTimeout(function () { dvT = 0; render(); }, 300); }) : {}, dR = 0, dB = 0; // variación del día contra el cierre anterior (la misma de Variación diaria, con cupones y amortizaciones)
+    var dvF = function (r) { if (!VD || r.pccy === 'USD' || !(r.P > 0)) return null; var C = closes(r.k); if (!C) return null; var j = C.length - 1; if (VD.dates[j] === bxDayStr(bxToday())) j--; j = prevIdx(C, j); return j < 0 ? null : r.P / C[j] - 1; }; // los que no están en Variación diaria (provinciales en pesos, Badlar): contra el último cierre de data/volumen.json
+    Hh.forEach(function (r) { var q = DV[r.k]; r.dv = q ? q.dpct / 100 : dvF(r); if (r.dv != null && !(Math.abs(r.dv) < 0.3)) r.dv = null; r.dr = r.dv != null && r.val ? r.val * r.dv / (1 + r.dv) : null; if (r.dr != null) { dR += r.dr; dB += r.val - r.dr; } });
     var ms = (ST.msort || '').replace('-', ''), md = (ST.msort || '').charAt(0) === '-' ? -1 : 1, mv = function (r) { return ms === 'k' ? r.k : ms === 'grp' ? ORDER.indexOf(r.grp) * 1e6 + r.mat : ms === 'pv' ? r.val : r[ms]; };
     var Hs = ms ? Hh.slice().sort(function (a, b) { var x = mv(a), y = mv(b); if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * md; }) : Hh; // tocando el encabezado: ascendente, descendente y de vuelta por grupo
-    var MH = [['', ''], ['k', 'Bono'], ['grp', 'Grupo'], ['n', 'Nominales'], ['P', 'Precio'], ['val', 'Valor'], ['pv', 'Peso'], ['tir', 'TIR (TEA)'], ['tna', 'TNA'], ['tem', 'TEM'], ['md', 'MD'], ['mat', 'Vencimiento'], ['d', 'Días'], ['', 'Características']];
-    var h = '<thead><tr>' + MH.map(function (c, i) { var on = c[0] && (ms ? ms === c[0] : c[0] === 'grp'); return '<th' + (c[0] ? ' data-m="' + c[0] + '"' : '') + ' class="' + (i < 3 || i === 13 ? 'l' : '') + (ms && on ? ' on' : '') + '">' + c[1] + (ms && on ? (md > 0 ? ' ▲' : ' ▼') : '') + '</th>'; }).join('') + '</tr></thead><tbody>';
+    var MH = [['', ''], ['k', 'Bono'], ['grp', 'Grupo'], ['n', 'Nominales'], ['P', 'Precio'], ['dv', 'Var. día'], ['val', 'Valor'], ['dr', 'Resultado día'], ['pv', 'Peso'], ['tir', 'TIR (TEA)'], ['tna', 'TNA'], ['tem', 'TEM'], ['md', 'MD'], ['mat', 'Vencimiento'], ['d', 'Días'], ['', 'Características']];
+    var h = '<thead><tr>' + MH.map(function (c, i) { var on = c[0] && (ms ? ms === c[0] : c[0] === 'grp'); return '<th' + (c[0] ? ' data-m="' + c[0] + '"' : '') + ' class="' + (i < 3 || i === 15 ? 'l' : '') + (ms && on ? ' on' : '') + '">' + c[1] + (ms && on ? (md > 0 ? ' ▲' : ' ▼') : '') + '</th>'; }).join('') + '</tr></thead><tbody>';
     Hs.forEach(function (r) {
       h += '<tr><td class="l">' + star(r.k) + '</td><td class="k">' + r.k + '</td><td class="l"><i class="pfdot" style="background:' + GC[r.grp] + '"></i>' + r.tipo + '</td>' +
-        '<td><input class="pfn" inputmode="decimal" data-k="' + r.k + '" value="' + (r.n ? fm(r.n, 0) : '') + '" placeholder="0"></td><td>' + (r.pccy === 'USD' ? 'US$ ' : '$ ') + fm(r.P, 2) + '</td><td>' + (r.val ? money(r.val) : '—') + '</td><td>' + (tot > 0 && r.val ? pc(r.val / tot, 1) : '—') + '</td>' + rateCells(r) + '<td class="f">' + esc(r.feat.slice(1).join(' · ')) + '</td></tr>';
+        '<td><input class="pfn" inputmode="decimal" data-k="' + r.k + '" value="' + (r.n ? fm(r.n, 0) : '') + '" placeholder="0"></td><td>' + (r.pccy === 'USD' ? 'US$ ' : '$ ') + fm(r.P, 2) + '</td><td>' + dvc(r.dv, pc(r.dv, 2)) + '</td><td>' + (r.val ? money(r.val) : '—') + '</td><td>' + dvc(r.dr, r.dr != null ? (r.dr > 0 ? '+' : '') + money(r.dr) : '—') + '</td><td>' + (tot > 0 && r.val ? pc(r.val / tot, 1) : '—') + '</td>' + rateCells(r) + '<td class="f">' + esc(r.feat.slice(1).join(' · ')) + '</td></tr>';
     });
-    if (!Hh.length) h += '<tr><td colspan="14" class="pfe">Tu portfolio está vacío.</td></tr>';
+    if (!Hh.length) h += '<tr><td colspan="16" class="pfe">Tu portfolio está vacío.</td></tr>';
     h += '</tbody>';
     if (H.length) {
       var wa = function (f) { var s = 0, w = 0; H.forEach(function (x) { if (x[f] != null && isFinite(x[f])) { s += x[f] * x.val; w += x.val; } }); return w ? s / w : null; };
-      h += '<tfoot><tr><td></td><td class="l" colspan="4">Total (' + H.length + ' bonos con nominales)</td><td>' + money(tot) + '</td><td>100%</td><td colspan="3"></td><td>' + fm(wa('md'), 2) + '</td><td></td><td>' + fm(wa('d'), 0) + '</td><td></td></tr></tfoot>';
+      h += '<tfoot><tr><td></td><td class="l" colspan="4">Total (' + H.length + ' bonos con nominales)</td><td>' + (dB > 0 ? dvc(dR, pc(dR / dB, 2)) : '—') + '</td><td>' + money(tot) + '</td><td>' + (dB > 0 ? dvc(dR, (dR > 0 ? '+' : '') + money(dR)) : '—') + '</td><td>100%</td><td colspan="3"></td><td>' + fm(wa('md'), 2) + '</td><td></td><td>' + fm(wa('d'), 0) + '</td><td></td></tr></tfoot>';
     }
     document.getElementById('pfTab').innerHTML = h;
     PIE = { H: H, tot: tot }; document.getElementById('pfDist').disabled = document.getElementById('pfShp').disabled = !H.length;
