@@ -4369,7 +4369,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var dstr = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
   var famName = function (f) { return FAMS.filter(function (x) { return x[0] === f; })[0]; };
   var MINE = {}, isPort = function () { return ST.fam === 'port'; }, mine = function (o) { return MINE[o.k] != null; };
-  function readFav() { try { var o = JSON.parse(localStorage.getItem('pfFav1') || '{}'); MINE = o && typeof o === 'object' ? o : {}; } catch (e) { MINE = {}; } } // los bonos marcados con la estrella en la pestaña Portfolio
+  function readFav() { try { var o = JSON.parse(localStorage.getItem('pfFav1') || '{}'); MINE = o && typeof o === 'object' ? o : {}; } catch (e) { MINE = {}; } } // los bonos sumados con + en la pestaña Portfolio
 
   /* ---------- universo de la familia ---------- */
   function universe(fam) {
@@ -4595,7 +4595,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       document.getElementById('rtF').value = ST.fam; document.getElementById('rtL').value = String(ST.minV); document.getElementById('rtM').value = String(ST.maxB);
       fillSel('rtA', isPort() ? U.filter(mine) : U, ST.A, isPort() ? 'Todos los de tu portfolio' : 'Todos'); fillSel('rtB', A ? U.filter(function (o) { return o.fam === A.fam; }) : U, ST.B, 'Todos');
       var pm = document.getElementById('rtPM'), nm = isPort() ? U.filter(mine).length : 0, nf = Object.keys(MINE).length;
-      if (pm) { pm.style.display = isPort() ? '' : 'none'; pm.innerHTML = !nf ? 'Tu portfolio está vacío. Marcá tus bonos con la estrella en la pestaña <b>Portfolio</b> y acá vas a ver solo las rotaciones que te sirven: vender uno de los tuyos y comprar otro de la misma familia.' : 'Rotaciones para los <b>' + nm + '</b> bonos de tu portfolio (los que marcaste con la estrella en la pestaña Portfolio): vendés uno de los tuyos y comprás otro de su misma familia.' + (nm < nf ? ' ' + (nf - nm) + ' no entran en la comparación (duales, sin precio o a menos de 3 días del vencimiento).' : ''); }
+      if (pm) { pm.style.display = isPort() ? '' : 'none'; pm.innerHTML = !nf ? 'Tu portfolio está vacío. Sumá tus bonos con el + en la pestaña <b>Portfolio</b> y acá vas a ver solo las rotaciones que te sirven: vender uno de los tuyos y comprar otro de la misma familia.' : 'Rotaciones para los <b>' + nm + '</b> bonos de tu portfolio (los que marcaste con la estrella en la pestaña Portfolio): vendés uno de los tuyos y comprás otro de su misma familia.' + (nm < nf ? ' ' + (nf - nm) + ' no entran en la comparación (duales, sin precio o a menos de 3 días del vencimiento).' : ''); }
       detail(A, Bb); ranking();
     } catch (e) { console.error('rot', e); var d = document.getElementById('rtDet'); if (d) d.textContent = 'Error: ' + e.message; }
   }
@@ -7781,7 +7781,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '#port .pft{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}#port .pft th,#port .pft td{padding:7px 9px;white-space:nowrap;text-align:right}' +
       '#port .pft th{font-size:12px;position:sticky;top:0;background:var(--card);z-index:1;cursor:pointer;user-select:none}#port .pft th.on{color:var(--ac)}#port .pft td.l,#port .pft th.l{text-align:left}#port .pft td.k{font-weight:700;text-align:left;color:var(--ok)}' +
       '#port .pft tr:hover td{background:rgba(161,161,170,.08)}#port .pft td.f{white-space:normal;text-align:left;color:var(--mu);font-size:12.5px;min-width:260px;max-width:420px}#port .pft tfoot td{font-weight:700;border-top:1px solid var(--bd)}' +
-      '#port .pfs{background:none;border:0;cursor:pointer;font-size:19px;line-height:1;color:var(--mu);padding:0 2px}#port .pfs.on{color:#ffc542}' +
+      '#port .pfs{background:none;border:1px solid var(--bd);border-radius:7px;cursor:pointer;font-size:16px;font-weight:700;line-height:1;width:24px;height:24px;padding:0;color:var(--ok)}#port .pfs:hover{border-color:var(--ok)}#port .pfs.on{color:var(--bad)}#port .pfs.on:hover{border-color:var(--bad)}' +
       '#port .pfn{width:120px;text-align:right;font:inherit;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx)}' +
       '#port .pfw{max-height:520px;overflow:auto;border:1px solid var(--bd);border-radius:10px}' +
       '#port .pfchips,#ampPn .pfchips{display:flex;flex-wrap:wrap;gap:12px}#port .pfchip,#ampPn .pfchip{flex:1 1 170px;min-width:0;border:1px solid var(--bd);border-radius:10px;padding:10px 14px;background:var(--bg)}' +
@@ -7791,7 +7791,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '#ampPn .pft{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}#ampPn .pft th,#ampPn .pft td{padding:7px 9px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--bd)}#ampPn .pft th{font-size:12px;color:var(--mu)}#ampPn .pft .l{text-align:left}#ampPn .pft td.k{font-weight:700;text-align:left;color:var(--ok)}#ampPn tfoot td{font-weight:700;border-bottom:0}#ampPn .pfdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}' +
       '#port .pfnote,#ampPn .pfnote{color:var(--mu);font-size:12.5px;margin:10px 0 0;line-height:1.5}' +
       '</style>' +
-      cardH('pfPick', 'Elegí tus bonos', 'Marcá con la estrella los bonos que querés seguir: pasan a tu portfolio, más abajo. Las tasas son las del sitio: CER en términos reales, dólar linked sobre dólares, TAMAR y duales con la proyección del escenario de Curva Pesos.',
+      cardH('pfPick', 'Elegí tus bonos', 'Tocá + en los bonos que tenés: pasan a tu portfolio, más abajo (− los saca). La estrella de la ficha es otra cosa: Favoritos. Las tasas son las del sitio: CER en términos reales, dólar linked sobre dólares, TAMAR y duales con la proyección del escenario de Curva Pesos.',
         '<div class="pfc"><label>Grupo<select id="pfG"><option value="all">Todos</option>' + ORDER.map(function (g) { return '<option value="' + g + '">' + GN[g] + '</option>'; }).join('') + '</select></label>' +
         '<label>Buscar<input type="search" id="pfQ" placeholder="Ticker o tipo"></label></div><div class="pfw"><table class="pft" id="pfAll"></table></div>', 'Portfolio_bonos') +
       cardH('pfMine', 'Tu portfolio', '#pfMineSub',
@@ -7848,7 +7848,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
 
   var U = [];
-  function star(k) { return '<button class="pfs' + (FAV[k] != null ? ' on' : '') + '" data-k="' + k + '" title="' + (FAV[k] != null ? 'Sacar de tu portfolio' : 'Agregar a tu portfolio') + '" aria-label="Favorito ' + k + '">' + (FAV[k] != null ? '★' : '☆') + '</button>'; }
+  function star(k) { return '<button class="pfs' + (FAV[k] != null ? ' on' : '') + '" data-k="' + k + '" title="' + (FAV[k] != null ? 'Sacar de tu portfolio' : 'Sumar a tu portfolio') + '" aria-label="' + (FAV[k] != null ? 'Sacar ' : 'Sumar ') + k + '">' + (FAV[k] != null ? '−' : '+') + '</button>'; }
   function rateCells(r) { return '<td title="' + esc(r.tl) + '">' + pc(r.tir) + '</td><td>' + pc(r.tna) + '</td><td>' + pc(r.tem) + '</td><td>' + fm(r.md, 2) + '</td><td>' + dfull(r.mat) + '</td><td>' + fm(r.d, 0) + '</td>'; }
   function renderPick() {
     var q = (ST.q || '').trim().toUpperCase(), rows = U.filter(function (r) { return (ST.grp === 'all' || r.grp === ST.grp) && (!q || r.k.indexOf(q) >= 0 || r.tipo.toUpperCase().indexOf(q) >= 0) && (!r.xr || q || FAV[r.k] != null); }); // ONs y provinciales (son cientos): al buscarlas o si ya están en el portfolio
@@ -7874,7 +7874,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var dvT = 0, dvc = function (v, t) { return v == null || !isFinite(v) ? '—' : '<span style="color:var(' + (v > 0 ? '--ok' : v < 0 ? '--bad' : '--mu') + ')">' + t + '</span>'; };
   function renderMine(Hh, mep) {
     var H = Hh.filter(function (h) { return h.val > 0; }), tot = H.reduce(function (a, h) { return a + h.val; }, 0);
-    document.getElementById('pfMineSub').textContent = Hh.length ? 'Cargá los nominales (valor nominal, no pesos) de cada bono. Valuado a precio de hoy' + (mep ? ' · MEP $ ' + fm(mep, 2) : '') + '. Var. día: contra el cierre anterior, en la moneda de cada bono y con los cupones cobrados. Quedan guardados en este navegador.' : 'Todavía no marcaste bonos. Tocá la estrella ☆ al lado de cada bono en la lista de arriba.';
+    document.getElementById('pfMineSub').textContent = Hh.length ? 'Cargá los nominales (valor nominal, no pesos) de cada bono. Valuado a precio de hoy' + (mep ? ' · MEP $ ' + fm(mep, 2) : '') + '. Var. día: contra el cierre anterior, en la moneda de cada bono y con los cupones cobrados. Quedan guardados en este navegador.' : 'Todavía no sumaste bonos. Tocá el + al lado de cada bono en la lista de arriba.';
     var DV = window.vardAll ? window.vardAll(function () { if (!dvT) dvT = setTimeout(function () { dvT = 0; render(); }, 300); }) : {}, dR = 0, dB = 0; // variación del día contra el cierre anterior (la misma de Variación diaria, con cupones y amortizaciones)
     var dvF = function (r) { if (!VD || r.pccy === 'USD' || !(r.P > 0)) return null; var C = closes(r.k); if (!C) return null; var j = C.length - 1; if (VD.dates[j] === bxDayStr(bxToday())) j--; j = prevIdx(C, j); return j < 0 ? null : r.P / C[j] - 1; }; // los que no están en Variación diaria (provinciales en pesos, Badlar): contra el último cierre de data/volumen.json
     Hh.forEach(function (r) { var q = DV[r.k]; r.dv = q ? q.dpct / 100 : dvF(r); if (r.dv != null && !(Math.abs(r.dv) < 0.3)) r.dv = null; r.dr = r.dv != null && r.val ? r.val * r.dv / (1 + r.dv) : null; if (r.dr != null) { dR += r.dr; dB += r.val - r.dr; } });
