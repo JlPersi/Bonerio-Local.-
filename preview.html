@@ -18,6 +18,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Bonerío">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
+<script>/* números en formato argentino: toLocaleString arma un formateador nuevo en cada llamada (lento con miles de celdas); acá se reusa uno por cada combinación de opciones */
+(function () { var o = Number.prototype.toLocaleString, C = {}; if (typeof Intl === 'undefined') return; Number.prototype.toLocaleString = function (l, op) { if (typeof l !== 'string') return o.apply(this, arguments); var k = l + JSON.stringify(op || 0), f = C[k]; if (!f) { try { f = C[k] = new Intl.NumberFormat(l, op); } catch (e) { return o.apply(this, arguments); } } return f.format(this); }; var D0 = Intl.DateTimeFormat, DC = {}, DTF = function (l, op) { var k = JSON.stringify([l, op]); return DC[k] || (DC[k] = new D0(l, op)); }; DTF.prototype = D0.prototype; DTF.supportedLocalesOf = D0.supportedLocalesOf; Intl.DateTimeFormat = DTF; })(); /* lo mismo con las fechas: un formateador por zona horaria y opciones */</script>
 <script>if ('serviceWorker' in navigator) addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });</script>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1342,13 +1344,25 @@ function nextBizDay() {
   return d;
 }
 
-function solve(fn, lo, hi) {
-  let a = fn(lo), b = fn(hi); 
+function solve(fn, lo, hi) { // raíz de fn entre lo y hi (con cambio de signo): método Illinois, la misma raíz que la bisección (±1e-13) en ~20 cálculos en vez de 120
+  let a = fn(lo), b = fn(hi);
   if (!isFinite(a) || !isFinite(b) || a * b > 0) return null;
-  for (let i = 0; i < 120; i++) {
-      const m = (lo + hi) / 2, v = fn(m);
-      if (a * v <= 0) { hi = m; b = v; } else { lo = m; a = v; }
+  if (a === 0) return lo; if (b === 0) return hi;
+  let x0 = lo, x1 = hi, pm = NaN;
+  for (let i = 0; i < 200; i++) {
+    let m = (x0 * b - x1 * a) / (b - a);
+    if (!(m > Math.min(x0, x1) && m < Math.max(x0, x1))) m = (x0 + x1) / 2;
+    const v = fn(m);
+    if (!isFinite(v)) return bisect0(fn, lo, hi);
+    if (v === 0 || Math.abs(m - pm) < 1e-14 || Math.abs(x1 - x0) < 1e-13) return m;
+    if (v * b < 0) { x0 = x1; a = b; } else a /= 2;
+    x1 = m; b = v; pm = m;
   }
+  return (x0 + x1) / 2;
+}
+function bisect0(fn, lo, hi) { // respaldo si la función se va de rango en el medio
+  let a = fn(lo);
+  for (let i = 0; i < 120; i++) { const m = (lo + hi) / 2, v = fn(m); if (a * v <= 0) hi = m; else { lo = m; a = v; } }
   return (lo + hi) / 2;
 }
 
@@ -2870,9 +2884,12 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
   }
   var cardV = function (n, id) { var e = document.getElementById(id + n); return e ? e.value : ''; };
   var pathOn = function (n) { return ['pi', 'tam', 'dev'].some(function (k) { return ((PATH[n] || {})[k] || []).some(function (e) { return e && e.value !== ''; }); }); };
+  var SCC = {}, SCV = 0; // escenarios ya armados por tarjeta: se reusan (con su CER y dólar proyectados) mientras no cambien los supuestos, la grilla o los índices (SCV)
   function scenFor(n) { // cada tarjeta tiene sus propios supuestos y su propia proyección por mes
+    var sig = SCV + '|' + cardV(n, 'psPi') + '|' + cardV(n, 'psTam') + '|' + cardV(n, 'psDev'); ['pi', 'tam', 'dev'].forEach(function (k) { ((PATH[n] || {})[k] || []).forEach(function (e) { sig += ',' + (e ? e.value : ''); }); });
+    if (SCC[n] && SCC[n].k === sig) return SCC[n].sc;
     var g = function (id) { return (parseFloat(cardV(n, id)) || 0) / 100; };
-    return mkSc(pathFn('pi', g('psPi'), n), pathFn('tam', g('psTam'), n), pathFn('dev', g('psDev'), n));
+    var sc = mkSc(pathFn('pi', g('psPi'), n), pathFn('tam', g('psTam'), n), pathFn('dev', g('psDev'), n)); SCC[n] = { k: sig, sc: sc }; return sc;
   }
   function scenChangedFor(n) {
     if (!DEF || n < 2) return false; var g = function (id) { return (parseFloat(cardV(n, id)) || 0) / 100; };
@@ -2931,7 +2948,7 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
     if (!c.length) return null; if (d <= c[0][0]) return c[0][1]; if (d >= c[c.length - 1][0]) return c[c.length - 1][1];
     for (var i = 1; i < c.length; i++) if (d <= c[i][0]) { var w = (d - c[i - 1][0]) / (c[i][0] - c[i - 1][0]); return c[i - 1][1] + w * (c[i][1] - c[i - 1][1]); }
   }
-  function bisect(f, lo, hi) { var a = f(lo), b = f(hi); if (!isFinite(a) || !isFinite(b) || a * b > 0) return null; for (var i = 0; i < 60; i++) { var m = (lo + hi) / 2, v = f(m); if (a * v <= 0) { hi = m; b = v; } else { lo = m; a = v; } } return (lo + hi) / 2; }
+  function bisect(f, lo, hi) { return solve(f, lo, hi); }
   function beSolve(o, s, sc, key, target, lo, hi) { // valor constante de la variable (desde hoy) que iguala la TEA al objetivo
     return bisect(function (x) { var t = tirOf(flowsOf(o.ins, s, withConst(sc, key, x)), s, o.P); return t == null ? NaN : t - target; }, lo, hi);
   }
@@ -3056,7 +3073,7 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
         var mi = MIN_M + i, nm = MN[mi % 12] + '-' + String(Math.floor(mi / 12)).slice(2), past = i === 0;
         h += '<tr><td class="k">' + nm + '</td>' + KS.map(function (k) { var off = past && k !== 'pi'; return '<td data-c="' + k + '"><input type="number" step="0.1" data-k="' + k + '" data-i="' + i + '"' + (off ? ' disabled title="Mes ya publicado"' : ' title="REM: ' + remTxt(k, i) + '%"') + '></td>'; }).join('') + '</tr>';
       }
-      T.innerHTML = h; PATH[n] = {};
+      T.innerHTML = h; PATH[n] = {}; SCV++;
       KS.forEach(function (k) { PATH[n][k] = []; for (var j = 0; j <= MAX_M - MIN_M; j++) { var el = T.querySelector('[data-k="' + k + '"][data-i="' + j + '"]'); PATH[n][k].push(el); el.onchange = function () { if (n === 6) sync6(); window.renderPesos(); }; } });
     });
     var vis = function (n, k) { var e = document.getElementById({ pi: 'psPi', tam: 'psTam', dev: 'psDev' }[k] + n), l = e && e.closest('label'); return !l || l.style.display !== 'none'; };
@@ -3853,7 +3870,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (n) document.dispatchEvent(new Event('psdata')); // avisa a quien muestre precios de pesos (la portada)
     });
   }
-  function extendIdx(nm, dict) { // agrega días nuevos a una serie diaria (rellena fines de semana con el último valor)
+  function extendIdx(nm, dict) { SCV++; // agrega días nuevos a una serie diaria (rellena fines de semana con el último valor)
     var o = IDX[nm]; if (!o || !dict) return;
     Object.keys(dict).sort().forEach(function (d) {
       var t = bxDayNum(d), v = parseFloat(dict[d]); if (!isFinite(t) || !isFinite(v)) return;
@@ -7583,21 +7600,22 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     try { rows = rows.concat(usdRows(s)); } catch (e) { console.error('port usd', e); }
     try { var sn = X.snap(1); SCN = sn.sc; rows = rows.concat(psRows(sn)); } catch (e) { console.error('port pesos', e); }
     try { rows = rows.concat(xRows()); } catch (e) { console.error('port extra', e); }
-    rows.forEach(function (r) { var a = krd(r.krFl, s, r.krP, r.krY); r.kr = a.kr; r.conv = a.conv; r.s = s; if (r.flt) effDur(r); });
+    rows.forEach(function (r) { r.s = s; if (r.xr) return; var a = krd(r.krFl, s, r.krP, r.krY); r.kr = a.kr; r.conv = a.conv; if (r.flt) effDur(r); }); // ONs y provinciales: la duración por plazos recién cuando entran al portfolio (holdings)
     return rows;
   }
 
   /* ---------- TAMAR y duales: duración efectiva (la TAMAR futura acompaña a la tasa) y duración de margen ---------- */
+  var DMO = {}; // mes (año × 12 + mes) de cada día
   function floatChg(x, arr) { // cambio de precio si la curva se mueve arr (pb por nodo): la tasa de descuento se mueve con el shock de cada plazo y la TAMAR proyectada de cada mes con el de la tasa forward de ese mes; lo devengado con TAMAR publicada queda fijo, la inflación y el dólar del escenario no cambian
     var f = x.flt, s = x.s, sc = f.sc;
     var fwd = function (m) { // shock de la tasa forward del mes m: lo que se mueve la TAMAR de ese mes cuando la curva cero se mueve arr
       var t1 = Math.max(0, (Date.UTC(Math.floor(m / 12), m % 12, 1) / 864e5 - s) / 365), t2 = (Date.UTC(Math.floor(m / 12), m % 12 + 1, 1) / 864e5 - s) / 365;
       return t2 <= 0 ? 0 : (shockAt(arr, t2) * t2 - shockAt(arr, t1) * t1) / (t2 - t1);
     };
-    var e = 365 * 12 / 384, sc2 = X.mkSc(sc.piF, sc.tamF, sc.devF); sc2._cer = sc._cer; sc2._fx = sc._fx;
+    var e = 365 * 12 / 384, MC = {}, sc2 = X.mkSc(sc.piF, sc.tamF, sc.devF); sc2._cer = sc._cer; sc2._fx = sc._fx;
     sc2.tamD = function (t) { // el shock es en TEA: la TAMAR se mueve lo mismo en términos relativos que la tasa de descuento, (1 + TAMAR) / (1 + TIR) constante, así el margen no cambia; la TNA sale de la capitalización del prospecto (TNA × 32/365, 365/384 por mes). Los días ya transcurridos cuya TAMAR el BCRA todavía no publicó (sale con rezago) quedan fijos: ya están determinados
-      var d = new Date(t * 864e5), m = d.getUTCFullYear() * 12 + d.getUTCMonth(), tna = sc.tamF(m); if (t < s) return tna;
-      var tea = Math.pow(1 + tna * 32 / 365, e) - 1; return (Math.pow((1 + tea) * (1 + fwd(m) / (1 + x.krY)), 1 / e) - 1) * 365 / 32;
+      var m = DMO[t]; if (m == null) { var d = new Date(t * 864e5); m = DMO[t] = d.getUTCFullYear() * 12 + d.getUTCMonth(); } if (t < s) return sc.tamF(m); if (MC[m] != null) return MC[m]; var tna = sc.tamF(m); // MC: lo mismo para todos los días del mes
+      var tea = Math.pow(1 + tna * 32 / 365, e) - 1; return (MC[m] = (Math.pow((1 + tea) * (1 + fwd(m) / (1 + x.krY)), 1 / e) - 1) * 365 / 32);
     };
     var fl = X.flowsOf(f.ins, s, sc2); if (!fl || !fl.length) return null;
     var p0 = 0, p1 = 0;
@@ -7799,7 +7817,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function star(k) { return '<button class="pfs' + (FAV[k] != null ? ' on' : '') + '" data-k="' + k + '" title="' + (FAV[k] != null ? 'Sacar de tu portfolio' : 'Agregar a tu portfolio') + '" aria-label="Favorito ' + k + '">' + (FAV[k] != null ? '★' : '☆') + '</button>'; }
   function rateCells(r) { return '<td title="' + esc(r.tl) + '">' + pc(r.tir) + '</td><td>' + pc(r.tna) + '</td><td>' + pc(r.tem) + '</td><td>' + fm(r.md, 2) + '</td><td>' + dfull(r.mat) + '</td><td>' + fm(r.d, 0) + '</td>'; }
   function renderPick() {
-    var q = (ST.q || '').trim().toUpperCase(), rows = U.filter(function (r) { return (ST.grp === 'all' || r.grp === ST.grp) && (!q || r.k.indexOf(q) >= 0 || r.tipo.toUpperCase().indexOf(q) >= 0); });
+    var q = (ST.q || '').trim().toUpperCase(), rows = U.filter(function (r) { return (ST.grp === 'all' || r.grp === ST.grp) && (!q || r.k.indexOf(q) >= 0 || r.tipo.toUpperCase().indexOf(q) >= 0) && (!r.xr || q || FAV[r.k] != null); }); // ONs y provinciales (son cientos): al buscarlas o si ya están en el portfolio
     var s = ST.sort.replace('-', ''), dir = ST.sort.charAt(0) === '-' ? -1 : 1, val = function (r) { return s === 'k' ? r.k : s === 'grp' ? ORDER.indexOf(r.grp) * 1e6 + r.mat : r[s]; };
     rows.sort(function (a, b) { var x = val(a), y = val(b); if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * dir; });
     var H = [['', ''], ['k', 'Bono'], ['grp', 'Grupo'], ['P', 'Precio'], ['tir', 'TIR (TEA)'], ['tna', 'TNA'], ['tem', 'TEM'], ['md', 'MD'], ['mat', 'Vencimiento'], ['d', 'Días'], ['', 'Características']];
@@ -7807,11 +7825,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     rows.forEach(function (r) {
       h += '<tr><td class="l">' + star(r.k) + '</td><td class="k">' + r.k + '</td><td class="l"><i class="pfdot" style="background:' + GC[r.grp] + '"></i>' + r.tipo + '</td><td>' + (r.pccy === 'USD' ? 'US$ ' : '$ ') + fm(r.P, 2) + '</td>' + rateCells(r) + '<td class="f">' + esc(r.feat.slice(1).join(' · ')) + '</td></tr>';
     });
-    document.getElementById('pfAll').innerHTML = h + (rows.length ? '' : '<tr><td colspan="11" class="pfe">No hay bonos con ese filtro.</td></tr>') + '</tbody>';
+    document.getElementById('pfAll').innerHTML = h + (rows.length ? '' : '<tr><td colspan="11" class="pfe">No hay bonos con ese filtro.</td></tr>') + (q ? '' : '<tr><td colspan="11" class="pfe">Las ONs y los provinciales aparecen cuando los buscás por ticker o emisor.</td></tr>') + '</tbody>';
   }
   function holdings(mep) {
     var fx = ST.ccy === 'USD' ? (mep ? 1 / mep : null) : 1;
     return U.filter(function (r) { return FAV[r.k] != null; }).map(function (r) {
+      if (r.xr && !r.kr) { var a = krd(r.krFl, r.s, r.krP, r.krY); r.kr = a.kr; r.conv = a.conv; }
       var n = +FAV[r.k] || 0, v = r.pars != null && fx != null ? n * r.pars / 100 * fx : null;
       return Object.assign({}, r, { n: n, val: v });
     }).sort(function (a, b) { return ORDER.indexOf(a.grp) - ORDER.indexOf(b.grp) || a.mat - b.mat; });
@@ -10172,7 +10191,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     fl = fl.filter(function (f) { return f[0] > s; }); if (!fl.length || !(P > 0)) return null;
     if (fl.length === 1) return Math.pow(fl[0][1] / P, 365 / (fl[0][0] - s)) - 1;
     var lo = -0.95, hi = 20, a = pvAt(fl, s, lo) - P; if (a * (pvAt(fl, s, hi) - P) > 0) return null;
-    for (var i = 0; i < 100; i++) { var m = (lo + hi) / 2, v = pvAt(fl, s, m) - P; if (a * v <= 0) hi = m; else { lo = m; a = v; } } return (lo + hi) / 2;
+    return solve(function (y) { return pvAt(fl, s, y) - P; }, lo, hi);
   }
   function durAt(fl, s, y) { var pv = 0, tw = 0; fl.forEach(function (f) { if (f[0] > s) { var v = f[1] / Math.pow(1 + y, (f[0] - s) / 365); pv += v; tw += v * (f[0] - s) / 365; } }); if (!(pv > 0)) return null; var mac = tw / pv; return { mac: mac, md: mac / (1 + y) }; }
   function cvxAt(fl, s, y) { var pv = 0, c = 0; fl.forEach(function (f) { if (f[0] > s) { var t = (f[0] - s) / 365; pv += f[1] / Math.pow(1 + y, t); c += t * (t + 1) * f[1] * Math.pow(1 + y, -(t + 2)); } }); return pv > 0 ? c / pv : null; }
@@ -11691,7 +11710,7 @@ window.RATG = (function () {
   var PV = {}, HD = /^(precio|último|ultimo)\b/i, NO = /máx|min|compra|teór|justo|recta|objetivo|técnico|tecnico|origen|emisión|emision|entrada/i;
   var num = function (x) { var m = (x || '').replace(/\s/g, '').match(/-?[\d.]+(,\d+)?/); if (!m) return null; var v = parseFloat(m[0].replace(/\./g, '').replace(',', '.')); return isFinite(v) ? v : null; };
   var rk = function (tr) { for (var i = 0; i < tr.attributes.length; i++) { var a = tr.attributes[i]; if (/^data-/.test(a.name) && a.value) return a.value; } var c = tr.cells[0]; return c ? c.textContent.trim() : null; };
-  function scan(t) {
+  function scan(t, FL) {
     if (!t.tHead || t.closest('#acc')) return;
     var hr = t.tHead.rows[t.tHead.rows.length - 1]; if (!hr) return;
     var cols = [], sig = [];
@@ -11703,14 +11722,14 @@ window.RATG = (function () {
       cols.forEach(function (ci) {
         var td = tr.cells[ci]; if (!td) return; var v = num(td.textContent); if (v == null) return;
         var key = tk + '|' + k + '|' + ci, p = PV[key]; PV[key] = v;
-        if (p != null && p !== v && Math.abs(v / p - 1) < 0.2) { td.classList.remove('pxu', 'pxd'); void td.offsetWidth; td.classList.add(v > p ? 'pxu' : 'pxd'); }
+        if (p != null && p !== v && Math.abs(v / p - 1) < 0.2) FL.push([td, v > p]);
       });
     }); });
   }
   var q = new Set(), pend = false;
   new MutationObserver(function (ms) {
     ms.forEach(function (m) { var n = m.target.nodeType === 1 ? m.target : m.target.parentElement; var t = n && (n.tagName === 'TABLE' ? n : n.closest('table')); if (t) q.add(t); else if (n) n.querySelectorAll && n.querySelectorAll('table').forEach(function (x) { q.add(x); }); });
-    if (!pend) { pend = true; Promise.resolve().then(function () { pend = false; var a = Array.from(q); q.clear(); a.forEach(scan); }); }
+    if (!pend) { pend = true; Promise.resolve().then(function () { pend = false; var a = Array.from(q), FL = []; q.clear(); a.forEach(function (t) { scan(t, FL); }); if (!FL.length) return; FL.forEach(function (x) { x[0].classList.remove('pxu', 'pxd'); }); void document.body.offsetWidth; FL.forEach(function (x) { x[0].classList.add(x[1] ? 'pxu' : 'pxd'); }); }); }
   }).observe(document.body, { childList: true, subtree: true, characterData: true });
 })();
 </script>
@@ -11937,6 +11956,9 @@ window.RATG = (function () {
     });
     return ldP;
   }
+  var IXL = null, ixP = null; // solo la lista de acciones (para el buscador y el botón flotante): lo pesado (ratios, métricas, CCL) se baja al abrir algo de acciones
+  function idx() { if (!ixP) ixP = j('data/acciones/index.json').then(function (x) { IXL = x; }); return ixP;
+  }
   /* splits: el histórico de data912 no está ajustado. De saltos.json tomo los saltos que son un múltiplo casi exacto (2:1 con 0,6% de
      margen, 3:1 o más con 5%) y ajusto los precios anteriores; si el salto se revierte a la rueda siguiente, es un dato malo y saco esa rueda. */
   var SPL = {}, BAD = {};
@@ -11973,12 +11995,19 @@ window.RATG = (function () {
   /* ---------- índice del panel líder ponderado por capitalización ---------- */
   var IDD = null, IMC = {};
   function mkIdx(mon, ex) { // ex: la acción que se saca del índice
-    var P = IDD[mon].P, SH = IDD.SH, last = {}, lv = 100, out = [];
+    var lv = 100, out = [], C = IDD[mon].C;
+    if (ex != null && C) { // sin una acción: se le resta su aporte a cada día del índice completo (guardado al armarlo), en vez de rearmarlo entero
+      C.forEach(function (c) { var x = c.w[ex], num = c.num - (x ? x[1] : 0), den = c.den - (x ? x[0] : 0); if (den > 1e-9 * c.den) { lv *= 1 + num / den; out.push([c.d, lv]); } else if (!out.length) out.push([c.d, lv]); });
+      return out;
+    }
+    var P = IDD[mon].P, SH = IDD.SH, last = {}, rec = ex == null ? [] : null;
     IDD[mon].ds.forEach(function (d) {
-      var num = 0, den = 0;
-      IDD.lid.forEach(function (t) { if (t === ex) return; var c = P[t][d], p0 = last[t]; if (c == null) return; if (p0 != null) { var r = Math.log(c / p0); if (Math.abs(r) < 0.4) { var w = SH[t] * p0; num += w * (c / p0 - 1); den += w; } } last[t] = c; });
+      var num = 0, den = 0, W = rec ? {} : null;
+      IDD.lid.forEach(function (t) { if (t === ex) return; var c = P[t][d], p0 = last[t]; if (c == null) return; if (p0 != null) { var r = Math.log(c / p0); if (Math.abs(r) < 0.4) { var w = SH[t] * p0, a = w * (c / p0 - 1); num += a; den += w; if (W) W[t] = [w, a]; } } last[t] = c; });
+      if (rec) rec.push({ d: d, num: num, den: den, w: W });
       if (den > 0) { lv *= 1 + num / den; out.push([d, lv]); } else if (!out.length) out.push([d, lv]);
     });
+    if (rec) IDD[mon].C = rec;
     return out;
   }
   function IM(mon, t) { // índice contra el que se mide la beta de t: sin t, salvo que el inversor elija el panel completo
@@ -12017,7 +12046,7 @@ window.RATG = (function () {
     });
     M[t] = o;
   }
-  var mt = function (t) { return M[t] || (MT.t[t] ? { ars: MT.t[t].ars, ccl: MT.t[t].ccl, amt20: null, old: 1 } : {}); };
+  var mt = function (t) { return M[t] || (MT && MT.t[t] ? { ars: MT.t[t].ars, ccl: MT.t[t].ccl, amt20: null, old: 1 } : {}); };
   var LOADING = 0, DONE = 0, tmo = null;
   function loadAll() { // primero el panel líder (para el índice), después el resto de a 6
     if (LOADING) return; LOADING = 1;
@@ -12874,10 +12903,10 @@ window.RATG = (function () {
   /* para el botón flotante (Ticker): una acción con su último precio, puntas, volumen y gráfico de cierres */
   var QV = {
     src: 'Precios de data912 · cierres guardados',
-    has: function (k) { return !!IX && IX.some(function (x) { return x.t === k; }); },
+    has: function (k) { var L = IX || IXL; if (!L) idx(); return !!L && L.some(function (x) { return x.t === k; }); },
     ready: function (k) { return !!IX && !!RAW[k]; },
     ensure: function (cb, k) { load().then(function () { return k && IX.some(function (x) { return x.t === k; }) ? file(k) : null; }).then(function () { return live(); }).then(cb); },
-    list: function () { return IX ? IX.map(function (x) { return [x.t, 'Acción · ' + SN[secOf(x.t)]]; }) : []; },
+    list: function () { var L = IX || IXL; if (!L) idx(); return L ? L.map(function (x) { return [x.t, 'Acción · ' + SN[secOf(x.t)]]; }) : []; },
     get: function (k) {
       if (Date.now() - lvT > 25000) live();
       var L = LV[k] || {}, r = RAW[k] || [], td = today(), pv = r.filter(function (x) { return x[0] < td; }), c0 = pv.length ? pv[pv.length - 1] : null, x = IX.filter(function (y) { return y.t === k; })[0] || {};
@@ -12895,13 +12924,13 @@ window.RATG = (function () {
   };
   /* para el buscador de arriba */
   window.ACCQ = {
-    find: function (q) { if (!IX) { load(); return []; } q = String(q || '').toUpperCase(); var out = []; IX.forEach(function (x) { var s = x.t === q ? 0 : x.t.indexOf(q) === 0 ? 1 : -1; if (s < 0) ADRS.forEach(function (a) { if (a[0] === x.t && a[1].indexOf(q) === 0) s = 1; }); if (s >= 0) { var m = mt(x.t).ars || {}, L = LV[x.t] || {}; out.push({ k: x.t, s: s, p: L.c > 0 ? L.c : m.precio, sec: SN[secOf(x.t)] }); } }); return out; },
+    find: function (q) { var L = IX || IXL; if (!L) { idx(); return []; } q = String(q || '').toUpperCase(); var out = []; L.forEach(function (x) { var s = x.t === q ? 0 : x.t.indexOf(q) === 0 ? 1 : -1; if (s < 0) ADRS.forEach(function (a) { if (a[0] === x.t && a[1].indexOf(q) === 0) s = 1; }); if (s >= 0) { var m = mt(x.t).ars || {}, L = LV[x.t] || {}; out.push({ k: x.t, s: s, p: L.c > 0 ? L.c : m.precio, sec: SN[secOf(x.t)] }); } }); return out; },
     vard: vardView,
     qv: QV,
-    lv: function () { if (IX && Date.now() - lvT > 25000) live(); return LV; },
+    lv: function () { if (!IX) load(); else if (Date.now() - lvT > 25000) live(); return LV; },
     open: function (t) { ST.sel = t; save(); if (window.switchTab) window.switchTab('acc'); setTimeout(function () { load().then(function () { pick(t, 1); }); }, 80); }
   };
-  load();
+  idx();
 })();
 </script>
 <script>
