@@ -7497,7 +7497,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var VD = null, VDerr = false, VDask = false, CH = {}, RET = {}, timer = null, SCN = null;
   var isAct = function () { return root.classList.contains('active'); };
   var _oc = window.dlOnClone; window.dlOnClone = function (doc, id) { if (_oc) _oc(doc, id); if (id !== 'pfPick') return; var w = doc.querySelector('#pfPick .pfw'); if (w) { w.style.maxHeight = 'none'; w.style.overflow = 'visible'; } }; // la imagen lleva todos los bonos de la lista, no solo los que entran en el recuadro con scroll
-  var save = function () { try { localStorage.setItem(FKEY, JSON.stringify(FAV)); localStorage.setItem(SKEY, JSON.stringify({ ccy: ST.ccy, conf: ST.conf, hz: ST.hz, win: ST.win, wv: ST.wv, wt: ST.wt, grp: ST.grp, sc: ST.sc, scM: ST.scM, scTo: ST.scTo, shk: ST.shk })); } catch (e) {} };
+  var PKEY = 'pfSets1', PS = (function () { try { var o = JSON.parse(localStorage.getItem(PKEY) || 'null'); if (o && o.s && o.cur) return o; } catch (e) {} return { cur: 'Mi portfolio', s: {} }; })(); // varios portfolios con nombre; el elegido es el de pfFav1 (lo leen las otras pestañas)
+  var save = function () { try { PS.s[PS.cur] = FAV; localStorage.setItem(PKEY, JSON.stringify(PS)); localStorage.setItem(FKEY, JSON.stringify(FAV)); localStorage.setItem(SKEY, JSON.stringify({ ccy: ST.ccy, conf: ST.conf, hz: ST.hz, win: ST.win, wv: ST.wv, wt: ST.wt, grp: ST.grp, sc: ST.sc, scM: ST.scM, scTo: ST.scTo, shk: ST.shk })); } catch (e) {} };
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var pc = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : fm(v * 100, d == null ? 2 : d) + '%'; };
   var dfull = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
@@ -7672,8 +7673,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
   function prevIdx(C, j) { for (var i = j; i >= 0 && i > j - 6; i--) if (C[i] > 0) return i; return -1; } // último cierre de las 5 ruedas previas
   function payFn(r) { // pagos (en pesos, por 100 VN) con día ex entre dos ruedas; null si no se conocen (TAMAR / duales con pagos intermedios)
-    if (r.grp === 'usd') { var b = B.find(function (x) { return x.k === r.k; }), fl = bxFullFlows(b), M = volMep(); return function (t0, t1, j) { var tot = 0; fl.forEach(function (f) { var e = bxExDay(f[0]); if (e > t0 && e <= t1) tot += f[1] * (M[j] || 0); }); return tot; }; }
+    if (r.grp === 'usd') { var b = B.find(function (x) { return x.k === r.k; }), fl = bxFullFlows(b || { k: r.k, f: r.fl || [] }), M = volMep(); return function (t0, t1, j) { var tot = 0; fl.forEach(function (f) { var e = bxExDay(f[0]); if (e > t0 && e <= t1) tot += f[1] * (M[j] || 0); }); return tot; }; }
     var ins = X.INST[r.k];
+    if (!ins) { var xf = bxFullFlows({ k: r.k, f: r.fl || [] }); return function (t0, t1) { var tot = 0; xf.forEach(function (f) { var e = bxExDay(f[0]); if (e > t0 && e <= t1) tot += f[1]; }); return tot; }; } // ONs y provinciales en pesos
     if (ins.k === 'cpn' || ins.k === 'cerc') { var pf = X.paidFlows(r.k); return function (t0, t1) { var tot = 0; pf.forEach(function (f) { var e = bxExDay(f[0]); if (e > t0 && e <= t1) tot += f[1]; }); return tot; }; }
     if (ins.k === 'tamar' || ins.k === 'dual') { var mat = ins.r[ins.r.length - 1][0], mid = ins.r.filter(function (x) { return x[0] < mat; }); return function (t0, t1) { return mid.some(function (x) { var e = bxExDay(x[0]); return e > t0 && e <= t1; }) ? null : 0; }; }
     return function () { return 0; };
@@ -7772,7 +7774,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         '<div class="pfc"><label>Grupo<select id="pfG"><option value="all">Todos</option>' + ORDER.map(function (g) { return '<option value="' + g + '">' + GN[g] + '</option>'; }).join('') + '</select></label>' +
         '<label>Buscar<input type="search" id="pfQ" placeholder="Ticker o tipo"></label></div><div class="pfw"><table class="pft" id="pfAll"></table></div>', 'Portfolio_bonos') +
       cardH('pfMine', 'Tu portfolio', '#pfMineSub',
-        '<div class="pfc"><label>Moneda<select id="pfC"><option value="ARS">Pesos</option><option value="USD">Dólares (MEP)</option></select></label>' +
+        '<div class="pfc"><label>Portfolio<select id="pfP"></select></label><button class="act" id="pfNew" data-html2canvas-ignore="true">Guardar como…</button><button class="act" id="pfDel" data-html2canvas-ignore="true">Borrar este</button><label>Moneda<select id="pfC"><option value="ARS">Pesos</option><option value="USD">Dólares (MEP)</option></select></label>' +
         '<button class="act" id="pfDist" data-html2canvas-ignore="true" disabled>Ver distribución</button><button class="act" id="pfShp" data-html2canvas-ignore="true" disabled>Ver estructura</button><button class="act" id="pfClr" data-html2canvas-ignore="true">Vaciar portfolio</button></div>' +
         '<div class="pfw" style="max-height:none"><table class="pft" id="pfTab"></table></div><div class="pfchips" id="pfChips" style="margin-top:14px"></div>', 'Portfolio') +
       cardH('pfScen', 'Escenarios de tasas', 'El impacto de un cambio de tasas en tu cartera: elegí cuántos pb se mueve cada plazo de la curva (o un escenario armado) y se revalúa cada bono con sus flujos, sin aproximaciones de duración.',
@@ -7803,10 +7805,17 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     g('pfScM').onchange = function () { ST.scM = parseFloat(this.value) || 0; if (ST.sc !== 'custom') ST.shk = null; save(); render(); };
     g('pfScTo').onchange = function () { ST.scTo = this.value; if (ST.sc !== 'custom') ST.shk = null; save(); render(); };
     root.addEventListener('change', function (e) { var i = e.target.closest('.pfsh'); if (!i) return; var sh = shocks(), gg = i.getAttribute('data-g'), n = +i.getAttribute('data-n'); sh[gg] = sh[gg] || KR.map(function () { return 0; }); sh[gg][n] = parseFloat(String(i.value).replace(',', '.')) || 0; ST.shk = sh; ST.sc = 'custom'; save(); render(); });
+    var fillP = function () { if (!PS.s[PS.cur]) PS.s[PS.cur] = FAV; g('pfP').innerHTML = Object.keys(PS.s).map(function (n) { return '<option' + (n === PS.cur ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join(''); g('pfDel').disabled = Object.keys(PS.s).length < 2; };
+    var useP = function (n) { PS.s[PS.cur] = FAV; PS.cur = n; FAV = PS.s[n] || {}; save(); fillP(); render(); };
+    fillP();
+    g('pfP').onchange = function () { useP(this.value); };
+    g('pfNew').onclick = function () { var n = (prompt('Nombre del portfolio nuevo (arranca con los bonos y nominales de \u00ab' + PS.cur + '\u00bb; para empezar de cero, después tocá Vaciar portfolio):') || '').trim().slice(0, 40); if (!n) return; if (PS.s[n] && !confirm('Ya hay un portfolio \u00ab' + n + '\u00bb. ¿Reemplazarlo?')) return; PS.s[n] = JSON.parse(JSON.stringify(FAV)); useP(n); };
+    g('pfDel').onclick = function () { var ks = Object.keys(PS.s); if (ks.length < 2 || !confirm('¿Borrar el portfolio \u00ab' + PS.cur + '\u00bb?')) return; delete PS.s[PS.cur]; PS.cur = ks.filter(function (n) { return n !== PS.cur; })[0]; FAV = PS.s[PS.cur]; save(); fillP(); render(); };
     g('pfDist').onclick = openDist; g('pfShp').onclick = openShape;
     g('pfClr').onclick = function () { if (!Object.keys(FAV).length) return; if (confirm('¿Sacar todos los bonos de tu portfolio?')) { FAV = {}; save(); render(); } };
     root.addEventListener('click', function (e) {
       var b = e.target.closest('.pfs'); if (b) { var k = b.getAttribute('data-k'); if (FAV[k] != null) delete FAV[k]; else FAV[k] = 0; save(); render(); return; }
+      var tm = e.target.closest('#pfTab th[data-m]'); if (tm) { var m = tm.getAttribute('data-m'); ST.msort = m === 'grp' ? (ST.msort === 'grp' ? '-grp' : ST.msort === '-grp' ? '' : 'grp') : ST.msort === m ? '-' + m : ST.msort === '-' + m ? '' : m; render(); return; }
       var th = e.target.closest('#pfAll th[data-s]'); if (th) { var s = th.getAttribute('data-s'); ST.sort = ST.sort === s ? '-' + s : s; renderPick(); }
     });
     root.addEventListener('change', function (e) { var i = e.target.closest('.pfn'); if (!i || i.classList.contains('pfsh')) return; var v = parseFloat(String(i.value).replace(/\./g, '').replace(',', '.')); FAV[i.getAttribute('data-k')] = isFinite(v) && v > 0 ? v : 0; save(); render(); });
@@ -7839,8 +7848,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function renderMine(Hh, mep) {
     var H = Hh.filter(function (h) { return h.val > 0; }), tot = H.reduce(function (a, h) { return a + h.val; }, 0);
     document.getElementById('pfMineSub').textContent = Hh.length ? 'Cargá los nominales (valor nominal, no pesos) de cada bono. Valuado a precio de hoy' + (mep ? ' · MEP $ ' + fm(mep, 2) : '') + '. Quedan guardados en este navegador.' : 'Todavía no marcaste bonos. Tocá la estrella ☆ al lado de cada bono en la lista de arriba.';
-    var h = '<thead><tr><th class="l"></th><th class="l">Bono</th><th class="l">Grupo</th><th>Nominales</th><th>Precio</th><th>Valor</th><th>Peso</th><th>TIR (TEA)</th><th>TNA</th><th>TEM</th><th>MD</th><th>Vencimiento</th><th>Días</th><th class="l">Características</th></tr></thead><tbody>';
-    Hh.forEach(function (r) {
+    var ms = (ST.msort || '').replace('-', ''), md = (ST.msort || '').charAt(0) === '-' ? -1 : 1, mv = function (r) { return ms === 'k' ? r.k : ms === 'grp' ? ORDER.indexOf(r.grp) * 1e6 + r.mat : ms === 'pv' ? r.val : r[ms]; };
+    var Hs = ms ? Hh.slice().sort(function (a, b) { var x = mv(a), y = mv(b); if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * md; }) : Hh; // tocando el encabezado: ascendente, descendente y de vuelta por grupo
+    var MH = [['', ''], ['k', 'Bono'], ['grp', 'Grupo'], ['n', 'Nominales'], ['P', 'Precio'], ['val', 'Valor'], ['pv', 'Peso'], ['tir', 'TIR (TEA)'], ['tna', 'TNA'], ['tem', 'TEM'], ['md', 'MD'], ['mat', 'Vencimiento'], ['d', 'Días'], ['', 'Características']];
+    var h = '<thead><tr>' + MH.map(function (c, i) { var on = c[0] && (ms ? ms === c[0] : c[0] === 'grp'); return '<th' + (c[0] ? ' data-m="' + c[0] + '"' : '') + ' class="' + (i < 3 || i === 13 ? 'l' : '') + (ms && on ? ' on' : '') + '">' + c[1] + (ms && on ? (md > 0 ? ' ▲' : ' ▼') : '') + '</th>'; }).join('') + '</tr></thead><tbody>';
+    Hs.forEach(function (r) {
       h += '<tr><td class="l">' + star(r.k) + '</td><td class="k">' + r.k + '</td><td class="l"><i class="pfdot" style="background:' + GC[r.grp] + '"></i>' + r.tipo + '</td>' +
         '<td><input class="pfn" inputmode="decimal" data-k="' + r.k + '" value="' + (r.n ? fm(r.n, 0) : '') + '" placeholder="0"></td><td>' + (r.pccy === 'USD' ? 'US$ ' : '$ ') + fm(r.P, 2) + '</td><td>' + (r.val ? money(r.val) : '—') + '</td><td>' + (tot > 0 && r.val ? pc(r.val / tot, 1) : '—') + '</td>' + rateCells(r) + '<td class="f">' + esc(r.feat.slice(1).join(' · ')) + '</td></tr>';
     });
