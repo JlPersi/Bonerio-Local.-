@@ -45,7 +45,8 @@ jobs:
           rueda() { [ "$(ar +%u)" -le 5 ] && [ "$(ar +%H%M)" -ge 1000 ] && [ "$(ar +%H%M)" -le 2000 ]; }
           bonos() { [ "$(ar +%u)" -le 5 ] && [ "$(ar +%H%M)" -ge 1030 ] && [ "$(ar +%H%M)" -le 1705 ]; }  # el intradiario de los bonos (data912): cada 3 minutos, se sube con cada foto
           foto() {
-            git pull -q --rebase origin main || { git rebase --abort 2>/dev/null; git reset -q --hard origin/main; }
+            git checkout -q -- . || true  # lo que dejaron las fotos de la espera (alertas_vivo.json): esta foto lo vuelve a sacar, y con cambios sin commitear el pull falla
+            git pull -q --rebase origin main || { git rebase --abort 2>/dev/null || true; git reset -q --hard origin/main; }  # el || true: sin rebase en curso, el abort falla y el bash -e cortaba la corrida
             if bonos; then python3 scripts/save_intra_bonos.py || echo "save_intra_bonos falló"; fi
             python3 scripts/save_intra_bonos.py --copiar || true
             python3 scripts/save_tasas.py || echo "save_tasas falló"
@@ -55,7 +56,7 @@ jobs:
             if [ -n "$(git status --porcelain data)" ]; then
               git add data && git commit -q -m "tasas $(date -u +%F)" || true
               for k in 1 2 3 4; do
-                if git pull -q --rebase origin main; then git push -q && break; else git rebase --abort 2>/dev/null; git reset -q --hard origin/main; break; fi  # choque con el cierre diario: la próxima foto lo vuelve a sacar
+                if git pull -q --rebase origin main; then git push -q && break; else git rebase --abort 2>/dev/null || true; git reset -q --hard origin/main; break; fi  # choque con el cierre diario: la próxima foto lo vuelve a sacar
                 sleep $(( 5 * k ))
               done
             fi
