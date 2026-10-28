@@ -5138,14 +5138,23 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       c('Variación de precio', e.dPx == null ? '—' : sg(e.dPx * 100, 2) + '%' + mk(e, e.unkP), 'con cobros incluidos · día ' + (e.dDay == null ? '—' : sg(e.dDay * 100, 2) + '%' + mk(e, e.unkD))) +
       c('Movimiento con volumen alto', ah == null ? '—' : nf(ah * 100, 2) + '%', 'promedio diario cuando operó 1,5× o más de lo habitual (' + hi.length + ' ruedas) · el resto ' + (al == null ? '—' : nf(al * 100, 2) + '%')) +
       c('Correlación volumen–movimiento', corr == null ? '—' : nf(corr, 2), 'entre el monto diario y el tamaño del movimiento (' + xs.length + ' ruedas)') + '</div>';
-    var tx = css('--tx'), bd = css('--bd'), col = FAMS[e.fam][1];
-    CHD = new Chart(document.getElementById('vlCh2').getContext('2d'), { type: 'bar', data: { labels: labels, datasets: [
-      { type: 'line', label: 'Precio de cierre (sucio)', data: px, yAxisID: 'y2', borderColor: tx, backgroundColor: tx, borderWidth: 2, pointRadius: 0, tension: .15, spanGaps: true, order: 1 },
-      { type: 'line', label: 'Promedio 20 ruedas', data: ma, yAxisID: 'y', borderColor: '#ffc542', borderDash: [5, 4], borderWidth: 1.6, pointRadius: 0, order: 2 },
-      { type: 'bar', label: 'Monto operado', data: bars, yAxisID: 'y', backgroundColor: col + 'bb', borderWidth: 0, order: 3 }] },
-      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + (c.dataset.yAxisID === 'y2' ? nf(c.parsed.y, 2) : mon(c.parsed.y)); } } } },
-        scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }, grid: { display: false } }, y: { position: 'left', beginAtZero: true, title: { display: true, text: 'Millones de ' + (unit() === 'VN' ? 'VN' : unit()), color: tx }, ticks: { color: tx, callback: function (v) { return nf(v / 1e6, 0); } }, grid: { color: bd } },
-          y2: { position: 'right', beginAtZero: false, grace: '8%', title: { display: true, text: 'Precio', color: tx }, ticks: { color: tx, callback: function (v) { return nf(v, v >= 1000 ? 0 : 2); } }, grid: { drawOnChartArea: false } } } } });
+    var tx = css('--tx'), mu = css('--mu'), bd = css('--bd'), col = FAMS[e.fam][1], up = css('--ok') || '#34d399', dn = css('--bad') || '#ff6b8b';
+    var hx = function (c, a) { return /^#[0-9a-f]{6}$/i.test(c) ? c + a : c; }, today = DATES[n - 1] === bxDayStr(bxToday()), last = bars.length - 1;
+    var dir = px.map(function (v, k) { for (var q = k - 1; q >= 0; q--) if (px[q] != null) return v == null ? 0 : v > px[q] ? 1 : v < px[q] ? -1 : 0; return 0; }); // la barra va verde si ese día subió el precio, roja si bajó
+    var pv = px.filter(function (v) { return v != null; }), pmin = Math.min.apply(null, pv), pmax = Math.max.apply(null, pv), pr2 = pmax - pmin || pmax * 0.01 || 1, vmax = Math.max.apply(null, bars.concat(ma)) || 1;
+    var area = function (c) { var ch = c.chart, A = ch.chartArea; if (!A) return 'transparent'; var g = ch.ctx.createLinearGradient(0, A.top, 0, A.bottom); g.addColorStop(0, hx(col, '55')); g.addColorStop(0.75, hx(col, '00')); return g; };
+    document.getElementById('vlCh2').parentNode.style.height = '360px';
+    CHD = new Chart(document.getElementById('vlCh2').getContext('2d'), { type: 'bar', data: { labels: labels, datasets: [ // estilo terminal: el precio arriba con su área, el volumen abajo (un tercio del alto) coloreado por la dirección del día
+      { type: 'line', label: 'Precio de cierre (sucio)', data: px, yAxisID: 'y2', borderColor: col, backgroundColor: area, fill: 'start', borderWidth: 2.2, pointRadius: px.map(function (v, k) { return k === px.length - 1 || (k === px.length - 2 && px[k + 1] == null) ? 3.5 : 0; }), pointBackgroundColor: col, pointHoverRadius: 4, tension: .3, spanGaps: true, order: 1 },
+      { type: 'line', label: 'Promedio 20 ruedas', data: ma, yAxisID: 'y', borderColor: hx(mu, 'dd'), borderDash: [4, 4], borderWidth: 1.4, pointRadius: 0, tension: .3, order: 2 },
+      { type: 'bar', label: 'Monto operado', data: bars, yAxisID: 'y', backgroundColor: bars.map(function (v, k) { var c = dir[k] > 0 ? up : dir[k] < 0 ? dn : mu; return hx(c, today && k === last ? '45' : '99'); }), hoverBackgroundColor: bars.map(function (v, k) { return dir[k] > 0 ? up : dir[k] < 0 ? dn : mu; }), borderRadius: { topLeft: 3, topRight: 3 }, borderSkipped: 'bottom', barPercentage: .78, categoryPercentage: .9, order: 3 }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, layout: { padding: { top: 4 } },
+        plugins: { legend: { align: 'start', labels: { color: tx, usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 10, boxHeight: 10, padding: 16 } },
+          tooltip: { backgroundColor: css('--card') || '#131314', titleColor: tx, bodyColor: tx, borderColor: bd, borderWidth: 1, padding: 10, boxPadding: 4, usePointStyle: true,
+            callbacks: { title: function (it) { return it.length ? it[0].label + (today && it[0].dataIndex === last ? ' · rueda en curso' : '') : ''; }, label: function (c) { return ' ' + c.dataset.label + ': ' + (c.dataset.yAxisID === 'y2' ? nf(c.parsed.y, 2) : mon(c.parsed.y)); } } } },
+        scales: { x: { ticks: { color: mu, maxRotation: 0, autoSkip: true, maxTicksLimit: 8, font: { size: 11 } }, grid: { display: false }, border: { color: bd } },
+          y: { position: 'left', display: false, beginAtZero: true, max: vmax * 3.1 },
+          y2: { position: 'right', min: pmin - pr2 * 0.72, max: pmax + pr2 * 0.1, border: { display: false }, ticks: { color: mu, font: { size: 11 }, maxTicksLimit: 9, callback: function (v, k, T) { return v < pmin - pr2 * 0.02 || k === T.length - 1 || k === 0 ? '' : nf(v, v >= 1000 ? 0 : 2); } }, grid: { color: hx(bd, '99') } } } } });
   }
 
   /* ---------- liquidez real: las puntas de ahora (data912: mejor compra y venta con su cantidad) contra lo que opera cada bono ---------- */
