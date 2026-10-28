@@ -9119,7 +9119,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     }).catch(function (e) { console.error(e); fin(); alert('No se pudo generar la imagen: ' + e.message); });
   };
   home.addEventListener('click', function (e) {
-    var g = e.target.closest('[data-go]'); if (!g) return; var p = g.getAttribute('data-go').split(':'), brp = g.getAttribute('data-brp'); if (brp && window.brcPreset) window.brcPreset(brp);
+    var g = e.target.closest('[data-go]'); if (!g) return; var p = g.getAttribute('data-go').split(':'), brp = g.getAttribute('data-brp'), pair = g.getAttribute('data-pair'), ps = $('spreadPairSelect'); if (brp && window.brcPreset) window.brcPreset(brp);
+    if (pair && ps && ps.querySelector('option[value="' + pair + '"]')) { ps.value = pair; if (window.updateSpreadChart) window.updateSpreadChart(); } // ley local o NY: abre el par en el panel de Z-Score
     window.switchTab(p[0]); setTimeout(function () { var el = p[1] && $(p[1]); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); else window.scrollTo({ top: 0, behavior: 'smooth' }); }, 120);
   });
   $('hmRPp').addEventListener('click', function (e) { var b = e.target.closest('[data-n]'); if (!b) return; RPN = +b.getAttribute('data-n'); [].forEach.call(this.children, function (x) { x.classList.toggle('on', x === b); }); drawRP(); });
@@ -9243,7 +9244,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var el = $('hmOPPb'); if (!el) return;
     var X = window.PSX, q = window.PXQ || {}, A = window.VOLX && window.VOLX.adtv, MIN = 300e6, D = DATA || {}, out = [];
     var ok = function (x) { return x && x.c > 0; }, sgn = function (v, d) { return (v > 0 ? '+' : '') + nf(v, d || 0); };
-    var cats = [], add = function (cat, go, t, d) { cats.push(cat); var g = go.split('|'); out.push('<div class="it" data-go="' + g[0] + '"' + (g[1] ? ' data-brp="' + g[1] + '"' : '') + ' title="' + d.replace(/"/g, '&quot;') + '"><span class="tg">' + cat + '</span><b>' + t + '</b><span class="d">' + d + '</span></div>'); };
+    var cats = [], add = function (cat, go, t, d) { cats.push(cat); var g = go.split('|'); out.push('<div class="it" data-go="' + g[0] + '"' + (g[1] ? ' data-brp="' + g[1] + '"' : '') + (g[2] ? ' data-pair="' + g[2] + '"' : '') + ' title="' + d.replace(/"/g, '&quot;') + '"><span class="tg">' + cat + '</span><b>' + t + '</b><span class="d">' + d + '</span></div>'); };
     var spr = function (ks, fam) { var o = ks.map(function (k) { var x = q[fam === 'usd' ? k + 'D' : k]; return x && x.bid > 0 && x.ask >= x.bid ? k + ' ' + nf((x.ask - x.bid) / ((x.ask + x.bid) / 2) * 100, 2) + '%' : null; }).filter(Boolean); return o.length ? ' Spread de la punta: ' + o.join(' · ') + '.' : ''; }; // liquidez real: si la oportunidad se puede ejecutar
     var stat = function (a) { var m = a.reduce(function (s, x) { return s + x; }, 0) / a.length, v = a.reduce(function (s, x) { return s + (x - m) * (x - m); }, 0) / Math.max(1, a.length - 1); return { m: m, sd: Math.sqrt(v) }; };
     if (window.SINTX && Date.now() - sxT > 180000) { sxT = Date.now(); window.SINTX(function (d) { SX = d; if (home.classList.contains('active')) opps(); }); }
@@ -9272,7 +9273,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       var now = ok(q[p[0] + 'D']) && ok(q[p[1] + 'D']) ? (q[p[1] + 'D'].c / q[p[0] + 'D'].c - 1) * 100 : h[h.length - 1]; if (h.length < 8 || now == null) return;
       var st = stat(h), z = st.sd > 0 ? (now - st.m) / st.sd : 0; if (Math.abs(z) >= 1.5 && (!best || Math.abs(z) > Math.abs(best.z))) best = { p: p, now: now, m: st.m, z: z, n: h.length };
     });
-    if (best) add('Ley local o NY', 'brc' + ({ GD30: '|ny', GD35: '|n35' }[best.p[1]] || ''), 'Rotar de ' + (best.z > 0 ? best.p[1] + ' a ' + best.p[0] : best.p[0] + ' a ' + best.p[1]), best.p[1] + ' cotiza ' + nf(best.now, 1) + '% sobre ' + best.p[0] + ', contra ' + nf(best.m, 1) + '% de promedio en ' + best.n + ' ruedas: la ley ' + (best.z > 0 ? 'NY' : 'local') + ' está cara.');
+    if (best) add('Ley local o NY', 'curva:spreadHistContainer||' + best.p[0] + '_' + best.p[1], 'Rotar de ' + (best.z > 0 ? best.p[1] + ' a ' + best.p[0] : best.p[0] + ' a ' + best.p[1]), best.p[1] + ' cotiza ' + nf(best.now, 1) + '% sobre ' + best.p[0] + ', contra ' + nf(best.m, 1) + '% de promedio en ' + best.n + ' ruedas: la ley ' + (best.z > 0 ? 'NY' : 'local') + ' está cara.');
     // 4) futuros: Lecap + futuro contra dollar linked, y dollar linked + venta de futuro contra Lecap
     if (SX) {
       var bu = (SX.usd || []).filter(function (r) { return r.df != null && r.o.d >= 60; }).sort(function (a, b) { return b.df - a.df; })[0];
@@ -9284,7 +9285,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var RM = window.PSREM, nowM = (function () { var t = bxDayStr(bxToday()); return +t.slice(0, 4) * 12 + (+t.slice(5, 7) - 1); })();
     if (SX && RM && RM.fx) {
       var bd = null; (SX.dlr || []).forEach(function (x) { if (!x.be || x.o.d < 60 || x.o.d > 450 || (A && (A[x.o.k] || 0) < MIN)) return; var m = +bxDayStr(x.o.mat).slice(0, 4) * 12 + (+bxDayStr(x.o.mat).slice(5, 7) - 1), r = RM.fx[m - RM.m0]; if (!(r > 0)) return; var g = x.be / r - 1; if (!bd || Math.abs(g) > Math.abs(bd.g)) bd = { o: x.o, be: x.be, r: r, g: g }; });
-      if (bd && Math.abs(bd.g) >= 0.02) add('Breakeven', 'pesos', 'Devaluación: conviene ' + (bd.g > 0 ? 'la Lecap' : 'el dollar linked') + ' si creés en el REM', 'Lecap contra ' + bd.o.k + ': el mercado descuenta un dólar de $ ' + nf(bd.be) + ' al vencimiento, ' + nf(Math.abs(bd.g) * 100, 1) + '% ' + (bd.g > 0 ? 'sobre' : 'bajo') + ' el REM ($ ' + nf(bd.r) + ').');
+      if (bd && Math.abs(bd.g) >= 0.02) add('Breakeven', 'expd', 'Devaluación: conviene ' + (bd.g > 0 ? 'la Lecap' : 'el dollar linked') + ' si creés en el REM', 'Lecap contra ' + bd.o.k + ': el mercado descuenta un dólar de $ ' + nf(bd.be) + ' al vencimiento, ' + nf(Math.abs(bd.g) * 100, 1) + '% ' + (bd.g > 0 ? 'sobre' : 'bajo') + ' el REM ($ ' + nf(bd.r) + ').');
     }
     if (X && X.snap && RM && RM.pi) { try {
       var S = X.snap(1).S, fx = S.filter(function (o) { return !o.miss && X.famOf(o.ins) === 'fija' && o.tea != null && o.d >= 21; }), fit = fx.length >= 3 ? X.fairFit(fx.map(function (o) { return { x: o.d, y: o.tea * 100, k: o.k }; }), 'auto') : null, bi = null;
@@ -9293,7 +9294,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
           var im = Math.pow((1 + fit.f(Math.max(x0, o.d)) / 100) / (1 + o.realTea), 30.4375 / 365) - 1, nm = Math.max(1, Math.round(o.d / 30.4375)), i0 = nowM - RM.m0, pr = 1, j;
           for (j = 0; j < nm; j++) pr *= 1 + (RM.pi[Math.max(0, Math.min(RM.pi.length - 1, i0 + j))] || 0); var rm = Math.pow(pr, 1 / nm) - 1, g = (im - rm) * 100;
           if (!bi || Math.abs(g) > Math.abs(bi.g)) bi = { o: o, im: im, rm: rm, g: g }; }); }
-      if (bi && Math.abs(bi.g) >= 0.1) add('Breakeven', 'pesos', 'Inflación: conviene ' + (bi.g > 0 ? 'la tasa fija' : 'el CER') + ' si creés en el REM', 'Lecap contra ' + bi.o.k + ': el mercado descuenta ' + nf(bi.im * 100, 2) + '% mensual de inflación y el REM ' + nf(bi.rm * 100, 2) + '% (promedio hasta el vencimiento).');
+      if (bi && Math.abs(bi.g) >= 0.1) add('Breakeven', 'expi', 'Inflación: conviene ' + (bi.g > 0 ? 'la tasa fija' : 'el CER') + ' si creés en el REM', 'Lecap contra ' + bi.o.k + ': el mercado descuenta ' + nf(bi.im * 100, 2) + '% mensual de inflación y el REM ' + nf(bi.rm * 100, 2) + '% (promedio hasta el vencimiento).');
     } catch (e) { console.error('opps be', e); } }
     // 6) volumen fuera de lo normal: lo operado hoy contra el promedio de 20 ruedas, a la misma altura de la rueda
     if (A && typeof mktStarted === 'function' && mktStarted() && mepA) {
