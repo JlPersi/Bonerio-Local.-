@@ -11709,16 +11709,16 @@ window.RATG = (function () {
   document.head.appendChild(st);
   var PV = {}, HD = /^(precio|último|ultimo)\b/i, NO = /máx|min|compra|teór|justo|recta|objetivo|técnico|tecnico|origen|emisión|emision|entrada/i;
   var num = function (x) { var m = (x || '').replace(/\s/g, '').match(/-?[\d.]+(,\d+)?/); if (!m) return null; var v = parseFloat(m[0].replace(/\./g, '').replace(',', '.')); return isFinite(v) ? v : null; };
-  var rk = function (tr) { for (var i = 0; i < tr.attributes.length; i++) { var a = tr.attributes[i]; if (/^data-/.test(a.name) && a.value) return a.value; } var c = tr.cells[0]; return c ? c.textContent.trim() : null; };
+  var rk = function (tr) { for (var i = 0; i < tr.attributes.length; i++) { var a = tr.attributes[i]; if (/^data-/.test(a.name) && a.value) return a.value; } for (var j = 0; j < tr.cells.length && j < 4; j++) { var x = tr.cells[j].textContent.trim(); if (/[A-Za-z0-9]/.test(x)) return x; } return null; }; // la primera celda con texto (en Portfolio la primera es la estrella del favorito)
   function scan(t, FL) {
     if (!t.tHead || t.closest('#acc')) return;
     var hr = t.tHead.rows[t.tHead.rows.length - 1]; if (!hr) return;
     var cols = [], sig = [];
     for (var i = 0, c = 0; i < hr.cells.length; i++) { var h = hr.cells[i].textContent.replace(/[▲▼↑↓⇅]/g, '').trim(); sig.push(h); if (HD.test(h) && !NO.test(h)) cols.push(c); c += hr.cells[i].colSpan || 1; }
     if (!cols.length) return;
-    var an = t.id || (t.closest('[id]') || {}).id || '', tk = an + '|' + sig.join('|');
+    var an = t.id || (t.closest('[id]') || {}).id || '', tk = an + '|' + sig.join('|'); var SEEN = {};
     Array.prototype.forEach.call(t.tBodies, function (b) { Array.prototype.forEach.call(b.rows, function (tr) {
-      var k = rk(tr); if (!k) return;
+      var k = rk(tr); if (!k || SEEN[k]) return; SEEN[k] = 1; // una clave repetida en la tabla no identifica la fila
       cols.forEach(function (ci) {
         var td = tr.cells[ci]; if (!td) return; var v = num(td.textContent); if (v == null) return;
         var key = tk + '|' + k + '|' + ci, p = PV[key]; PV[key] = v;
