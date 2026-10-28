@@ -11897,7 +11897,7 @@ window.RATG = (function () {
 
   var S = '#acc ';
   // subpestañas: qué tarjetas muestra cada una y qué hay que redibujar al entrar (los gráficos ocultos no saben su tamaño)
-  var SUBS = [['panel', 'Panel', ['accT', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV', 'accE', 'accH']], ['pares', 'Pares', ['accRd', 'accP']], ['mer', 'Sectores y flujo', ['accS', 'accB', 'accR']]];
+  var SUBS = [['panel', 'Panel', ['accT', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV', 'accE', 'accH']], ['pares', 'Pares', ['accRd', 'accP']], ['mer', 'Sectores y flujo', ['accS', 'accB', 'accR']], ['bal', 'Balances', ['accCal']]];
   root.innerHTML = '<style>' +
     '#acc{--fc:#4ade80;--fr:74,222,128}[data-theme="light"] #acc{--fc:#15803d;--fr:21,128,61}' +
     '#acc .card:not(.card .card){background:linear-gradient(180deg,rgba(var(--fr),.10) 0,rgba(var(--fr),.035) 180px,rgba(var(--fr),0) 420px),var(--card);border-color:rgba(var(--fr),.22)}#acc .card:not(.card .card)>.sxh .qh{color:var(--fc);font-size:24px;font-weight:700}#acc .card canvas{background:transparent!important}' +
@@ -11990,7 +11990,9 @@ window.RATG = (function () {
     '<div class="ctl"><label>CRES en IRSA (%)<input type="number" id="accHc" step="0.1" min="0" max="100" style="width:90px"></label><label>CVH en TECO2 (%)<input type="number" id="accHv" step="0.1" min="0" max="100" style="width:90px"></label><label>Cartera propia de BYMA ($ MM)<input type="number" id="accHb" step="1" min="0" style="width:120px" placeholder="del balance"></label></div>' +
     '<div class="tw" style="max-height:none"><table id="accHt"></table></div><p class="note" id="accHn" style="margin-top:8px"></p></div>' +
     '<div class="card sx" id="accA" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">ADRs</p><p class="qs">Las acciones argentinas en Nueva York y el dólar que surge de cada una.</p></div><div class="sxb">' + dlb('accA', 'Bonerio_ADRs') + '</div></div>' +
-    '<div class="kp" id="accAk"></div><div class="tw"><table id="accAtab"></table></div><p class="note" id="accAn" style="margin-top:8px"></p></div>';
+    '<div class="kp" id="accAk"></div><div class="tw"><table id="accAtab"></table></div><p class="note" id="accAn" style="margin-top:8px"></p></div>' +
+    '<div class="card sx" id="accCal" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Calendario de balances</p><p class="qs">Cuándo presenta cada empresa su próximo balance en la CNV. Cuando sale, se baja solo esa noche y se recalculan los ratios de toda la pestaña.</p></div><div class="sxb">' + dlb('accCal', 'Bonerio_calendario_balances') + '</div></div>' +
+    '<div class="kp" id="accCk"></div><div class="tw"><table id="accCtab"></table></div><p class="note" id="accCn" style="margin-top:8px"></p></div>';
 
   /* ---------- controles ---------- */
   var SEGS = [['accPn', 'pn', function () { table(); }], ['accBx', 'bx', reBeta], ['accRdu', 'rdu', radar], ['accEp', 'ep', erp], ['accRdc', 'rdc', radar], ['accBx2', 'bx', reBeta], ['accMon', 'mon', function () { SX = {}; drawAll(); }], ['accMon2', 'mon', function () { SX = {}; drawAll(); }], ['accMon3', 'mon', function () { SX = {}; drawAll(); }], ['accMon4', 'mon', function () { SX = {}; drawAll(); }], // la moneda también en la ficha, sectores y riesgo-retorno
@@ -12183,7 +12185,7 @@ window.RATG = (function () {
     if (!SUBS.some(function (x) { return x[0] === g; })) g = 'panel'; ST.sub = g; save(); var first = true;
     SUBS.forEach(function (x) { x[2].forEach(function (id) { var e = $(id); if (!e) return; e.style.display = x[0] === g ? '' : 'none'; if (x[0] === g) { e.style.marginTop = first ? '0' : '24px'; first = false; } }); });
     [].forEach.call($('accNav').querySelectorAll('button'), function (b) { b.classList.toggle('on', b.getAttribute('data-g') === g); });
-    if (draw && IX) ({ panel: function () { table(); adrs(); }, ficha: chart, val: function () { valua(); erp(); hold(); }, pares: function () { radar(); pair(); }, mer: function () { SX = {}; sectors(); flow(); scatter(); } })[g]();
+    if (draw && IX) ({ panel: function () { table(); adrs(); }, ficha: chart, val: function () { valua(); erp(); hold(); }, pares: function () { radar(); pair(); }, mer: function () { SX = {}; sectors(); flow(); scatter(); }, bal: cal })[g]();
   }
   $('accNav').onclick = function (e) { var b = e.target.closest('button[data-g]'); if (b) sub(b.getAttribute('data-g'), 1); };
   function pick(t, scroll) { ST.sel = t; save(); sub('ficha'); $('accTk').value = ''; [].forEach.call($('accTab').querySelectorAll('tr[data-t]'), function (r) { r.classList.toggle('sel', r.getAttribute('data-t') === t); }); chart(); if (scroll) setTimeout(function () { $('accF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60); }
@@ -12743,6 +12745,25 @@ window.RATG = (function () {
   $('accVt').onclick = function (e) { var tr = e.target.closest('tr[data-t]'); if (tr) pick(tr.getAttribute('data-t'), 1); };
 
   /* ---------- ADRs ---------- */
+  var CAL = null, calP = null;
+  function cal() { // calendario de balances (data/acciones/calendario_balances.json, scripts/calendario_balances.py)
+    if (!CAL) { if (!calP) calP = j('data/acciones/calendario_balances.json').then(function (x) { CAL = x || { t: {} }; cal(); }); return; }
+    var hoy = new Date(Date.now() - 3 * 36e5).toISOString().slice(0, 10), dn = function (a, b) { return Math.round((Date.parse(b) - Date.parse(a)) / 864e5); };
+    var fd = function (d) { return d ? d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(2, 4) : '—'; }, per = function (c, m) { return (m === 12 ? 'Anual ' : m + ' meses ') + 'al ' + fd(c); };
+    var rs = Object.keys(CAL.t).map(function (t) { var o = CAL.t[t], e = o.prox.est, rec = dn(o.ult.publicado, hoy) <= 14, st, cl = ''; // presentó hace poco, falta o está atrasada
+      if (rec) { st = 'Presentó hace ' + dn(o.ult.publicado, hoy) + ' días'; cl = 'up'; }
+      else if (o.prox.plazo && hoy > o.prox.plazo) { st = 'No aparece en la CNV y venció el plazo'; cl = 'dn'; }
+      else if (hoy > e) { st = 'Pendiente (se esperaba el ' + fd(e) + ')'; }
+      else { var n = dn(hoy, e); st = n === 0 ? 'Hoy' : 'En ' + n + (n === 1 ? ' día' : ' días'); }
+      return { t: t, o: o, rec: rec, st: st, cl: cl, k: rec ? '0' + o.ult.publicado : '1' + e }; });
+    rs.sort(function (a, b) { return a.rec !== b.rec ? (a.rec ? -1 : 1) : a.rec ? b.o.ult.publicado.localeCompare(a.o.ult.publicado) : a.o.prox.est.localeCompare(b.o.prox.est) || a.t.localeCompare(b.t); });
+    var sem = rs.filter(function (r) { return !r.rec && dn(hoy, r.o.prox.est) >= 0 && dn(hoy, r.o.prox.est) <= 7; }).length, rec = rs.filter(function (r) { return r.rec; }).length;
+    $('accCk').innerHTML = '<div><small>Presentaron en las últimas 2 semanas</small><b>' + rec + '</b></div><div><small>Se esperan en los próximos 7 días</small><b>' + sem + '</b></div><div><small>Empresas</small><b>' + rs.length + '</b></div>';
+    $('accCtab').innerHTML = '<thead><tr><th class="l">Acción</th><th class="l">Sector</th><th>Último balance</th><th>Presentado</th><th>Próximo balance</th><th>Fecha estimada</th><th>Plazo CNV</th><th class="l">Estado</th></tr></thead><tbody>' +
+      rs.map(function (r) { var o = r.o; return '<tr data-t="' + esc(r.t) + '" style="cursor:pointer"><td class="l"><b>' + esc(r.t) + '</b></td><td class="l">' + esc(SN[secOf(r.t)] || '') + '</td><td>' + per(o.ult.cierre, o.ult.meses) + '</td><td>' + fd(o.ult.publicado) + '</td><td>' + per(o.prox.cierre, o.prox.meses) + '</td><td title="' + (o.prox.como === 'año anterior' ? 'La fecha del mismo balance del año pasado' : 'El cierre más la demora habitual de la empresa') + '">' + fd(o.prox.est) + '</td><td>' + (o.prox.plazo ? fd(o.prox.plazo) : '<span title="Los bancos presentan con los plazos del BCRA">—</span>') + '</td><td class="l ' + r.cl + '">' + r.st + '</td></tr>'; }).join('') + '</tbody>';
+    $('accCn').innerHTML = 'Fecha estimada: la del mismo balance del año pasado; si no hay, el cierre más la demora habitual de la empresa. Plazo CNV: 42 días corridos del cierre para los trimestrales y 70 para los anuales (los bancos tienen los del BCRA). Los balances se buscan en la CNV todos los días hábiles a la noche. Tocá una acción para ver su ficha.';
+  }
+  $('accCtab').onclick = function (e) { var tr = e.target.closest('tr[data-t]'); if (tr) pick(tr.getAttribute('data-t'), 1); };
   function adrs() {
     if (!IX) return; var rs = [], ks = Object.keys(CCL).sort(), cc = ks.length ? CCL[ks[ks.length - 1]] : null;
     ADRS.forEach(function (x) {

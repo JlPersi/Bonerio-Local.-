@@ -1,8 +1,8 @@
 name: Balances CNV
 on:
   schedule:
-    # lunes 9:00 hora Argentina: levanta los estados contables nuevos que se presentaron en la semana
-    - cron: "0 12 * * 1"
+    # de lunes a viernes a las 22:00 hora Argentina: levanta los balances que se presentaron en el día y rearma ratios y calendario
+    - cron: "0 1 * * 2-6"
   workflow_dispatch: {}
 permissions:
   contents: write
@@ -13,17 +13,19 @@ jobs:
       - uses: actions/checkout@v4
       - run: python3 scripts/balances_cnv.py
       - run: python3 scripts/ratios_acciones.py
+      - run: python3 scripts/calendario_balances.py
       - name: Commit
         run: |
           if [ -n "$(git status --porcelain data)" ]; then
             git config user.name "cierre-bot"
             git config user.email "bot@users.noreply.github.com"
             # solo los balances: ratios.json lo reescribe también el cierre diario, así que se rearma después de traer main
-            git add data/acciones/balances
+            git add data/acciones/balances data/acciones/calendario_balances.json
             git commit -m "balances $(date -u +%F)" || true
             git checkout -- data
             git pull --rebase -q origin main
             python3 scripts/ratios_acciones.py
+            python3 scripts/calendario_balances.py
             git add data
             git commit -m "ratios $(date -u +%F)" || true
             git push
