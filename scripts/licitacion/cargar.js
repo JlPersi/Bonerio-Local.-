@@ -9,7 +9,7 @@
  *        "ins":[{"t":"S29E7","adj":2.71,"tirea":27.47,"tem":2.04},{"t":"TMG28","adj":1.16,"margen":9.32},
  *               {"t":"TXMD9","adj":1.70,"tirea":6.99},{"t":"TMVE8","adj":1.04,"tirea":4.35}]}
  *   montos en billones de $; tasas en %. Por instrumento: tirea (fija: nominal; CER: real; DL y duales: la de la otra pata),
- *   o margen (TAMAR, o la pata TAMAR de un dual), o tna (fija, si solo dan la TNA).
+ *   o margen (TAMAR, o la pata TAMAR de un dual), o tna (fija, si solo dan la TNA). TAMAR sin margen: precio (por 100 VN) y se despeja.
  *
  * Qué hace: lee el llamado (LLAM) y el cronograma (CAL) de licitaciones.html, abre index.html con Playwright y calcula con el
  * mismo código de Curva Pesos (PSX.yieldAt, PSX.snap, PSX.fairFit): precio de corte, tasa en la unidad de cada familia, yields
@@ -140,7 +140,8 @@ function calc({ R, REF, Q, CL }) { // corre dentro de index.html
     if (g === 'fija') { let T = it.tirea != null ? it.tirea / 100 : it.tna != null ? Math.pow(1 + it.tna / 100 * d / 365, 365 / d) - 1 : null; if (T == null) return { err: k + ': falta la TIREA o TNA' };
       Pa = solve(k, T * 100); z.y = tnas(T, d); z.P = Pa; Object.assign(r, { tasa: +(T * 100).toFixed(2), u: 'TIREA', x: it.tem != null ? 'TEM ' + String(it.tem).replace('.', ',') + '%' : undefined }); }
     else if (g === 'cer') { if (it.tirea == null) return { err: k + ': falta la TIREA real' }; Pa = solve(k, tna30(it.tirea / 100)); z.y = tna30(it.tirea / 100); z.P = Pa; Object.assign(r, { tasa: it.tirea, u: 'TIREA real (CER)' }); }
-    else if (g === 'tamar') { if (it.margen == null) return { err: k + ': falta el margen' }; Pa = solve(k, it.margen); z.y = it.margen; z.P = Pa; Object.assign(r, { tasa: it.margen, u: 'margen s/ TAMAR' }); }
+    else if (g === 'tamar') { if (it.margen == null && it.precio != null) { let a = -30, b = 60; for (let i = 0; i < 80; i++) { const m = (a + b) / 2; if (solve(k, m) > it.precio) a = m; else b = m; } it.margen = +((a + b) / 2).toFixed(2); } // el comunicado da precio y no margen
+      if (it.margen == null) return { err: k + ': falta el margen' }; Pa = solve(k, it.margen); z.y = it.margen; z.P = Pa; Object.assign(r, { tasa: it.margen, u: 'margen s/ TAMAR' }); }
     else if (g === 'dl') { if (it.tirea == null) return { err: k + ': falta la TIREA en USD' }; const T = it.tirea / 100; Pa = solve(k, tna30(T)); z.y = tnas(T, d); z.yt = it.tirea; z.P = 100 / Math.pow(1 + T, d / 365); Object.assign(r, { tasa: it.tirea, u: 'TIREA USD' }); }
     else { // dual: la pata TAMAR (margen) en y; la otra pata en y2
       const cer = !!oq.isCer || ins.f === 'cer+tamar'; z.l2 = cer ? 'CER' : 'DL';
