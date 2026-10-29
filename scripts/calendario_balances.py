@@ -7,6 +7,7 @@ Por empresa: el último balance presentado en la CNV (cierre, fecha de presentac
   más la demora mediana de esa empresa para ese tipo de balance (trimestral o anual), o 42 / 70 días.
 - plazo: el de la CNV para las emisoras que no son bancos: 42 días corridos del cierre los trimestrales y 70 los anuales.
   A los bancos no se les pone (presentan con los plazos del BCRA).
+- si la empresa anunció la fecha (data/acciones/fechas_resultados.json, cargado a mano desde los calendarios de resultados), esa.
 Corre en balances.yml después de bajar los balances.
 """
 import json, os, sys, glob, statistics, datetime as dt
@@ -15,6 +16,7 @@ from balances_cnv import EMPRESAS  # (CUIT, VN, mes de cierre, banco, moneda)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BAL = os.path.join(HERE, "..", "data", "acciones", "balances")
+ANUN = os.path.join(HERE, "..", "data", "acciones", "fechas_resultados.json")
 OUT = os.path.join(HERE, "..", "data", "acciones", "calendario_balances.json")
 
 
@@ -35,8 +37,14 @@ def habil(d):  # si cae sábado o domingo, el lunes
 
 def main():
     out = {}
+    try:
+        A = json.load(open(ANUN))
+    except Exception:
+        A = {}
     for f in sorted(glob.glob(os.path.join(BAL, "*.json"))):
         t = os.path.basename(f)[:-5]
+        if t not in EMPRESAS:
+            continue
         try:
             d = json.load(open(f))
         except Exception:
@@ -70,6 +78,8 @@ def main():
             dd = dem[tipo][-8:]
             est = nc + dt.timedelta(days=round(statistics.median(dd)) if dd else (70 if tipo == "a" else 42))
             como = "demora habitual"
+        if A.get("cierre") == nc.isoformat() and t in A.get("f", {}):
+            est, como = dt.date.fromisoformat(A["f"][t]), "anunciada"
         plazo = None if banco else nc + dt.timedelta(days=70 if tipo == "a" else 42)
         out[t] = {
             "ult": {"cierre": u["cierre"], "publicado": u["publicado"], "meses": meses},
