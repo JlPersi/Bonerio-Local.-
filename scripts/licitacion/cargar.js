@@ -106,6 +106,7 @@ function calc({ R, REF, Q, CL }) { // corre dentro de index.html
   const tnas = (tea, d) => (Math.pow(1 + tea, d / 365) - 1) * 365 / d * 100, tna30 = tea => (Math.pow(1 + tea, 30 / 365) - 1) * 365 / 30 * 100, tea30 = y => Math.pow(1 + y / 100 * 30 / 365, 365 / 30) - 1;
   const r3 = v => v == null || !isFinite(v) ? null : Math.round(v * 1000) / 1000, r2 = v => v == null ? null : Math.round(v * 100) / 100;
   const matOf = k => I[k].r[I[k].r.length - 1][0];
+  const m360 = (a, b) => { const x = new Date(a * 864e5), y = new Date(b * 864e5), d1 = Math.min(x.getUTCDate(), 30), d2 = d1 === 30 ? Math.min(y.getUTCDate(), 30) : y.getUTCDate(); return ((y.getUTCFullYear() - x.getUTCFullYear()) * 360 + (y.getUTCMonth() - x.getUTCMonth()) * 30 + d2 - d1) / 30; }; // meses 30/360
   // puntos del secundario por familia: [ticker, días desde la liquidación, yield, atípico, tipo (0, 1 dual, 2 cupones/amortiza), precio, yield pata 2, pata]
   const fam = {}, SEC = {};
   for (const k of Object.keys(I)) { const P = CL[k]; if (P == null) continue; const ins = I[k], mat = matOf(k), x = mat - q, dS = mat - sR; if (x <= 0) continue;
@@ -137,8 +138,11 @@ function calc({ R, REF, Q, CL }) { // corre dentro de index.html
   for (const it of R.ins) { const k = it.t, ins = I[k], kd = ins.k, mat = matOf(k), d = mat - q, oq = SQ[k] || {}, g = kd === 'dual' ? 'dual' : (kd === 'cap' || kd === 'cpn') ? 'fija' : (kd === 'cer0' || kd === 'cerc') ? 'cer' : kd === 'dl' ? 'dl' : 'tamar';
     const z = { t: k, g, x: d, v: it.adj, y: null, y2: null, l2: null, yt: null, P: null, du: g === 'dual' ? 1 : 0 }, r = { t: k, f: g, adj: it.adj };
     let Pa;
-    if (g === 'fija') { let T = it.tirea != null ? it.tirea / 100 : it.tna != null ? Math.pow(1 + it.tna / 100 * d / 365, 365 / d) - 1 : null; if (T == null) return { err: k + ': falta la TIREA o TNA' };
-      Pa = solve(k, T * 100); z.y = tnas(T, d); z.P = Pa; Object.assign(r, { tasa: +(T * 100).toFixed(2), u: 'TIREA', x: it.tem != null ? 'TEM ' + String(it.tem).replace('.', ',') + '%' : undefined }); }
+    if (g === 'fija') { let T = it.tirea != null ? it.tirea / 100 : it.tna != null ? Math.pow(1 + it.tna / 100 * d / 365, 365 / d) - 1 : null; if (T == null && it.tem == null) return { err: k + ': falta la TIREA o TNA' };
+      // con la TEM de corte y una Lecap (un solo pago): precio = pago final / (1 + TEM) ^ meses 30/360 de la liquidación al vencimiento. La TIREA del
+      // comunicado es (1 + TEM)^12 − 1, no la de días corridos: sacada de ahí, el precio de una Lecap nueva daba 99,91 en vez de 100
+      if (it.tem != null && kd === 'cap' && ins.r.length === 1) { Pa = ins.r[0][1] / Math.pow(1 + it.tem / 100, m360(q, mat)); T = PSX.yieldAt(k, tC, Pa) / 100; } else Pa = solve(k, T * 100);
+      z.y = tnas(T, d); z.P = Pa; Object.assign(r, { tasa: it.tirea != null ? it.tirea : +(T * 100).toFixed(2), u: 'TIREA', x: it.tem != null ? 'TEM ' + String(it.tem).replace('.', ',') + '%' : undefined }); }
     else if (g === 'cer') { if (it.tirea == null) return { err: k + ': falta la TIREA real' }; Pa = solve(k, tna30(it.tirea / 100)); z.y = tna30(it.tirea / 100); z.P = Pa; Object.assign(r, { tasa: it.tirea, u: 'TIREA real (CER)' }); }
     else if (g === 'tamar') { if (it.margen == null && it.precio != null) { let a = -30, b = 60; for (let i = 0; i < 80; i++) { const m = (a + b) / 2; if (solve(k, m) > it.precio) a = m; else b = m; } it.margen = +((a + b) / 2).toFixed(2); } // el comunicado da precio y no margen
       if (it.margen == null) return { err: k + ': falta el margen' }; Pa = solve(k, it.margen); z.y = it.margen; z.P = Pa; Object.assign(r, { tasa: it.margen, u: 'margen s/ TAMAR' }); }
