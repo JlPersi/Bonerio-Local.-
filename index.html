@@ -11894,7 +11894,7 @@ window.RATG = (function () {
 
   var S = '#acc ';
   // subpestañas: qué tarjetas muestra cada una y qué hay que redibujar al entrar (los gráficos ocultos no saben su tamaño)
-  var SUBS = [['panel', 'Panel', ['accT', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV', 'accE', 'accH']], ['pares', 'Pares', ['accRd', 'accP']], ['mer', 'Sectores y flujo', ['accS', 'accB', 'accR']], ['bal', 'Balances', ['accCal']]];
+  var SUBS = [['panel', 'Panel', ['accT', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV', 'accE', 'accH']], ['pares', 'Pares', ['accRd', 'accP']], ['mer', 'Sectores y flujo', ['accS', 'accB', 'accR']], ['bal', 'Balances', ['accCal']], ['opc', 'Opciones', ['accO']]];
   root.innerHTML = '<style>' +
     '#acc{--fc:#4ade80;--fr:74,222,128}[data-theme="light"] #acc{--fc:#15803d;--fr:21,128,61}' +
     '#acc .card:not(.card .card){background:linear-gradient(180deg,rgba(var(--fr),.10) 0,rgba(var(--fr),.035) 180px,rgba(var(--fr),0) 420px),var(--card);border-color:rgba(var(--fr),.22)}#acc .card:not(.card .card)>.sxh .qh{color:var(--fc);font-size:24px;font-weight:700}#acc .card canvas{background:transparent!important}' +
@@ -11966,7 +11966,7 @@ window.RATG = (function () {
     '<div class="ctl"><label>Para el gráfico<span class="seg" id="accBp"><button data-v="1">Última rueda</button><button data-v="5">5 ruedas</button><button data-v="20">20 ruedas</button></span></label></div>' +
     '<div class="f2"><div><h5>Por sector: presión neta y monto</h5><div class="tw" style="max-height:none;margin-top:0"><table id="accBt"></table></div></div><div><h5 id="accBh">Acciones con más presión</h5><div class="cw2" style="height:380px"><canvas id="accBc"></canvas></div></div></div><p class="note" id="accBn" style="margin-top:8px"></p></div>' +
 
-    '<div class="card sx" id="accO" style="display:none"><div class="sxh"><div style="min-width:0"><p class="qh">Lanzamiento cubierto</p><p class="qs" id="accOs">Comprar la acción y vender un call dentro del dinero: la tasa que queda si al vencimiento la acción sigue arriba del strike, contra una Lecap del mismo plazo.</p></div><div class="sxb">' + dlb('accO', 'Bonerio_lanzamiento_cubierto') + '</div></div>' +
+    '<div class="card sx" id="accO" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Lanzamiento cubierto</p><p class="qs" id="accOs">Comprar la acción y vender un call dentro del dinero: la tasa que queda si al vencimiento la acción sigue arriba del strike, contra una Lecap del mismo plazo.</p></div><div class="sxb">' + dlb('accO', 'Bonerio_lanzamiento_cubierto') + '</div></div>' +
     '<div class="ctl"><label>Acción<select id="accOu" style="min-width:220px"><option value="">Todas (la mejor de cada una)</option></select></label><label>Vencimiento<select id="accOv" style="min-width:150px"></select></label></div>' +
     '<div class="kp" id="accOk"></div><div class="tw"><table id="accOt"></table></div><p class="note" id="accOn" style="margin-top:8px"></p></div>' +
 
@@ -12058,7 +12058,7 @@ window.RATG = (function () {
     if (typeof mktStarted === 'function' && !mktStarted()) { LV = {}; return g('https://data912.com/live/usa_adrs', LA); } // antes de la rueda (o sin rueda) data912 repite la anterior: se usa el último cierre
     return Promise.all([g('https://data912.com/live/arg_stocks', LV), g('https://data912.com/live/usa_adrs', LA)]);
   }
-  setInterval(function () { if (isAct() && (typeof mktOpen !== 'function' || mktOpen())) live().then(function () { table(); adrs(); valua(); head(); flow(); }); }, 30000);
+  setInterval(function () { if (isAct() && (typeof mktOpen !== 'function' || mktOpen())) live().then(function () { table(); adrs(); valua(); head(); flow(); covered(); }); }, 30000);
 
   /* ---------- índice del panel líder ponderado por capitalización ---------- */
   var IDD = null, IMC = {};
@@ -12182,7 +12182,7 @@ window.RATG = (function () {
     if (!SUBS.some(function (x) { return x[0] === g; })) g = 'panel'; ST.sub = g; save(); var first = true;
     SUBS.forEach(function (x) { x[2].forEach(function (id) { var e = $(id); if (!e) return; e.style.display = x[0] === g ? '' : 'none'; if (x[0] === g) { e.style.marginTop = first ? '0' : '24px'; first = false; } }); });
     [].forEach.call($('accNav').querySelectorAll('button'), function (b) { b.classList.toggle('on', b.getAttribute('data-g') === g); });
-    if (draw && IX) ({ panel: function () { table(); adrs(); }, ficha: chart, val: function () { valua(); erp(); hold(); }, pares: function () { radar(); pair(); }, mer: function () { SX = {}; sectors(); flow(); scatter(); }, bal: cal })[g]();
+    if (draw && IX) ({ panel: function () { table(); adrs(); }, ficha: chart, val: function () { valua(); erp(); hold(); }, pares: function () { radar(); pair(); }, mer: function () { SX = {}; sectors(); flow(); scatter(); }, bal: cal, opc: covered })[g]();
   }
   $('accNav').onclick = function (e) { var b = e.target.closest('button[data-g]'); if (b) sub(b.getAttribute('data-g'), 1); };
   function pick(t, scroll) { ST.sel = t; save(); sub('ficha'); $('accTk').value = ''; [].forEach.call($('accTab').querySelectorAll('tr[data-t]'), function (r) { r.classList.toggle('sel', r.getAttribute('data-t') === t); }); chart(); if (scroll) setTimeout(function () { $('accF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60); }
@@ -12656,8 +12656,8 @@ window.RATG = (function () {
   $('accBt').onclick = function (e) { var tr = e.target.closest('tr[data-sec]'); if (tr) secPick(tr.getAttribute('data-sec')); };
 
   /* ---------- lanzamiento cubierto: opciones de data912 (/live/arg_options; fuera de horario, la última foto guardada) ---------- */
-  var OPU = { GFG: 'GGAL', YPF: 'YPFD', COM: 'COME', ALU: 'ALUA', PAM: 'PAMP', BMA: 'BMA', BBA: 'BBAR', TXA: 'TXAR', MET: 'METR', SUP: 'SUPV', EDN: 'EDN', BYM: 'BYMA', CEP: 'CEPU', TEC: 'TECO2', LOM: 'LOMA', TGS: 'TGSU2', TRA: 'TRAN', CRE: 'CRES', IRS: 'IRSA', VAL: 'VALO', HAR: 'HARG', MIR: 'MIRG', TGN: 'TGNO4', CVH: 'CVH' };
-  var OMS = { EN: 1, FE: 2, MR: 3, AB: 4, MY: 5, JU: 6, JL: 7, AG: 8, SE: 9, OC: 10, NO: 11, DI: 12, E: 1, F: 2, S: 9, O: 10, N: 11, D: 12 }, OPT = null, OPD = null, OPT_T = 0;
+  var OPU = { GFG: 'GGAL', YPF: 'YPFD', COM: 'COME', ALU: 'ALUA', PAM: 'PAMP', BMA: 'BMA', BBA: 'BBAR', TXA: 'TXAR', MET: 'METR', SUP: 'SUPV', EDN: 'EDN', BYM: 'BYMA', CEP: 'CEPU', TEC: 'TECO2', LOM: 'LOMA', TGS: 'TGSU2', TRA: 'TRAN', CRE: 'CRES', IRS: 'IRSA', VAL: 'VALO', HAR: 'HARG', MIR: 'MIRG', TGN: 'TGNO4', CVH: 'CVH', BHI: 'BHIP', CEC: 'CECO2' };
+  var OMS = { EN: 1, FE: 2, MR: 3, AB: 4, MY: 5, JU: 6, JL: 7, AG: 8, SE: 9, OC: 10, NO: 11, DI: 12, E: 1, F: 2, S: 9, O: 10, N: 11, D: 12 }, OPT = null, OPD = null, OPT_T = 0, OPS = null;
   function expOf(code) { // vencimiento: tercer viernes del mes (el próximo con ese mes)
     var m = OMS[code]; if (!m) return null; var t0 = today(), y = +t0.slice(0, 4);
     for (var k = 0; k < 2; k++) { var d = new Date(Date.UTC(y + k, m - 1, 1)), f = (5 - d.getUTCDay() + 7) % 7; d.setUTCDate(1 + f + 14); var iso = d.toISOString().slice(0, 10); if (iso >= t0) return iso; }
@@ -12665,8 +12665,8 @@ window.RATG = (function () {
   }
   function optLoad() {
     if (OPT && Date.now() - OPT_T < 60000) return Promise.resolve();
-    var fromLive = (typeof mktOpen !== 'function' || mktOpen()) ? fetch('https://data912.com/live/arg_options', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (r) { return r && r.length ? { d: 'en vivo', r: r } : null; }).catch(function () { return null; }) : Promise.resolve(null);
-    return fromLive.then(function (x) { return x || j('data/opciones.json').then(function (y) { return y ? { d: 'foto del ' + fr(String(y.d).slice(0, 10)) + ' ' + String(y.d).slice(11, 16) + ' UTC', r: y.r } : null; }); }).then(function (x) { if (x) { OPT = x.r; OPD = x.d; OPT_T = Date.now(); } });
+    var fromLive = (typeof mktOpen !== 'function' || mktOpen()) ? fetch('https://data912.com/live/arg_options', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (r) { return r && r.length ? { d: 'en vivo', r: r, s: null } : null; }).catch(function () { return null; }) : Promise.resolve(null);
+    return fromLive.then(function (x) { return x || j('data/opciones.json').then(function (y) { return y ? { d: 'foto del ' + fr(String(y.d).slice(0, 10)) + ' ' + String(y.d).slice(11, 16) + ' UTC', r: y.r, s: y.s || null } : null; }); }).then(function (x) { if (x) { OPT = x.r; OPD = x.d; OPS = x.s; OPT_T = Date.now(); } }); // con la foto, la acción sale de la misma foto: precios del mismo momento
   }
   function lecapTo(d) { // TEA de la Lecap (o Boncap) que vence más cerca de esa fecha, de la pestaña Pesos
     try {
@@ -12676,6 +12676,12 @@ window.RATG = (function () {
       var y = P.yieldAt(best.k, bxToday(), px); return y == null || !isFinite(y) ? null : { k: best.k, y: y / 100, m: new Date(best.m * 864e5).toISOString().slice(0, 10) };
     } catch (e) { return null; }
   }
+  function ivOf(S, K, T, r, C) { // volatilidad implícita de un call europeo (bisección); null si la prima está fuera de rango
+    var N = function (x) { var t = 1 / (1 + 0.2316419 * Math.abs(x)), y = 1 - Math.exp(-x * x / 2) / Math.sqrt(2 * Math.PI) * t * (0.31938153 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429)))); return x >= 0 ? y : 1 - y; };
+    var bs = function (v) { var d1 = (Math.log(S / K) + (r + v * v / 2) * T) / (v * Math.sqrt(T)); return S * N(d1) - K * Math.exp(-r * T) * N(d1 - v * Math.sqrt(T)); };
+    if (!(T > 0) || C <= bs(0.001) || C >= bs(5)) return null; var a = 0.001, b = 5; for (var i = 0; i < 60; i++) { var m = (a + b) / 2; if (bs(m) < C) a = m; else b = m; } return (a + b) / 2;
+  }
+  function F0(t) { return OPS && OPS[t]; }
   function covered() {
     if (!IX) return;
     optLoad().then(function () {
@@ -12683,17 +12689,18 @@ window.RATG = (function () {
       var rows2 = [], exps = {};
       OPT.forEach(function (o) {
         var m = /^([A-Z]{3})([CV])([\d.]+)([A-Z]{1,2})$/.exec(o.symbol || ''); if (!m || m[2] !== 'C') return; var t = OPU[m[1]]; if (!t) return;
-        var K = parseFloat(m[3]), ex = expOf(m[4]); if (!(K > 0) || !ex) return; var L = LV[t] || {}, S = L.a > 0 ? L.a : L.c > 0 ? L.c : (mt(t).ars || {}).precio; if (!(S > 0)) return;
+        var K = parseFloat(m[3]), ex = expOf(m[4]); if (!(K > 0) || !ex) return; var L = LV[t] || {}, F = OPS && OPS[t], S = F ? (F[0] > 0 ? F[0] : F[1]) : L.a > 0 ? L.a : L.c > 0 ? L.c : (mt(t).ars || {}).precio; if (!(S > 0)) return;
         var C = o.px_bid; if (!(C > 0) || K >= S || K < S * 0.75) return; // dentro del dinero, hasta 25% abajo
         var days = Math.max(1, Math.round((Date.parse(ex) - Date.parse(today())) / 864e5)), cost = S - C; if (!(cost > 0) || cost >= K * 1.5) return;
         var r = K / cost - 1; if (r <= -0.5 || r > 1) return;
-        exps[ex] = 1; rows2.push({ t: t, sym: o.symbol, K: K, S: S, C: C, ex: ex, days: days, r: r, tna: r * 365 / days, tea: Math.pow(1 + r, 365 / days) - 1, prot: C / S, be: cost, vol: o.v, q: o.q_bid, bad: C < S - K ? 'La prima es menor que el valor intrínseco (acción − strike): el precio no es actual.' : !(o.v > 0) ? 'Sin operaciones hoy: la punta puede ser vieja.' : '' });
+        exps[ex] = 1; rows2.push({ t: t, sym: o.symbol, K: K, S: S, C: C, ex: ex, days: days, r: r, tna: r * 365 / days, tea: Math.pow(1 + r, 365 / days) - 1, prot: C / S, be: cost, vol: o.v, q: o.q_bid, bad: OPD !== 'en vivo' && !F ? 'La foto de opciones no trae el precio de la acción del mismo momento: la tasa mezcla precios de días distintos.' : C < S - K ? 'La prima es menor que el valor intrínseco (acción − strike): el precio no es actual.' : !(o.v > 0) ? 'Sin operaciones hoy: la punta puede ser vieja.' : '' });
       });
       var ex2 = Object.keys(exps).sort(); if (!ex2.length) { $('accOt').innerHTML = ''; $('accOn').textContent = 'Sin calls dentro del dinero con punta compradora (' + OPD + ').'; return; }
       var us = {}; rows2.forEach(function (r) { us[r.t] = 1; });
-      if ($('accOu').options.length < 2) $('accOu').innerHTML = '<option value="">Todas (la mejor de cada una)</option>' + Object.keys(us).sort().map(function (t) { return '<option>' + t + '</option>'; }).join('');
+      var us0 = $('accOu').value; $('accOu').innerHTML = '<option value="">Todas (la mejor de cada una)</option>' + Object.keys(us).sort().map(function (t) { return '<option>' + t + '</option>'; }).join(''); $('accOu').value = us[us0] ? us0 : '';
       var vs = $('accOv').value; $('accOv').innerHTML = ex2.map(function (d) { return '<option value="' + d + '">' + fr(d) + '</option>'; }).join(''); $('accOv').value = ex2.indexOf(vs) >= 0 ? vs : ex2[0];
       var ex = $('accOv').value, u = $('accOu').value, lc = lecapTo(ex);
+      var rc = Math.log(1 + (lc ? lc.y : 0.3)); rows2.forEach(function (r) { r.iv = ivOf(r.S, r.K, r.days / 365, rc, r.C); });
       var R2 = rows2.filter(function (r) { return r.ex === ex && (!u || r.t === u); });
       if (!u) { var bt = {}; R2.forEach(function (r) { if (!bt[r.t] || (!r.bad && bt[r.t].bad) || (!r.bad === !bt[r.t].bad && r.tea > bt[r.t].tea)) bt[r.t] = r; }); R2 = Object.keys(bt).map(function (k) { return bt[k]; }); }
       R2.sort(function (a, b) { return (a.bad ? 1 : 0) - (b.bad ? 1 : 0) || b.tea - a.tea; }); // las que no operaron hoy o con prima imposible van al final y no cuentan como la mejor
@@ -12701,9 +12708,9 @@ window.RATG = (function () {
       $('accOk').innerHTML = '<div><small>Mejor tasa al ' + fr(ex) + '</small><b>' + (best ? pa(best.tea, 1) + ' TEA' : '—') + '</b><span>' + (best ? best.t + ' · strike ' + nf(best.K, 2) + ' · ' + best.days + ' días' : '') + '</span></div>' +
         '<div><small>Lecap de plazo parecido</small><b>' + (lc ? pa(lc.y, 1) + ' TEA' : '—') + '</b><span>' + (lc ? lc.k + ', vence el ' + fr(lc.m) : 'abrí la pestaña Pesos para cargar las Lecaps') + '</span></div>' +
         '<div><small>Spread de la mejor</small><b' + cl(best && lc ? best.tea - lc.y : null) + '>' + (best && lc ? sg((best.tea - lc.y) * 1e4, 0) + ' pb' : '—') + '</b><span>contra la Lecap, a cambio del riesgo de que la acción caiga abajo del strike</span></div>';
-      $('accOt').innerHTML = '<thead><tr><th>Acción</th><th class="l">Call</th><th>Strike</th><th>Acción (punta vendedora)</th><th>Prima (punta compradora)</th><th>Costo neto</th><th>Tasa directa</th><th>TNA</th><th>TEA</th>' + (lc ? '<th>vs Lecap</th>' : '') + '<th>Cubre una baja de</th><th>Volumen</th></tr></thead><tbody>' +
-        R2.map(function (r) { return '<tr data-t="' + r.t + '"' + (r.bad ? ' style="opacity:.5"' : '') + '><td>' + logo(r.t, 18) + ' ' + r.t + '</td><td class="l">' + r.sym + (r.bad ? ' <span class="why" data-tip="' + r.bad + '">' + (r.vol > 0 ? 'precio viejo' : 'sin operaciones hoy') + '</span>' : '') + '</td><td>' + nf(r.K, 2) + '</td><td>' + nf(r.S, 2) + '</td><td>' + nf(r.C, 2) + '</td><td>' + nf(r.be, 2) + '</td><td>' + pc(r.r, 2) + '</td><td>' + pa(r.tna, 1) + '</td><td><b>' + pa(r.tea, 1) + '</b></td>' + (lc ? '<td' + cl(r.tea - lc.y) + '>' + sg((r.tea - lc.y) * 1e4, 0) + ' pb</td>' : '') + '<td>' + pa(1 - r.be / r.S, 1) + '</td><td>' + big(r.vol) + '</td></tr>'; }).join('') + '</tbody>';
-      $('accOn').textContent = 'Opciones de data912 (' + OPD + '). Tasa directa = strike / (precio de la acción − prima) − 1: lo que se gana si al vencimiento (tercer viernes del mes) la acción está arriba del strike y te ejercen. Se usa la punta vendedora de la acción y la compradora del call. "Cubre una baja de": cuánto puede caer la acción antes de perder plata. En gris, los calls sin operaciones hoy o con una prima imposible: su precio puede ser viejo y no cuentan como la mejor tasa. Sin comisiones ni derechos de mercado.';
+      $('accOt').innerHTML = '<thead><tr><th>Acción</th><th class="l">Call</th><th>Strike</th><th>Acción (punta vendedora)</th><th>Prima (punta compradora)</th><th>Costo neto</th><th>Tasa directa</th><th>TNA</th><th>TEA</th>' + (lc ? '<th>vs Lecap</th>' : '') + '<th>Cubre una baja de</th><th>Vol. implícita</th><th>Volumen</th></tr></thead><tbody>' +
+        R2.map(function (r) { return '<tr data-t="' + r.t + '"' + (r.bad ? ' style="opacity:.5"' : '') + '><td>' + logo(r.t, 18) + ' ' + r.t + '</td><td class="l">' + r.sym + (r.bad ? ' <span class="why" data-tip="' + r.bad + '">' + (OPD !== 'en vivo' && !F0(r.t) ? 'foto vieja' : r.vol > 0 ? 'precio viejo' : 'sin operaciones hoy') + '</span>' : '') + '</td><td>' + nf(r.K, 2) + '</td><td>' + nf(r.S, 2) + '</td><td>' + nf(r.C, 2) + '</td><td>' + nf(r.be, 2) + '</td><td>' + pc(r.r, 2) + '</td><td>' + pa(r.tna, 1) + '</td><td><b>' + pa(r.tea, 1) + '</b></td>' + (lc ? '<td' + cl(r.tea - lc.y) + '>' + sg((r.tea - lc.y) * 1e4, 0) + ' pb</td>' : '') + '<td>' + pa(1 - r.be / r.S, 1) + '</td><td>' + (r.iv != null ? pa(r.iv, 0) : '—') + '</td><td>' + big(r.vol) + '</td></tr>'; }).join('') + '</tbody>';
+      $('accOn').textContent = 'Opciones de data912 (' + OPD + '). Tasa directa = strike / (precio de la acción − prima) − 1: lo que se gana si al vencimiento (tercer viernes del mes) la acción está arriba del strike y te ejercen. Se usa la punta vendedora de la acción y la compradora del call. "Cubre una baja de": cuánto puede caer la acción antes de perder plata. Vol. implícita: la volatilidad anual que paga la prima (Black-Scholes con la tasa de la Lecap); una tasa alta sale de una volatilidad alta, no de un regalo. En gris, los calls sin operaciones hoy o con una prima imposible: su precio puede ser viejo y no cuentan como la mejor tasa. Sin comisiones ni derechos de mercado.';
     });
   }
   $('accOu').onchange = covered; $('accOv').onchange = covered;
@@ -12931,7 +12938,7 @@ window.RATG = (function () {
     }, function () { $('accPn2').textContent = 'No se pudo cargar la librería del gráfico.'; });
   }
 
-  function drawAll() { SX = {}; SL = {}; sub(ST.sub || 'panel'); table(); chart(); radar(); pair(); flow(); sectors(); scatter(); valua(); erp(); hold(); adrs(); }
+  function drawAll() { SX = {}; SL = {}; sub(ST.sub || 'panel'); table(); chart(); radar(); pair(); flow(); sectors(); scatter(); valua(); erp(); hold(); adrs(); covered(); }
   function render() {
     if (err) { $('accTs').textContent = err; return; }
     load().then(function () { if (err) { $('accTs').textContent = err; return; } drawAll(); loadAll(); live().then(function () { table(); adrs(); valua(); head(); }); });
