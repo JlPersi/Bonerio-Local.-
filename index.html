@@ -48,10 +48,21 @@ window.BL_MS = 3000;
   document.addEventListener('visibilitychange', function () { // con la pestaña oculta 5 minutos se corta (no gasta), al volver se reconecta
     if (document.hidden) off = setTimeout(function () { if (ws) ws.close(); }, 300000); else { clearTimeout(off); off = null; back = 1000; open(); } });
   open();
-  var SI = window.setInterval, L = [], last = 0; // lo que ya se refresca cada 30 s, más seguido mientras llegan precios
+  var SI = window.setInterval, L = [], last = 0, busy = 0, scr = 0; // lo que ya se refresca cada 30 s, más seguido mientras llegan precios
   window.setInterval = function (f, ms) { if (ms === 30000 && typeof f === 'function' && !f.$slow) L.push(f); return SI.apply(window, arguments); };
-  SI(function () { if (!S.ok || S.n === last || document.hidden) return; var a = document.activeElement; if (a && /^(SELECT|INPUT|TEXTAREA)$/.test(a.tagName)) return;
-    last = S.n; L.forEach(function (f) { try { f(); } catch (e) {} }); }, window.BL_MS);
+  try { new PerformanceObserver(function (l) { l.getEntries().forEach(function (e) { if (tick.t && e.startTime >= tick.t - 5 && e.startTime < tick.t + 2000) busy += e.duration; }); }) /* solo lo que dibujó la actualización (2 s después) */.observe({ type: 'longtask' }); } catch (e) { busy = -1; }
+  addEventListener('scroll', function () { scr = Date.now(); }, { passive: true, capture: true });
+  var tick = function () {
+    var wait = window.BL_MS; // el ritmo se ajusta solo: si dibujar llevó tiempo, espera 20 veces eso (la página no se traba; como mucho 30 s)
+    if (busy > 0) wait = Math.min(30000, Math.max(wait, busy * 20)); else if (busy < 0) wait = 2 * window.BL_MS; if (busy > 0) busy = 0;
+    setTimeout(tick, wait);
+    if (!S.ok || S.n === last || document.hidden || Date.now() - scr < 1500) return; // mientras scrolleás, espera
+    var a = document.activeElement; if (a && /^(SELECT|INPUT|TEXTAREA)$/.test(a.tagName)) return;
+    tick.t = performance.now(); last = S.n; var C = window.Chart, an = C && C.defaults ? (tick.r ? tick.an : (tick.an = C.defaults.animation)) : null; window.BL_TICK = true;
+    if (C && C.defaults) C.defaults.animation = false; // lo que se redibuja por un precio nuevo aparece directo, sin la animación desde cero (no «salta»)
+    try { L.forEach(function (f) { try { f(); } catch (e) {} }); } finally { window.BL_TICK = false; if (C && C.defaults) { clearTimeout(tick.r); tick.r = setTimeout(function () { tick.r = 0; C.defaults.animation = an; }, 1500); } } // 1,5 s: cubre lo que se dibuja después de leer los precios
+  };
+  setTimeout(tick, window.BL_MS);
 })();
 (function () {
   var F = window.fetch; if (!F) return; var M = {};
@@ -8379,7 +8390,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     });
   }
   var st2 = document.createElement('style'); st2.textContent = '.rfrow{display:flex;justify-content:flex-end;margin-bottom:8px}.rfrow .rf{margin:0;position:static;height:34px;width:34px}'; document.head.appendChild(st2);
-  var tm = null; new MutationObserver(function () { clearTimeout(tm); tm = setTimeout(add, 150); }).observe(document.body, { childList: true, subtree: true });
+  var tm = null; new MutationObserver(function () { if (tm) return; tm = requestAnimationFrame(function () { tm = null; add(); }); }).observe(document.body, { childList: true, subtree: true }); // antes de pintar, sin parpadeo
   window.addEventListener('load', function () { setTimeout(add, 400); });
 })();
 </script>
@@ -13492,7 +13503,7 @@ window.RATG = (function () {
   st.textContent = 'span.qm.qm{display:inline-flex !important;align-items:center;justify-content:center;width:14px;height:14px;margin-left:5px;border:1px solid currentColor;border-radius:50%;font-size:9px;font-weight:700;line-height:1;opacity:.6;cursor:help;vertical-align:1px;text-transform:none;letter-spacing:0;font-style:normal}.qm:hover{opacity:1;color:var(--ac)}' +
     '#qmTip{position:fixed;z-index:2147480000;display:none;max-width:300px;padding:10px 12px;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.35);font-size:12.5px;line-height:1.45;font-weight:400;text-transform:none;letter-spacing:0;white-space:normal;text-align:left;pointer-events:none}';
   document.head.appendChild(st);
-  new MutationObserver(function () { if (T) return; T = setTimeout(function () { T = 0; deco(); }, 150); }).observe(document.body, { childList: true, subtree: true });
+  new MutationObserver(function () { deco(); }).observe(document.body, { childList: true, subtree: true }); // en el mismo paso que el cambio, antes de pintar: lo que se redibuja nunca aparece sin los «?» (no salta)
   deco();
 })();
 </script>
