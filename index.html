@@ -27,12 +27,17 @@
 <script>
 /* Pedidos compartidos: varias secciones piden los mismos archivos (data/*.json, precios de data912, riesgo país) casi a la vez.
    El mismo pedido dentro de unos segundos reusa la misma respuesta (cada uno recibe su copia), así se baja una sola vez. */
+/* Precios en vivo por Primary: si BL_LIVE tiene la dirección del Worker (carpeta worker/), los pedidos a data912.com/live/arg_* van al Worker,
+   que devuelve lo mismo con precio y puntas de Primary en tiempo real. Si el Worker falla, se pide a data912 como siempre. Vacío: solo data912. */
+window.BL_LIVE = '';
 (function () {
   var F = window.fetch; if (!F) return; var M = {};
+  var viaLive = function (u) { if (!window.BL_LIVE || typeof u !== 'string') return null; var m = /^https:\/\/data912\.com\/live\/(arg_(?:bonds|notes|corp|stocks|cedears))$/.exec(u); return m ? window.BL_LIVE.replace(/\/+$/, '') + '/live/' + m[1] : null; };
+  var F0 = F; F = function (u, o) { var w = viaLive(u); if (!w) return F0.apply(window, arguments); return F0.call(window, w, o).then(function (r) { if (!r.ok) throw new Error('worker ' + r.status); return r; }).catch(function () { return F0.call(window, u, o); }); };
   var keyOf = function (u) {
     var x; try { x = new URL(u, location.href); } catch (e) { return null; }
     if (x.origin === location.origin) { if (!/^\/(data\/.+\.json|licitaciones\.html)$/.test(x.pathname)) return null; return [x.pathname, 60000, x.pathname + '?m=' + Math.floor(Date.now() / 60000)]; } // el ?v= / ?t= solo evitaba la caché: ahora la dirección cambia cada minuto, así el navegador (y los cuadros del tablero) reusan la misma copia dentro del minuto
-    if (/(^|\.)data912\.com$/.test(x.hostname)) return [x.href, 20000]; // precios en vivo: se piden cada 30 s
+    if (/(^|\.)data912\.com$/.test(x.hostname) || (window.BL_LIVE && x.href.indexOf(window.BL_LIVE) === 0)) return [x.href, 20000]; // precios en vivo: se piden cada 30 s
     if (/argentinadatos\.com$|ambito\.com$/.test(x.hostname)) return [x.href, 60000];
     return null;
   };
@@ -6476,6 +6481,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     window.switchTab = function (t) { _sw(t); var gc = document.getElementById('globalControls'); if (t === id) { if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
     var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(render, 0); };
     setInterval(function () { if (isAct()) reload(render); }, 5 * 60000); // el Action la actualiza cada 10 minutos en la rueda
+    if (window.BL_LIVE) setInterval(function () { // con el Worker, la caución de BYMA cada 30 s (pisa la foto de 10 minutos del Action)
+      if (!isAct() || !TJ) return; fetch(window.BL_LIVE.replace(/\/+$/, '') + '/caucion', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (o) {
+        if (!o || !(o.ARS || []).length) return; var V = TJ.vivo = TJ.vivo || {}; V.bcau = { ARS: o.ARS, USD: o.USD, EXT: o.EXT }; V.bts = o.ts; SS = null; render(); }).catch(function () {}); }, 30000);
     root.addEventListener('click', function (e) { var c = e.target.closest('[data-qv]'); if (c && window.QV && window.QV.show) window.QV.show(c.getAttribute('data-qv')); });
     return { root: root, isAct: isAct };
   }
