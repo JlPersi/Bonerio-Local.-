@@ -8559,6 +8559,10 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 /* curva de Treasuries de EE.UU. (data/ust.json, scripts/save_ust.py, FRED): USTX.at(día) da una función años → tasa (decimal) con la curva de ese día
    o la última anterior; null si no hay archivo. La probabilidad de default la usa como tasa libre de riesgo de cada flujo */
 /* explicación de la probabilidad de default (Expectativas y ficha del bono), con el formato de «Cómo se calcula» del resto de la página */
+window.pdFold = function (el, html) { // «Cómo se lee / Cómo se calcula» plegado (cerrado de entrada); si el usuario lo abrió, sigue abierto al redibujar
+  if (!el) return; if (!document.getElementById('pdFoldCss')) { var st = document.createElement('style'); st.id = 'pdFoldCss'; st.textContent = '.pdfold{margin-top:14px;border:1px solid var(--bd);border-radius:10px;padding:0 14px}.pdfold>summary{cursor:pointer;padding:11px 0;font-weight:600;color:var(--tx);list-style:none;display:flex;align-items:center;gap:10px}.pdfold>summary::-webkit-details-marker{display:none}.pdfold>summary:before{content:"▸";color:var(--ac);transition:transform .15s}.pdfold[open]>summary:before{transform:rotate(90deg)}.pdfold>.hl{margin:0 0 14px!important}'; document.head.appendChild(st); }
+  var d = el.querySelector('details'), op = d && d.open; el.innerHTML = '<details class="pdfold"' + (op ? ' open' : '') + '><summary>Cómo se lee y cómo se calcula</summary>' + html + '</details>';
+};
 window.pdHelp = function (rfTxt) {
   var b = function (t) { return '<b style="color:var(--tx)">' + t + '</b>'; };
   return '<div class="hl" style="color:var(--mu);font-size:14px;line-height:1.6;margin:14px 0 0"><p style="margin:0 0 6px">' + b('Cómo se lee') + '</p><ul style="margin:4px 0 0;padding-left:20px">' +
@@ -8851,9 +8855,10 @@ window.USTX = (function () {
   var PST = { R: 40, rf: 4.46, rfm: 'ust', m: 'p1', sp: 'D', sel: ['*G', '*A', 'AO28', 'GD35'], sa: '*A', sb: '*G' }; try { Object.assign(PST, JSON.parse(localStorage.getItem('thPd2') || '{}')); } catch (e) {}
   var psave = function () { try { localStorage.setItem('thPd2', JSON.stringify(PST)); } catch (e) {} };
   function lam(rows, t0, P, N0, df, R) { // df(t en años): factor de descuento libre de riesgo
-    var pv = function (l) { var v = 0, N = N0, S0 = 1; rows.forEach(function (x) { var t = (x[0] - t0) / 365, S = Math.exp(-l * t), d = df(t); v += (x[1] + x[2]) * d * S + R * N * d * (S0 - S); S0 = S; N -= x[2]; }); return v; };
+    var T = [], D = [], C = [], Nn = [], N = N0; rows.forEach(function (x) { var t = (x[0] - t0) / 365; T.push(t); D.push(df(t)); C.push(x[1] + x[2]); Nn.push(N); N -= x[2]; });
+    var pv = function (l) { var v = 0, S0 = 1; for (var i = 0; i < T.length; i++) { var S = Math.exp(-l * T[i]); v += D[i] * (C[i] * S + R * Nn[i] * (S0 - S)); S0 = S; } return v; };
     if (!(P > 0) || !rows.length) return null; if (pv(0) <= P) return 0; if (pv(8) > P) return null;
-    var lo = 0, hi = 8; for (var i = 0; i < 60; i++) { var m = (lo + hi) / 2; if (pv(m) > P) lo = m; else hi = m; } return (lo + hi) / 2;
+    var lo = 0, hi = 8; for (var i = 0; i < 40; i++) { var m = (lo + hi) / 2; if (pv(m) > P) lo = m; else hi = m; } return (lo + hi) / 2;
   }
   var pdUsd = function () { return USD.filter(function (k) { return /^(GD|AL|AE|AO|AN)/.test(k) && matOf(k) > bxToday(); }).sort(function (a, b) { return matOf(a) - matOf(b); }); };
   function pdSeries(k, from) { // [{x, l, yrs}] por día
@@ -8867,7 +8872,9 @@ window.USTX = (function () {
      λ por tramos (0–2, 2–5 y más de 5 años), ajustada por mínimos cuadrados del error de precio en % (cada bono pesa igual) */
   var SOVK = { '*G': ['Soberano · Globales', function (k) { return /^GD/.test(k); }, '#ffffff'], '*A': ['Soberano · Bonares', function (k) { return /^(AL|AE|AO|AN)/.test(k); }, '#ff8fb3'] }, KN = [2, 5];
   var Hz = function (L, t) { var h = 0, a = 0; for (var i = 0; i < L.length; i++) { var b = i < KN.length ? KN[i] : Infinity; if (t <= a) break; h += L[i] * (Math.min(t, b) - a); a = b; } return h; };
-  function pvH(q, L, R) { var v = 0, N = q.N0, S0 = 1; q.rows.forEach(function (x) { var t = (x[0] - q.s) / 365, S = Math.exp(-Hz(L, t)), d = q.df(t); v += (x[1] + x[2]) * d * S + R * N * d * (S0 - S); S0 = S; N -= x[2]; }); return v; }
+  function pvH(q, L, R) { // plazos, descuentos y nominales se arman una sola vez por bono y día (el ajuste llama a esto miles de veces)
+    var z = q.z; if (!z) { z = q.z = { t: [], d: [], c: [], n: [] }; var N = q.N0; q.rows.forEach(function (x) { var t = (x[0] - q.s) / 365; z.t.push(t); z.d.push(q.df(t)); z.c.push(x[1] + x[2]); z.n.push(N); N -= x[2]; }); }
+    var v = 0, S0 = 1; for (var i = 0; i < z.t.length; i++) { var S = Math.exp(-Hz(L, z.t[i])); v += z.d[i] * (z.c[i] * S + R * z.n[i] * (S0 - S)); S0 = S; } return v; }
   function sovSeries(g, from) {
     var ck = 'sov|' + g + '|' + PST.sp + '|' + from + '|' + PST.R + '|' + PST.rfm + PST.rf + '|' + (VJ ? 1 : 0) + '|' + (window.USTX && USTX.ok() ? 1 : 0); if (CACHE[ck]) return CACHE[ck];
     // fuera los que rinden menos que el Treasury o vencen en menos de 6 meses: no dicen nada del default
@@ -8876,7 +8883,7 @@ window.USTX = (function () {
     Object.keys(by).map(Number).sort(function (a, b) { return a - b; }).forEach(function (x) {
       var Q = by[x]; if (Q.length < 3) return; var Lx = prev ? prev.slice() : [0.1, 0.1, 0.1];
       var err = function (L) { var e = 0; Q.forEach(function (q) { var m = pvH(q.i, L, R) / q.i.P - 1; e += m * m; }); return e; };
-      for (var it = 0; it < 4; it++) for (var j = 0; j < 3; j++) { var lo = 0, hi = 2.5, g1 = 0.618; for (var n = 0; n < 28; n++) { var a = hi - g1 * (hi - lo), b = lo + g1 * (hi - lo), La = Lx.slice(), Lb = Lx.slice(); La[j] = a; Lb[j] = b; if (err(La) < err(Lb)) hi = b; else lo = a; } Lx[j] = (lo + hi) / 2; }
+      for (var it = 0; it < (prev ? 2 : 4); it++) for (var j = 0; j < 3; j++) { var lo = prev ? Math.max(0, Lx[j] - 0.15) : 0, hi = prev ? Lx[j] + 0.15 : 2.5, g1 = 0.618; for (var n = 0; n < (prev ? 18 : 28); n++) { var a = hi - g1 * (hi - lo), b = lo + g1 * (hi - lo), La = Lx.slice(), Lb = Lx.slice(); La[j] = a; Lb[j] = b; if (err(La) < err(Lb)) hi = b; else lo = a; } Lx[j] = (lo + hi) / 2; }
       prev = Lx; out.push({ x: x, L: Lx, n: Q.length, rmse: Math.sqrt(err(Lx) / Q.length) });
     });
     return (CACHE[ck] = out);
@@ -8884,7 +8891,7 @@ window.USTX = (function () {
   var pdV = function (q, m) { if (q.L) { var T = m === 'p1' ? 1 : m === 'p2' ? 2 : m === 'p5' ? 5 : null; return m === 'l' ? q.L[0] : T ? 1 - Math.exp(-Hz(q.L, T)) : null; } return m === 'l' ? q.l : 1 - Math.exp(-q.l * (m === 'p1' ? 1 : m === 'p2' ? 2 : m === 'p5' ? 5 : q.yrs)); };
   function renderP() {
     if (!$('thP')) return; var from = bxDayNum(ST.from), L = pdUsd(), M = PST.m;
-    $('thFromP').value = ST.from; $('thPR').value = PST.R; $('thPF').value = PST.rf; $('thPFm').value = PST.rfm; $('thPFl').style.display = PST.rfm === 'fix' ? '' : 'none'; if (PST.rfm === 'ust' && window.USTX && !USTX.ok()) USTX.load(function () { CACHE = {}; if (USTX.ok()) later(); }); $('thPM').value = M; $('thPSp').value = PST.sp;
+    $('thFromP').value = ST.from; $('thPR').value = PST.R; $('thPF').value = PST.rf; $('thPFm').value = PST.rfm; $('thPFl').style.display = PST.rfm === 'fix' ? '' : 'none'; if (PST.rfm === 'ust' && window.USTX && !USTX.ok()) USTX.load(function () { if (USTX.ok()) { CACHE = {}; later(); } }); $('thPM').value = M; $('thPSp').value = PST.sp;
     var LL = ['*G', '*A'].concat(L); PST.sel = PST.sel.filter(function (k) { return LL.indexOf(k) >= 0; });
     $('thPCh').innerHTML = LL.map(function (k) { var on = PST.sel.indexOf(k) >= 0, c = PAL[PST.sel.indexOf(k) % PAL.length]; return '<button type="button" class="thpk" data-k="' + k + '" style="cursor:pointer;padding:4px 11px;border-radius:999px;font:inherit;font-size:12.5px;border:1px solid ' + (on ? c : 'var(--bd)') + ';background:' + (on ? hexA(c, 0.15) : 'transparent') + ';color:' + (on ? 'var(--tx)' : 'var(--mu)') + '">' + (on ? '✓ ' : '+ ') + (SOVK[k] ? '<b>' + SOVK[k][0] + '</b>' : k) + '</button>'; }).join('');
     var sets = []; PST.sel.forEach(function (k, i) { var sv = SOVK[k], d = (sv ? sovSeries(k, from) : pdSeries(k, from).filter(function (q) { return (M !== 'p5' || q.yrs >= 5) && (M !== 'p2' || q.yrs >= 2); })).map(function (q) { var v = pdV(q, M); return v == null ? null : { x: q.x, y: v * 100 }; }).filter(Boolean); if (d.length) { var ds = line(sv ? sv[0] : k, d, PAL[i % PAL.length]); if (sv) { ds.borderWidth = 3; ds.$avg = 1; } sets.push(ds); } });
@@ -8894,7 +8901,7 @@ window.USTX = (function () {
     $('thPT').innerHTML = rows.length ? '<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr><th ' + th.replace('right', 'left') + '>Bono</th><th ' + th + '>Último dato</th><th ' + th + '>λ anual</th><th ' + th + '>A 1 año</th><th ' + th + '>A 5 años</th><th ' + th + '>Al vencimiento</th><th ' + th + '>Cambio en 30 días (a 1 año)</th></tr></thead><tbody>' + ['*G', '*A'].map(function (g) { var S = sovSeries(g, from), q = S[S.length - 1]; if (!q) return ''; var a = S.filter(function (z) { return z.x <= q.x - 30; }).pop(), d1 = a ? (pdV(q, 'p1') - pdV(a, 'p1')) * 100 : null;
       return '<tr style="background:var(--pill)"><td style="text-align:left;padding:7px 10px;border-top:1px solid var(--bd);font-weight:700">' + SOVK[g][0] + '<br><span style="color:var(--mu);font-size:11.5px;font-weight:400">' + q.n + ' bonos · error ' + fm(q.rmse * 100, 2) + '%</span></td><td ' + td + '>' + dfull(q.x) + '</td><td ' + td + ' title="λ por tramo: 0–2, 2–5 y más de 5 años">' + q.L.map(function (v) { return pc0(v); }).join(' · ') + '</td><td ' + td + '><b>' + pc0(pdV(q, 'p1')) + '</b></td><td ' + td + '>' + pc0(pdV(q, 'p5')) + '</td><td ' + td + '>' + pc0(pdV(q, 'p2')) + ' <span style="color:var(--mu);font-size:11.5px">a 2 años</span></td><td ' + td + ' class="' + (d1 > 0 ? 'dn' : d1 < 0 ? 'up' : '') + '">' + (d1 == null ? '—' : (d1 > 0 ? '+' : '') + fm(d1, 1) + ' pp') + '</td></tr>'; }).join('') + rows.map(function (r) { var q = r.q, d1 = r.a ? (pdV(q, 'p1') - pdV(r.a, 'p1')) * 100 : null;
       return '<tr><td style="text-align:left;padding:7px 10px;border-top:1px solid var(--bd);font-weight:700">' + r.k + '</td><td ' + td + '>' + dfull(q.x) + '</td><td ' + td + '>' + pc0(q.l) + '</td><td ' + td + '><b>' + pc0(pdV(q, 'p1')) + '</b></td><td ' + td + '>' + (q.yrs >= 5 ? pc0(pdV(q, 'p5')) : '—') + '</td><td ' + td + '>' + pc0(pdV(q, 'pv')) + ' <span style="color:var(--mu);font-size:11.5px">' + fm(q.yrs, 1) + ' años</span></td><td ' + td + ' class="' + (d1 > 0 ? 'dn' : d1 < 0 ? 'up' : '') + '">' + (d1 == null ? '—' : (d1 > 0 ? '+' : '') + fm(d1, 1) + ' pp') + '</td></tr>'; }).join('') + '</tbody></table>' : '';
-    $('thPN').innerHTML = pdHelp(PST.rfm === 'ust' && window.USTX && USTX.ok() ? 'cada flujo se descuenta con el Treasury de su plazo del mismo día (curva de rendimientos de FRED, interpolada entre plazos). Con «Fija», la misma tasa para todos los flujos y todo el período.' : PST.rfm === 'ust' ? 'todavía no hay curva de Treasuries guardada, así que usa la tasa fija para todos los flujos.' : 'fija, la misma para todos los flujos y todo el período. Con «Curva de Treasuries», cada flujo toma el Treasury de su plazo de ese día.') + '<p class="note" style="margin-top:8px"><b>Soberano</b>: una sola curva de default por día que explica a la vez los precios de todos los Globales (o de todos los Bonares), con λ por tramos de 0–2, 2–5 y más de 5 años (en la tabla, en ese orden). Es la probabilidad del emisor, no de un bono: pondera a todos y separa el tramo corto, que pasa por 2027, del largo. El error es la diferencia promedio entre el precio del modelo y el de mercado. A 2 y 5 años solo aparecen los bonos que vencen después de ese plazo.</p>';
+    pdFold($('thPN'), pdHelp(PST.rfm === 'ust' && window.USTX && USTX.ok() ? 'cada flujo se descuenta con el Treasury de su plazo del mismo día (curva de rendimientos de FRED, interpolada entre plazos). Con «Fija», la misma tasa para todos los flujos y todo el período.' : PST.rfm === 'ust' ? 'todavía no hay curva de Treasuries guardada, así que usa la tasa fija para todos los flujos.' : 'fija, la misma para todos los flujos y todo el período. Con «Curva de Treasuries», cada flujo toma el Treasury de su plazo de ese día.') + '<p class="note" style="margin-top:8px"><b>Soberano</b>: una sola curva de default por día que explica a la vez los precios de todos los Globales (o de todos los Bonares), con λ por tramos de 0–2, 2–5 y más de 5 años (en la tabla, en ese orden). Es la probabilidad del emisor, no de un bono: pondera a todos y separa el tramo corto, que pasa por 2027, del largo. El error es la diferencia promedio entre el precio del modelo y el de mercado. A 2 y 5 años solo aparecen los bonos que vencen después de ese plazo.</p>');
     renderPK(from); renderPS(from, L);
   }
   /* curva por plazo: probabilidad acumulada a 1..10 años del soberano, hoy contra la fecha que elijas */
@@ -9042,6 +9049,8 @@ window.USTX = (function () {
   document.addEventListener('psdata', function () { setTimeout(function () { moveFw(false); }, 60); });
   function render() {
     if (typeof Chart === 'undefined') return;
+    var act = (document.querySelector('.tab-content.active') || {}).id; // Probabilidad de default es pesada: solo se arma en su pestaña, y ahí no hace falta lo demás
+    if (act === 'expp') { try { renderP(); } catch (e) { console.error('default', e); } return; }
     var from = bxDayNum(ST.from), G = universe(from), all = opts(G);
     $('thAdd').innerHTML = '<option value="">Elegí un bono…</option>' + all;
     $('thAddF').innerHTML = '<option value="">Elegí una familia…</option>' + GORD.map(function (g) { var n = members(G, g).length, on = ST.fams.indexOf(g) >= 0; return n ? '<option value="' + g + '"' + (on ? ' disabled' : '') + '>' + (on ? '✓ ' : '') + GN[g] + ' (' + n + (n === 1 ? ' bono' : ' bonos') + ')</option>' : ''; }).join('');
@@ -9049,7 +9058,6 @@ window.USTX = (function () {
     chipsY(); chipsF();
     try { renderY(); } catch (e) { console.error('tasas históricas', e); }
     try { renderF(); } catch (e) { console.error('forwards', e); }
-    try { renderP(); } catch (e) { console.error('default', e); }
     $('thRCf').value = ST.rcf; ['thFrom', 'thFromi', 'thFromd', 'thFromF'].forEach(function (id) { if ($(id)) $(id).value = ST.from; });
     ['i', 'd'].forEach(function (sx) { $('thBEu' + sx).value = ST.beu; chipsBE(sx); try { renderBE(sx); } catch (e) { console.error('implícitas', e); } });
     try { renderRC(); } catch (e) { console.error('precio relativo', e); }
@@ -10716,7 +10724,7 @@ window.USTX = (function () {
     var L = []; uni(); Object.keys(MAP).forEach(function (k) { var x = MAP[k]; if (x.grp !== 'usd' || x.bop || !/^(GD|AL|AE|AN|AO)/.test(k)) return; try { var q = pdRow(x, tech(x)); if (q) L.push({ k: k, tir: x.tir, l: q.l, yrs: q.yrs }); } catch (e) { } });
     L.sort(function (a, b) { return a.yrs - b.yrs; });
     document.getElementById('bnPdT').innerHTML = L.length ? '<p class="qs" style="margin:14px 0 6px">Bonares y Globales, con el mismo recupero y tasa libre de riesgo</p><table class="bnT"><thead><tr><th>Bono</th><th>TIR</th><th>λ anual</th><th>A 1 año</th><th>A 5 años</th><th>Al vencimiento</th></tr></thead><tbody>' + L.map(function (x) { return '<tr' + (x.k === r.k ? ' style="font-weight:700;background:var(--pill)"' : '') + '><td><button type="button" class="bnLink" data-open="' + x.k + '">' + x.k + '</button></td><td>' + pc0(x.tir) + '</td><td>' + pc0(x.l) + '</td><td>' + pc0(pdOf(x.l, Math.min(1, x.yrs))) + '</td><td>' + (x.yrs >= 5 ? pc0(pdOf(x.l, 5)) : '—') + '</td><td>' + pc0(pdOf(x.l, x.yrs)) + '</td></tr>'; }).join('') + '</tbody></table>' : '';
-    document.getElementById('bnPdN').innerHTML = pdHelp(PDS.rfm !== 'fix' && window.USTX && USTX.ok() ? 'cada flujo se descuenta con el Treasury de su plazo (curva de FRED del ' + ((USTX.at(r.s) || {}).d || '').split('-').reverse().join('/') + ', interpolada entre plazos). Con «Fija», la misma tasa para todos.' : PDS.rfm !== 'fix' ? 'todavía no hay curva de Treasuries guardada, así que usa la tasa fija para todos los flujos.' : 'fija, la misma para todos los flujos. Con «Curva de Treasuries», cada flujo toma el Treasury de su plazo.');
+    pdFold(document.getElementById('bnPdN'), pdHelp(PDS.rfm !== 'fix' && window.USTX && USTX.ok() ? 'cada flujo se descuenta con el Treasury de su plazo (curva de FRED del ' + ((USTX.at(r.s) || {}).d || '').split('-').reverse().join('/') + ', interpolada entre plazos). Con «Fija», la misma tasa para todos.' : PDS.rfm !== 'fix' ? 'todavía no hay curva de Treasuries guardada, así que usa la tasa fija para todos los flujos.' : 'fija, la misma para todos los flujos. Con «Curva de Treasuries», cada flujo toma el Treasury de su plazo.'));
   }
 
   var PDON = false, PDL = null; // lo ya cobrado, abajo del flujo de fondos (se abre con el botón)
