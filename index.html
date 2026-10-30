@@ -11010,7 +11010,7 @@ window.RATG = (function () {
   function ixAt(S, t) { if (!S) return null; for (var i = S.d.length - 1; i >= 0; i--) if (S.d[i] <= t) return S.v[i]; return null; }
   function paidFl(o) { // [{t, renta, amort, total}] lo ya cobrado por 100 VN
     var P = (o.fp || []).map(function (f) { return [dn(f[0]), f[1], f[2]]; }); if (!P.length) return [];
-    var S = (o.t === 'tamar' || o.t === 'badlar') && o.r != null ? IXS[o.t] : null, prev = dn(o.iss), res = 100, b0 = o.t === 'cer' ? cer10(dn(o.iss)) : null, fx0 = o.t === 'dl' ? ixAt(IXS.fx, dn(o.iss) - 3) : null;
+    var S = (o.t === 'tamar' || o.t === 'badlar') && o.r != null ? IXS[o.t] : null, prev = dn(o.lc0 || o.iss), res = o.res + P.reduce(function (s, f) { return s + Math.max(0, f[1] - f[2]); }, 0), b0 = o.t === 'cer' ? cer10(dn(o.iss)) : null, fx0 = o.t === 'dl' ? ixAt(IXS.fx, dn(o.iss) - 3) : null;
     return P.map(function (f) { var am = Math.max(0, f[1] - f[2]), it = f[2], m = 1;
       if (S && !(it > 0)) { var r = ixAvg(S, prev - 14, f[0] - 14); it = r != null ? res * (r + o.r) / 100 * (f[0] - prev) / (o.b || 365) : 0; }
       if (o.t === 'cer') { var k1 = cer10(f[0]); m = k1 > 0 && b0 > 0 ? k1 / b0 : 1; } else if (o.t === 'dl') { var x1 = ixAt(IXS.fx, f[0] - 3); m = x1 > 0 && fx0 > 0 ? x1 / fx0 : 1; }
@@ -11018,7 +11018,7 @@ window.RATG = (function () {
   }
   function cer10(t) { var d = t, n = 0; while (n < 10 && d > t - 30) { d--; if (bxIsBiz(d)) n++; } return X.cerD ? X.cerD(d) : null; } // el CER de 10 días hábiles antes
   function tirTx() { var t = ST.tp, S = IXS[t]; return t === 'cer' ? 'la TIR real (sobre CER): el precio sin el ajuste acumulado desde la emisión contra los flujos sin ajustar' : t === 'dl' ? 'la TIR en dólares con el último A3500 (' + nf(ixLast(IXS.fx), 2) + ', constante)' : S ? 'la TIR en pesos (TEA) con la ' + t.toUpperCase() + ' publicada hasta hoy y, para adelante, la última (' + nf(ixLast(S), 2) + '%) + el margen de cada ON' : 'la TIR en pesos (TEA) con sus flujos'; }
-  function dynO(o, s) { var c = {}, f; for (var x in o) c[x] = o[x]; c.fp = (o.fp || []).slice(); for (var i = 0; i < o.fl.length; i++) { f = o.fl[i]; if (dn(f[0]) > s) break; c.res -= Math.max(0, f[1] - f[2]); c.lc = f[0]; c.fp.push(f); } return c; } // lo que ya se pagó (desde que se armó el json): baja el residual, corre el último pago y pasa a los pagados
+  function dynO(o, s) { var c = {}, f; for (var x in o) c[x] = o[x]; c.fp = (o.fp || []).slice(); if (!c.fp.length) c.lc0 = o.lc; for (var i = 0; i < o.fl.length; i++) { f = o.fl[i]; if (dn(f[0]) > s) break; c.res -= Math.max(0, f[1] - f[2]); c.lc = f[0]; c.fp.push(f); } return c; } // lo que ya se pagó (desde que se armó el json): baja el residual, corre el último pago y pasa a los pagados
   function settle() { try { return window.settleDate(window.settleMode || 'T1'); } catch (e) { var d = new Date(); return Math.floor(d.getTime() / 864e5) + 1; } }
   function rows() {
     if (!J) return [];
@@ -11566,7 +11566,7 @@ window.RATG = (function () {
   function ixAt(S, t) { if (!S) return null; for (var i = S.d.length - 1; i >= 0; i--) if (S.d[i] <= t) return S.v[i]; return null; }
   function paidFl(o) { // [{t, renta, amort, total}] lo ya cobrado por 100 VN
     var P = (o.fp || []).map(function (f) { return [dn(f[0]), f[1], f[2]]; }); if (!P.length) return [];
-    var S = (o.t === 'tamar' || o.t === 'badlar') && o.r != null ? IXS[o.t] : null, prev = dn(o.iss), res = 100, b0 = o.t === 'cer' ? cer10(dn(o.iss)) : null, fx0 = o.t === 'dl' ? ixAt(IXS.fx, dn(o.iss) - 3) : null;
+    var S = (o.t === 'tamar' || o.t === 'badlar') && o.r != null ? IXS[o.t] : null, prev = dn(o.lc0 || o.iss), res = o.res + P.reduce(function (s, f) { return s + Math.max(0, f[1] - f[2]); }, 0), b0 = o.t === 'cer' ? cer10(dn(o.iss)) : null, fx0 = o.t === 'dl' ? ixAt(IXS.fx, dn(o.iss) - 3) : null;
     return P.map(function (f) { var am = Math.max(0, f[1] - f[2]), it = f[2], m = 1;
       if (S && !(it > 0)) { var r = ixAvg(S, prev - 14, f[0] - 14); it = r != null ? res * (r + o.r) / 100 * (f[0] - prev) / (o.b || 365) : 0; }
       if (o.t === 'cer') { var k1 = cer10(f[0]); m = k1 > 0 && b0 > 0 ? k1 / b0 : 1; } else if (o.t === 'dl') { var x1 = ixAt(IXS.fx, f[0] - 3); m = x1 > 0 && fx0 > 0 ? x1 / fx0 : 1; }
@@ -11574,7 +11574,7 @@ window.RATG = (function () {
   }
   function cer10(t) { var d = t, n = 0; while (n < 10 && d > t - 30) { d--; if (bxIsBiz(d)) n++; } return X.cerD ? X.cerD(d) : null; } // el CER de 10 días hábiles antes
   function tirTx() { var t = ST.tp, S = IXS[t]; return t === 'cer' ? 'la TIR real (sobre CER): el precio sin el ajuste acumulado desde la emisión contra los flujos sin ajustar' : t === 'dl' ? 'la TIR en dólares con el último A3500 (' + nf(ixLast(IXS.fx), 2) + ', constante)' : S ? 'la TIR en pesos (TEA) con la ' + t.toUpperCase() + ' publicada hasta hoy y, para adelante, la última (' + nf(ixLast(S), 2) + '%) + el margen de cada bono' : 'la TIR en pesos (TEA) con sus flujos'; }
-  function dynO(o, s) { var c = {}, f; for (var x in o) c[x] = o[x]; c.fp = (o.fp || []).slice(); for (var i = 0; i < o.fl.length; i++) { f = o.fl[i]; if (dn(f[0]) > s) break; c.res -= Math.max(0, f[1] - f[2]); c.lc = f[0]; c.fp.push(f); } return c; } // lo que ya se pagó (desde que se armó el json): baja el residual, corre el último pago y pasa a los pagados
+  function dynO(o, s) { var c = {}, f; for (var x in o) c[x] = o[x]; c.fp = (o.fp || []).slice(); if (!c.fp.length) c.lc0 = o.lc; for (var i = 0; i < o.fl.length; i++) { f = o.fl[i]; if (dn(f[0]) > s) break; c.res -= Math.max(0, f[1] - f[2]); c.lc = f[0]; c.fp.push(f); } return c; } // lo que ya se pagó (desde que se armó el json): baja el residual, corre el último pago y pasa a los pagados
   function settle() { try { return window.settleDate(window.settleMode || 'T1'); } catch (e) { var d = new Date(); return Math.floor(d.getTime() / 864e5) + 1; } }
   function rows() {
     if (!J) return [];
