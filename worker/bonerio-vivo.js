@@ -13,7 +13,7 @@ const TTL = 15;
 const sym = (s) => 'MERV - XMEV - ' + s + ' - 24hs'; // precios de 24 hs, como data912
 
 const MEM = {};
-let LASTERR = '';
+let LASTERR = '', RAW = [];
 let TOK = null, TOKT = 0, WSST = 0; // el token de Primary dura un día; se renueva cada 6 horas o si lo rechaza
 const base = (env) => String(env.ROFEX_URL || 'https://api.bull.xoms.com.ar').trim().replace(/\/+$/, '');
 async function token(env, force) {
@@ -34,10 +34,11 @@ async function snapshot(env, syms, ms) {
   }
   if (!ws) throw new Error('websocket de Primary rechazado: ' + WSST);
   ws.accept();
-  const out = {}, want = new Set(syms);
+  const out = {}, want = new Set(syms); RAW = [];
   await new Promise((done) => {
     const end = setTimeout(done, ms);
     ws.addEventListener('message', (e) => {
+      if (RAW.length < 4) RAW.push(String(e.data).slice(0, 400));
       let m; try { m = JSON.parse(e.data); } catch (x) { return; }
       if (m.type !== 'Md' || !m.instrumentId) return;
       out[m.instrumentId.symbol] = m.marketData || {};
@@ -97,7 +98,13 @@ export default {
     if (u.pathname === '/diag') { // chequeo: login, websocket y una foto de AL30 y GD30 (no muestra la clave)
       const d = { usuario: !!env.ROFEX_USER, clave: !!env.ROFEX_PASS, url: base(env), ultimoError: LASTERR };
       try { await token(env, true); d.login = 'ok'; } catch (e) { d.login = String(e.message || e); return new Response(JSON.stringify(d, null, 1), { headers: h }); }
-      try { const md = await snapshot(env, [sym('AL30'), sym('GD30')], 5000); d.websocket = 'ok'; d.precios = md; } catch (e) { d.websocket = String(e.message || e); }
+      try { const md = await snapshot(env, [sym('AL30'), sym('GD30')], 5000); d.websocket = 'ok'; d.precios = md; d.mensajes = RAW; } catch (e) { d.websocket = String(e.message || e); }
+      try { // por REST: el precio de AL30 y cómo se llaman sus símbolos en Primary
+        const t = await token(env), g = (q) => fetch(base(env) + q, { headers: { 'X-Auth-Token': t } }).then((r) => r.text());
+        d.rest = (await g('/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(sym('AL30')) + '&entries=BI,OF,LA,CL&depth=1')).slice(0, 500);
+        const ins = JSON.parse(await g('/rest/instruments/all')).instruments || [];
+        d.instrumentos = ins.length; d.al30 = ins.map((i) => i.instrumentId && i.instrumentId.symbol).filter((x) => x && /AL30/.test(x)).slice(0, 12);
+      } catch (e) { d.rest = String(e.message || e); }
       return new Response(JSON.stringify(d, null, 1), { headers: h });
     }
     const ep = u.pathname.replace(/^\/live\//, '');
