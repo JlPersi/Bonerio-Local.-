@@ -24,3 +24,13 @@ Notas:
 - El plan gratis de Workers alcanza para uso personal; si hay muchos visitantes conviene el de 5 USD (más tiempo de CPU por pedido).
 - Cada respuesta se guarda 15 segundos, así muchos visitantes a la vez generan una sola consulta a Primary.
 - Revisá los términos de uso de Primary/Bull antes de mostrar estos precios a terceros.
+
+## Publicación automática (recomendado)
+
+Desde que el Worker usa la conexión permanente con Primary (Durable Object `Feed`), se publica solo desde GitHub con `.github/workflows/worker.yml` cada vez que cambia algo en `worker/`.
+
+1. En Cloudflare: **My Profile › API Tokens › Create Token** y elegí la plantilla **Edit Cloudflare Workers**. Copiá el token.
+2. En GitHub: **Settings › Secrets and variables › Actions › New repository secret**. Nombre: `CLOUDFLARE_API_TOKEN`; valor: el token.
+3. En **Actions › Worker en vivo › Run workflow**, publicalo la primera vez.
+
+El usuario y la clave de Bull (`ROFEX_USER`, `ROFEX_PASS`) siguen en el panel de Cloudflare: la publicación no los toca.
