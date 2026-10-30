@@ -8556,6 +8556,35 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 })();
 </script>
 <script>
+/* curva de Treasuries de EE.UU. (data/ust.json, scripts/save_ust.py, FRED): USTX.at(día) da una función años → tasa (decimal) con la curva de ese día
+   o la última anterior; null si no hay archivo. La probabilidad de default la usa como tasa libre de riesgo de cada flujo */
+/* explicación de la probabilidad de default (Expectativas y ficha del bono), con el formato de «Cómo se calcula» del resto de la página */
+window.pdHelp = function (rfTxt) {
+  var b = function (t) { return '<b style="color:var(--tx)">' + t + '</b>'; };
+  return '<div class="hl" style="color:var(--mu);font-size:14px;line-height:1.6;margin:14px 0 0"><p style="margin:0 0 6px">' + b('Cómo se lee') + '</p><ul style="margin:4px 0 0;padding-left:20px">' +
+    '<li style="margin:3px 0">' + b('Probabilidad acumulada') + ': la chance de que el bono deje de pagar antes de ese plazo, según su precio. «A 1 año 12%» quiere decir que el mercado paga como si hubiera 12% de chance de default en los próximos 12 meses.</li>' +
+    '<li style="margin:3px 0">' + b('Intensidad anual (λ)') + ': la probabilidad de default de cada año, si no defaulteó antes. La acumulada a T años es 1 − e<sup>−λ·T</sup>: con λ = 12%, da 11,3% a 1 año y 45% a 5 años. Cuenta rápida: λ ≈ spread / (1 − recupero).</li>' +
+    '<li style="margin:3px 0">' + b('Es «risk-neutral»') + ': incluye la prima que el mercado pide por el riesgo, así que suele quedar por encima de la probabilidad real. Sirve para comparar bonos entre sí y ver cómo cambia en el tiempo, no como un pronóstico.</li></ul>' +
+    '<p style="margin:12px 0 6px">' + b('Cómo se calcula') + '</p><ul style="margin:4px 0 0;padding-left:20px">' +
+    '<li style="margin:3px 0">' + b('El modelo') + ': forma reducida con intensidad de default constante. Se busca el λ que hace que los flujos que faltan cobrar, ponderados por la probabilidad de cobrarlos, más lo que se recupera si no paga, den el precio sucio de hoy (en Expectativas, el de cierre de cada día).</li>' +
+    '<li style="margin:3px 0">' + b('El recupero') + ': lo que se cobra sobre el capital residual si hay default. El estándar de mercado es 40%; en los defaults argentinos estuvo más cerca de 25–35%. Con un recupero más bajo, la probabilidad baja, porque cada default hace perder más y alcanza con menos chance para explicar el precio.</li>' +
+    '<li style="margin:3px 0">' + b('La tasa libre de riesgo') + ': ' + rfTxt + '</li>' +
+    '<li style="margin:3px 0">' + b('Bonos que amortizan') + ' (Bonares y Globales): el recupero se aplica sobre el residual de cada tramo, no sobre los 100 originales.</li></ul></div>';
+};
+window.USTX = (function () {
+  var J = null, P = null, ds = null;
+  function load(cb) { if (J) { if (cb) cb(); return; } if (!P) P = fetch('data/ust.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (x) { J = x && x.d ? x : { d: {}, plazos: [] }; ds = Object.keys(J.d).sort(); }); P.then(function () { if (cb) cb(); }); }
+  function at(t) {
+    if (!J || !ds || !ds.length) return null; var s = typeof t === 'number' ? bxDayStr(t) : t, lo = 0, hi = ds.length - 1; if (s < ds[0]) return null;
+    while (lo < hi) { var m = (lo + hi + 1) >> 1; if (ds[m] <= s) lo = m; else hi = m - 1; }
+    var v = J.d[ds[lo]], X = [], Y = []; J.plazos.forEach(function (p, i) { if (v[i] != null) { X.push(p); Y.push(v[i] / 100); } }); if (X.length < 3) return null;
+    var f = function (y) { if (y <= X[0]) return Y[0]; for (var k = 1; k < X.length; k++) if (y <= X[k]) return Y[k - 1] + (Y[k] - Y[k - 1]) * (y - X[k - 1]) / (X[k] - X[k - 1]); return Y[Y.length - 1]; };
+    f.d = ds[lo]; return f;
+  }
+  return { load: load, at: at, ok: function () { return !!(ds && ds.length); } };
+})();
+</script>
+<script>
 /* =====================================================================
    PESTAÑA TASAS HISTÓRICAS: rendimiento diario de los bonos que elijas (dólares, CER, TAMAR, tasa fija, duales, dólar linked)
    y tasas forward entre pares de bonos (de la misma familia o de familias distintas), desde la fecha que elijas.
@@ -8694,8 +8723,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   if ($('expd')) $('expd').innerHTML = bbCard('d') + beCard('d');
   pjBuild('i'); pjBuild('d'); beMark();
   if ($('expp')) $('expp').innerHTML = '<div class="card sx" id="thP">' + head('thP', 'Probabilidad de default implícita', 'La que descuentan los precios de Bonares y Globales: el spread contra la tasa libre de riesgo, dado lo que se recupera si no pagan.') +
-    '<div class="ctl sxc" style="margin-bottom:12px"><label>Desde<input type="date" id="thFromP"></label><label>Recupero si hay default (%)<input type="number" id="thPR" step="1" min="0" max="95" style="width:110px"></label><label>Tasa libre de riesgo (%)<input type="number" id="thPF" step="0.01" style="width:110px"></label><label>Medida<select id="thPM"><option value="p1">Probabilidad a 1 año</option><option value="p5">Probabilidad a 5 años</option><option value="pv">Probabilidad al vencimiento</option><option value="l">Intensidad anual (λ)</option></select></label><label>Precio de los bonos<select id="thPSp" style="min-width:170px">' + SPO('D') + '</select></label></div>' +
-    '<div id="thPCh" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div><div class="chart-wrap" style="height:420px"><canvas id="thPC"></canvas></div><div id="thPT" style="overflow-x:auto;margin-top:14px"></div><p class="note" id="thPN" style="margin-top:10px"></p></div>';
+    '<div class="ctl sxc" style="margin-bottom:12px"><label>Desde<input type="date" id="thFromP"></label><label>Recupero si hay default (%)<input type="number" id="thPR" step="1" min="0" max="95" style="width:110px"></label><label>Tasa libre de riesgo<select id="thPFm"><option value="ust">Curva de Treasuries (FRED), la de cada día</option><option value="fix">Fija</option></select></label><label id="thPFl">Tasa fija (%)<input type="number" id="thPF" step="0.01" style="width:110px"></label><label>Medida<select id="thPM"><option value="p1">Probabilidad a 1 año</option><option value="p5">Probabilidad a 5 años</option><option value="pv">Probabilidad al vencimiento</option><option value="l">Intensidad anual (λ)</option></select></label><label>Precio de los bonos<select id="thPSp" style="min-width:170px">' + SPO('D') + '</select></label></div>' +
+    '<div id="thPCh" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div><div class="chart-wrap" style="height:420px"><canvas id="thPC"></canvas></div><div id="thPT" style="overflow-x:auto;margin-top:14px"></div><div id="thPN"></div></div>';
   if ($('expf')) { $('expf').innerHTML = '<div id="expfP\" style="margin-top:24px"></div>'; $('expf').insertBefore($('thF'), $('expfP')); $('thF').style.marginTop = '0'; }
   $('thFrom').value = ST.from; $('thConv').value = ST.conv;
   var PRE = [['CER 27/28', 'TZX27', 'TZX28'], ['Bonar 27/28', 'AO27', 'AO28'], ['TAMAR 27/28', 'TMG27', 'TMG28'], ['Global 29/30', 'GD29', 'GD30'], ['Bonar 29/30', 'AL29', 'AL30'], ['Global 30/35', 'GD30', 'GD35'], ['CER 26/27', 'TZXD6', 'TZXD7']];
@@ -8815,24 +8844,24 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   /* ---------- probabilidad de default implícita en el tiempo (Expectativas › Probabilidad de default) ----------
      cada día: el precio sucio contra los flujos que faltan (PX.S), con intensidad de default λ constante:
      precio = Σ flujo·e^(−(c+λ)t) + R · Σ residual al inicio del tramo · e^(−c·t) · (S(t anterior) − S(t)),  S = e^(−λt),  c = ln(1 + tasa libre de riesgo) */
-  var PST = { R: 40, rf: 4.46, m: 'p1', sp: 'D', sel: ['GD30', 'GD35', 'GD41', 'AL30'] }; try { Object.assign(PST, JSON.parse(localStorage.getItem('thPd1') || '{}')); } catch (e) {}
+  var PST = { R: 40, rf: 4.46, rfm: 'ust', m: 'p1', sp: 'D', sel: ['GD30', 'GD35', 'GD41', 'AL30'] }; try { Object.assign(PST, JSON.parse(localStorage.getItem('thPd1') || '{}')); } catch (e) {}
   var psave = function () { try { localStorage.setItem('thPd1', JSON.stringify(PST)); } catch (e) {} };
-  function lam(rows, t0, P, N0, c, R) {
-    var pv = function (l) { var v = 0, N = N0, S0 = 1; rows.forEach(function (x) { var t = (x[0] - t0) / 365, S = Math.exp(-l * t), d = Math.exp(-c * t); v += (x[1] + x[2]) * d * S + R * N * d * (S0 - S); S0 = S; N -= x[2]; }); return v; };
+  function lam(rows, t0, P, N0, df, R) { // df(t en años): factor de descuento libre de riesgo
+    var pv = function (l) { var v = 0, N = N0, S0 = 1; rows.forEach(function (x) { var t = (x[0] - t0) / 365, S = Math.exp(-l * t), d = df(t); v += (x[1] + x[2]) * d * S + R * N * d * (S0 - S); S0 = S; N -= x[2]; }); return v; };
     if (!(P > 0) || !rows.length) return null; if (pv(0) <= P) return 0; if (pv(8) > P) return null;
     var lo = 0, hi = 8; for (var i = 0; i < 60; i++) { var m = (lo + hi) / 2; if (pv(m) > P) lo = m; else hi = m; } return (lo + hi) / 2;
   }
-  var pdUsd = function () { return USD.filter(function (k) { return /^(GD|AL|AE)/.test(k) && matOf(k) > bxToday(); }).sort(function (a, b) { return matOf(a) - matOf(b); }); };
+  var pdUsd = function () { return USD.filter(function (k) { return /^(GD|AL|AE|AO|AN)/.test(k) && matOf(k) > bxToday(); }).sort(function (a, b) { return matOf(a) - matOf(b); }); };
   function pdSeries(k, from) { // [{x, l, yrs}] por día
-    var ck = 'pd|' + k + '|' + PST.sp + '|' + from + '|' + PST.R + '|' + PST.rf + '|' + (VJ ? 1 : 0); if (CACHE[ck]) return CACHE[ck];
-    var R = PX.S[k].r, c = Math.log(1 + PST.rf / 100), out = [];
-    usdPrices(k, PST.sp).forEach(function (p) { if (p[0] < from) return; var s = bxSettle(p[0]), j = R.findIndex(function (x) { return x[0] > s; }); if (j < 0) return; var N0 = j > 0 ? R[j - 1][3] : 100, rows = R.slice(j), l = lam(rows, s, p[1], N0, c, PST.R / 100); if (l != null) out.push({ x: p[0], l: l, yrs: (R[R.length - 1][0] - s) / 365 }); });
+    var ust = PST.rfm === 'ust' && window.USTX && USTX.ok(), ck = 'pd|' + k + '|' + PST.sp + '|' + from + '|' + PST.R + '|' + (ust ? 'ust' : PST.rf) + '|' + (VJ ? 1 : 0); if (CACHE[ck]) return CACHE[ck];
+    var R = PX.S[k].r, c = Math.log(1 + PST.rf / 100), fix = function (t) { return Math.exp(-c * t); }, out = [];
+    usdPrices(k, PST.sp).forEach(function (p) { if (p[0] < from) return; var s = bxSettle(p[0]), j = R.findIndex(function (x) { return x[0] > s; }); if (j < 0) return; var N0 = j > 0 ? R[j - 1][3] : 100, rows = R.slice(j), cv = ust ? USTX.at(p[0]) : null, l = lam(rows, s, p[1], N0, cv ? function (t) { return Math.pow(1 + cv(t), -t); } : fix, PST.R / 100); if (l != null) out.push({ x: p[0], l: l, yrs: (R[R.length - 1][0] - s) / 365 }); });
     return (CACHE[ck] = out);
   }
   var pdV = function (q, m) { return m === 'l' ? q.l : 1 - Math.exp(-q.l * (m === 'p1' ? 1 : m === 'p5' ? 5 : q.yrs)); };
   function renderP() {
     if (!$('thP')) return; var from = bxDayNum(ST.from), L = pdUsd(), M = PST.m;
-    $('thFromP').value = ST.from; $('thPR').value = PST.R; $('thPF').value = PST.rf; $('thPM').value = M; $('thPSp').value = PST.sp;
+    $('thFromP').value = ST.from; $('thPR').value = PST.R; $('thPF').value = PST.rf; $('thPFm').value = PST.rfm; $('thPFl').style.display = PST.rfm === 'fix' ? '' : 'none'; if (PST.rfm === 'ust' && window.USTX && !USTX.ok()) USTX.load(function () { CACHE = {}; if (USTX.ok()) later(); }); $('thPM').value = M; $('thPSp').value = PST.sp;
     PST.sel = PST.sel.filter(function (k) { return L.indexOf(k) >= 0; });
     $('thPCh').innerHTML = L.map(function (k) { var on = PST.sel.indexOf(k) >= 0, c = PAL[PST.sel.indexOf(k) % PAL.length]; return '<button type="button" class="thpk" data-k="' + k + '" style="cursor:pointer;padding:4px 11px;border-radius:999px;font:inherit;font-size:12.5px;border:1px solid ' + (on ? c : 'var(--bd)') + ';background:' + (on ? hexA(c, 0.15) : 'transparent') + ';color:' + (on ? 'var(--tx)' : 'var(--mu)') + '">' + (on ? '✓ ' : '+ ') + k + '</button>'; }).join('');
     var sets = []; PST.sel.forEach(function (k, i) { var d = pdSeries(k, from).filter(function (q) { return M !== 'p5' || q.yrs >= 5; }).map(function (q) { return { x: q.x, y: pdV(q, M) * 100 }; }); if (d.length) sets.push(line(k + (M === 'p5' ? '' : ''), d, PAL[i % PAL.length])); });
@@ -8841,12 +8870,13 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var rows = L.map(function (k) { var S = pdSeries(k, from), q = S[S.length - 1]; if (!q) return null; var a = S.filter(function (z) { return z.x <= q.x - 30; }).pop(); return { k: k, q: q, a: a }; }).filter(Boolean);
     $('thPT').innerHTML = rows.length ? '<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr><th ' + th.replace('right', 'left') + '>Bono</th><th ' + th + '>Último dato</th><th ' + th + '>λ anual</th><th ' + th + '>A 1 año</th><th ' + th + '>A 5 años</th><th ' + th + '>Al vencimiento</th><th ' + th + '>Cambio en 30 días (a 1 año)</th></tr></thead><tbody>' + rows.map(function (r) { var q = r.q, d1 = r.a ? (pdV(q, 'p1') - pdV(r.a, 'p1')) * 100 : null;
       return '<tr><td style="text-align:left;padding:7px 10px;border-top:1px solid var(--bd);font-weight:700">' + r.k + '</td><td ' + td + '>' + dfull(q.x) + '</td><td ' + td + '>' + pc0(q.l) + '</td><td ' + td + '><b>' + pc0(pdV(q, 'p1')) + '</b></td><td ' + td + '>' + (q.yrs >= 5 ? pc0(pdV(q, 'p5')) : '—') + '</td><td ' + td + '>' + pc0(pdV(q, 'pv')) + ' <span style="color:var(--mu);font-size:11.5px">' + fm(q.yrs, 1) + ' años</span></td><td ' + td + ' class="' + (d1 > 0 ? 'dn' : d1 < 0 ? 'up' : '') + '">' + (d1 == null ? '—' : (d1 > 0 ? '+' : '') + fm(d1, 1) + ' pp') + '</td></tr>'; }).join('') + '</tbody></table>' : '';
-    $('thPN').textContent = 'Modelo de forma reducida con intensidad de default constante: cada día, λ es la tasa que hace que los flujos que faltan (ponderados por la probabilidad de cobrarlos) más el recupero sobre el residual si no pagan den el precio sucio de cierre. Es la probabilidad "risk-neutral": incluye la prima por riesgo, así que suele ser mayor que la real; sirve para comparar bonos y ver cómo cambia en el tiempo. Con un recupero más bajo, la probabilidad baja. La tasa libre de riesgo es fija en todo el período. A 5 años solo muestra los bonos que vencen después. Estándar de mercado: 40% de recupero; en los defaults argentinos fue más cerca de 25–35%.';
+    $('thPN').innerHTML = pdHelp(PST.rfm === 'ust' && window.USTX && USTX.ok() ? 'cada flujo se descuenta con el Treasury de su plazo del mismo día (curva de rendimientos de FRED, interpolada entre plazos). Con «Fija», la misma tasa para todos los flujos y todo el período.' : PST.rfm === 'ust' ? 'todavía no hay curva de Treasuries guardada, así que usa la tasa fija para todos los flujos.' : 'fija, la misma para todos los flujos y todo el período. Con «Curva de Treasuries», cada flujo toma el Treasury de su plazo de ese día.') + '<p class="note" style="margin-top:8px">A 5 años solo aparecen los bonos que vencen después de ese plazo.</p>';
   }
   $('thFromP').onchange = function () { if (this.value) { ST.from = this.value; save(); later(); } };
   $('thPR').onchange = function () { PST.R = Math.max(0, Math.min(95, +this.value || 0)); psave(); later(); };
   $('thPF').onchange = function () { var v = parseFloat(this.value); if (isFinite(v)) { PST.rf = v; psave(); later(); } };
   $('thPM').onchange = function () { PST.m = this.value; psave(); later(); };
+  $('thPFm').onchange = function () { PST.rfm = this.value; psave(); later(); };
   $('thPSp').onchange = function () { PST.sp = this.value; psave(); later(); };
   document.addEventListener('click', function (e) { var b = e.target.closest('.thpk'); if (!b) return; var k = b.getAttribute('data-k'), i = PST.sel.indexOf(k); if (i >= 0) PST.sel.splice(i, 1); else PST.sel.push(k); psave(); later(); });
 
@@ -10432,7 +10462,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
           '<div class="bnRes" id="bnCr"></div><p class="bnNt" data-html2canvas-ignore="true"><button type="button" class="bnLink" id="bnCx">Volver al precio de mercado</button></p><div class="bnPy"><canvas id="bnPyC"></canvas></div></div>' +
         '<div data-norf class="card" id="bnCSe"><div class="bnH"><div><p class="qh">Sensibilidad</p><p class="qs">Cuánto cambia el precio si la TIR se mueve, desde el precio de la calculadora.</p></div>' + dlb('bnCSe', 'Sensibilidad') + '</div><div style="overflow-x:auto"><table class="bnT" id="bnSe"></table></div><p class="bnNt" id="bnSeN"></p></div></div>' +
       '<div data-norf class="card" id="bnCFl"><div class="bnH"><div><p class="qh">Flujo de fondos</p><p class="qs" id="bnFlS">&nbsp;</p></div><div style="display:flex;gap:10px;align-items:flex-end"><label class="bnFv">Nominales (VN)<input type="number" step="1" min="0" id="bnFn" placeholder="100"></label>' + dlb('bnCFl', 'Flujos') + '</div></div><div class="bnPj" id="bnPj" hidden data-html2canvas-ignore="true"></div><div class="bnFc"><canvas id="bnFlC"></canvas></div><div class="bnTw"><table class="bnT" id="bnFl"></table></div><p class="bnNt" id="bnFlN"></p><div id="bnFlP" data-html2canvas-ignore="true"></div></div>' +
-      (usd || r.usdOn ? '<div data-norf class="card" id="bnCPd"><div class="bnH"><div><p class="qh">Probabilidad de default implícita</p><p class="qs">La que descuenta el precio: el spread contra la tasa libre de riesgo, dado lo que se recupera si no paga.</p></div>' + dlb('bnCPd', 'Default') + '</div><div class="bnCalc"><label>Recupero si hay default (%)<input type="number" step="1" min="0" max="95" id="bnPdR"></label><label>Tasa libre de riesgo (%)<input type="number" step="0.01" id="bnPdF"></label></div><div class="bnRes" id="bnPdO"></div><div class="bnTw" id="bnPdT"></div><p class="bnNt" id="bnPdN"></p></div>' : '');
+      (usd || r.usdOn ? '<div data-norf class="card" id="bnCPd"><div class="bnH"><div><p class="qh">Probabilidad de default implícita</p><p class="qs">La que descuenta el precio: el spread contra la tasa libre de riesgo, dado lo que se recupera si no paga.</p></div>' + dlb('bnCPd', 'Default') + '</div><div class="bnCalc"><label>Recupero si hay default (%)<input type="number" step="1" min="0" max="95" id="bnPdR"></label><label>Tasa libre de riesgo<select id="bnPdM"><option value="ust">Curva de Treasuries (FRED)</option><option value="fix">Fija</option></select></label><label id="bnPdFl">Tasa fija (%)<input type="number" step="0.01" id="bnPdF"></label></div><div class="bnRes" id="bnPdO"></div><div class="bnTw" id="bnPdT"></div><div id="bnPdN"></div></div>' : '');
     drawLive(); drawChart(); if (r.xo) { var cc = document.getElementById('bnCCu'); if (cc) cc.style.display = 'none'; } else drawCurve(r); calc(r, T); pdCard(r, T); // los que se cargan solo para buscarlos (PR17): sin curva
     if (!RAW && !RAWask && window.VOLX && window.VOLX.raw) { RAWask = true; window.VOLX.raw(function (d) { RAW = d || false; uni(true); if (root.classList.contains('active') && K) render(); }); } // con los cierres, los bonos sin precio en vivo toman el último
   }
@@ -10603,17 +10633,18 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   /* ---------- probabilidad de default implícita (forma reducida, intensidad constante) ----------
      precio = Σ flujo·e^(−(c+λ)t) + R · Σ residual al inicio del tramo · e^(−c·t) · (S(t anterior) − S(t)),  S(t) = e^(−λt),  c = ln(1 + tasa libre de riesgo)
      λ sale de igualar con el precio; la probabilidad acumulada a T años es 1 − e^(−λT) */
-  var PDS = { R: 40, rf: null }; try { Object.assign(PDS, JSON.parse(localStorage.getItem('bnPD1') || '{}')); } catch (e) { }
+  var PDS = { R: 40, rf: null, rfm: 'ust' }; try { Object.assign(PDS, JSON.parse(localStorage.getItem('bnPD1') || '{}')); } catch (e) { }
   var pdRf = function () { if (PDS.rf != null) return PDS.rf; var u = document.getElementById('ust'); return u && +u.value > 0 ? +u.value : 4.46; };
   function hazard(rows, s, P, N0, rf, R) { // rows: [{t, amort, total}] por 100 VN; P: precio sucio; N0: residual
-    var c = Math.log(1 + rf), pv = function (l) { var v = 0, N = N0, S0 = 1; rows.forEach(function (x) { var t = (x.t - s) / 365, S = Math.exp(-l * t), d = Math.exp(-c * t); v += x.total * d * S + R * N * d * (S0 - S); S0 = S; N -= x.amort || 0; }); return v; };
+    var c = Math.log(1 + rf), cv = PDS.rfm !== 'fix' && window.USTX ? USTX.at(s) : null, pv = function (l) { var v = 0, N = N0, S0 = 1; rows.forEach(function (x) { var t = (x.t - s) / 365, S = Math.exp(-l * t), d = cv ? Math.pow(1 + cv(t), -t) : Math.exp(-c * t); v += x.total * d * S + R * N * d * (S0 - S); S0 = S; N -= x.amort || 0; }); return v; };
     if (!(P > 0) || !rows.length) return null; if (pv(0) <= P) return 0; if (pv(8) > P) return null;
     var lo = 0, hi = 8; for (var i = 0; i < 80; i++) { var m = (lo + hi) / 2; if (pv(m) > P) lo = m; else hi = m; } return (lo + hi) / 2;
   }
   var pdOf = function (l, y) { return 1 - Math.exp(-l * y); };
   function pdRow(r, T) { var rows = (T.rows || []).filter(function (x) { return x.t > r.s && x.total > 0; }), amort = rows.some(function (x) { return x.amort != null; }); if (!rows.length || !amort) return null; var l = hazard(rows, r.s, r.P, T.res != null ? T.res : 100, pdRf() / 100, PDS.R / 100); return l == null ? null : { l: l, yrs: (rows[rows.length - 1].t - r.s) / 365 }; }
   function pdCard(r, T) {
-    var o = document.getElementById('bnPdO'); if (!o) return; var ri = document.getElementById('bnPdR'), fi = document.getElementById('bnPdF'); ri.value = PDS.R; fi.value = pdRf().toFixed(2);
+    var o = document.getElementById('bnPdO'); if (!o) return; var ri = document.getElementById('bnPdR'), fi = document.getElementById('bnPdF'); ri.value = PDS.R; fi.value = pdRf().toFixed(2); var mi = document.getElementById('bnPdM'), ust = PDS.rfm !== 'fix' && window.USTX; mi.value = PDS.rfm === 'fix' ? 'fix' : 'ust'; document.getElementById('bnPdFl').style.display = mi.value === 'fix' ? '' : 'none'; mi.onchange = function () { PDS.rfm = this.value; try { localStorage.setItem('bnPD1', JSON.stringify(PDS)); } catch (e) { } pdCard(r, T); };
+    if (ust && !USTX.ok()) USTX.load(function () { if (USTX.ok()) pdCard(r, T); });
     var go = function () { PDS.R = Math.max(0, Math.min(95, +ri.value || 0)); var v = parseFloat(fi.value); PDS.rf = isFinite(v) && Math.abs(v - (+((document.getElementById('ust') || {}).value) || 4.46)) > 1e-9 ? v : null; try { localStorage.setItem('bnPD1', JSON.stringify(PDS)); } catch (e) { } pdCard(r, T); };
     ri.onchange = fi.onchange = go;
     var z = pdRow(r, T), pc0 = function (v) { return v == null ? '—' : fm(v * 100, 1) + '%'; };
@@ -10623,7 +10654,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var L = []; uni(); Object.keys(MAP).forEach(function (k) { var x = MAP[k]; if (x.grp !== 'usd' || x.bop || !/^(GD|AL|AE|AN|AO)/.test(k)) return; try { var q = pdRow(x, tech(x)); if (q) L.push({ k: k, tir: x.tir, l: q.l, yrs: q.yrs }); } catch (e) { } });
     L.sort(function (a, b) { return a.yrs - b.yrs; });
     document.getElementById('bnPdT').innerHTML = L.length ? '<p class="qs" style="margin:14px 0 6px">Bonares y Globales, con el mismo recupero y tasa libre de riesgo</p><table class="bnT"><thead><tr><th>Bono</th><th>TIR</th><th>λ anual</th><th>A 1 año</th><th>A 5 años</th><th>Al vencimiento</th></tr></thead><tbody>' + L.map(function (x) { return '<tr' + (x.k === r.k ? ' style="font-weight:700;background:var(--pill)"' : '') + '><td><button type="button" class="bnLink" data-open="' + x.k + '">' + x.k + '</button></td><td>' + pc0(x.tir) + '</td><td>' + pc0(x.l) + '</td><td>' + pc0(pdOf(x.l, Math.min(1, x.yrs))) + '</td><td>' + (x.yrs >= 5 ? pc0(pdOf(x.l, 5)) : '—') + '</td><td>' + pc0(pdOf(x.l, x.yrs)) + '</td></tr>'; }).join('') + '</tbody></table>' : '';
-    document.getElementById('bnPdN').textContent = 'Modelo de forma reducida con intensidad de default constante: λ es la tasa que hace que los flujos, ponderados por la probabilidad de cobrarlos, más el recupero sobre el residual si no paga, den el precio de hoy. Es la probabilidad "risk-neutral": incluye la prima que pide el mercado por el riesgo, así que suele ser mayor que la real. Con el recupero más bajo, la probabilidad baja (se pierde más en cada default). Referencia: el estándar de mercado es 40%; en los defaults argentinos el recupero estuvo más cerca de 25–35%. La tasa libre de riesgo arranca con la de Bonos en dólares (Treasury).';
+    document.getElementById('bnPdN').innerHTML = pdHelp(PDS.rfm !== 'fix' && window.USTX && USTX.ok() ? 'cada flujo se descuenta con el Treasury de su plazo (curva de FRED del ' + ((USTX.at(r.s) || {}).d || '').split('-').reverse().join('/') + ', interpolada entre plazos). Con «Fija», la misma tasa para todos.' : PDS.rfm !== 'fix' ? 'todavía no hay curva de Treasuries guardada, así que usa la tasa fija para todos los flujos.' : 'fija, la misma para todos los flujos. Con «Curva de Treasuries», cada flujo toma el Treasury de su plazo.');
   }
 
   var PDON = false, PDL = null; // lo ya cobrado, abajo del flujo de fondos (se abre con el botón)
