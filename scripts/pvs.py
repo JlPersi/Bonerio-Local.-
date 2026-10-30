@@ -55,7 +55,8 @@ def main():
              "res": round(f(past[-1], "residual_value") if past else 100.0, 4),
              "lc": past[-1][ix["payment_date"]] if past else rs[0][ix["issue_date"]],
              "b": int(float(rs[0][ix["days_convention"]] or 365)),
-             "fl": [[r[ix["payment_date"]], round(f(r, "cash_flow"), 6), round(f(r, "interest_amount"), 6)] for r in fut]}
+             "fl": [[r[ix["payment_date"]], round(f(r, "cash_flow"), 6), round(f(r, "interest_amount"), 6)] for r in fut],
+             "fp": [[r[ix["payment_date"]], round(f(r, "cash_flow"), 6), round(f(r, "interest_amount"), 6)] for r in past]}
         if t in SPEC:
             o["d"], o["c"] = SPEC[t]
         out[t] = o
