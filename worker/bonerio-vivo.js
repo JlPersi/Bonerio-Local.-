@@ -13,7 +13,8 @@ const TTL = 15;
 const sym = (s) => 'MERV - XMEV - ' + s + ' - 24hs'; // precios de 24 hs, como data912
 
 const MEM = {};
-let TOK = null, TOKT = 0; // el token de Primary dura un día; se renueva cada 6 horas o si lo rechaza
+let LASTERR = '';
+let TOK = null, TOKT = 0, WSST = 0; // el token de Primary dura un día; se renueva cada 6 horas o si lo rechaza
 const base = (env) => (env.ROFEX_URL || 'https://api.bull.xoms.com.ar').replace(/\/+$/, '');
 async function token(env, force) {
   if (!force && TOK && Date.now() - TOKT < 6 * 3600e3) return TOK;
@@ -29,8 +30,9 @@ async function snapshot(env, syms, ms) {
   for (const force of [false, true]) {
     const r = await fetch(base(env) + '/', { headers: { Upgrade: 'websocket', 'X-Auth-Token': await token(env, force) } });
     if (r.webSocket) { ws = r.webSocket; break; }
+    WSST = r.status;
   }
-  if (!ws) throw new Error('websocket de Primary rechazado');
+  if (!ws) throw new Error('websocket de Primary rechazado: ' + WSST);
   ws.accept();
   const out = {}, want = new Set(syms);
   await new Promise((done) => {
@@ -59,7 +61,8 @@ async function live(env, ep) {
   const rows = await (await fetch(D912 + ep, { cf: { cacheTtl: 10 } })).json(); // la lista de tickers (y lo que Primary no tenga) sale de data912
   if (!Array.isArray(rows) || !env.ROFEX_USER) return rows;
   let md = {};
-  try { md = await snapshot(env, rows.map((r) => sym(r.symbol)), 3500); } catch (e) { return rows; }
+  try { md = await snapshot(env, rows.map((r) => sym(r.symbol)), 3500); } catch (e) { LASTERR = String(e.message || e); return rows; }
+  if (!Object.keys(md).length) LASTERR = 'Primary no mandó precios en 3,5 s';
   return rows.map((r) => {
     const m = md[sym(r.symbol)]; if (!m) return r;
     const bi = (m.BI || [])[0], of = (m.OF || [])[0], la = deHoy(m.LA && m.LA.date) ? px(m.LA) : null, cl = px(m.CL), o = Object.assign({}, r, { src: 'primary' });
@@ -91,6 +94,12 @@ export default {
   async fetch(req, env) {
     const u = new URL(req.url), h = cors(req, env);
     if (req.method === 'OPTIONS') return new Response(null, { headers: h });
+    if (u.pathname === '/diag') { // chequeo: login, websocket y una foto de AL30 y GD30 (no muestra la clave)
+      const d = { usuario: !!env.ROFEX_USER, clave: !!env.ROFEX_PASS, url: base(env), ultimoError: LASTERR };
+      try { await token(env, true); d.login = 'ok'; } catch (e) { d.login = String(e.message || e); return new Response(JSON.stringify(d, null, 1), { headers: h }); }
+      try { const md = await snapshot(env, [sym('AL30'), sym('GD30')], 5000); d.websocket = 'ok'; d.precios = md; } catch (e) { d.websocket = String(e.message || e); }
+      return new Response(JSON.stringify(d, null, 1), { headers: h });
+    }
     const ep = u.pathname.replace(/^\/live\//, '');
     if (u.pathname !== '/caucion' && !EPS.includes(ep)) return new Response('{"error":"ruta"}', { status: 404, headers: h });
     const m = MEM[u.pathname]; // en memoria (en workers.dev la caché de Cloudflare no guarda nada)
