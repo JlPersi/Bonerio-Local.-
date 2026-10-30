@@ -10066,6 +10066,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
 #cal .calIt.calVto i{background:var(--bg)}
 #cal .calIt.calVto span{color:var(--bg);font-weight:700}
 #cal .calIt.calVto em{background:var(--bg);color:var(--fc)}
+#cal .calIt.calPg{opacity:.6}
+#cal .calIt.calPg em{color:var(--mu);border:1px solid var(--bd);background:none}
 #cal .calLg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mu)}
 #cal .calLg span{display:inline-flex;align-items:center;gap:6px}
 #cal .calLg i{width:12px;height:12px;border-radius:4px;background:var(--pill);border:1px solid var(--pillb)}
@@ -10245,9 +10247,9 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   var IDX = (typeof PSD !== 'undefined' && PSD.IDX) || {};
   function months(a, b) { var d0 = new Date(a * 864e5), d1 = new Date(b * 864e5); return (d1.getUTCFullYear() - d0.getUTCFullYear()) * 12 + d1.getUTCMonth() - d0.getUTCMonth() + (d1.getUTCDate() - d0.getUTCDate()) / 30; }
   function tech(r) {
-    var s = r.s, k = r.k, o = { rows: [], vt: null, acc: null, res: null, cpn: null, cpnL: '', note: '' };
+    var s = r.s, k = r.k, o = { rows: [], paid: [], vt: null, acc: null, res: null, cpn: null, cpnL: '', note: '' }; // paid: lo ya cobrado, por 100 VN
     if (r.corp) { // ONs y provinciales: el cronograma de su sección (en las de tasa variable, los cupones con la última tasa)
-      o.rows = r.cfl.slice(); o.res = r.res; o.acc = r.ai != null ? r.ai : null; o.vt = r.vt != null ? r.vt : null; o.accL = 'Intereses corridos'; o.iss = r.iss;
+      o.rows = r.cfl.slice(); o.paid = r.paid || []; o.res = r.res; o.acc = r.ai != null ? r.ai : null; o.vt = r.vt != null ? r.vt : null; o.accL = 'Intereses corridos'; o.iss = r.iss;
       if (r.cpn != null) { o.cpn = r.cpn; o.cpnL = /tamar|badlar/.test(r.ty) ? 'Margen sobre ' + r.ty.toUpperCase() : 'Cupón (anual)'; }
       if (!r.usdOn && /tamar|badlar/.test(r.ty)) o.note = 'Los cupones futuros se estiman con la última ' + r.ty.toUpperCase() + ' publicada más el margen.';
       if (r.k === 'PR17') o.note = 'El residual pasa de 100 porque el bono capitalizó la Badlar trimestralmente hasta el 02/02/2026: los 100 VN originales llegaron a 821,60 y desde mayo de 2026 amortiza ese capital ajustado (7%, 9% y 12% por cuota). ' + o.note;
@@ -10263,6 +10265,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       o.iss = sc.iss; o.res = i > 0 ? rr[i - 1][3] : i < 0 ? 0 : 100; o.acc = bxAccr(k, s); o.vt = o.res + o.acc; o.accL = 'Intereses corridos';
       if (i >= 0) { var pv = i > 0 ? rr[i - 1][0] : sc.iss, m = Math.max(1, Math.round((rr[i][0] - pv) / (365 / 12))); o.cpn = o.res > 0 ? rr[i][1] * 12 / m / o.res : null; o.cpnL = 'Cupón vigente (anual)'; o.freq = m === 6 ? 'semestral' : m === 3 ? 'trimestral' : m === 1 ? 'mensual' : 'cada ' + m + ' meses'; }
       o.rows = rr.filter(function (x) { return x[0] > s; }).map(function (x) { return { t: x[0], renta: x[1], amort: x[2], total: x[1] + x[2], res: x[3] }; });
+      o.paid = rr.filter(function (x) { return x[0] <= s; }).map(function (x) { return { t: x[0], renta: x[1], amort: x[2], total: x[1] + x[2], res: x[3] }; });
     } else {
       var ins = X.INST[k]; if (!ins) return o; var R = ins.r, kd = ins.k, iss = ins.iss, mat = R[R.length - 1][0]; o.iss = iss;
       var cerC = kd === 'cer0' || kd === 'cerc' ? idxAt(IDX.CER, X.bdBack(s, 10)) / idxAt(IDX.CER, X.bdBack(iss, 10)) : 1;
@@ -10276,7 +10279,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
         var j = R.findIndex(function (x) { return x[0] > s; }), pv2 = j > 0 ? R[j - 1][0] : iss, am = 0; R.forEach(function (x) { if (x[0] <= s) am += x[2]; });
         var res = Math.max(0, 100 - am), cp = j >= 0 ? R[j][1] - R[j][2] : 0, acc = j >= 0 ? cp * (s - pv2) / (R[j][0] - pv2) : 0;
         o.res = res; o.acc = acc * cerC; o.vt = (res + acc) * cerC; o.accL = 'Intereses corridos'; if (j >= 0 && R[j][3] > 0) { o.cpn = R[j][3]; o.cpnL = kd === 'cerc' ? 'Cupón real anual' : 'Cupón anual'; }
-        var cf = X.bondCF(k);
+        var cf = X.bondCF(k), cer0 = kd === 'cerc' ? idxAt(IDX.CER, X.bdBack(iss, 10)) : 1;
+        o.paid = R.filter(function (x) { return x[0] <= s && x[1] > 0; }).map(function (x) { var m = kd === 'cerc' ? idxAt(IDX.CER, X.bdBack(x[0], 10)) / cer0 : 1; m = m > 0 ? m : 1; return { t: x[0], renta: (x[1] - x[2]) * m, amort: x[2] * m, total: x[1] * m }; }); // CER: cada pago con el CER de 10 hábiles antes
         o.rows = cf ? cf.rows.map(function (x) { return { t: x.t, renta: x.renta, amort: x.amort, total: x.total, res: x.res }; }) : r.fl.filter(function (f) { return f[0] > s; }).map(function (f) { return { t: f[0], renta: null, amort: null, total: f[1], res: null }; });
       } else {
         if (kd === 'dl') { var fx = idxAt(IDX.FX, X.bdBack(s, 3)), fx0 = idxAt(IDX.FX, X.bdBack(iss, 3)); o.vt = R[0][1] * fx; o.res = 100; o.acc = null; o.coef = fx / fx0; o.coefL = 'A3500 hoy / A3500 inicial'; o.note = 'El valor técnico es el capital ajustado por el A3500 de 3 hábiles antes (sin cupón).'; }
@@ -10373,7 +10377,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
           '<div class="bnCalc"><label>Precio (' + (usd || r.usdOn ? 'US$' : '$') + ' c/100 VN)<input type="number" step="0.01" id="bnCp"></label><label>' + esc(tlS) + ' (%)<input type="number" step="0.01" id="bnCy"></label><label>Nominales (VN)<input type="number" step="1" min="0" id="bnCn"></label></div>' +
           '<div class="bnRes" id="bnCr"></div><p class="bnNt" data-html2canvas-ignore="true"><button type="button" class="bnLink" id="bnCx">Volver al precio de mercado</button></p><div class="bnPy"><canvas id="bnPyC"></canvas></div></div>' +
         '<div data-norf class="card" id="bnCSe"><div class="bnH"><div><p class="qh">Sensibilidad</p><p class="qs">Cuánto cambia el precio si la TIR se mueve, desde el precio de la calculadora.</p></div>' + dlb('bnCSe', 'Sensibilidad') + '</div><div style="overflow-x:auto"><table class="bnT" id="bnSe"></table></div><p class="bnNt" id="bnSeN"></p></div></div>' +
-      '<div data-norf class="card" id="bnCFl"><div class="bnH"><div><p class="qh">Flujo de fondos</p><p class="qs" id="bnFlS">&nbsp;</p></div><div style="display:flex;gap:10px;align-items:flex-end"><label class="bnFv">Nominales (VN)<input type="number" step="1" min="0" id="bnFn" placeholder="100"></label>' + dlb('bnCFl', 'Flujos') + '</div></div><div class="bnPj" id="bnPj" hidden data-html2canvas-ignore="true"></div><div class="bnFc"><canvas id="bnFlC"></canvas></div><div class="bnTw"><table class="bnT" id="bnFl"></table></div><p class="bnNt" id="bnFlN"></p></div>';
+      '<div data-norf class="card" id="bnCFl"><div class="bnH"><div><p class="qh">Flujo de fondos</p><p class="qs" id="bnFlS">&nbsp;</p></div><div style="display:flex;gap:10px;align-items:flex-end"><label class="bnFv">Nominales (VN)<input type="number" step="1" min="0" id="bnFn" placeholder="100"></label>' + dlb('bnCFl', 'Flujos') + '</div></div><div class="bnPj" id="bnPj" hidden data-html2canvas-ignore="true"></div><div class="bnFc"><canvas id="bnFlC"></canvas></div><div class="bnTw"><table class="bnT" id="bnFl"></table></div><p class="bnNt" id="bnFlN"></p><div id="bnFlP" data-html2canvas-ignore="true"></div></div>';
     drawLive(); drawChart(); if (r.xo) { var cc = document.getElementById('bnCCu'); if (cc) cc.style.display = 'none'; } else drawCurve(r); calc(r, T); // los que se cargan solo para buscarlos (PR17): sin curva
     if (!RAW && !RAWask && window.VOLX && window.VOLX.raw) { RAWask = true; window.VOLX.raw(function (d) { RAW = d || false; uni(true); if (root.classList.contains('active') && K) render(); }); } // con los cierres, los bonos sin precio en vivo toman el último
   }
@@ -10534,12 +10538,26 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var kd = r.corp ? ({ cer: 'cerc', dl: 'cdl', tamar: 'cvar', badlar: 'cvar' })[r.ty] || '' : !usd && X.INST[r.k] ? X.INST[r.k].k : '';
     var fx = rows.filter(function (x, i) { return cK(i); }), fx1 = fx[fx.length - 1], fi = fx1 ? IX[rows.indexOf(fx1)][0] : null;
     document.getElementById('bnFlN').textContent = kd === 'cer0' || kd === 'cerc' ? 'Cada pago se ajusta por el CER de 10 días hábiles antes (sin contar el Día del Bancario). ' + (fx.length ? (fx.length === rows.length ? 'Todos los pagos ya tienen ese CER publicado: están fijos en pesos.' : (fx.length === 1 ? 'El pago del ' + dmy(fx1.t) + ' ya tiene su CER publicado (el del ' + dmy(fi.d) + '), así que está fijo; ' : 'Los pagos hasta el ' + dmy(fx1.t) + ' ya tienen su CER publicado y están fijos; ') + 'los demás están proyectados con la inflación de la tarjeta CER de Curva Pesos.') : 'Ninguno tiene todavía su CER publicado: están proyectados con la inflación de la tarjeta CER de Curva Pesos.') : kd === 'cdl' ? 'Cada pago se ajusta por el A3500 de 3 días hábiles antes: el ya publicado está fijo y el resto, proyectado con la devaluación de la tarjeta Dólar linked de Curva Pesos.' : kd === 'cvar' ? 'La renta de cada cupón es la ' + (r.ty === 'tamar' ? 'TAMAR' : 'BADLAR') + ' promedio del período (con rezago) más el margen: lo ya publicado es real y para adelante va la última tasa publicada.' : kd === 'tamar' ? 'El pago capitaliza la TAMAR: está proyectado con la TAMAR de la tarjeta TAMAR de Curva Pesos.' : kd === 'dl' ? 'El pago se ajusta por el A3500: está proyectado con la devaluación de la tarjeta Dólar linked de Curva Pesos.' : kd === 'dual' || kd === 'dualtf' ? 'Cobra la rama que gane: está proyectado con los supuestos de Curva Pesos.' : '';
-    pjCard(NI, IX);
+    pjCard(NI, IX); paidT(r, T, vn);
     if (!cv || typeof Chart === 'undefined') return; kill('fl');
     var col = FAM[r.grp][1], mu = css('--mu'), bd = css('--bd'), L = rows.map(function (x) { return dmy(x.t).slice(3); });
     var ds = split ? [{ label: 'Renta', data: rows.map(function (x) { return x.renta; }), backgroundColor: col + '99', borderRadius: 3, stack: 's', maxBarThickness: 64 }, { label: 'Amortización', data: rows.map(function (x) { return x.amort; }), backgroundColor: col, borderRadius: 3, stack: 's', maxBarThickness: 64 }] : [{ label: 'Pago', data: rows.map(function (x) { return x.total; }), backgroundColor: col, borderRadius: 3, maxBarThickness: 64 }];
     CH.fl = mkC(cv.getContext('2d'), { type: 'bar', data: { labels: L, datasets: ds }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: split, labels: { color: mu, boxWidth: 10 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + u + fm(c.parsed.y, 4); } } } }, scales: { x: { stacked: true, ticks: { color: mu, maxTicksLimit: 14 }, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { color: mu, callback: function (v) { return fm0(v, Math.abs(v - Math.round(v)) < 1e-9 ? 0 : 1); } }, grid: { color: bd }, title: { display: true, text: (usd ? 'US$' : '$') + ' cada 100 VN', color: mu } } } } });
   }
+
+  var PDON = false, PDL = null; // lo ya cobrado, abajo del flujo de fondos (se abre con el botón)
+  function paidT(r, T, vn) {
+    var el = document.getElementById('bnFlP'); if (!el) return; PDL = [r, T, vn]; var P = (T.paid || []).filter(function (x) { return x.total > 0; });
+    if (!P.length) { el.innerHTML = ''; return; }
+    var usd = r.grp === 'usd' || !!r.usdOn, u = usd ? 'US$ ' : '$ ', split = P.some(function (x) { return x.renta != null; }), sm = function (c) { return P.reduce(function (a, x) { return a + (x[c] || 0); }, 0); };
+    var b = '<button type="button" class="bnLink" data-pdon>' + (PDON ? 'Ocultar lo ya pagado ▴' : 'Ver lo ya pagado (' + P.length + (P.length === 1 ? ' pago' : ' pagos') + ', ' + u + fm(sm('total'), 2) + ' c/100 VN) ▾') + '</button>';
+    if (!PDON) { el.innerHTML = '<div style="margin-top:10px">' + b + '</div>'; return; }
+    var h = '<thead><tr><th>Fecha</th>' + (split ? '<th>Renta</th><th>Amortización</th>' : '') + '<th>Total</th>' + (vn > 0 ? '<th>Cobraste</th>' : '') + '<th></th></tr></thead><tbody>' + P.map(function (x) {
+      return '<tr><td>' + dmy(x.t) + '</td>' + (split ? '<td>' + fm(x.renta, 4) + '</td><td>' + (x.amort ? fm(x.amort, 4) : '—') + '</td>' : '') + '<td>' + fm(x.total, 4) + '</td>' + (vn > 0 ? '<td>' + u + fm(x.total * vn / 100, 2) + '</td>' : '') + '<td><small style="color:var(--ok);font-weight:700">pagado</small></td></tr>'; }).join('') +
+      '</tbody><tfoot><tr><td>Total cobrado</td>' + (split ? '<td>' + fm(sm('renta'), 4) + '</td><td>' + fm(sm('amort'), 4) + '</td>' : '') + '<td>' + fm(sm('total'), 4) + '</td>' + (vn > 0 ? '<td>' + u + fm(sm('total') * vn / 100, 2) + '</td>' : '') + '<td></td></tr></tfoot>';
+    el.innerHTML = '<div style="margin-top:10px">' + b + '</div><div class="bnTw" style="margin-top:8px"><table class="bnT">' + h + '</table></div><p class="bnNt">Lo que el bono ya pagó por 100 VN' + (usd ? ' originales, en dólares' : ', en pesos') + '. ' + (r.corp && /tamar|badlar/.test(r.ty) ? 'Los cupones de tasa variable, con la ' + r.ty.toUpperCase() + ' publicada. ' : '') + (r.ty === 'cer' || (X.INST[r.k] && X.INST[r.k].k === 'cerc') ? 'Ajustados por el CER de cada pago. ' : '') + 'No entra en la TIR ni en el total de arriba.</p>';
+  }
+  root.addEventListener('click', function (e) { if (!e.target.closest('[data-pdon]')) return; PDON = !PDON; if (PDL) paidT(PDL[0], PDL[1], PDL[2]); });
 
   /* ---------- eventos de la ficha ---------- */
   root.addEventListener('click', function (e) {
@@ -10617,7 +10635,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       var r = MAP[k]; if (!r) return; if (CST.fam !== 'all' && famOf(r) !== CST.fam) return;
       var T; try { T = tech(r); } catch (e) { return; }
       var R = (T.rows || []).filter(function (x) { return x.total > 0; }), lt = R.length ? R[R.length - 1].t : null;
-      R.forEach(function (x) { if (x.t < t0) return; var ty = x.t === lt ? 'vto' : x.amort > 0 ? 'am' : 'cp'; out.push({ t: nextBiz(x.t), k: k, r: r, usd: r.grp === 'usd' || !!r.usdOn, renta: x.renta, amort: x.amort, total: x.total, ty: ty, vn: src === 'pf' ? vn[k] : null }); }); // ty: cp cupón, am cupón y amortización parcial, vto vencimiento (último pago)
+      R.forEach(function (x) { if (x.t < t0) return; var ty = x.t === lt ? 'vto' : x.amort > 0 ? 'am' : 'cp'; out.push({ t: nextBiz(x.t), k: k, r: r, usd: r.grp === 'usd' || !!r.usdOn, renta: x.renta, amort: x.amort, total: x.total, ty: ty, vn: src === 'pf' ? vn[k] : null }); });
+      (T.paid || []).forEach(function (x, i, P) { if (x.t < t0 || !(x.total > 0)) return; out.push({ t: nextBiz(x.t), k: k, r: r, usd: r.grp === 'usd' || !!r.usdOn, renta: x.renta, amort: x.amort, total: x.total, ty: !R.length && i === P.length - 1 ? 'vto' : x.amort > 0 ? 'am' : 'cp', pg: 1, vn: src === 'pf' ? vn[k] : null }); }); // lo ya pagado: «pagado», o «vencido» si fue el último pago // ty: cp cupón, am cupón y amortización parcial, vto vencimiento (último pago)
     });
     return out.sort(function (a, b) { return a.t - b.t || (a.k < b.k ? -1 : 1); });
   }
@@ -10642,7 +10661,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       return;
     }
     var chip = function (t, v, s) { return '<div class="calCh"><small>' + t + '</small><b>' + v + '</b><span>' + s + '</span></div>'; };
-    var nx = F.filter(function (f) { return f.t >= td; })[0], u = sum(inM, true), a = sum(inM, false);
+    var nx = F.filter(function (f) { return f.t >= td && !f.pg; })[0], u = sum(inM, true), a = sum(inM, false);
     var chips = '<div class="calChs">' +
       chip(pf ? 'Cobrás en ' + MESES[Mo] : 'Pagos en ' + MESES[Mo], pf ? [u ? 'US$ ' + fm(u, 2) : '', a ? '$ ' + fm(a, 2) : ''].filter(Boolean).join(' · ') || '—' : String(inM.length), pf ? inM.length + (inM.length === 1 ? ' pago' : ' pagos') : 'cupones y amortizaciones') +
       chip('Próximo cobro', nx ? dmy(nx.t) : '—', nx ? nx.k + ' · ' + cur(nx) + fm(amt(nx), 2) + (pf ? '' : ' c/100 VN') : '') +
@@ -10653,7 +10672,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       var w = (t + 3) % 7; if (w > 4) continue;
       var L = byD[t] || [], hol = !bxIsBiz(t), cls = 'calD' + (t === td ? ' calTd' : '') + (t < td ? ' calPs' : '') + (hol ? ' calHo' : '') + (L.length ? ' calHas' : '');
       cells += '<div class="' + cls + '"><div class="calN">' + (t - d0 + 1) + (hol ? '<i>feriado</i>' : '') + '</div>' + L.slice(0, CST.day === t ? 99 : 5).map(function (f) {
-        return '<button type="button" class="calIt' + (f.ty === 'vto' ? ' calVto' : f.ty === 'am' ? ' calAm' : '') + '" data-cal-go="' + f.k + '" style="--fc:var(' + (FV[f.r.grp] || '--c-fija') + ')" title="' + esc(f.k + ' · renta ' + fm(f.renta, 4) + ' · amortización ' + fm(f.amort, 4) + ' (c/100 VN)') + '"><i></i><b>' + f.k + '</b>' + (f.ty === 'vto' ? '<em>vence</em>' : f.ty === 'am' ? '<em>amort.</em>' : '') + '<span>' + cur(f) + fm(amt(f), pf ? 0 : 2) + '</span></button>';
+        return '<button type="button" class="calIt' + (f.ty === 'vto' ? ' calVto' : f.ty === 'am' ? ' calAm' : '') + (f.pg ? ' calPg' : '') + '" data-cal-go="' + f.k + '" style="--fc:var(' + (FV[f.r.grp] || '--c-fija') + ')" title="' + esc(f.k + ' · renta ' + fm(f.renta, 4) + ' · amortización ' + fm(f.amort, 4) + ' (c/100 VN)') + '"><i></i><b>' + f.k + '</b>' + (f.pg ? '<em>' + (f.ty === 'vto' ? 'vencido' : 'pagado') + '</em>' : f.ty === 'vto' ? '<em>vence</em>' : f.ty === 'am' ? '<em>amort.</em>' : '') + '<span>' + cur(f) + fm(amt(f), pf ? 0 : 2) + '</span></button>';
       }).join('') + (L.length > 5 ? '<button type="button" class="calMr" data-cal-day="' + t + '">' + (CST.day === t ? 'ver menos' : 'y ' + (L.length - 5) + ' más') + '</button>' : '') + '</div>';
     }
     var grid = '<div data-norf class="card calC" id="calCM"><div class="fvH"><div class="fvT"><button type="button" class="calNv" data-cal-mv="-1" aria-label="Mes anterior">‹</button><b>' + MESES[Mo] + ' ' + Y + '</b><button type="button" class="calNv" data-cal-mv="1" aria-label="Mes siguiente">›</button>' +
@@ -10832,16 +10851,26 @@ window.RATG = (function () {
   }
   var lqTag = function (v) { return v == null ? '<span class="mu">—</span>' : '<span class="lq lq' + (v >= 66 ? 3 : v >= 33 ? 2 : 1) + '" title="Puntaje ' + v + ' de 100">' + (v >= 66 ? 'Alta' : v >= 33 ? 'Media' : 'Baja') + '</span>'; };
 
+  function ixAt(S, t) { if (!S) return null; for (var i = S.d.length - 1; i >= 0; i--) if (S.d[i] <= t) return S.v[i]; return null; }
+  function paidFl(o) { // [{t, renta, amort, total}] lo ya cobrado por 100 VN
+    var P = (o.fp || []).map(function (f) { return [dn(f[0]), f[1], f[2]]; }); if (!P.length) return [];
+    var S = (o.t === 'tamar' || o.t === 'badlar') && o.r != null ? IXS[o.t] : null, prev = dn(o.iss), res = 100, b0 = o.t === 'cer' ? cer10(dn(o.iss)) : null, fx0 = o.t === 'dl' ? ixAt(IXS.fx, dn(o.iss) - 3) : null;
+    return P.map(function (f) { var am = Math.max(0, f[1] - f[2]), it = f[2], m = 1;
+      if (S && !(it > 0)) { var r = ixAvg(S, prev - 14, f[0] - 14); it = r != null ? res * (r + o.r) / 100 * (f[0] - prev) / (o.b || 365) : 0; }
+      if (o.t === 'cer') { var k1 = cer10(f[0]); m = k1 > 0 && b0 > 0 ? k1 / b0 : 1; } else if (o.t === 'dl') { var x1 = ixAt(IXS.fx, f[0] - 3); m = x1 > 0 && fx0 > 0 ? x1 / fx0 : 1; }
+      res -= am; prev = f[0]; return { t: f[0], renta: it * m, amort: am * m, total: (am + it) * m }; });
+  }
   function cer10(t) { var d = t, n = 0; while (n < 10 && d > t - 30) { d--; if (bxIsBiz(d)) n++; } return X.cerD ? X.cerD(d) : null; } // el CER de 10 días hábiles antes
   function tirTx() { var t = ST.tp, S = IXS[t]; return t === 'cer' ? 'la TIR real (sobre CER): el precio sin el ajuste acumulado desde la emisión contra los flujos sin ajustar' : t === 'dl' ? 'la TIR en dólares con el último A3500 (' + nf(ixLast(IXS.fx), 2) + ', constante)' : S ? 'la TIR en pesos (TEA) con la ' + t.toUpperCase() + ' publicada hasta hoy y, para adelante, la última (' + nf(ixLast(S), 2) + '%) + el margen de cada ON' : 'la TIR en pesos (TEA) con sus flujos'; }
+  function dynO(o, s) { var c = {}, f; for (var x in o) c[x] = o[x]; c.fp = (o.fp || []).slice(); for (var i = 0; i < o.fl.length; i++) { f = o.fl[i]; if (dn(f[0]) > s) break; c.res -= Math.max(0, f[1] - f[2]); c.lc = f[0]; c.fp.push(f); } return c; } // lo que ya se pagó (desde que se armó el json): baja el residual, corre el último pago y pasa a los pagados
   function settle() { try { return window.settleDate(window.settleMode || 'T1'); } catch (e) { var d = new Date(); return Math.floor(d.getTime() / 864e5) + 1; } }
   function rows() {
     if (!J) return [];
     var s = settle(), out = [], open = typeof mktStarted === 'function' ? mktStarted() : true, SV = sov();
     Object.keys(J.on).forEach(function (k) {
-      var o = J.on[k], usd = o.t === 'usd', sym = usd ? k + spG() : o.o, L = LV[sym], cl = C.px[sym], lvOk = L && L.c && open;
+      var o = dynO(J.on[k], s), usd = o.t === 'usd', sym = usd ? k + spG() : o.o, L = LV[sym], cl = C.px[sym], lvOk = L && L.c && open;
       var p = lvOk ? L.c : cl ? cl[0] : null, ch = lvOk && L.pct != null ? L.pct : null;
-      var e = { k: k, sym: sym, em: EM[k] || '', t: o.t, mat: o.mat, iss: o.iss, r: o.r, res: o.res, p: p, ch: ch, v: lvOk ? L.v * L.c / 100 : cl ? cl[2] : 0, v20: cl ? cl[3] : null, n20: cl && cl[4] != null ? cl[4] : null, live: !!lvOk, d: dn(o.mat) - s, s: s, bid: L && L.bid, ask: L && L.ask };
+      var e = { k: k, o: o, sym: sym, em: EM[k] || '', t: o.t, mat: o.mat, iss: o.iss, r: o.r, res: o.res, p: p, ch: ch, v: lvOk ? L.v * L.c / 100 : cl ? cl[2] : 0, v20: cl ? cl[3] : null, n20: cl && cl[4] != null ? cl[4] : null, live: !!lvOk, d: dn(o.mat) - s, s: s, bid: L && L.bid, ask: L && L.ask };
       if (!(p > 0)) return;
       var fl = o.fl.map(function (f) { return [dn(f[0]), f[1], f[2]]; }).filter(function (f) { return f[0] > s; }); e.fl = fl; if (!fl.length) return; // ya vencido o pagado entero: fuera de la tabla
       if (usd && fl.length) {
@@ -11173,7 +11202,7 @@ window.RATG = (function () {
       if (!J) { load().then(function () { if (J && cb) cb(); }); return []; }
       if ((!lvT || Date.now() - lvT > 30000) && Date.now() - vdAsk > 30000) { vdAsk = Date.now(); live().then(function () { if (lvT && cb) cb(); }); }
       return rows().filter(function (e) { return e.tir != null && e.fl && e.fl.length && (e.t !== 'cer' && e.t !== 'dl' || e.fm > 0); }).map(function (e) {
-        var o = J.on[e.k], usd = e.t === 'usd', ix = e.t === 'cer' || e.t === 'dl', fm = ix ? e.fm : 1, res = o.res, tem = Math.pow(1 + e.tir, 30 / 365) - 1;
+        var o = e.o || J.on[e.k], usd = e.t === 'usd', ix = e.t === 'cer' || e.t === 'dl', fm = ix ? e.fm : 1, res = o.res, tem = Math.pow(1 + e.tir, 30 / 365) - 1;
         var PS = window.PSX, b0 = e.t === 'cer' ? cer10(dn(o.iss)) : null, FQ = e.fl.map(function (f) { // el índice de cada pago: CER (10 hábiles antes) o A3500 publicados, o proyectados con las tarjetas de Curva Pesos; TAMAR y BADLAR, la tasa promedio usada
           if (!ix) return [1, f[3] != null ? { nm: (e.t === 'tamar' ? 'TAMAR' : 'BADLAR') + ' prom.', v: f[3], pct: 1, d: f[0] - 14, fijo: !!f[4] } : null];
           var q = PS && PS.ixProj ? PS.ixProj(e.t === 'cer' ? 'CER' : 'A3500', f[0]) : null; if (!q || !(q.v > 0) || (e.t === 'cer' && !(b0 > 0))) return [fm, null];
@@ -11182,7 +11211,7 @@ window.RATG = (function () {
         var pfl = ix ? e.fl.map(function (f, i) { return [f[0], f[1] * FQ[i][0], f[2] * FQ[i][0]]; }) : e.fl; // CER y dollar linked: los flujos en pesos con el índice de cada pago; la TIR va con los de la base (krFl)
         var cfl = e.fl.map(function (f, i) { var m = ix ? FQ[i][0] : fm, am = Math.max(0, f[1] - f[2]), x = { t: f[0], renta: f[2] * m, amort: am * m, total: f[1] * m, res: Math.max(0, res - am), ix: FQ[i][1] }; res = x.res; return x; });
         return { k: e.k, grp: 'on', corp: 1, usdOn: usd, ty: e.t, al: e.sym, tipo: (usd ? 'hard dollar' : e.t === 'ars' || e.t === 'fija' ? 'tasa fija en pesos' : e.t === 'dl' ? 'dollar linked' : e.t.toUpperCase()) + (e.em ? ' · ' + e.em : ''), feat: [], tl: usd ? 'TIR en dólares' : e.t === 'cer' ? 'TIR real (sobre CER)' : e.t === 'dl' ? 'TIR en dólares (A3500 constante)' : 'TIR',
-          P: e.p, fl: pfl, krFl: ix ? e.fl : null, krP: ix ? e.p / fm : null, krY: ix ? e.tir : null, s: e.s, mat: dn(o.mat), d: e.d, tir: e.tir, tem: tem, tna: tem * 365 / 30, md: e.md, conv: e.cvx, odd: !!e.odd, cfl: cfl, res: o.res, vt: e.vt, ai: e.ai, iss: o.iss ? dn(o.iss) : null, cpn: o.r != null ? o.r / 100 : null,
+          P: e.p, fl: pfl, krFl: ix ? e.fl : null, krP: ix ? e.p / fm : null, krY: ix ? e.tir : null, s: e.s, mat: dn(o.mat), d: e.d, tir: e.tir, tem: tem, tna: tem * 365 / 30, md: e.md, conv: e.cvx, odd: !!e.odd, cfl: cfl, paid: paidFl(o), res: o.res, vt: e.vt, ai: e.ai, iss: o.iss ? dn(o.iss) : null, cpn: o.r != null ? o.r / 100 : null,
           q: function () { var L = LV[e.sym] || {}, u = L.c > 0 && L.c < 5 ? 100 : 1; return { c: L.c > 0 ? L.c * u : null, pct: L.pct, bid: L.bid > 0 ? L.bid * u : null, ask: L.ask > 0 ? L.ask * u : null, v: L.v, nop: L.n }; } };
       });
     },
@@ -11378,15 +11407,24 @@ window.RATG = (function () {
   }
   var lqTag = function (v) { return v == null ? '<span class="mu">—</span>' : '<span class="lq lq' + (v >= 66 ? 3 : v >= 33 ? 2 : 1) + '" title="Puntaje ' + v + ' de 100">' + (v >= 66 ? 'Alta' : v >= 33 ? 'Media' : 'Baja') + '</span>'; };
 
+  function ixAt(S, t) { if (!S) return null; for (var i = S.d.length - 1; i >= 0; i--) if (S.d[i] <= t) return S.v[i]; return null; }
+  function paidFl(o) { // [{t, renta, amort, total}] lo ya cobrado por 100 VN
+    var P = (o.fp || []).map(function (f) { return [dn(f[0]), f[1], f[2]]; }); if (!P.length) return [];
+    var S = (o.t === 'tamar' || o.t === 'badlar') && o.r != null ? IXS[o.t] : null, prev = dn(o.iss), res = 100, b0 = o.t === 'cer' ? cer10(dn(o.iss)) : null, fx0 = o.t === 'dl' ? ixAt(IXS.fx, dn(o.iss) - 3) : null;
+    return P.map(function (f) { var am = Math.max(0, f[1] - f[2]), it = f[2], m = 1;
+      if (S && !(it > 0)) { var r = ixAvg(S, prev - 14, f[0] - 14); it = r != null ? res * (r + o.r) / 100 * (f[0] - prev) / (o.b || 365) : 0; }
+      if (o.t === 'cer') { var k1 = cer10(f[0]); m = k1 > 0 && b0 > 0 ? k1 / b0 : 1; } else if (o.t === 'dl') { var x1 = ixAt(IXS.fx, f[0] - 3); m = x1 > 0 && fx0 > 0 ? x1 / fx0 : 1; }
+      res -= am; prev = f[0]; return { t: f[0], renta: it * m, amort: am * m, total: (am + it) * m }; });
+  }
   function cer10(t) { var d = t, n = 0; while (n < 10 && d > t - 30) { d--; if (bxIsBiz(d)) n++; } return X.cerD ? X.cerD(d) : null; } // el CER de 10 días hábiles antes
   function tirTx() { var t = ST.tp, S = IXS[t]; return t === 'cer' ? 'la TIR real (sobre CER): el precio sin el ajuste acumulado desde la emisión contra los flujos sin ajustar' : t === 'dl' ? 'la TIR en dólares con el último A3500 (' + nf(ixLast(IXS.fx), 2) + ', constante)' : S ? 'la TIR en pesos (TEA) con la ' + t.toUpperCase() + ' publicada hasta hoy y, para adelante, la última (' + nf(ixLast(S), 2) + '%) + el margen de cada bono' : 'la TIR en pesos (TEA) con sus flujos'; }
-  function dynO(o, s) { var c = {}, f; for (var x in o) c[x] = o[x]; for (var i = 0; i < o.fl.length; i++) { f = o.fl[i]; if (dn(f[0]) > s) break; c.res -= Math.max(0, f[1] - f[2]); c.lc = f[0]; } return c; }
+  function dynO(o, s) { var c = {}, f; for (var x in o) c[x] = o[x]; c.fp = (o.fp || []).slice(); for (var i = 0; i < o.fl.length; i++) { f = o.fl[i]; if (dn(f[0]) > s) break; c.res -= Math.max(0, f[1] - f[2]); c.lc = f[0]; c.fp.push(f); } return c; } // lo que ya se pagó (desde que se armó el json): baja el residual, corre el último pago y pasa a los pagados
   function settle() { try { return window.settleDate(window.settleMode || 'T1'); } catch (e) { var d = new Date(); return Math.floor(d.getTime() / 864e5) + 1; } }
   function rows() {
     if (!J) return [];
     var s = settle(), out = [], open = typeof mktStarted === 'function' ? mktStarted() : true, SV = sov();
     Object.keys(J.on).forEach(function (k) {
-      var o = J.on[k]; if (o.x) o = dynO(o, s); // los cargados a mano (PR17) traen todo el cronograma: el residual y el último pago salen de lo ya pagado
+      var o = dynO(J.on[k], s); // lo que ya pagó (los cargados a mano, como PR17, traen todo el cronograma) baja el residual y corre el último pago: sin esto la TIR cuenta dos veces el cupón cobrado
       var usd = o.t === 'usd', sym = usd ? usym(k, spG()) : o.o, fxp = 1; if (usd && !sym) { sym = o.o; fxp = fxU(spG()); if (!(fxp > 0)) return; } // sin especie en dólares: el precio en pesos ÷ MEP o cable
       var L = LV[sym], cl = C.px[sym], lvOk = L && L.c && open;
       var p = lvOk ? L.c : cl ? cl[0] : null; if (p > 0 && fxp !== 1) p = p / fxp; var ch = lvOk && L.pct != null ? L.pct : null;
@@ -11737,7 +11775,7 @@ window.RATG = (function () {
         var pfl = ix ? e.fl.map(function (f, i) { return [f[0], f[1] * FQ[i][0], f[2] * FQ[i][0]]; }) : e.fl; // CER y dollar linked: los flujos en pesos con el índice de cada pago; la TIR va con los de la base (krFl)
         var cfl = e.fl.map(function (f, i) { var m = ix ? FQ[i][0] : fm, am = Math.max(0, f[1] - f[2]), x = { t: f[0], renta: f[2] * m, amort: am * m, total: f[1] * m, res: Math.max(0, res - am), ix: FQ[i][1] }; res = x.res; return x; });
         return { k: e.k, grp: 'pv', corp: 1, usdOn: usd, ty: e.t, al: e.sym, tipo: (usd ? 'hard dollar' : e.t === 'ars' || e.t === 'fija' ? 'tasa fija en pesos' : e.t === 'dl' ? 'dollar linked' : e.t.toUpperCase()) + (e.em ? ' · ' + e.em : ''), feat: [], tl: usd ? 'TIR en dólares' : e.t === 'cer' ? 'TIR real (sobre CER)' : e.t === 'dl' ? 'TIR en dólares (A3500 constante)' : 'TIR',
-          xo: !!o.x, P: e.p, fl: pfl, krFl: ix ? e.fl : null, krP: ix ? e.p / fm : null, krY: ix ? e.tir : null, s: e.s, mat: dn(o.mat), d: e.d, tir: e.tir, tem: tem, tna: tem * 365 / 30, md: e.md, conv: e.cvx, odd: !!e.odd, cfl: cfl, res: o.res, vt: e.vt, ai: e.ai, iss: o.iss ? dn(o.iss) : null, cpn: o.r != null ? o.r / 100 : null,
+          xo: !!o.x, P: e.p, fl: pfl, krFl: ix ? e.fl : null, krP: ix ? e.p / fm : null, krY: ix ? e.tir : null, s: e.s, mat: dn(o.mat), d: e.d, tir: e.tir, tem: tem, tna: tem * 365 / 30, md: e.md, conv: e.cvx, odd: !!e.odd, cfl: cfl, paid: paidFl(o), res: o.res, vt: e.vt, ai: e.ai, iss: o.iss ? dn(o.iss) : null, cpn: o.r != null ? o.r / 100 : null,
           q: function () { var L = LV[e.sym] || {}, u = L.c > 0 && L.c < 5 ? 100 : 1; return { c: L.c > 0 ? L.c * u : null, pct: L.pct, bid: L.bid > 0 ? L.bid * u : null, ask: L.ask > 0 ? L.ask * u : null, v: L.v, nop: L.n }; } };
       });
     },
