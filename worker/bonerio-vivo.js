@@ -15,10 +15,10 @@ const sym = (s) => 'MERV - XMEV - ' + s + ' - 24hs'; // precios de 24 hs, como d
 const MEM = {};
 let LASTERR = '';
 let TOK = null, TOKT = 0, WSST = 0; // el token de Primary dura un día; se renueva cada 6 horas o si lo rechaza
-const base = (env) => (env.ROFEX_URL || 'https://api.bull.xoms.com.ar').replace(/\/+$/, '');
+const base = (env) => String(env.ROFEX_URL || 'https://api.bull.xoms.com.ar').trim().replace(/\/+$/, '');
 async function token(env, force) {
   if (!force && TOK && Date.now() - TOKT < 6 * 3600e3) return TOK;
-  const r = await fetch(base(env) + '/auth/getToken', { method: 'POST', headers: { 'X-Username': env.ROFEX_USER, 'X-Password': env.ROFEX_PASS } });
+  const r = await fetch(base(env) + '/auth/getToken', { method: 'POST', headers: { 'X-Username': String(env.ROFEX_USER || '').trim(), 'X-Password': String(env.ROFEX_PASS || '').trim() } });
   const t = r.headers.get('X-Auth-Token');
   if (!t) throw new Error('login Primary: ' + r.status);
   TOK = t; TOKT = Date.now(); return t;
