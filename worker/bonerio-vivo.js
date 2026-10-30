@@ -4,7 +4,8 @@
    - /live/<ep>  (arg_bonds, arg_notes, arg_corp, arg_stocks, arg_cedears): la misma lista y el mismo formato que data912.com/live/<ep>,
                  con precio, punta compradora y vendedora de Primary en tiempo real. Si Primary falla, devuelve la de data912 tal cual.
    - /caucion    caución de BYMA (datos abiertos) por plazo: { ts, ARS, USD, EXT }, cada fila [días, compra, venta, última, cierre, vwap, monto].
-   Cada respuesta se guarda 15 segundos: muchos visitantes a la vez = una sola consulta a Primary. */
+   - /stream     websocket: al conectarse manda { s: {ep: filas} } y después { u: {ticker: [último, var %, compra, cant., venta, cant.]} } con cada cambio.
+   Sin el Durable Object (FEED), cada respuesta se guarda 15 segundos: muchos visitantes a la vez = una sola consulta a Primary. */
 
 const D912 = 'https://data912.com/live/';
 const EPS = ['arg_bonds', 'arg_notes', 'arg_corp', 'arg_stocks', 'arg_cedears'];
@@ -63,14 +64,81 @@ async function live(env, ep) {
   let md = {};
   try { md = await snapshot(env, rows.map((r) => sym(r.symbol)), 3500); } catch (e) { LASTERR = String(e.message || e); return rows; }
   if (!Object.keys(md).length) LASTERR = 'Primary no mandó precios en 3,5 s';
-  return rows.map((r) => {
-    const m = md[sym(r.symbol)]; if (!m) return r;
-    const bi = (m.BI || [])[0], of = (m.OF || [])[0], la = deHoy(m.LA && m.LA.date) ? px(m.LA) : null, cl = px(m.CL), o = Object.assign({}, r, { src: 'primary' });
-    if (la) { o.c = la; if (cl) o.pct_change = (la / cl - 1) * 100; }
-    if (bi) { o.px_bid = bi.price; o.q_bid = bi.size; }
-    if (of) { o.px_ask = of.price; o.q_ask = of.size; }
-    return o;
-  });
+  return rows.map((r) => patch(r, md[sym(r.symbol)]));
+}
+
+// la fila de data912 con lo que mandó Primary: último de hoy, variación contra el cierre anterior y las puntas
+function patch(r, m) {
+  if (!m) return r;
+  const bi = (m.BI || [])[0], of = (m.OF || [])[0], la = deHoy(m.LA && m.LA.date) ? px(m.LA) : null, cl = px(m.CL), o = Object.assign({}, r, { src: 'primary' });
+  if (la) { o.c = la; if (cl) o.pct_change = (la / cl - 1) * 100; }
+  if (bi) { o.px_bid = bi.price; o.q_bid = bi.size; }
+  if (of) { o.px_ask = of.price; o.q_ask = of.size; }
+  return o;
+}
+
+/* Feed: un Durable Object con UNA conexión permanente a Primary suscripta a todos los tickers.
+   Cada cambio se empuja a los navegadores conectados a /stream (websocket) en tandas de 250 ms.
+   Si nadie mira durante 10 minutos, corta la conexión con Primary y se apaga. */
+export class Feed {
+  constructor(ctx, env) { this.ctx = ctx; this.env = env; this.rows = {}; this.idx = {}; this.md = {}; this.ws = null; this.cl = new Set(); this.dirty = new Set(); this.seen = Date.now(); this.lt = 0; this.lists_t = 0; }
+  ok() { return !!(this.ws && this.lt && Date.now() - this.lt < 15 * 60e3); }
+  async lists() { // la lista de tickers sale de data912 (y lo que Primary no tiene: volumen, operaciones)
+    const nu = [];
+    await Promise.all(EPS.map(async (ep) => { try { const r = await (await fetch((this.env.D912 || D912) + ep)).json(); if (!Array.isArray(r) || !r.length) return;
+      this.rows[ep] = r; r.forEach((x) => { const k = sym(x.symbol); if (!this.idx[k]) nu.push(k); this.idx[k] = x.symbol; }); } catch (e) {} }));
+    this.lists_t = Date.now(); this.by = {}; EPS.forEach((ep) => (this.rows[ep] || []).forEach((x) => (this.by[x.symbol] = x)));
+    if (this.ws && nu.length) this.sub(nu);
+  }
+  sub(list) { for (let i = 0; i < list.length; i += 100) this.ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ['BI', 'OF', 'LA', 'CL'], products: list.slice(i, i + 100).map((s) => ({ symbol: s, marketId: 'ROFX' })) })); }
+  async connect() {
+    let ws;
+    for (const force of [false, true]) { const r = await fetch(base(this.env) + '/', { headers: { Upgrade: 'websocket', 'X-Auth-Token': await token(this.env, force) } }); if (r.webSocket) { ws = r.webSocket; break; } }
+    if (!ws) throw new Error('websocket de Primary rechazado');
+    ws.accept(); this.ws = ws;
+    ws.addEventListener('message', (e) => this.onMd(e.data));
+    const lost = () => { if (this.ws !== ws) return; this.ws = null; if (this.alive()) setTimeout(() => this.connect().catch((x) => (LASTERR = String(x.message || x))), 3000); };
+    ws.addEventListener('close', lost); ws.addEventListener('error', lost);
+    this.sub(Object.keys(this.idx));
+  }
+  alive() { return this.cl.size > 0 || Date.now() - this.seen < 10 * 60e3; }
+  start() {
+    if (!this.go) this.go = (async () => { await this.lists(); await this.connect(); await this.ctx.storage.setAlarm(Date.now() + 60e3); })().catch((e) => { LASTERR = String(e.message || e); this.go = null; });
+    return this.go;
+  }
+  onMd(data) {
+    let m; try { m = JSON.parse(data); } catch (x) { return; }
+    if (m.type !== 'Md' || !m.instrumentId) return;
+    const k = m.instrumentId.symbol; this.md[k] = Object.assign(this.md[k] || {}, m.marketData || {}); this.lt = Date.now();
+    if (!this.cl.size) return;
+    this.dirty.add(k); if (!this.tm) this.tm = setTimeout(() => this.flush(), 250);
+  }
+  flush() {
+    this.tm = null; const u = {};
+    this.dirty.forEach((k) => { const t = this.idx[k], r = t && this.by[t]; if (!r) return; const o = patch(r, this.md[k]); u[t] = [o.c, o.pct_change, o.px_bid, o.q_bid, o.px_ask, o.q_ask]; });
+    this.dirty.clear(); if (!Object.keys(u).length) return;
+    const msg = JSON.stringify({ u }); this.cl.forEach((c) => { try { c.send(msg); } catch (e) { this.cl.delete(c); } });
+  }
+  merged(ep) { return (this.rows[ep] || []).map((r) => patch(r, this.md[sym(r.symbol)])); }
+  async alarm() {
+    if (!this.alive()) { const w = this.ws; this.ws = null; this.go = null; try { w && w.close(1000, 'sin visitantes'); } catch (e) {} return; }
+    if (Date.now() - this.lists_t > 10 * 60e3) await this.lists();
+    if (!this.ws && this.go) await this.connect().catch((x) => (LASTERR = String(x.message || x)));
+    await this.ctx.storage.setAlarm(Date.now() + 60e3);
+  }
+  async fetch(req) {
+    const u = new URL(req.url); this.seen = Date.now(); await this.start();
+    if (u.pathname === '/stream') {
+      if (req.headers.get('Upgrade') !== 'websocket') return new Response('websocket', { status: 426 });
+      const [c, s] = Object.values(new WebSocketPair()); s.accept(); this.cl.add(s);
+      const bye = () => { this.cl.delete(s); this.seen = Date.now(); }; s.addEventListener('close', bye); s.addEventListener('error', bye);
+      const snap = {}; EPS.forEach((ep) => (snap[ep] = this.merged(ep))); s.send(JSON.stringify({ s: snap }));
+      return new Response(null, { status: 101, webSocket: c });
+    }
+    const ep = u.pathname.replace(/^\/live\//, '');
+    if (!this.ok() || !this.rows[ep]) return new Response('', { status: 204 });
+    return new Response(JSON.stringify(this.merged(ep)));
+  }
 }
 
 async function caucion() {
@@ -100,8 +168,12 @@ export default {
       try { const md = await snapshot(env, [sym('AL30'), sym('GD30')], 5000); d.websocket = 'ok'; d.precios = md; } catch (e) { d.websocket = String(e.message || e); }
       return new Response(JSON.stringify(d, null, 1), { headers: h });
     }
-    const ep = u.pathname.replace(/^\/live\//, '');
+    const ep = u.pathname.replace(/^\/live\//, ''), feed = env.FEED && env.ROFEX_USER ? env.FEED.get(env.FEED.idFromName('main')) : null;
+    if (u.pathname === '/stream') return feed ? feed.fetch(req) : new Response('sin Feed', { status: 503 }); // precios empujados al instante
     if (u.pathname !== '/caucion' && !EPS.includes(ep)) return new Response('{"error":"ruta"}', { status: 404, headers: h });
+    if (feed && u.pathname !== '/caucion') { // con la conexión permanente ya abierta, la lista sale al instante
+      try { const r = await feed.fetch(req); if (r.status === 200) return new Response(r.body, { headers: Object.assign({}, h, { 'Cache-Control': 'no-store' }) }); } catch (e) {}
+    }
     const m = MEM[u.pathname]; // en memoria (en workers.dev la caché de Cloudflare no guarda nada)
     if (m && Date.now() - m.t < TTL * 1000) return new Response(m.b, { headers: h });
     try {
