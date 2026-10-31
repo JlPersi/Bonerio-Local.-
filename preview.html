@@ -124,6 +124,28 @@ Chart.register({ id: 'zoomFix', beforeEvent: function (ch, args) {
     return { pointStyle: KEEP[ps] ? ps : 'circle', rotation: 0 };
   };
 })(Chart.defaults.plugins.tooltip);
+/* Caja de puntas: al pasar el mouse por un bono o una acción en cualquier gráfico, el tooltip suma las 5 mejores puntas de Primary (vía el Worker) */
+(function (t) {
+  var BK = {}, nf = function (v, d) { return v == null ? '' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  var get = function (k, ch) {
+    var b = BK[k]; if (b && (b.p || Date.now() - b.t < 3000)) return b.d;
+    BK[k] = { t: Date.now(), p: 1, d: b && b.d };
+    fetch((window.BL_LIVE || 'https://bonerio-vivo.persijuanluis.workers.dev').replace(/\/+$/, '') + '/book/' + k, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      BK[k] = { t: Date.now(), d: d && (d.BI && d.BI.length || d.OF && d.OF.length) ? d : null };
+      var tp = ch && ch.tooltip, a = tp && tp.getActiveElements && tp.getActiveElements(); if (a && a.length) { tp.update(true); ch.draw(); }
+    }).catch(function () { BK[k] = { t: Date.now(), d: null }; });
+    return b && b.d;
+  };
+  t.callbacks.afterBody = function (its) {
+    if (!its || its.length !== 1) return [];
+    var r = its[0].raw, k = r && (r.k || r.t || r.bono || r.tk || (r.e && r.e.k)); if (typeof k !== 'string' || !/^[A-Z0-9]{3,8}$/.test(k)) return [];
+    if (typeof mktOpen === 'function' && !mktOpen()) return [];
+    var d = get(k, its[0].chart); if (!d) return [];
+    var dc = function (v) { return v >= 1000 ? 0 : v >= 10 ? 2 : 3; }, out = ['', 'Puntas ' + k + ' (cant. × precio)'];
+    for (var i = 0; i < 5; i++) { var bi = d.BI[i], of = d.OF[i]; if (!bi && !of) break; out.push((bi ? nf(bi[1], 0) + ' × ' + nf(bi[0], dc(bi[0])) : '—') + '   |   ' + (of ? nf(of[0], dc(of[0])) + ' × ' + nf(of[1], 0) : '—')); }
+    return out;
+  };
+})(Chart.defaults.plugins.tooltip);
 /*@@AMP_START@@*/
 /* Ampliar: cada gráfico lleva un botón que lo abre grande en el centro, con el fondo difuminado. Es el mismo gráfico (con su tooltip y sus
    controles): se mueve a la ventana y al cerrar (X, Esc o clic afuera) vuelve a su lugar. El botón no sale en las capturas. */
