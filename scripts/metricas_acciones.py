@@ -146,6 +146,8 @@ def main():
         if not fn.endswith(".json") or fn in SKIP:
             continue
         o = json.load(open(os.path.join(DIR, fn)))
+        if not isinstance(o, dict) or not isinstance(o.get("t"), str) or not o.get("r"):  # solo archivos de precios (no calendario, dividendos, ccl…)
+            continue
         px = adj([(r[0], r[4]) for r in o.get("r", []) if r[4] and r[4] > 0], spl.get(o.get("t"), []), bad.get(o.get("t"), set()))
         if len(px) < 2:
             continue
