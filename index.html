@@ -12270,7 +12270,7 @@ window.RATG = (function () {
 
   var S = '#acc ';
   // subpestañas: qué tarjetas muestra cada una y qué hay que redibujar al entrar (los gráficos ocultos no saben su tamaño)
-  var SUBS = [['panel', 'Panel', ['accT', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV', 'accE', 'accH']], ['pares', 'Pares', ['accP', 'accRd']], ['mer', 'Sectores y flujo', ['accS', 'accB', 'accR']], ['bal', 'Balances', ['accCal']], ['opc', 'Opciones', ['accO']]];
+  var SUBS = [['panel', 'Panel', ['accT', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV', 'accVe', 'accE', 'accH']], ['pares', 'Pares', ['accP', 'accRd']], ['mer', 'Sectores y flujo', ['accS', 'accB', 'accR']], ['bal', 'Balances', ['accCal']], ['opc', 'Opciones', ['accO']]];
   root.innerHTML = '<style>' +
     '#acc{--fc:#4ade80;--fr:74,222,128}[data-theme="light"] #acc{--fc:#15803d;--fr:21,128,61}' +
     '#acc .card:not(.card .card){background:linear-gradient(180deg,rgba(var(--fr),.10) 0,rgba(var(--fr),.035) 180px,rgba(var(--fr),0) 420px),var(--card);border-color:rgba(var(--fr),.22)}#acc .card:not(.card .card)>.sxh .qh{color:var(--fc);font-size:24px;font-weight:700}#acc .card canvas{background:transparent!important}' +
@@ -12357,6 +12357,10 @@ window.RATG = (function () {
     '<label>Múltiplo (eje Y)<select id="accVx"><option value="pvl">Precio / valor libro</option><option value="pe">Precio / ganancias (P/E)</option><option value="ev">EV / EBITDA</option></select></label>' +
     '<label>Rentabilidad (eje X)<select id="accVy"><option value="roe">ROE</option><option value="roa">ROA</option><option value="me">Margen EBITDA</option><option value="mn">Margen neto</option></select></label></div>' +
     '<div class="cw"><canvas id="accVc"></canvas></div><h5>Contra la recta: cuánto tendría que valer el múltiplo para la rentabilidad que tiene</h5><div class="tw" style="max-height:360px"><table id="accVt"></table></div><p class="note" id="accVn" style="margin-top:8px"></p></div>' +
+    '<div class="card sx" id="accVe" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Evolución del múltiplo por sector</p><p class="qs">El múltiplo de todo el sector día a día, ponderado por capitalización, contra su promedio y sus bandas de ±1 desvío en el período.</p></div><div class="sxb">' + dlb('accVe', 'Bonerio_multiplo_sector') + '</div></div>' +
+    '<div class="ctl"><label>Sector<select id="accVes">' + SEC.map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('') + '</select></label><label>Múltiplo<select id="accVem"><option value="pvl">Precio / valor libro</option><option value="pe">Precio / ganancias (P/E)</option><option value="ev">EV / EBITDA</option></select></label>' +
+    '<label>Período<span class="seg" id="accVep"><button data-v="6m">6 meses</button><button data-v="1a">1 año</button><button data-v="2a">2 años</button></span></label></div>' +
+    '<div class="kp" id="accVek"></div><div class="cw"><canvas id="accVec"></canvas></div><p class="note" id="accVen" style="margin-top:8px"></p></div>' +
 
     '<div class="card sx" id="accE" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Acciones contra riesgo país</p><p class="qs">Cinco años de puntos semanales: cuánto valía la bolsa para cada nivel de riesgo país. Si hoy está arriba de la recta, está cara para el riesgo país que hay.</p></div><div class="sxb">' + dlb('accE', 'Bonerio_acciones_riesgo_pais') + '</div></div>' +
     '<div class="ctl"><label>Eje Y<select id="accEy" style="min-width:250px"><option value="ban">P/VL mediano de los bancos</option><option value="ene">EV/EBITDA mediano de energía</option><option value="pe">P/E mediano del panel líder</option><option value="ccl">Panel líder en dólares CCL</option></select></label><label>Período<span class="seg" id="accEp"><button data-v="2">2 años</button><button data-v="5">5 años</button></span></label></div>' +
@@ -12560,7 +12564,7 @@ window.RATG = (function () {
     if (!SUBS.some(function (x) { return x[0] === g; })) g = 'panel'; ST.sub = g; save(); var first = true;
     SUBS.forEach(function (x) { x[2].forEach(function (id) { var e = $(id); if (!e) return; e.style.display = x[0] === g ? '' : 'none'; if (x[0] === g) { e.style.marginTop = first ? '0' : '24px'; first = false; } }); });
     [].forEach.call($('accNav').querySelectorAll('button'), function (b) { b.classList.toggle('on', b.getAttribute('data-g') === g); });
-    if (draw && IX) ({ panel: function () { table(); adrs(); }, ficha: chart, val: function () { valua(); erp(); hold(); }, pares: function () { radar(); pair(); }, mer: function () { SX = {}; sectors(); flow(); scatter(); }, bal: cal, opc: covered })[g]();
+    if (draw && IX) ({ panel: function () { table(); adrs(); }, ficha: chart, val: function () { valua(); secMult(); erp(); hold(); }, pares: function () { radar(); pair(); }, mer: function () { SX = {}; sectors(); flow(); scatter(); }, bal: cal, opc: covered })[g]();
   }
   $('accNav').onclick = function (e) { var b = e.target.closest('button[data-g]'); if (b) sub(b.getAttribute('data-g'), 1); };
   function pick(t, scroll) { ST.sel = t; save(); sub('ficha'); $('accTk').value = ''; [].forEach.call($('accTab').querySelectorAll('tr[data-t]'), function (r) { r.classList.toggle('sel', r.getAttribute('data-t') === t); }); chart(); if (scroll) setTimeout(function () { $('accF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60); }
@@ -13144,6 +13148,33 @@ window.RATG = (function () {
     $('accVs').textContent = P.length + ' acciones' + (ST.vp === 'lider' ? ' del panel líder' : ST.vp === 'general' ? ' del panel general' : '') + ' · ' + VXN[yk] + ' = ' + (L ? nf(L.a, 2) + (L.b >= 0 ? ' + ' : ' − ') + nf(Math.abs(L.b), 3) + ' × ' + VYN[xk] + (L.r2 != null ? ' · R² ' + nf(L.r2, 2) : '') : '—') + ' · debajo de la recta: barata contra sus pares';
     $('accVn').textContent = (weak ? (P.length < 5 ? 'Con ' + P.length + ' acciones la recta no es confiable (mínimo 5): no se calcula el potencial. ' : 'La recta explica poco (R² ' + nf(L && L.r2, 2) + ', menos de 0,25): no se calcula el potencial. ') : '') + 'Como la curva soberana, pero con acciones: en X la rentabilidad del último balance (12 meses), en Y el múltiplo con el precio en vivo. La recta dice qué múltiplo "le corresponde" a cada rentabilidad; el potencial es cuánto tendría que moverse el precio para quedar sobre ella (con EV/EBITDA, contando la deuda neta). Una referencia, no una recomendación.';
   }
+  /* ---------- evolución del múltiplo de un sector (series diarias de data/acciones/ratios.json) ---------- */
+  var VE = { s: 'ban', m: 'pvl', p: '1a' }; try { Object.assign(VE, JSON.parse(localStorage.getItem('blVe1') || '{}')); } catch (e) {}
+  function secMult() {
+    if (!IX || !RT || !$('accVec')) return; $('accVes').value = VE.s; $('accVem').value = VE.m;
+    [].forEach.call($('accVep').querySelectorAll('button'), function (b) { b.classList.toggle('on', b.getAttribute('data-v') === VE.p); });
+    var col = { pe: 1, pvl: 2, ev: 3 }[VE.m], ok = function (v) { return v != null && isFinite(v) && v > 0 && (VE.m === 'pvl' ? v < 30 : v < 80); };
+    var ts = IX.filter(function (x) { return secOf(x.t) === VE.s; }).map(function (x) { return x.t; }).filter(function (t) { var r = RT.t[t]; return r && r.serie && r.ultimo && r.ultimo.capitalizacion > 0; });
+    var last = '', W = {}, M = {}; ts.forEach(function (t) { var r = RT.t[t], m = {}; W[t] = r.ultimo.capitalizacion; r.serie.forEach(function (x) { m[x[0]] = x[col]; if (x[0] > last) last = x[0]; }); M[t] = m; });
+    var from = new Date(Date.parse(last || '2000-01-01') - ({ '6m': 182, '1a': 365, '2a': 730 }[VE.p]) * 864e5).toISOString().slice(0, 10);
+    var ds = {}; ts.forEach(function (t) { Object.keys(M[t]).forEach(function (d) { if (d >= from) ds[d] = 1; }); }); ds = Object.keys(ds).sort();
+    var lv = {}, out = []; ds.forEach(function (d) { var sw = 0, sy = 0, n = 0; ts.forEach(function (t) { if (d in M[t]) lv[t] = [d, M[t][d]]; var q = lv[t]; if (!q || !ok(q[1]) || (Date.parse(d) - Date.parse(q[0])) > 7 * 864e5) return;
+        sw += W[t]; sy += W[t] * (VE.m === 'pvl' ? q[1] : 1 / q[1]); n++; }); // P/E y EV/EBITDA: promedio de la inversa (rendimiento) y se vuelve a invertir, para que un múltiplo enorme no domine
+      if (n && sw > 0) out.push([d, VE.m === 'pvl' ? sy / sw : sw / sy, n]); });
+    if (out.length < 10) { $('accVek').innerHTML = ''; $('accVen').textContent = 'Sin suficientes datos para ' + SN[VE.s] + ' con ese múltiplo.'; if (window.Chart && Chart.getChart('accVec')) Chart.getChart('accVec').destroy(); return; }
+    var ys = out.map(function (x) { return x[1]; }), mu = mean(ys), s = sd(ys), z = s ? (ys[ys.length - 1] - mu) / s : null, pr = ys.filter(function (v) { return v <= ys[ys.length - 1]; }).length / ys.length;
+    var mx = Math.max.apply(null, ys), mn = Math.min.apply(null, ys), o = base(); o.plugins.legend.display = true;
+    o.plugins.tooltip.callbacks = { label: function (c) { return c.dataset.label + ': ' + nf(c.parsed.y, 2) + 'x'; } };
+    var cst = function (v) { return ys.map(function () { return v; }); };
+    mk('accVec', { type: 'line', data: { labels: out.map(function (x) { return fr(x[0]); }), datasets: [ln(SN[VE.s] + ' (' + { pvl: 'P/VL', pe: 'P/E', ev: 'EV/EBITDA' }[VE.m] + ')', ys, '#5cc8ff', { borderWidth: 2.2 }), ln('Promedio', cst(mu), '#4ade80', { borderWidth: 1.6 }), ln('+1 desvío', cst(mu + s), '#9ca3af', { borderWidth: 1, borderDash: [5, 4] }), ln('−1 desvío', cst(mu - s), '#9ca3af', { borderWidth: 1, borderDash: [5, 4] })] }, options: o });
+    var lab = { pvl: 'P/VL', pe: 'P/E', ev: 'EV/EBITDA' }[VE.m];
+    $('accVek').innerHTML = '<div><small>' + lab + ' del sector hoy</small><b>' + nf(ys[ys.length - 1], 2) + 'x</b><span>' + out[out.length - 1][2] + ' acciones</span></div><div><small>Promedio del período</small><b>' + nf(mu, 2) + 'x</b><span>bandas ' + nf(mu - s, 2) + ' – ' + nf(mu + s, 2) + '</span></div>' +
+      '<div><small>Contra el promedio</small><b' + (z > 1 ? ' class="dn"' : z < -1 ? ' class="up"' : '') + '>z ' + nf(z, 2) + '</b><span>percentil ' + nf(pr * 100, 0) + '% del período</span></div><div><small>Máximo / mínimo</small><b>' + nf(mx, 2) + ' / ' + nf(mn, 2) + '</b><span>en el período</span></div>';
+    $('accVen').textContent = 'Ponderado por la capitalización de hoy de cada acción del sector (' + ts.join(', ') + '). En P/E y EV/EBITDA se promedia la inversa y se vuelve a invertir, y se dejan afuera los negativos (pérdidas). Los balances se reexpresan por inflación; con períodos largos pesan además los cambios de riesgo país y de tasa, por eso conviene mirarlo en 6 meses a 2 años. Sobre la banda de +1 desvío, el sector está caro contra su propia historia reciente; bajo la de −1, barato.';
+  }
+  $('accVes').onchange = function () { VE.s = this.value; try { localStorage.setItem('blVe1', JSON.stringify(VE)); } catch (e) {} secMult(); };
+  $('accVem').onchange = function () { VE.m = this.value; try { localStorage.setItem('blVe1', JSON.stringify(VE)); } catch (e) {} secMult(); };
+  $('accVep').onclick = function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; VE.p = b.getAttribute('data-v'); try { localStorage.setItem('blVe1', JSON.stringify(VE)); } catch (er) {} secMult(); };
   $('accVt').onclick = function (e) { var tr = e.target.closest('tr[data-t]'); if (tr) pick(tr.getAttribute('data-t'), 1); };
 
   /* ---------- ADRs ---------- */
