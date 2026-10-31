@@ -263,7 +263,17 @@ def main():
         except Exception:
             px = []
         serie, last = [], None
-        splits = b.get("splits", [])
+        splits = list(b.get("splits", []))
+        # splits que no están cargados en el balance (solo aviso): una baja de un día a 1/N del precio (N entero de 3 a 20, ±5%) que se sostiene
+        # las 5 ruedas siguientes (MIRG 10:1 del 03/08/26). Los precios de la historia no vienen ajustados.
+        conoc, sosp = {sp["fecha"] for sp in splits}, []  # no se aplican (un cambio de unidad de cotización se ve igual): se avisan en la ficha
+        for i in range(6, len(px) - 5):  # desde 3:1, para no confundir un derrumbe de 50% con un split 2:1; estable antes y después (no un precio mal cargado)
+            r = px[i - 1][1] / px[i][1]
+            n = round(r)
+            if 3 <= n <= 20 and abs(r / n - 1) < 0.05 and all(abs(px[i + q][1] / px[i][1] - 1) < 0.35 for q in range(1, 6)) \
+                    and all(abs(px[i - 1 - q][1] / px[i - 1][1] - 1) < 0.35 for q in range(1, 6)) and px[i][0] not in conoc:
+                sosp.append({"fecha": px[i][0], "factor": n})
+                print("posible split sin confirmar", t, px[i][0], n)
         for d, price in px:
             av = [c for c in calc if c["pub"] <= d]
             if not av:
@@ -289,6 +299,7 @@ def main():
                    "ev_ebitda": div(ev, c["ebitda"] * f if c["ebitda"] is not None else None)}
             serie.append([d, row["pe"], row["pvl"], row["ev_ebitda"]]); last = (row, c, mcap)
         res = {"balances": len(per), "serie_cols": ["d", "pe", "pvl", "ev_ebitda"], "serie": serie}
+        if sosp: res["aviso_split"] = sosp[-1]
         if last:
             row, c, mcap = last
             f = cer(row["d"]) / cer(c["cierre"]) * esc
