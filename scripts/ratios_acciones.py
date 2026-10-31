@@ -17,7 +17,7 @@ Además, por empresa:
 - "trim": cada trimestre suelto (ventas, EBITDA y resultado neto, en dólares: pesos del cierre / CCL de ese día, o el A3500 si la
   moneda funcional es el dólar) y el patrimonio neto, para las variaciones interanuales y contra el trimestre anterior.
 """
-import json, os, re, datetime as dt
+import json, os, re, statistics, datetime as dt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..")
@@ -276,7 +276,11 @@ def main():
             f = cer(d) / cer(c["cierre"]) * esc  # balance reexpresado a moneda del día del precio
             k = 1  # splits posteriores al cierre del balance (los precios no vienen ajustados)
             for sp in splits:  # "ajustado": la historia de precios ya viene dividida, así que cuenta para cualquier fecha
-                if c["cierre"] < sp["fecha"] and (sp.get("ajustado") or sp["fecha"] <= d):
+                # cuenta si las acciones del balance siguen en unidades de antes del split: balances cerrados antes, o posteriores
+                # que todavía informan la cantidad vieja (YPF sep-26 informó 392 M después del split 10:1 de ago-26)
+                pre = [a["acc0"] for a in calc if a.get("acc0") and a["cierre"] < sp["fecha"]]
+                viejo = c["cierre"] < sp["fecha"] or (pre and c["acciones"] < statistics.median(pre) * sp["factor"] / 2)
+                if viejo and (sp.get("ajustado") or sp["fecha"] <= d):
                     k *= sp["factor"]
             mcap = price * c["acciones"] * k
             ev = mcap + ((c["deuda"] or 0) - (c["caja"] or 0)) * f if c["deuda"] is not None or c["caja"] is not None else None
