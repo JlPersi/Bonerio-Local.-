@@ -12040,7 +12040,7 @@ window.RATG = (function () {
 
   var S = '#acc ';
   // subpestañas: qué tarjetas muestra cada una y qué hay que redibujar al entrar (los gráficos ocultos no saben su tamaño)
-  var SUBS = [['panel', 'Panel', ['accT', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV', 'accE', 'accH']], ['pares', 'Pares', ['accP', 'accRd']], ['mer', 'Sectores y flujo', ['accS', 'accB', 'accR']], ['bal', 'Balances', ['accCal']], ['opc', 'Opciones', ['accO']]];
+  var SUBS = [['panel', 'Panel', ['accT', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV', 'accE', 'accH']], ['pares', 'Pares', ['accP', 'accRd']], ['mer', 'Sectores y flujo', ['accS', 'accRot', 'accB', 'accR', 'accCo']], ['bal', 'Balances', ['accCal']], ['opc', 'Opciones', ['accO']]];
   root.innerHTML = '<style>' +
     '#acc{--fc:#4ade80;--fr:74,222,128}[data-theme="light"] #acc{--fc:#15803d;--fr:21,128,61}' +
     '#acc .card:not(.card .card){background:linear-gradient(180deg,rgba(var(--fr),.10) 0,rgba(var(--fr),.035) 180px,rgba(var(--fr),0) 420px),var(--card);border-color:rgba(var(--fr),.22)}#acc .card:not(.card .card)>.sxh .qh{color:var(--fc);font-size:24px;font-weight:700}#acc .card canvas{background:transparent!important}' +
@@ -12122,6 +12122,12 @@ window.RATG = (function () {
     '<div class="card sx" id="accR" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Riesgo contra retorno</p><p class="qs">Volatilidad anualizada y retorno de cada acción, por sector.</p></div><div class="sxb">' + dlb('accR', 'Bonerio_acciones_riesgo') + '</div></div>' +
     '<div class="ctl"><label>Moneda<span class="seg" id="accMon4"><button data-v="ars">Pesos</button><button data-v="ccl">Dólar CCL</button></span></label><label>Ventana<span class="seg" id="accRr"><button data-v="3m">3 meses (vol. 60 ruedas)</button><button data-v="1a">1 año (vol. 252 ruedas)</button></span></label></div>' +
     '<div class="cw"><canvas id="accRrc"></canvas></div><p class="note" style="margin-top:8px">El tamaño del punto es la beta contra el panel líder. Tocá un punto para verla en el gráfico.</p></div>' +
+    '<div class="card sx" id="accRot" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Rotación sectorial (RRG)</p><p class="qs">Cada sector contra el panel líder: fuerza relativa (X) y su impulso (Y). Los sectores giran en sentido horario: mejorando, liderando, debilitándose y rezagados.</p></div><div class="sxb">' + dlb('accRot', 'Bonerio_rrg_sectores') + '</div></div>' +
+    '<div class="ctl"><label>Estela<span class="seg" id="accRgw"><button data-v="4">4 semanas</button><button data-v="8">8 semanas</button><button data-v="13">3 meses</button></span></label></div>' +
+    '<div class="cw" style="height:460px"><canvas id="accRgc"></canvas></div><ul class="note" id="accRgn" style="margin:10px 0 0;padding-left:18px;line-height:1.6"><li><b>Fuerza relativa (X)</b>: el ratio sector / panel líder contra su promedio de 50 ruedas (100 = en su promedio).</li><li><b>Impulso (Y)</b>: cuánto cambió esa fuerza en las últimas 10 ruedas (más de 100 = acelerando).</li><li>Cada punto de la estela es una semana; el punto grande es hoy. Tocá la leyenda para ocultar sectores.</li></ul></div>' +
+    '<div class="card sx" id="accCo" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Mapa de correlaciones</p><p class="qs">Cuánto se mueven juntas, con los retornos diarios: 1 = igual, 0 = nada que ver, negativo = al revés. Sirve para diversificar y para buscar pares.</p></div><div class="sxb">' + dlb('accCo', 'Bonerio_correlaciones') + '</div></div>' +
+    '<div class="ctl"><label>Universo<span class="seg" id="accCou"><button data-v="lider">Panel líder</button><button data-v="sec">Sectores</button></span></label><label>Ventana<span class="seg" id="accCow"><button data-v="60">60 ruedas</button><button data-v="120">120 ruedas</button><button data-v="250">1 año</button></span></label></div>' +
+    '<div class="tw" style="max-height:none;margin-top:10px" id="accCot"></div><p class="note" id="accCon" style="margin-top:8px"></p></div>' +
 
     '<div class="card sx" id="accV" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Valuación contra rentabilidad</p><p class="qs" id="accVs">Como la curva soberana: cada acción según su rentabilidad (X) y su múltiplo (Y), con el precio en vivo. Debajo de la recta, barata contra sus pares.</p></div><div class="sxb">' + dlb('accV', 'Bonerio_acciones_valuacion') + '</div></div>' +
     '<div class="ctl"><label>Panel<span class="seg" id="accVp"><button data-v="lider">Líder</button><button data-v="general">General</button><button data-v="all">Todas</button></span></label><label>Grupo<select id="accVg"><option value="ban">Bancos</option><option value="nof">No financieras</option><option value="all">Todas</option>' + SEC.filter(function (s) { return s[0] !== 'ban'; }).map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('') + '</select></label>' +
@@ -12143,7 +12149,8 @@ window.RATG = (function () {
   /* ---------- controles ---------- */
   var SEGS = [['accPn', 'pn', function () { table(); }], ['accBx', 'bx', reBeta], ['accRdu', 'rdu', radar], ['accEp', 'ep', erp], ['accRdc', 'rdc', radar], ['accBx2', 'bx', reBeta], ['accMon', 'mon', function () { SX = {}; drawAll(); }], ['accMon2', 'mon', function () { SX = {}; drawAll(); }], ['accMon3', 'mon', function () { SX = {}; drawAll(); }], ['accMon4', 'mon', function () { SX = {}; drawAll(); }], ['accMon5', 'mon', function () { SX = {}; drawAll(); }], ['accPd', 'pd', function () { pair(); }], // la moneda también en la ficha, sectores y riesgo-retorno
     ['accRg', 'rg', function () { chart(); }], ['accFq', 'fq', function () { chart(); }], ['accTy', 'ty', function () { chart(); }],
-    ['accSp', 'sp', function () { sectors(); }], ['accSper', 'sper', function () { ratioSec(); }], ['accRr', 'rr', function () { scatter(); }], ['accPr', 'pr', function () { pair(); }], ['accBp', 'bp', function () { flow(); }], ['accPw', 'pw', function () { pair(); }], ['accVp', 'vp', function () { valua(); }]];
+    ['accSp', 'sp', function () { sectors(); }], ['accSper', 'sper', function () { ratioSec(); }], ['accRr', 'rr', function () { scatter(); }], ['accPr', 'pr', function () { pair(); }], ['accBp', 'bp', function () { flow(); }], ['accPw', 'pw', function () { pair(); }], ['accVp', 'vp', function () { valua(); }], ['accRgw', 'rgw', function () { rrg(); }], ['accCou', 'cou', function () { corrH(); }], ['accCow', 'cow', function () { corrH(); }]];
+  ST.rgw = ST.rgw || '8'; ST.cou = ST.cou || 'lider'; ST.cow = ST.cow || '120';
   if (!ST.vp) ST.vp = 'all'; if (!ST.pd) ST.pd = '0'; if (!Array.isArray(ST.pbx)) ST.pbx = ['2'];
   var pbxOn = function () { [].forEach.call($('accPbx').querySelectorAll('button'), function (b) { b.classList.toggle('on', ST.pbx.indexOf(b.getAttribute('data-b')) >= 0); }); };
   $('accPbx').onclick = function (e) { var b = e.target.closest('button[data-b]'); if (!b) return; var k = b.getAttribute('data-b'), i = ST.pbx.indexOf(k); if (i >= 0) ST.pbx.splice(i, 1); else ST.pbx.push(k); save(); pbxOn(); pair(); }; pbxOn();
@@ -12333,7 +12340,7 @@ window.RATG = (function () {
     if (!SUBS.some(function (x) { return x[0] === g; })) g = 'panel'; ST.sub = g; save(); var first = true;
     SUBS.forEach(function (x) { x[2].forEach(function (id) { var e = $(id); if (!e) return; e.style.display = x[0] === g ? '' : 'none'; if (x[0] === g) { e.style.marginTop = first ? '0' : '24px'; first = false; } }); });
     [].forEach.call($('accNav').querySelectorAll('button'), function (b) { b.classList.toggle('on', b.getAttribute('data-g') === g); });
-    if (draw && IX) ({ panel: function () { table(); adrs(); }, ficha: chart, val: function () { valua(); erp(); hold(); }, pares: function () { radar(); pair(); }, mer: function () { SX = {}; sectors(); flow(); scatter(); }, bal: cal, opc: covered })[g]();
+    if (draw && IX) ({ panel: function () { table(); adrs(); }, ficha: chart, val: function () { valua(); erp(); hold(); }, pares: function () { radar(); pair(); }, mer: function () { SX = {}; sectors(); flow(); scatter(); rrg(); corrH(); }, bal: cal, opc: covered })[g]();
   }
   $('accNav').onclick = function (e) { var b = e.target.closest('button[data-g]'); if (b) sub(b.getAttribute('data-g'), 1); };
   function pick(t, scroll) { ST.sel = t; save(); sub('ficha'); $('accTk').value = ''; [].forEach.call($('accTab').querySelectorAll('tr[data-t]'), function (r) { r.classList.toggle('sel', r.getAttribute('data-t') === t); }); chart(); if (scroll) setTimeout(function () { $('accF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60); }
@@ -12758,6 +12765,60 @@ window.RATG = (function () {
     if (sk === 'lider') return SX[key] = Promise.resolve((IDX ? IDX[ST.mon] : (MT.indice_lider || {})[ST.mon]) || []);
     var ts = IX.filter(function (x) { return secOf(x.t) === sk; }).map(function (x) { return x.t; });
     return SX[key] = Promise.all(ts.map(file)).then(function () { var m = secLine(ts, ST.mon); return Object.keys(m).sort().map(function (d) { return [d, m[d]]; }); });
+  }
+  /* ---------- RRG sectorial y mapa de correlaciones ---------- */
+  var RGQ = { id: 'rgq', beforeDraw: function (c) { var a = c.chartArea, x = c.scales.x, y = c.scales.y; if (!a || !x || !y) return; var x0 = Math.min(Math.max(x.getPixelForValue(100), a.left), a.right), y0 = Math.min(Math.max(y.getPixelForValue(100), a.top), a.bottom), g = c.ctx;
+    [[x0, a.top, a.right - x0, y0 - a.top, 'rgba(74,222,128,.07)', 'Liderando', a.right - 8, a.top + 16, 'right'], [a.left, a.top, x0 - a.left, y0 - a.top, 'rgba(96,165,250,.07)', 'Mejorando', a.left + 8, a.top + 16, 'left'], [a.left, y0, x0 - a.left, a.bottom - y0, 'rgba(248,113,113,.07)', 'Rezagados', a.left + 8, a.bottom - 8, 'left'], [x0, y0, a.right - x0, a.bottom - y0, 'rgba(250,204,21,.07)', 'Debilitándose', a.right - 8, a.bottom - 8, 'right']].forEach(function (q) { g.save(); g.fillStyle = q[4]; g.fillRect(q[0], q[1], q[2], q[3]); g.fillStyle = css('--mu'); g.font = '600 12px Inter,sans-serif'; g.textAlign = q[8]; g.fillText(q[5], q[6], q[7]); g.restore(); }); } };
+  function rrg() {
+    if (!IX || !$('accRgc')) return; var secs = SEC.filter(function (s) { return IX.some(function (x) { return secOf(x.t) === s[0]; }); }), W = +ST.rgw;
+    Promise.all([secIdx('lider')].concat(secs.map(function (s) { return secIdx(s[0]); }))).then(function (r) {
+      var L = {}; r[0].forEach(function (x) { L[x[0]] = x[1]; }); var sets = [], csv = [];
+      secs.forEach(function (s, i) {
+        var c = r[i + 1].filter(function (x) { return L[x[0]] > 0 && x[1] > 0; }); if (c.length < 80) return;
+        var rs = c.map(function (x) { return x[1] / L[x[0]]; }), R = [], n = rs.length;
+        for (var k = 0; k < n; k++) { if (k < 49) { R.push(null); continue; } var m = 0; for (var q = k - 49; q <= k; q++) m += rs[q]; R.push(100 * rs[k] / (m / 50)); }
+        var pts = []; for (k = n - 1; k >= 0 && pts.length <= W; k -= 5) { if (R[k] == null || R[k - 10] == null) break; pts.unshift({ x: R[k], y: 100 * R[k] / R[k - 10], d: c[k][0] }); }
+        if (!pts.length) return; var lp = pts[pts.length - 1]; csv.push([s[1], lp.x.toFixed(2), lp.y.toFixed(2)]);
+        sets.push({ type: 'scatter', label: s[1], data: pts, showLine: true, borderColor: s[2], backgroundColor: s[2], borderWidth: 1.4, tension: 0.35, pointRadius: pts.map(function (p, j) { return j === pts.length - 1 ? 6 : 2; }), pointHoverRadius: 7 });
+      });
+      var o = base(); o.plugins.legend.display = true; o.interaction = { mode: 'nearest', intersect: true };
+      var qd = function (p) { return p.x >= 100 ? (p.y >= 100 ? 'liderando' : 'debilitándose') : (p.y >= 100 ? 'mejorando' : 'rezagado'); };
+      o.plugins.tooltip.callbacks = { title: function (q) { return q[0] ? q[0].dataset.label : ''; }, label: function (q) { var p = q.raw; return [fr(p.d) + ': ' + qd(p), 'Fuerza ' + nf(p.x, 1) + ' · Impulso ' + nf(p.y, 1)]; } };
+      o.scales.x = { type: 'linear', title: { display: true, text: 'Fuerza relativa', color: css('--mu') }, grid: { color: css('--bd') }, ticks: { color: css('--mu') } };
+      o.scales.y = { type: 'linear', title: { display: true, text: 'Impulso', color: css('--mu') }, grid: { color: css('--bd') }, ticks: { color: css('--mu') } };
+      var all = []; sets.forEach(function (d) { all = all.concat(d.data); }); if (all.length) { var ex = Math.max.apply(null, all.map(function (p) { return Math.abs(p.x - 100); })) * 1.12 + 0.3, ey = Math.max.apply(null, all.map(function (p) { return Math.abs(p.y - 100); })) * 1.12 + 0.3; ex = Math.ceil(ex); ey = Math.ceil(ey); o.scales.x.min = 100 - ex; o.scales.x.max = 100 + ex; o.scales.y.min = 100 - ey; o.scales.y.max = 100 + ey; }
+      mk('accRgc', { type: 'scatter', data: { datasets: sets }, options: o, plugins: [RGQ] });
+      var el = $('accRot'); if (el) el.$csv = [['Sector', 'Fuerza relativa', 'Impulso']].concat(csv);
+    });
+  }
+  var COC = {};
+  function corrH() {
+    var box = $('accCot'); if (!IX || !box) return; var N = +ST.cow, sec = ST.cou === 'sec', key = ST.cou + N;
+    var paint = function (names, cols, M) {
+      var cell = function (v, i, k) { if (i === k) return '<td style="background:var(--bd);color:var(--mu)">1</td>'; if (v == null) return '<td>–</td>'; var a = Math.min(1, Math.abs(v)), bg = v >= 0 ? 'rgba(74,222,128,' + (a * 0.85).toFixed(2) + ')' : 'rgba(248,113,113,' + (a * 0.85).toFixed(2) + ')'; return '<td title="' + esc(names[i] + ' / ' + names[k]) + ': ' + nf(v, 2) + '" style="background:' + bg + ';color:' + (a > 0.55 ? '#0b0b0c' : 'var(--tx)') + '">' + nf(v, 2) + '</td>'; };
+      box.innerHTML = '<table style="font-size:12px;border-collapse:collapse"><thead><tr><th></th>' + cols.map(function (c) { return '<th style="writing-mode:vertical-rl;transform:rotate(180deg);padding:6px 3px;text-align:left;font-weight:600">' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        names.map(function (nm, i) { return '<tr><td style="text-align:left;white-space:nowrap;padding-right:8px;font-weight:600">' + esc(nm) + '</td>' + M[i].map(function (v, k) { return cell(v, i, k); }).join('') + '</tr>'; }).join('') + '</tbody></table>';
+      box.querySelectorAll('tbody td:not(:first-child)').forEach(function (td) { td.style.padding = '5px 4px'; td.style.minWidth = '38px'; td.style.textAlign = 'center'; });
+      var pr = []; for (var i = 0; i < names.length; i++) for (var k = i + 1; k < names.length; k++) if (M[i][k] != null) pr.push([names[i] + ' / ' + names[k], M[i][k]]); pr.sort(function (a, b) { return b[1] - a[1]; });
+      var av = pr.length ? pr.reduce(function (z, x) { return z + x[1]; }, 0) / pr.length : null;
+      $('accCon').textContent = pr.length ? 'Correlación promedio ' + nf(av, 2) + '. Las que más se mueven juntas: ' + pr.slice(0, 3).map(function (x) { return x[0] + ' (' + nf(x[1], 2) + ')'; }).join(', ') + '. Las que menos: ' + pr.slice(-3).reverse().map(function (x) { return x[0] + ' (' + nf(x[1], 2) + ')'; }).join(', ') + '.' : '';
+      var el = $('accCo'); if (el) el.$csv = [[''].concat(names)].concat(names.map(function (nm, i) { return [nm].concat(M[i].map(function (v, k) { return i === k ? 1 : v == null ? '' : v.toFixed(3); })); }));
+    };
+    var build = function (series) { // series: [[nombre, {fecha: precio}]]
+      var R = series.map(function (s) { var d = Object.keys(s[1]).sort(), o = {}; for (var i = 1; i < d.length; i++) { var a = s[1][d[i - 1]], b = s[1][d[i]]; if (a > 0 && b > 0) o[d[i]] = Math.log(b / a); } return o; });
+      var M = series.map(function () { return []; });
+      for (var i = 0; i < series.length; i++) for (var k = 0; k < series.length; k++) { if (k < i) { M[i][k] = M[k][i]; continue; } if (k === i) { M[i][k] = 1; continue; }
+        var D = Object.keys(R[i]).filter(function (d) { return R[k][d] != null; }).sort().slice(-N); if (D.length < Math.min(40, N * 0.6)) { M[i][k] = null; continue; }
+        var x = D.map(function (d) { return R[i][d]; }), y = D.map(function (d) { return R[k][d]; }), mx = mean(x), my = mean(y), sx = 0, sy = 0, sxy = 0; for (var q = 0; q < D.length; q++) { sx += (x[q] - mx) * (x[q] - mx); sy += (y[q] - my) * (y[q] - my); sxy += (x[q] - mx) * (y[q] - my); }
+        M[i][k] = sx > 0 && sy > 0 ? sxy / Math.sqrt(sx * sy) : null; }
+      return M;
+    };
+    if (COC[key]) return paint(COC[key][0], COC[key][1], COC[key][2]);
+    box.innerHTML = '<p class="note">Calculando…</p>';
+    if (sec) { var secs = SEC.filter(function (s) { return IX.some(function (x) { return secOf(x.t) === s[0]; }); });
+      Promise.all(secs.map(function (s) { return secIdx(s[0]); })).then(function (r) { var ser = secs.map(function (s, i) { var m = {}; r[i].forEach(function (x) { m[x[0]] = x[1]; }); return [s[1], m]; }); var M = build(ser), nm = ser.map(function (x) { return x[0]; }); COC[key] = [nm, nm.map(function (x) { return x.split(' ')[0]; }), M]; paint.apply(null, COC[key]); }); }
+    else { var ts = IX.filter(function (x) { return x.panel === 'lider'; }).map(function (x) { return x.t; });
+      Promise.all(ts.map(file)).then(function () { var ser = ts.map(function (t) { var m = {}; rows(t, 'ars').forEach(function (x) { if (x[4] > 0) m[x[0]] = x[4]; }); return [t, m]; }); var M = build(ser); COC[key] = [ts, ts, M]; paint(ts, ts, M); }); }
   }
   function ratioSec() {
     if (!IX) return; var A = ST.sA, B2 = ST.sB, nA = A === 'lider' ? 'Panel líder' : SN[A], nB = B2 === 'lider' ? 'Panel líder' : SN[B2];
