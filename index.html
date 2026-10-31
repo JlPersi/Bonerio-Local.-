@@ -11053,6 +11053,11 @@ window.RATG = (function () {
     '<div class="onsCw"><canvas id="onsCv"></canvas></div><p class="note" id="onsN" style="margin-top:8px"></p></div>' +
     '<div class="card sx" id="onsSv" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Curva de ONs contra la curva soberana</p><p class="qs" id="onsSvS">Las dos curvas en dólares, con el spread entre ellas.</p></div><div class="sxb">' + dlb('onsSv', 'Bonerio_ONs_vs_soberanos') + '</div></div>' +
     '<div class="kp" id="onsSvK"></div><div class="onsCw"><canvas id="onsSvC"></canvas></div><p class="note" id="onsSvN" style="margin-top:8px"></p></div>' +
+    '<div class="card sx" id="onsIx" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">ONs contra comparables internacionales</p><p class="qs">El spread de las ONs hard dollar contra los índices ICE BofA de bonos corporativos: emergentes high yield, single-B de EE.UU. y Latinoamérica.</p></div><div class="sxb">' + dlb('onsIx', 'Bonerio_ONs_vs_internacionales') + '</div></div>' +
+    '<style>#onsIxP{display:inline-flex;border:1px solid var(--bd);border-radius:10px;overflow:hidden;margin-top:14px}#onsIxP button{background:none;border:0;color:var(--tx);padding:8px 13px;font:inherit;font-size:13px;cursor:pointer}#onsIxP button.on{background:var(--tx);color:var(--bg);font-weight:700}</style>' +
+    '<span id="onsIxP"><button data-v="6m">6M</button><button data-v="1a">1A</button><button data-v="2a">2A</button><button data-v="3a">3A</button></span>' +
+    '<div class="kp" id="onsIxK"></div><div class="onsCw"><canvas id="onsIxC"></canvas></div>' +
+    '<div><h5 style="margin:22px 0 6px;font-size:13px;color:var(--mu)">Diferencial: índice ONs − ICE BofA Latam Corporate</h5><div style="position:relative;height:260px"><canvas id="onsIxD"></canvas></div></div><p class="note" id="onsIxN" style="margin-top:10px"></p></div>' +
     '<div class="card sx" id="onsRt" style="margin-top:24px" hidden><div class="sxh"><div style="min-width:0"><p class="qh">Curvas por calificación</p><p class="qs" id="onsRtS"></p></div><div class="sxb">' + dlb('onsRt', 'Bonerio_ONs_por_calificacion') + '</div></div>' +
     '<div class="kp" id="onsRtK"></div><div class="onsCw"><canvas id="onsRtC"></canvas></div><p class="note" id="onsRtN" style="margin-top:8px"></p></div>' +
     '<div class="card sx" id="onsF" style="margin-top:24px" hidden></div>' +
@@ -13530,6 +13535,77 @@ window.RATG = (function () {
   document.head.appendChild(st);
   new MutationObserver(function () { deco(); }).observe(document.body, { childList: true, subtree: true }); // en el mismo paso que el cambio, antes de pintar: lo que se redibuja nunca aparece sin los «?» (no salta)
   deco();
+})();
+</script>
+<script>
+/* ---------- ONs contra comparables internacionales: índice de spread de las ONs hard dollar contra los ICE BofA de FRED (data/fred_spreads.json) ---------- */
+(function () {
+  var $ = function (id) { return document.getElementById(id); }, CH = {}, DATA = null, BUSY = false, PER = '1a';
+  try { PER = localStorage.getItem('blOnsIx') || '1a'; } catch (e) {}
+  var css = function (v) { return getComputedStyle(document.body).getPropertyValue(v).trim(); };
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); };
+  var dn = function (s) { return Date.parse(s + 'T00:00:00Z') / 864e5; };
+  var j = function (u) { return fetch(u + '?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
+  var SER = [['idx', 'Índice ONs hard dollar (ponderado)', '#e5e7eb'], ['BAMLEMHBHYCRPIOAS', 'ICE BofA EM High Yield Corporate', '#fb923c'], ['BAMLH0A2HYB', 'ICE BofA Single-B US HY', '#f87171'], ['BAMLEMRLCRPILAOAS', 'ICE BofA Latam Corporate', '#2dd4bf']];
+  function ust(U, d, yrs) { var r = U.d[d]; if (!r) return null; var P = U.plazos; if (yrs <= P[0]) return r[0]; for (var i = 1; i < P.length; i++) if (yrs <= P[i]) { var w = (yrs - P[i - 1]) / (P[i] - P[i - 1]); return r[i - 1] + w * (r[i] - r[i - 1]); } return r[P.length - 1]; }
+  function build(VD, ON, U, F, EM) {
+    var ds = VD.dates, L = ds.length - 1, ud = Object.keys(U.d).sort(), lastU = function (d) { var lo = 0, hi = ud.length - 1, k = -1; while (lo <= hi) { var m = (lo + hi) >> 1; if (ud[m] <= d) { k = m; lo = m + 1; } else hi = m - 1; } return k >= 0 ? ud[k] : null; };
+    var bonds = [];
+    var REL = /^(YPF|YPF Luz|Vista|Pan American Energy|Pampa Energía|Telecom|Pluspetrol|Tecpetrol|CGC|Capex|Genneia|Arcor|IRSA|Cresud|TGS|Transportadora de Gas del Sur|Central Puerto|AA2000|Edenor|MSU Green Energy|Generación Mediterránea|Albanesi Energía|Aluar|Loma Negra|Profertil|Pecom|Oldelval|Petrolera Aconcagua|PCR|Banco Galicia|Banco Macro|Mirgor)$/; // emisores relevantes: corporativos grandes con emisiones internacionales o de referencia
+    Object.keys(ON).forEach(function (k) { var o = ON[k]; if (o.t !== 'usd' || !REL.test((EM || {})[k] || '')) return; var fl = (o.fp || []).concat(o.fl || []).map(function (f) { return [dn(f[0]), f[1]]; }).sort(function (a, b) { return a[0] - b[0]; }); if (!fl.length) return;
+      var sx = null; ['D', 'C'].forEach(function (s) { var t = VD.t[k + s]; if (!t) return; sx = sx || { c: [], e: [] }; var acc = 0; for (var i = 0; i < t.i.length; i++) { acc += t.i[i]; if (t.c[i] > 0) sx.c[acc] = t.c[i]; sx.e[acc] = (sx.e[acc] || 0) + (t.e ? t.e[i] : 0); } }); // precio en cable si operó, si no en MEP; monto, la suma de los dos
+      if (sx) bonds.push({ k: k, fl: fl, mat: dn(o.mat), s: sx }); });
+    var out = [], any = [], f0 = L + 1; bonds.forEach(function (b) { b.s.c.forEach(function (v, q) { if (v > 0) { any[q] = 1; if (q < f0) f0 = q; } }); }); // desde cuándo hay precios de ONs
+    for (var i = L; i >= Math.max(20, L - 780); i--) {
+      if (i < f0 && (L - i) % 5) continue; // antes de que haya ONs, una fecha por semana (solo las series de FRED)
+      var d = ds[i], s = typeof bxSettle === 'function' ? bxSettle(dn(d)) : dn(d), ud0 = lastU(d), W = 0, S = 0, n = 0, av = 0;
+      for (var q0 = i - 19; q0 <= i; q0++) if (any[q0]) av++; var need = Math.min(8, Math.ceil(av * 0.6));
+      if (!ud0 || i < f0) { out.push({ d: d, idx: null, n: 0 }); continue; }
+      bonds.forEach(function (b) {
+        var p = b.s.c[i]; if (!(p > 20) || (b.mat - s) / 365 < 1) return;
+        var tr = 0, amt = 0; for (var q = i - 19; q <= i; q++) if (b.s.e[q] > 0) { tr++; amt += b.s.e[q]; } if (tr < need || !tr) return;
+        var f = b.fl.filter(function (x) { return x[0] > s; }); if (!f.length) return;
+        var y; try { y = solve(function (r) { return bxPv(f, s, r) - p; }, -0.5, 3); } catch (e) { y = null; } if (y == null || y < 0 || y > 0.25) return;
+        var pv = 0, t = 0; f.forEach(function (x) { var v = x[1] / Math.pow(1 + y, (x[0] - s) / 365); pv += v; t += v * (x[0] - s) / 365; }); var dur = pv > 0 ? t / pv : null; if (!dur) return;
+        var u = ust(U, ud0, dur); if (u == null) return; var sp = (y * 100 - u) * 100; if (sp < -100 || sp > 2500) return;
+        W += amt; S += sp * amt; n++;
+      });
+      out.push({ d: d, idx: n >= 5 && W > 0 ? S / W : null, n: n });
+    }
+    out.reverse();
+    var fv = function (id, d) { var m = F && F.s && F.s[id]; if (!m) return null; for (var q = 0; q < 8; q++) { var x = new Date(Date.parse(d) - q * 864e5).toISOString().slice(0, 10); if (m[x] != null) return m[x]; } return null; };
+    out.forEach(function (r) { SER.slice(1).forEach(function (sr) { r[sr[0]] = fv(sr[0], r.d); }); r.dif = r.idx != null && r.BAMLEMRLCRPILAOAS != null ? r.idx - r.BAMLEMRLCRPILAOAS : null; });
+    return out;
+  }
+  function mk(id, cfg) { if (CH[id]) CH[id].destroy(); var el = $(id); if (el && window.Chart) CH[id] = new Chart(el, cfg); }
+  function paint() {
+    var box = $('onsIx'); if (!box || !DATA) return;
+    var cut = { '6m': 126, '1a': 252, '2a': 504, '3a': 780 }[PER] || 252, last = DATA.length ? DATA[DATA.length - 1].d : null, from = last ? new Date(Date.parse(last) - cut / 252 * 365 * 864e5).toISOString().slice(0, 10) : '';
+    var R = DATA.filter(function (r) { return r.d >= from; }); if (!R.length) { $('onsIxN').textContent = 'Sin datos todavía.'; return; }
+    [].forEach.call(box.querySelectorAll('#onsIxP button'), function (b) { b.classList.toggle('on', b.getAttribute('data-v') === PER); });
+    var tx = css('--mu') || '#8b95a7', gd = css('--bd') || 'rgba(128,128,128,.2)', lab = R.map(function (r) { return r.d.slice(8, 10) + '/' + r.d.slice(5, 7) + '/' + r.d.slice(2, 4); });
+    var base = function (yl) { return { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: tx, boxWidth: 12, usePointStyle: true } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + nf(c.parsed.y) + ' pb'; } } } }, scales: { x: { ticks: { color: tx, maxTicksLimit: 9, maxRotation: 0 }, grid: { display: false } }, y: { ticks: { color: tx, callback: function (v) { return nf(v) + yl; } }, grid: { color: gd } } } }; };
+    var hasF = R.some(function (r) { return r.BAMLEMRLCRPILAOAS != null; });
+    mk('onsIxC', { type: 'line', data: { labels: lab, datasets: SER.filter(function (s) { return s[0] === 'idx' || hasF; }).map(function (s) { return { label: s[1], data: R.map(function (r) { return r[s[0]]; }), borderColor: s[2], backgroundColor: s[2], borderWidth: s[0] === 'idx' ? 2.4 : 1.8, pointRadius: 0, tension: 0.2, spanGaps: true }; }) }, options: base('') });
+    var o2 = base(' pb'); o2.plugins.legend.display = false; o2.scales.y.suggestedMin = 0; o2.scales.y.suggestedMax = 150;
+    var dl = { id: 'dl100', afterDraw: function (c) { var y = c.scales.y, a = c.chartArea; if (!y || !a) return; var py = y.getPixelForValue(100); if (py < a.top || py > a.bottom) return; var g = c.ctx; g.save(); g.strokeStyle = '#f87171'; g.setLineDash([6, 5]); g.lineWidth = 1.4; g.beginPath(); g.moveTo(a.left, py); g.lineTo(a.right, py); g.stroke(); g.setLineDash([]); g.fillStyle = '#f87171'; g.font = '600 12px Inter,sans-serif'; g.fillText('no buscar ONs largas (< 100 pb)', a.left + 8, py + 16); g.restore(); } };
+    $('onsIxD').parentNode.parentNode.style.display = hasF ? '' : 'none';
+    if (hasF) mk('onsIxD', { type: 'line', data: { labels: lab, datasets: [{ label: 'Índice ONs − Latam Corporate', data: R.map(function (r) { return r.dif; }), borderColor: '#2dd4bf', backgroundColor: 'rgba(45,212,191,.12)', fill: true, borderWidth: 2, pointRadius: 0, tension: 0.2, spanGaps: true }] }, options: o2, plugins: [dl] });
+    var z = R[R.length - 1], difs = R.map(function (r) { return r.dif; }).filter(function (v) { return v != null; }), pct = z.dif != null && difs.length ? difs.filter(function (v) { return v <= z.dif; }).length / difs.length : null;
+    var m = difs.length ? difs.reduce(function (a, b) { return a + b; }, 0) / difs.length : null, sd = difs.length > 2 ? Math.sqrt(difs.reduce(function (a, b) { return a + (b - m) * (b - m); }, 0) / (difs.length - 1)) : null;
+    var ch = function (k) { var p0 = R.filter(function (r) { return r[k] != null; })[0], p = p0 ? p0[k] : null, q = z[k]; return p != null && q != null ? (q - p > 0 ? '+' : '') + nf(q - p) + ' pb en el período' : ''; };
+    $('onsIxK').innerHTML = [['Índice ONs', nf(z.idx) + ' pb', z.n + ' ONs · ' + ch('idx')], ['Latam Corporate', nf(z.BAMLEMRLCRPILAOAS) + ' pb', ch('BAMLEMRLCRPILAOAS')], ['EM HY Corporate', nf(z.BAMLEMHBHYCRPIOAS) + ' pb', ch('BAMLEMHBHYCRPIOAS')], ['Diferencial vs Latam', nf(z.dif) + ' pb', pct != null ? 'percentil ' + nf(pct * 100) + '% del período' + (sd ? ' · z ' + nf((z.dif - m) / sd, 2) : '') : ''],
+      ['Lectura', z.dif == null ? '—' : z.dif < 100 ? 'Cara contra la región' : z.dif > 200 ? 'Barata contra la región' : 'En rango', z.dif == null ? '' : z.dif < 100 ? 'no buscar ONs largas nuevas' : 'hay premio por riesgo argentino']].map(function (k) { return '<div><small>' + k[0] + '</small><b>' + k[1] + '</b><span>' + k[2] + '</span></div>'; }).join('');
+    $('onsIxN').innerHTML = (hasF ? '' : 'Las series de FRED todavía no se bajaron: se cargan con la acción «ONs: spreads internacionales». ') + 'Índice: spread contra el Treasury de igual duración de las ONs hard dollar de los emisores relevantes (YPF, Vista, Pan American, Pampa, Telecom, Pluspetrol, Tecpetrol, TGS, IRSA, Arcor y otros corporativos grandes), con más de un año al vencimiento y operadas en la mayoría de las últimas 20 ruedas, ponderado por el monto operado (precio en cable, o MEP si no hay). El histórico de precios de ONs se guarda desde el 22/10/2026, así que la línea del índice se va completando día a día; las de FRED traen los últimos 3 años. Por debajo de 100 pb contra el Latam Corporate, Argentina está cara contra la región: no buscar ONs largas nuevas. No es señal de venta: las largas en cartera se evalúan según la ON y el cliente. Como el Latam Corporate incluye grado de inversión, un diferencial de 80–100 pb es la brecha esperable por calificación.';
+  }
+  function go() {
+    if (!$('onsIx')) return; if (DATA) return paint(); if (BUSY) return; BUSY = true;
+    var pv = new Promise(function (ok) { if (window.VOLX && window.VOLX.raw) window.VOLX.raw(ok); else j('data/volumen.json').then(ok); });
+    Promise.all([pv, j('data/ons.json'), j('data/ust.json'), j('data/fred_spreads.json'), j('data/ons_emisores.json')]).then(function (r) { BUSY = false; if (!r[0] || !r[1] || !r[2]) { $('onsIxN').textContent = 'No se pudieron leer los datos.'; return; } try { DATA = build(r[0], r[1].on || {}, r[2], r[3], r[4]); } catch (e) { console.error('onsIx', e); DATA = []; } paint(); });
+  }
+  document.addEventListener('click', function (e) { var b = e.target.closest('#onsIxP button[data-v]'); if (!b) return; PER = b.getAttribute('data-v'); try { localStorage.setItem('blOnsIx', PER); } catch (er) {} paint(); });
+  var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'ons') setTimeout(go, 50); };
+  if ($('ons') && $('ons').classList.contains('active')) setTimeout(go, 500);
 })();
 </script>
 </body>

@@ -1,0 +1,25 @@
+name: "ONs: spreads internacionales (FRED)"
+on:
+  schedule:
+    - cron: "15 23 * * 1-5"  # FRED publica los ICE BofA con un día de rezago
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fred:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Spreads ICE BofA
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python3 scripts/save_fred.py
+      - name: Commit
+        run: |
+          if [ -n "$(git status --porcelain data)" ]; then
+            git config user.name "cierre-bot"
+            git config user.email "bot@users.noreply.github.com"
+            git add data
+            git commit -m "ons: spreads FRED $(date -u +%F)"
+            git pull --rebase -q origin main && git push
+          fi
