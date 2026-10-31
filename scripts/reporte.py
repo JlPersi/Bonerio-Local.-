@@ -8,6 +8,8 @@ del panel líder), Dólar, Futuros, Inflación y Devaluación implícita y Forwa
 El mail tiene la estética de la página (fondo oscuro, colores de cada familia).
 Prueba: scripts/reporte.py --prueba-envio manda a los suscriptos un ejemplo con los precios de ahora contra el último cierre.
 Revisar sin mandar: scripts/reporte.py --html [--web datos.json] (deja el HTML y las imágenes en /tmp).
+Los viernes suma el balance de la semana y en la última rueda hábil del mes sale la edición de fin de mes (balance del mes y del año);
+REPORTE_EDICION=semana|mes fuerza una edición para probar.
 Secrets: SUPABASE_SERVICE_KEY y RESEND_API_KEY.
 """
 import base64, json, os, re, subprocess, sys, urllib.request, urllib.error, datetime as dt
@@ -114,6 +116,127 @@ def familia(t, PX, PSD, ON, PV):
     return "Otros"
 
 
+def edicion(hoy):
+    """'mes' en la última rueda hábil del mes (lunes a viernes), 'semana' los viernes, None el resto."""
+    fin = (hoy.replace(day=1) + dt.timedelta(days=32)).replace(day=1)
+    if not any((hoy + dt.timedelta(days=k)).weekday() < 5 for k in range(1, (fin - hoy).days)):
+        return "mes"
+    return "semana" if hoy.weekday() == 4 else None
+
+
+def serie_vd(o, dates):
+    """{fecha: (cierre, monto)} de una especie de volumen.json."""
+    out, acc = {}, 0
+    for di, e, c in zip(o["i"], o["e"], o["c"]):
+        acc += di
+        if 0 <= acc < len(dates):
+            out[dates[acc]] = (c, e)
+    return out
+
+
+def al(o, f):
+    """Último valor de un dict por fecha con fecha <= f."""
+    k = [x for x in o if x <= f]
+    return o[max(k)] if k else None
+
+
+def periodo(hoy, tipo, PX, PSD, ON, PV):
+    """Secciones del resumen semanal o mensual (y renglones para 'lo más importante'): todo de los archivos guardados al cierre."""
+    V = load("volumen.json")
+    if not V:
+        return [], []
+    dates, H = V["dates"], hoy.isoformat()
+    ini = hoy - dt.timedelta(days=hoy.weekday()) if tipo == "semana" else hoy.replace(day=1)
+    pre = [d for d in dates if d < ini.isoformat()]
+    if not pre:
+        return [], []
+    b = pre[-1]  # cierre de referencia: la última rueda antes del período
+    nr = len([d for d in dates if b < d <= H])
+    prev = [d for d in pre if d < b]
+    b2 = prev[-nr] if len(prev) >= nr else None  # período anterior de igual cantidad de ruedas, para el volumen
+    nom = "la semana" if tipo == "semana" else MES[hoy.month - 1]
+    y0 = f"{hoy.year - 1}-12-31"
+    # dólar y riesgo país
+    DL = (load("dolar.json") or {}).get("d") or {}
+    CH = (load("acciones/ccl.json") or {}).get("ccl") or {}  # historia larga del CCL (data/dolar.json arranca en oct-26)
+    A30, A30D = serie_vd(V["t"].get("AL30", {"i": [], "e": [], "c": []}), dates), serie_vd(V["t"].get("AL30D", {"i": [], "e": [], "c": []}), dates)
+    def mep(f):
+        x = ((DL.get(f) or {}).get("mep") or {}).get("AL30", {}).get("close")
+        p, q = al(A30, f), al(A30D, f)
+        return x or (p[0] / q[0] if p and q and p[0] and q[0] else None)
+    ccl = lambda f: ((DL.get(f) or {}).get("ccl") or {}).get("vw") or al(CH, f)
+    RP = (load("riesgo_pais.json") or {}).get("d") or {}
+    var = lambda a, z: (a / z - 1) * 100 if a and z else None
+    m1, m0, c1, c0, r1, r0 = mep(H), mep(b), ccl(H), ccl(b), al(RP, H), al(RP, b)
+    ch = [("Dólar MEP", "$ " + n(m1), sg(var(m1, m0), 2, "%") + f" en {nom}", cv(var(m1, m0))),
+          ("Dólar CCL", "$ " + n(c1), sg(var(c1, c0), 2, "%") + f" en {nom}", cv(var(c1, c0))),
+          ("Riesgo país", n(r1, 0) + " pb", sg(r1 - r0 if r1 and r0 else None, 0, " pb") + f" en {nom}", cv(r1 - r0 if r1 and r0 else None, True))]
+    if tipo == "mes":
+        ma, ca, ra = mep(y0), ccl(y0), al(RP, y0)
+        ch += [("MEP en el año", sg(var(m1, ma), 1, "%"), "desde el 31/12", cv(var(m1, ma))), ("CCL en el año", sg(var(c1, ca), 1, "%"), "desde el 31/12", cv(var(c1, ca))),
+               ("Riesgo país en el año", sg(r1 - ra if r1 and ra else None, 0, " pb"), "desde el 31/12", cv(r1 - ra if r1 and ra else None, True))]
+    # renta fija en pesos: variación de precio de lo líquido del período, por familia
+    rows, fam, vol, vol0 = [], {}, {}, 0
+    for t, o in V["t"].items():
+        if o.get("s") != "P":
+            continue
+        S = serie_vd(o, dates)
+        a, z = S.get(H) or al(S, H), al(S, b)
+        mo = sum(e or 0 for d, (c, e) in S.items() if b < d <= H)
+        if b2:
+            vol0 += sum(e or 0 for d, (c, e) in S.items() if b2 < d <= b)
+        f = familia(t, PX, PSD, ON, PV)
+        vol[f] = vol.get(f, 0) + mo
+        if a and z and a[0] and z[0] and mo > 0 and f != "Otros":
+            rows.append((t, f, (a[0] / z[0] - 1) * 100, mo))
+    rows.sort(key=lambda r: -r[3])
+    liq = [r for r in rows[:150] if abs(r[2]) < 60]  # las 150 más operadas, sin saltos raros (cortes de cupón, amortizaciones)
+    for r in liq:
+        fam.setdefault(r[1], []).append(r[2])
+    med = lambda x: sorted(x)[len(x) // 2]
+    ft = sorted(((k, med(v), len(v)) for k, v in fam.items() if len(v) >= 3), key=lambda x: -x[1])
+    up, dn = sorted(liq, key=lambda r: -r[2])[:5], sorted(liq, key=lambda r: r[2])[:5]
+    tv, sv = sum(vol.values()), sorted(((k, v) for k, v in vol.items() if v > 0), key=lambda x: -x[1])
+    rf = (f"<p {PP}>Variación de precio en pesos entre el cierre del {b[8:10]}/{b[5:7]} y el de hoy ({nr} ruedas), en las 150 especies más operadas del período.</p>"
+          + tabla(["Familia", "Mediana", "Especies"], [[k, (sg(v, 2, "%"), cv(v)), str(c)] for k, v, c in ft])
+          + f'<p style="font-size:13px;font-weight:700;color:{TX};margin:14px 0 2px">Mayores subas</p>'
+          + tabla(["Especie", "Familia", "Var. precio"], [[t, f, (sg(v, 2, "%"), cv(v))] for t, f, v, _ in up])
+          + f'<p style="font-size:13px;font-weight:700;color:{TX};margin:14px 0 2px">Mayores bajas</p>'
+          + tabla(["Especie", "Familia", "Var. precio"], [[t, f, (sg(v, 2, "%"), cv(v))] for t, f, v, _ in dn])
+          + f'<p style="font-size:14px;line-height:1.6;color:#d4d4d8;margin:12px 0 0">Se operaron <b>$ {n(tv / 1e6, 0)} millones</b> en {nom}'
+          + (f" ({sg(var(tv, vol0), 1, '%')} contra las {nr} ruedas anteriores)" if vol0 else "") + "; " + ", ".join(f"{k[0].lower() + k[1:]} $ {n(v / 1e6, 0)} M" for k, v in sv[:4]) + ".</p>")
+    # acciones del panel líder
+    sys.path.insert(0, os.path.dirname(__file__))
+    try:
+        from save_acciones import LIDER
+    except Exception:
+        LIDER = set()
+    try:  # precios ajustados por splits, como en la página
+        import metricas_acciones as MA
+        spl, bad = MA.splits()
+        aj = lambda t, px: MA.adj(px, spl.get(t, []), bad.get(t, set()))
+    except Exception:
+        aj = lambda t, px: px
+    ac = []
+    for t in sorted(LIDER):
+        o = load(f"acciones/{t}.json") or {}
+        P = dict(aj(t, [(r[0], r[4]) for r in o.get("r", []) if r[4] and r[4] > 0]))
+        a, z = al(P, H), al(P, b)
+        if a and z:
+            ac.append((t, var(a, z), var(a / c1, z / c0) if c1 and c0 else None, var(a, al(P, y0)) if tipo == "mes" and al(P, y0) else None))
+    ac.sort(key=lambda r: -r[1])
+    hd = ["Acción", "En pesos", "En US$ CCL"] + (["En el año"] if tipo == "mes" else [])
+    ah = (f"<p {PP}>Variación del panel líder en {nom} ({b[8:10]}/{b[5:7]} a hoy). En dólares, al CCL de cada fecha.</p>"
+          + tabla(hd, [[t, (sg(p, 2, "%"), cv(p)), (sg(u, 2, "%"), cv(u))] + ([(sg(y, 1, "%"), cv(y))] if tipo == "mes" else []) for t, p, u, y in ac])) if ac else ""
+    pts = []
+    if m1 and m0:
+        pts.append(f"<b>En {nom}</b>: MEP {sg(var(m1, m0), 2, '%')}, CCL {sg(var(c1, c0), 2, '%')}" + (f", riesgo país {sg(r1 - r0, 0, ' pb')}" if r1 and r0 else "")
+                   + (f"; en pesos, {ft[0][0][0].lower() + ft[0][0][1:]} lo mejor ({sg(ft[0][1], 2, '%')}) y {ft[-1][0][0].lower() + ft[-1][0][1:]} lo peor ({sg(ft[-1][1], 2, '%')})" if len(ft) > 1 else "")
+                   + (f"; en acciones, {ac[0][0]} ({sg(ac[0][1], 1, '%')}) y {ac[-1][0]} ({sg(ac[-1][1], 1, '%')})" if ac else "") + ".")
+    rub = "Semana" if tipo == "semana" else "Mes"
+    tit = "de la semana" if tipo == "semana" else f"de {MES[hoy.month - 1]}"
+    S = [(rub, f"Balance {tit}: dólar y riesgo país", chips(ch), AC), (rub, f"Renta fija en pesos: {nom}", rf if liq else "", FC["fija"]), (rub, f"Acciones: {nom}", ah, FC["acc"])]
+    return S, pts
 
 
 # estilos del mail: los de la página en modo oscuro (todo en línea: los clientes de correo ignoran las hojas de estilo)
@@ -447,6 +570,15 @@ def armar(en_vivo=False, web=None):
          ("Provincias", "Provinciales en dólares: principales ley NY", curva("pv", "provinciales", 1100) if C.get("pv", {}).get("rows") else "", FC["pv"]),
          ("Acciones", "Panel líder", acc_html, FC["acc"]),
          ("Mercado", "Volumen de renta fija", vol_html, FC["vol"])]
+    tipo = os.environ.get("REPORTE_EDICION") or edicion(hoy)  # REPORTE_EDICION=semana|mes para probar
+    if tipo in ("semana", "mes"):
+        SP, pp = periodo(hoy, tipo, PX, PSD, ON, PV)
+        if tipo == "mes" and hoy.weekday() == 4:
+            SW, _ = periodo(hoy, "semana", PX, PSD, ON, PV)
+            SP += SW[:1]
+        S, pts = SP + S, pp + pts
+    else:
+        tipo = None
     if ev:
         S.append(("Agenda", "Lo que viene esta semana", tabla(["", ""], [[f"{DIA[f.weekday()].capitalize()} {f.day}", t] for f, t in ev], ["left", "left"], ["120px", None]), AC))
     cuerpo, i = "", 0
@@ -458,7 +590,7 @@ def armar(en_vivo=False, web=None):
         f'<div style="background:{BG};padding:16px 0;font-family:{FONT};color:{TX}"><table role="presentation" bgcolor="{BG}" style="max-width:640px;width:100%;margin:auto;border-collapse:collapse;background:{BG}">'
         + (f'<tr><td style="padding:6px 16px"><div style="padding:10px 14px;background:#2a2410;border:1px solid #4d3f12;border-radius:10px;color:{AC};font-size:12.5px">Prueba con los precios de ahora contra el último cierre. El informe de verdad sale al cierre, con los cierres de hoy contra los de la rueda anterior.</div></td></tr>' if en_vivo else "")
         + f'<tr><td style="padding:14px 16px 6px"><div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:{AC};font-weight:700">Bonerio Local · Research</div>'
-        f'<div style="font-family:{FH};font-size:30px;font-weight:700;margin:6px 0 2px;color:{TX};letter-spacing:-.02em">Informe de cierre</div><div style="font-size:14px;color:{MU}">{fecha.capitalize()}</div></td></tr>'
+        f'<div style="font-family:{FH};font-size:30px;font-weight:700;margin:6px 0 2px;color:{TX};letter-spacing:-.02em">{ {"semana": "Cierre semanal", "mes": "Edición de fin de mes"}.get(tipo, "Informe de cierre") }</div><div style="font-size:14px;color:{MU}">{fecha.capitalize()}</div></td></tr>'
         f'<tr><td style="padding:10px 16px"><div style="background:{CARD};border:1px solid {BD};border-radius:14px;padding:18px">'
         f'<div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:{AC};font-weight:700;margin:0 0 10px">Lo más importante</div>'
         f'<ul style="margin:0 0 14px;padding-left:18px;font-size:14px;line-height:1.65;color:#d4d4d8">' + "".join(f"<li style='margin-bottom:5px'>{x}</li>" for x in pts) + "</ul>" + kpis + "</div></td></tr>"
@@ -470,7 +602,7 @@ def armar(en_vivo=False, web=None):
         'Este informe tiene carácter exclusivamente informativo y no constituye una recomendación de inversión ni una oferta o invitación a comprar o vender valores. '
         'Los datos y cálculos pueden contener errores u omisiones; verificalos antes de operar. Rendimientos pasados no garantizan resultados futuros.</div></td></tr></table></div>'
     )
-    asunto = ("[Prueba] " if en_vivo else "") + f"Informe de cierre {hoy.day}/{hoy.month}: MEP $ {n(mep)} ({sg(mep_d, 2, '%')}), riesgo país {n(rp, 0)} pb"
+    asunto = ("[Prueba] " if en_vivo else "") + f"{ {'semana': 'Cierre semanal', 'mes': 'Fin de ' + MES[hoy.month - 1]}.get(tipo, 'Informe de cierre') } {hoy.day}/{hoy.month}: MEP $ {n(mep)} ({sg(mep_d, 2, '%')}), riesgo país {n(rp, 0)} pb"
     return asunto, h, IMG
 
 
