@@ -13284,7 +13284,7 @@ window.RATG = (function () {
   function dadj(t, r, dv) { // hacia atrás: cada precio anterior a un dividendo se multiplica por (1 − dividendo / precio de la rueda previa), o se divide por el factor si fue en acciones
     var ev = ST.pd === '1' && dv && dv[t]; if (!ev || !ev.length || !r.length) return r;
     var f = r.map(function () { return 1; });
-    ev.forEach(function (e) { var k = 0; while (k < r.length && r[k][0] < e[0]) k++; if (k === 0 || k >= r.length) return; var g = e[1] === 'a' ? 1 / e[2] : 1 - e[2] / r[k - 1][4]; if (!(g > 0.75 && g < 1)) return; // más de 25% en un pago es casi seguro un dato mal ajustado de Yahoo: se saltea for (var i = 0; i < k; i++) f[i] *= g; });
+    ev.forEach(function (e) { var k = 0; while (k < r.length && r[k][0] < e[0]) k++; if (k === 0 || k >= r.length) return; var g = e[1] === 'a' ? 1 / e[2] : 1 - e[2] / r[k - 1][4]; if (!(g > 0.75 && g < 1)) return; /* más de 25% en un pago es casi seguro un dato mal ajustado de Yahoo: se saltea */ for (var i = 0; i < k; i++) f[i] *= g; });
     return r.map(function (x, i) { return f[i] === 1 ? x : [x[0], x[1], x[2], x[3], x[4] * f[i], x[5]]; });
   }
   function pair() {
