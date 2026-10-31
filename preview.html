@@ -987,6 +987,7 @@ window.curveFitUSD = function (pts, model, minN) {
           </div>
           <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu);margin-left:auto;margin-right:12px;" data-html2canvas-ignore="true">Modelo de curva<select id="usdCurveModel" onchange="window.USD_MODEL=this.value;try{window.updateCurveChart();window.updateSpreadChart&&window.updateSpreadChart();window.renderQuant&&window.renderQuant('all');}catch(e){console.error(e)}"><option value="log">Logarítmica</option><option value="sqrt">Raíz cuadrada</option><option value="lin">Lineal</option><option value="quad">Cuadrática</option><option value="ns">Nelson-Siegel</option></select></label>
           <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu);margin-right:12px;" data-html2canvas-ignore="true">Eje X<select id="usdCurveAx" onchange="window.USD_AX=this.value;try{window.updateCurveChart();}catch(e){console.error(e)}"><option value="md" selected>Duración modificada (años)</option><option value="mac">Duración (días)</option><option value="plazo">Plazo (días)</option><option value="mdd">Duración modificada (días)</option></select></label>
+          <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu);margin-right:12px;" data-html2canvas-ignore="true" title="Suma la curva de otra fecha (puntos huecos y línea fina), con los cierres guardados y la misma liquidación">Comparar con<select id="usdCurveCmp" onchange="window.USD_CMP=+this.value;try{window.updateCurveChart();}catch(e){console.error(e)}"><option value="0">—</option><option value="1">La rueda anterior</option><option value="5">Hace 1 semana</option><option value="21">Hace 1 mes</option><option value="63">Hace 3 meses</option><option value="126">Hace 6 meses</option><option value="252">Hace 1 año</option></select></label>
           <button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD('yieldCurveContainer', 'Soberanos_Curva_Soberana')" title="Descargar Curva en HD">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           </button>
@@ -1925,6 +1926,26 @@ window.updateCurveChart = function() {
         if (r.tir != null && r.modD != null) dataNew.push({ x: xaxVal(ax, q.f[q.f.length - 1][0] - d0, r.modD * (1 + r.tir) * 365, r.modD), y: r.tir * 100, bono: q.k, md: r.modD, bop: q });
     });
 
+    // la curva de otra fecha: los mismos bonos con el cierre de ese día (data/closes.json) y su liquidación
+    let dataOld = [], lineOldNY = [], lineOldLoc = [], oldLab = '';
+    const nCmp = window.USD_CMP || 0;
+    if (nCmp > 0 && LOG && LOG[especie]) {
+        const hoyS = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+        let ds = Object.keys(LOG[especie]).filter(function (x) { return x < hoyS; }).sort(), px = null, dt = null;
+        if (ds.length >= nCmp) { dt = ds[ds.length - nCmp]; px = LOG[especie][dt] || {}; }
+        else { const VD = window.__VDc; // más atrás: los cierres de data/volumen.json (desde 2023)
+            if (!VD) { if (!window.__VDa && window.VOLX && window.VOLX.raw) { window.__VDa = 1; window.VOLX.raw(function (d) { window.__VDc = d; try { window.updateCurveChart(); } catch (e) {} }); } }
+            else { const vd = VD.dates.filter(function (x) { return x < hoyS; }); dt = vd[vd.length - nCmp]; const ix = VD.dates.indexOf(dt); px = {};
+                if (ix >= 0) B.forEach(function (b) { const o = VD.t[b.k + especie]; if (!o) return; let acc = 0; for (let i = 0; i < o.i.length; i++) { acc += o.i[i]; if (acc === ix) { if (o.c[i] > 0) px[b.k] = o.c[i]; break; } if (acc > ix) break; } }); } }
+        if (dt && px) { const t0 = day(dt), s0 = bxSettle(t0); oldLab = dt.split('-').reverse().join('/'); const oNY = [], oLoc = [];
+            B.forEach(function (b) { const P = px[b.k]; if (!(P > 0) || b.f[b.f.length - 1][0] <= s0) return; const r = calc(b, s0, Math.max(d1, s0 + 1), u, P);
+                if (r.tir != null && r.modD != null) { const pt = { x: xaxVal(ax, b.f[b.f.length - 1][0] - s0, r.modD * (1 + r.tir) * 365, r.modD), y: r.tir * 100, bo: b.k + ' al ' + oldLab, bono0: b.k, md: r.modD }; dataOld.push(pt); (b.k.startsWith('GD') ? oNY : oLoc).push(pt); } });
+            const rNY = (function (a) { const r = window.curveFitUSD(a.filter(function (p) { return p.md >= 1.1; }).map(function (p) { return { x: p.x * w, y: p.y }; }), window.USD_MODEL, 2); return r ? { f: function (x) { return r.f(x * w); } } : null; })(oNY);
+            const rLoc = (function (a) { const r = window.curveFitUSD(a.filter(function (p) { return p.md >= 1.1 && /^A[LE]\d/.test(p.bono0); }).map(function (p) { return { x: p.x * w, y: p.y }; }), window.USD_MODEL, 2); return r ? { f: function (x) { return r.f(x * w); } } : null; })(oLoc);
+            const ln = function (reg, a) { const xs = a.map(function (p) { return p.x; }), o = []; if (!reg || !xs.length) return o; const lo = Math.min.apply(null, xs), hi = Math.max.apply(null, xs); for (let i = 0; i <= 100; i++) { const x = lo + (hi - lo) * i / 100; o.push({ x: x, y: reg.f(x) }); } return o; };
+            lineOldNY = ln(rNY, oNY); lineOldLoc = ln(rLoc, oLoc); }
+    }
+
     function getReg(dataArr) { const r = window.curveFitUSD(dataArr.filter(function (p) { return p.md >= 1.1; }).map(function (p) { return { x: p.x * w, y: p.y }; }), window.USD_MODEL, 2); return r ? { f: function (x) { return r.f(x * w); }, name: r.name } : null; } // la curva se ajusta en años // misma regla que el desvío de Quant: los bonos de menos de ~1 año de duración no entran al ajuste
 
     const rest = function (p) { return /^A[LE]\d/.test(p.bono); }; // los Bonares nuevos (AO27, AO28, AO29, AN29) no son de la reestructuración: se muestran pero no entran al ajuste
@@ -1953,6 +1974,7 @@ window.updateCurveChart = function() {
         window.curveChartObj.data.datasets[3].data = lineLoc;
         window.curveChartObj.data.datasets[3].borderColor = colorOk;
         window.curveChartObj.data.datasets[4].data = dataNew; window.curveChartObj.data.datasets[4].backgroundColor = colorBop;
+        if (window.curveChartObj.data.datasets.length > 5) { window.curveChartObj.data.datasets[5].data = dataOld; window.curveChartObj.data.datasets[5].label = oldLab ? 'Bonos al ' + oldLab : 'Otra fecha'; window.curveChartObj.data.datasets[6].data = lineOldNY; window.curveChartObj.data.datasets[7].data = lineOldLoc; }
         window.curveChartObj.options.scales.x.title.text = xaxTitle(ax);
         window.curveChartObj.update('none');
     } else {
@@ -1968,12 +1990,15 @@ window.updateCurveChart = function() {
                     { label: 'Bonares', data: dataLoc, backgroundColor: colorOk, pointRadius: 8, hoverRadius: 10 },
                     { label: 'Fair Value Globales · ' + (regNY ? regNY.name : 's/d'), data: lineNY, type: 'line', borderColor: colorAc, borderDash: [6, 6], fill: false, pointRadius: 0, tension: 0.4, borderWidth: 2 },
                     { label: 'Fair Value Bonares · ' + (regLoc ? regLoc.name : 's/d'), data: lineLoc, type: 'line', borderColor: colorOk, borderDash: [6, 6], fill: false, pointRadius: 0, tension: 0.4, borderWidth: 2 },
-                    { label: 'Bopreales', data: dataNew, backgroundColor: colorBop, pointStyle: 'rectRot', pointRadius: 9, hoverRadius: 11 }
+                    { label: 'Bopreales', data: dataNew, backgroundColor: colorBop, pointStyle: 'rectRot', pointRadius: 9, hoverRadius: 11 },
+                    { label: oldLab ? 'Bonos al ' + oldLab : 'Otra fecha', data: dataOld, backgroundColor: 'transparent', borderColor: 'rgba(161,161,170,.9)', borderWidth: 1.5, pointRadius: 6, hoverRadius: 8 },
+                    { label: 'Curva Globales (otra fecha)', data: lineOldNY, type: 'line', borderColor: 'rgba(161,161,170,.55)', borderDash: [2, 3], fill: false, pointRadius: 0, tension: 0.4, borderWidth: 1.5 },
+                    { label: 'Curva Bonares (otra fecha)', data: lineOldLoc, type: 'line', borderColor: 'rgba(161,161,170,.35)', borderDash: [2, 3], fill: false, pointRadius: 0, tension: 0.4, borderWidth: 1.5 }
                 ]
             },
             options: {
                 responsive: true, maintainAspectRatio: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2.5), layout: { padding: { right: 50 } }, 
-                plugins: { tooltip: { callbacks: { label: function(ctx) { return ctx.raw.bono ? ctx.raw.bono + (ctx.raw.bop ? ' (BOPREAL ' + ctx.raw.bop.serie + ')' : '') + ': TIR ' + ctx.raw.y.toFixed(2) + '% | ' + xaxTip(window.USD_AX || 'md', ctx.raw.x) : ''; } } }, legend: { labels: { usePointStyle: true, padding: 20 } } },
+                plugins: { legend: { labels: { filter: function (it, d) { const ds = d.datasets[it.datasetIndex]; return it.datasetIndex < 5 || (ds && ds.data && ds.data.length); } } }, tooltip: { callbacks: { label: function(ctx) { if (ctx.raw.bo) return ctx.raw.bo + ': TIR ' + ctx.raw.y.toFixed(2) + '%'; return ctx.raw.bono ? ctx.raw.bono + (ctx.raw.bop ? ' (BOPREAL ' + ctx.raw.bop.serie + ')' : '') + ': TIR ' + ctx.raw.y.toFixed(2) + '% | ' + xaxTip(window.USD_AX || 'md', ctx.raw.x) : ''; } } }, legend: { labels: { usePointStyle: true, padding: 20 } } },
                 scales: {
                     x: { title: { display: true, text: xaxTitle(ax), font: { weight: 'bold' } }, grid: { color: colorBd, drawBorder: false }, ticks: { font: { size: 14 }, callback: function (v) { return v.toLocaleString('es-AR', { maximumFractionDigits: (window.USD_AX || 'md') === 'md' ? 1 : 0 }); } } },
                     y: { grace: '6%', title: { display: true, text: 'TIR (%)', font: { weight: 'bold' } }, grid: { color: colorBd, drawBorder: false }, ticks: { font: { size: 14 }, callback: function(value) { return value.toFixed(0) + '%'; } } }
@@ -13379,6 +13404,7 @@ window.RATG = (function () {
     '<label>Costo de oportunidad<select id="trK"><option value="cau">Caución</option><option value="lec">Lecap corta</option><option value="pf">Plazo fijo</option></select></label>' +
     '<label style="flex:1 1 200px">Nota<input id="trN" placeholder="Por qué lo hago (opcional)"></label><button class="btn" id="trGo" type="button">Abrir trade</button></div>' +
     '<p class="px" id="trPx"></p><datalist id="trL"></datalist></div>' +
+    '<div class="card sx" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Ideas sugeridas</p><p class="qs">Lo que detecta la página ahora: rotaciones que convienen después de costos, bonos baratos contra su curva y pares de acciones lejos de su relación normal. Tocá «Cargar» para armar el trade. No son recomendaciones de inversión.</p></div></div><div id="trI"><p class="qs">Calculando…</p></div></div>' +
     '<div class="card sx" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Trades abiertos</p><p class="qs">Valuados a los precios de ahora. Exceso = lo que ganaste por encima del costo de oportunidad.</p></div></div><div id="trOk"></div><div class="tw"><table id="trO"></table></div></div>' +
     '<div class="card sx" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Historial</p><p class="qs">Los trades que desarmaste, con su resultado final.</p></div></div><div id="trHk"></div><div class="tw"><table id="trH"></table></div>' +
     '<div class="hl"><p><b>Cómo se lee</b></p><ul><li><b>Rotación</b>: vendés A y con esa plata (menos el costo) comprás B. <b>Vs quedarte</b> compara lo que vale hoy B contra lo que valdría A si no la hubieras vendido.</li>' +
@@ -13439,8 +13465,32 @@ window.RATG = (function () {
     $('trO').innerHTML = rows(o, true); $('trH').innerHTML = rows(h, false); $('trOk').innerHTML = kpis(o); $('trHk').innerHTML = kpis(h);
     $('trL').innerHTML = Object.keys(LV).sort().map(function (t) { return '<option value="' + t + '">'; }).join('');
   }
+  /* ---------- ideas sugeridas ---------- */
+  var PAR = 'GGAL/BMA GGAL/BBAR BMA/SUPV YPFD/PAMP VIST/YPFD CEPU/PAMP TGSU2/TGNO4 EDN/TRAN TXAR/ALUA IRSA/CRES BBAR/SUPV'.split(' '), PZ = null, PZt = 0;
+  function pairsZ() { // z del ratio contra sus últimas 60 ruedas, con los cierres de data/acciones
+    if (PZ && Date.now() - PZt < 6e5) return Promise.resolve(PZ); var tk = {}; PAR.forEach(function (q) { q.split('/').forEach(function (t) { tk[t] = 1; }); });
+    return Promise.all(Object.keys(tk).map(function (t) { return fetch('data/acciones/' + t + '.json').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (d) { var m = {}; ((d && d.r) || []).forEach(function (x) { if (x[4] > 0) m[x[0]] = x[4]; }); tk[t] = m; }); })).then(function () {
+      PZ = []; PZt = Date.now();
+      PAR.forEach(function (q) { var a = q.split('/'), A = tk[a[0]], B = tk[a[1]]; if (!A || !B) return; var ds = Object.keys(A).filter(function (d) { return B[d] > 0; }).sort().slice(-61); if (ds.length < 40) return;
+        var lr = ds.map(function (d) { return Math.log(A[d] / B[d]); }), pa = LV[a[0]], pb = LV[a[1]], now = pa && pb ? Math.log(pa.c / pb.c) : lr[lr.length - 1], h = lr.slice(0, -1), m = h.reduce(function (x, y) { return x + y; }, 0) / h.length, sd = Math.sqrt(h.reduce(function (x, y) { return x + (y - m) * (y - m); }, 0) / (h.length - 1)), z = sd > 0 ? (now - m) / sd : 0;
+        if (Math.abs(z) >= 1.8) PZ.push({ a: a[0], b: a[1], z: z }); });
+      PZ.sort(function (x, y) { return Math.abs(y.z) - Math.abs(x.z); }); return PZ;
+    });
+  }
+  function ideas() {
+    var el = $('trI'); if (!el) return; var out = [], add = function (tg, t, d, a, b) { out.push('<tr><td style="white-space:normal"><span style="display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ac);margin-right:8px">' + tg + '</span><b>' + t + '</b><small style="white-space:normal">' + d + '</small></td><td style="width:1%"><button class="lnk" data-load="' + (a || '') + '|' + b + '">Cargar</button></td></tr>'); };
+    var R = null; try { R = window.ROTX && window.ROTX.scan(); } catch (e) { R = null; }
+    if (R && R.rot) { var used = {}, n = 0; R.rot.forEach(function (r) { if (n >= 4 || used[r.a] || used[r.b]) return; used[r.a] = used[r.b] = 1; n++; add('Rotación', 'Vender ' + r.a + ' → comprar ' + r.b, 'Ventaja neta de ' + nf(r.adv * 100, 2) + '% en ' + nf(r.H, 0) + ' días (' + nf(r.ann * 100, 1) + '% anual), después de costos · ' + R.name(r.fam) + '.', r.a, r.b); });
+      R.res.filter(function (o) { return o.res >= 15 && o.res <= 500 && o.d >= 60 && o.fam !== 'usd'; }).sort(function (a, b) { return b.res - a.res; }).slice(0, 3).forEach(function (o) { add('Barato', 'Comprar ' + o.k, 'Rinde ' + nf(o.res, 0) + ' pb más que la curva de ' + R.name(o.fam) + ' al mismo plazo.', '', o.k); }); }
+    pairsZ().then(function (pz) {
+      pz.slice(0, 4).forEach(function (p) { var hi = p.z > 0; add('Par de acciones', 'Vender ' + (hi ? p.a : p.b) + ' → comprar ' + (hi ? p.b : p.a), 'El ratio ' + p.a + '/' + p.b + ' está a ' + (p.z > 0 ? '+' : '') + nf(p.z, 1) + ' desvíos de su media de 60 ruedas: ' + (hi ? p.a + ' cara contra ' + p.b : p.a + ' barata contra ' + p.b) + '.', hi ? p.a : p.b, hi ? p.b : p.a); });
+      el.innerHTML = out.length ? '<div class="tw"><table>' + out.join('') + '</table></div>' : '<p class="qs">' + (R ? 'Nada destacado en este momento.' : 'Abrí una vez Curva Pesos o Rotación para que se calculen las rotaciones.') + '</p>';
+    });
+  }
+  root.addEventListener('click', function (e) { var b = e.target.closest('[data-load]'); if (!b) return; var v = b.getAttribute('data-load').split('|');
+    $('trT').value = v[0] ? 'rot' : 'buy'; $('trA').value = v[0]; $('trB').value = v[1]; $('trD').value = hoy(); showA(); try { root.querySelector('.card').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) {} $('trM').focus(); });
   var act = function () { return root.classList.contains('active'); };
-  var go = function () { live().then(base).then(function () { draw(); preview(); }); };
+  var go = function () { live().then(base).then(function () { draw(); preview(); ideas(); }); };
   var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'trd') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; lvT = 0; go(); } };
   setInterval(function () { if (act() && !document.hidden) { lvT = 0; go(); } }, 30000);
   showA(); draw();
