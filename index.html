@@ -602,11 +602,13 @@ main > h1.hm-h1 { display: flex; align-items: center; gap: 12px }
 #home .hm-st small { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--mu) }
 #home .hm-st b { display: block; font-size: 17px; margin: 4px 0 2px }
 #home .hm-st span { font-size: 12px; color: var(--mu) }
-#home .hm-q { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px }
-#home .hm-q button { text-align: left; background: var(--card); border: 1px solid var(--bd); border-radius: 12px; padding: 14px 16px; color: var(--tx); cursor: pointer; font-family: inherit; transition: border-color .15s }
+#home .hm-q { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px }
+#home .hm-qh { margin: 26px 2px 12px; font-family: var(--fh); font-size: 18px; font-weight: 700; color: var(--tx) }
+#home .hm-q button { text-align: left; background: var(--card); border: 1px solid var(--bd); border-radius: 12px; padding: 18px 20px; color: var(--tx); cursor: pointer; font-family: inherit; transition: border-color .15s; display: flex; flex-direction: column; justify-content: flex-start; min-height: 118px }
 #home .hm-q button:hover { border-color: var(--ac) }
 #home .hm-q b { display: flex; align-items: center; gap: 8px; font-size: 14.5px } #home .hm-q b svg { width: 18px; height: 18px; color: var(--ac) }
-#home .hm-q span { display: block; margin-top: 6px; color: var(--mu); font-size: 12.5px; line-height: 1.45 }
+#home .hm-q span { display: block; margin-top: 8px; color: var(--mu); font-size: 12.5px; line-height: 1.45 }
+@media (max-width: 600px) { #home .hm-q button { min-height: 0; padding: 14px 16px } #home .hm-q { gap: 10px } }
 #home .hm-note { color: var(--mu); font-size: 12px; margin: 8px 2px 0 }
 @media (max-width: 1250px) { #home .hm-k { grid-template-columns: repeat(3, minmax(0, 1fr)) } #home .hm-g3 { grid-template-columns: 1fr 1fr } #home .hm-g3 > .hm-c:nth-child(3) { grid-column: span 2 } }
 @media (max-width: 900px) { #home .hm-g, #home .hm-g3 { grid-template-columns: 1fr } #home .hm-g3 > .hm-c:nth-child(3) { grid-column: auto } #home .hm-k { grid-template-columns: repeat(2, minmax(0, 1fr)) } #home .hm-k .hm-t:last-child { grid-column: span 2 } #home .hm-t b { font-size: 22px } }
@@ -9350,12 +9352,18 @@ window.USTX = (function () {
     '</div>' +
     card('hmLIC', 'Próxima licitación del Tesoro', 'lic', '', '<div class="hm-st" id="hmLICb"></div>') +
     '<div style="height:16px"></div>' +
-    '<div class="hm-q">' + TB.map(function (t) { return '<button data-go="' + t[0] + '"><b>' + (IC[t[0]] || '') + t[1] + '</b><span>' + (DESC[t[0]] || '') + '</span></button>'; }).join('') + '</div>' +
+    '<div class="hm-qs">' + (function () { // los accesos agrupados como en el menú lateral
+      var nm = {}, seen = { home: 1 }, out = [], cur = null; TB.forEach(function (t) { nm[t[0]] = t[1]; });
+      var add = function (id) { if (!nm[id] || seen[id]) return; seen[id] = 1; if (!cur) out.push(cur = { h: 'Más', it: [] }); cur.it.push(id); };
+      GR.forEach(function (g) { if (g.h) out.push(cur = { h: g.h, it: [] }); else if (Array.isArray(g)) add(g[0]); else if (g.it) g.it.forEach(function (t) { add(t[0]); }); });
+      cur = null; TB.forEach(function (t) { add(t[0]); });
+      return out.filter(function (g) { return g.it.length; }).map(function (g) { return '<h3 class="hm-qh">' + g.h + '</h3><div class="hm-q">' + g.it.map(function (id) { return '<button data-go="' + id + '"><b>' + (IC[id] || '') + nm[id] + '</b><span>' + (DESC[id] || '') + '</span></button>'; }).join('') + '</div>'; }).join('');
+    })() + '</div>' +
     '<p class="hm-note" id="hmNote"></p>';
   $('hmDl').onclick = function () { // la portada entera en una imagen, con el menú lateral a la izquierda (la captura del navegador lo deja pegado arriba)
     var btn = this; if (btn.disabled || !window.snapshotCanvas) return; btn.disabled = true; btn.style.opacity = '.5';
     var fin = function () { btn.disabled = false; btn.style.opacity = ''; };
-    window.snapshotCanvas('home', undefined, [home.querySelector('.hm-q'), $('hmNote')]).then(function (hc) { // sin los accesos a cada pestaña: la imagen es para compartir
+    window.snapshotCanvas('home', undefined, [home.querySelector('.hm-qs'), $('hmNote')]).then(function (hc) { // sin los accesos a cada pestaña: la imagen es para compartir
       var k = hc.width / Math.max(1, home.scrollWidth), brand = window.addBrandMark; window.addBrandMark = function () {}; // el menú va sin marca: la marca ya está en la portada
       var items = sn.querySelectorAll('nav .sn-it'), cut = items.length ? items[items.length - 1].getBoundingClientRect().bottom - sn.getBoundingClientRect().top + 16 : sn.offsetHeight;
       var zz = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
