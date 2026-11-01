@@ -13647,5 +13647,24 @@ window.RATG = (function () {
   window.ONSIX = function () { if (!DATA) go(); return DATA; }; // para el reporte semanal y mensual (scripts/reporte_web.js)
 })();
 </script>
+<script>
+/* ---------- Acciones: la explicación de cada bloque va abajo, como en el resto de la página (el texto del «?» de su título) ---------- */
+(function () {
+  var root = document.getElementById('acc'); if (!root) return; var T = 0;
+  function run() {
+    T = 0;
+    [].forEach.call(root.querySelectorAll('h5 .qm[data-tip]'), function (q) {
+      var tip = (q.getAttribute('data-tip') || '').trim(), h = q.closest('h5'), box = h && h.parentNode, n = null, i; if (!box) return;
+      for (i = 0; i < box.children.length; i++) if (box.children[i].classList.contains('qmn')) n = box.children[i];
+      if (!tip) { if (n) n.remove(); q.style.removeProperty('display'); return; }
+      if (!n) { n = document.createElement('p'); n.className = 'note qmn'; n.style.marginTop = '8px'; box.appendChild(n); }
+      if (n.textContent !== tip) n.textContent = tip;
+      q.style.setProperty('display', 'none', 'important'); // la explicación ya está abajo
+    });
+  }
+  new MutationObserver(function () { if (!T) T = setTimeout(run, 150); }).observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-tip'] });
+  run();
+})();
+</script>
 </body>
 </html>
