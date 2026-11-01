@@ -36,10 +36,12 @@ def serie(sym, t0, t1, log=False):
         if not isinstance(j, dict) or j.get("s") != "ok":
             continue
         for t, c, v in zip(j.get("t", []), j.get("c", []), j.get("v", []) or [0] * len(j.get("t", []))):
-            d = dt.datetime.utcfromtimestamp(t).date().isoformat()
+            d = dt.datetime.fromtimestamp(t, dt.timezone.utc).date().isoformat()
             if c and c > 0 and d not in out:
                 out[d] = (float(c), float(v or 0))
-        time.sleep(.15)
+        time.sleep(.1)
+        if out:  # con 24 hs alcanza: los otros plazos casi nunca tienen operaciones
+            break
     return out
 
 
