@@ -140,8 +140,10 @@ def al(o, f):
     return o[max(k)] if k else None
 
 
-def periodo(hoy, tipo, PX, PSD, ON, PV):
-    """Secciones del resumen semanal o mensual (y renglones para 'lo más importante'): todo de los archivos guardados al cierre."""
+def periodo(hoy, tipo, PX, PSD, ON, PV, W=None, img=None):
+    """Secciones del resumen semanal o mensual (y renglones para 'lo más importante'): de los archivos guardados al cierre y, para el índice
+    de ONs y la inflación contra el REM, de lo que se leyó de la página (W). img(clave, png en base64) pega un gráfico."""
+    W, img = W or {}, img or (lambda k, b: "")
     V = load("volumen.json")
     if not V:
         return [], []
@@ -176,35 +178,41 @@ def periodo(hoy, tipo, PX, PSD, ON, PV):
         ch += [("MEP en el año", sg(var(m1, ma), 1, "%"), "desde el 31/12", cv(var(m1, ma))), ("CCL en el año", sg(var(c1, ca), 1, "%"), "desde el 31/12", cv(var(c1, ca))),
                ("Riesgo país en el año", sg(r1 - ra if r1 and ra else None, 0, " pb"), "desde el 31/12", cv(r1 - ra if r1 and ra else None, True))]
     # renta fija en pesos: variación de precio de lo líquido del período, por familia
-    rows, fam, vol, vol0 = [], {}, {}, 0
+    rows, fam, famy, vol, vol0, crece = [], {}, {}, {}, 0, []
     for t, o in V["t"].items():
         if o.get("s") != "P":
             continue
         S = serie_vd(o, dates)
         a, z = S.get(H) or al(S, H), al(S, b)
         mo = sum(e or 0 for d, (c, e) in S.items() if b < d <= H)
-        if b2:
-            vol0 += sum(e or 0 for d, (c, e) in S.items() if b2 < d <= b)
+        m_ = sum(e or 0 for d, (c, e) in S.items() if b2 < d <= b) if b2 else 0
+        vol0 += m_
         f = familia(t, PX, PSD, ON, PV)
         vol[f] = vol.get(f, 0) + mo
+        if f != "Otros" and mo > 0:
+            crece.append((t, f, mo, m_))
         if a and z and a[0] and z[0] and mo > 0 and f != "Otros":
-            rows.append((t, f, (a[0] / z[0] - 1) * 100, mo))
+            ya = al(S, y0) if tipo == "mes" else None
+            rows.append((t, f, (a[0] / z[0] - 1) * 100, mo, (a[0] / ya[0] - 1) * 100 if ya and ya[0] and y0 >= dates[0] else None))
     rows.sort(key=lambda r: -r[3])
     liq = [r for r in rows[:150] if abs(r[2]) < 60]  # las 150 más operadas, sin saltos raros (cortes de cupón, amortizaciones)
     for r in liq:
         fam.setdefault(r[1], []).append(r[2])
-    med = lambda x: sorted(x)[len(x) // 2]
+        if r[4] is not None and abs(r[4]) < 300:
+            famy.setdefault(r[1], []).append(r[4])
+    med = lambda x: sorted(x)[len(x) // 2] if x else None
     ft = sorted(((k, med(v), len(v)) for k, v in fam.items() if len(v) >= 3), key=lambda x: -x[1])
     up, dn = sorted(liq, key=lambda r: -r[2])[:5], sorted(liq, key=lambda r: r[2])[:5]
     tv, sv = sum(vol.values()), sorted(((k, v) for k, v in vol.items() if v > 0), key=lambda x: -x[1])
     rf = (f"<p {PP}>Variación de precio en pesos entre el cierre del {b[8:10]}/{b[5:7]} y el de hoy ({nr} ruedas), en las 150 especies más operadas del período.</p>"
-          + tabla(["Familia", "Mediana", "Especies"], [[k, (sg(v, 2, "%"), cv(v)), str(c)] for k, v, c in ft])
+          + (tabla(["Familia", f"En {nom}", "En el año", "Especies"], [[k, (sg(v, 2, "%"), cv(v)), (sg(med(famy.get(k)), 1, "%"), cv(med(famy.get(k)))), str(c)] for k, v, c in ft]) if tipo == "mes"
+             else tabla(["Familia", "Mediana", "Especies"], [[k, (sg(v, 2, "%"), cv(v)), str(c)] for k, v, c in ft]))
           + f'<p style="font-size:13px;font-weight:700;color:{TX};margin:14px 0 2px">Mayores subas</p>'
-          + tabla(["Especie", "Familia", "Var. precio"], [[t, f, (sg(v, 2, "%"), cv(v))] for t, f, v, _ in up])
+          + tabla(["Especie", "Familia", "Var. precio"], [[t, f, (sg(v, 2, "%"), cv(v))] for t, f, v, *_ in up])
           + f'<p style="font-size:13px;font-weight:700;color:{TX};margin:14px 0 2px">Mayores bajas</p>'
-          + tabla(["Especie", "Familia", "Var. precio"], [[t, f, (sg(v, 2, "%"), cv(v))] for t, f, v, _ in dn])
+          + tabla(["Especie", "Familia", "Var. precio"], [[t, f, (sg(v, 2, "%"), cv(v))] for t, f, v, *_ in dn])
           + f'<p style="font-size:14px;line-height:1.6;color:#d4d4d8;margin:12px 0 0">Se operaron <b>$ {n(tv / 1e6, 0)} millones</b> en {nom}'
-          + (f" ({sg(var(tv, vol0), 1, '%')} contra las {nr} ruedas anteriores)" if vol0 else "") + "; " + ", ".join(f"{k[0].lower() + k[1:]} $ {n(v / 1e6, 0)} M" for k, v in sv[:4]) + ".</p>")
+          + (f" ({sg(var(tv, vol0), 1, '%')} contra las {nr} ruedas anteriores)" if vol0 else "") + "; " + ", ".join(f"{(k[0].lower() + k[1:]) if k[1:2].islower() else k} $ {n(v / 1e6, 0)} M" for k, v in sv[:4]) + ".</p>")
     # acciones del panel líder
     sys.path.insert(0, os.path.dirname(__file__))
     try:
@@ -233,9 +241,201 @@ def periodo(hoy, tipo, PX, PSD, ON, PV):
         pts.append(f"<b>En {nom}</b>: MEP {sg(var(m1, m0), 2, '%')}, CCL {sg(var(c1, c0), 2, '%')}" + (f", riesgo país {sg(r1 - r0, 0, ' pb')}" if r1 and r0 else "")
                    + (f"; en pesos, {ft[0][0][0].lower() + ft[0][0][1:]} lo mejor ({sg(ft[0][1], 2, '%')}) y {ft[-1][0][0].lower() + ft[-1][0][1:]} lo peor ({sg(ft[-1][1], 2, '%')})" if len(ft) > 1 else "")
                    + (f"; en acciones, {ac[0][0]} ({sg(ac[0][1], 1, '%')}) y {ac[-1][0]} ({sg(ac[-1][1], 1, '%')})" if ac else "") + ".")
+    lb = f"{b[8:10]}/{b[5:7]}"
+    sub = lambda t: f'<p style="font-size:13px;font-weight:700;color:{TX};margin:16px 0 2px">{t}</p>'
+    # ---------- curvas: tasa de hoy contra el cierre de referencia, y bonos fuera de su curva ----------
+    cur_html, filas, fuera = "", [], []
+    try:
+        import reporte_curvas as RC
+        CV = RC.curvas(base=b)[3]
+    except Exception as e:
+        print("curvas del período:", e)
+        CV = {}
+    for g, nm, xl, col, ley in (("usd", "Globales y Bonares", "Duration (años)", FC["usd"], ["GD", "A"]), ("fija", "Lecaps y Boncaps", "Días al vencimiento", FC["fija"], None),
+                                ("cer", "Bonos CER (tasa real)", "Días al vencimiento", FC["cer"], None)):
+        cr = CV.get(g) or []
+        if len(cr) < 3:
+            continue
+        dd = sorted((r[2] - r[3]) * 1e4 for r in cr)
+        mv = sorted(cr, key=lambda r: r[2] - r[3])
+        filas.append([nm, (sg(dd[len(dd) // 2], 0, " pb"), cv(dd[len(dd) // 2], True)), (f"{mv[0][0]} {sg((mv[0][2] - mv[0][3]) * 1e4, 0)}", cv(mv[0][2] - mv[0][3], True)),
+                      (f"{mv[-1][0]} {sg((mv[-1][2] - mv[-1][3]) * 1e4, 0)}", cv(mv[-1][2] - mv[-1][3], True))])
+        png = None
+        try:
+            png = base64.b64encode(RC.grafico(cr, "", xl, col, "Hoy", lb, ley=ley, oscuro=True)).decode()
+        except Exception as e:
+            print("gráfico de la curva", g, e)
+        cur_html += sub(nm) + img(f"p{tipo}{g}", png)
+        zc = [r for r in cr if g == "fija" or r[0].startswith(("TZX", "X"))]  # en CER solo los cupón cero: en los que amortizan el plazo no es la duration
+        if g != "usd" and len(zc) >= 5:  # contra sus vecinos de plazo: la tasa que daría la recta entre el bono anterior y el siguiente
+            cr_ = cr
+            cr = zc
+            for i in range(1, len(cr) - 1):
+                a_, r_, z_ = cr[i - 1], cr[i], cr[i + 1]
+                if z_[1] > a_[1] and r_[1] >= 60:
+                    fuera.append((nm, r_[0], (r_[2] - (a_[2] + (z_[2] - a_[2]) * (r_[1] - a_[1]) / (z_[1] - a_[1]))) * 1e4))
+            cr = cr_
+    if filas:
+        cur_html = (f"<p {PP}>Cambio de tasa entre el cierre del {lb} y el de hoy: la mediana de cada curva, el bono que más comprimió y el que más subió (pb). "
+                    "En los gráficos, los puntos llenos son hoy y los huecos el cierre de referencia.</p>"
+                    + tabla(["Curva", "Mediana", "Más bajó", "Más subió"], filas) + cur_html)
+    # ---------- ONs en dólares contra la región (índice de la pestaña ONs) ----------
+    ons_html = ""
+    OX = [r for r in (W.get("onsix") or []) if r[1] is not None]
+    if OX:
+        o1 = OX[-1]
+        o0 = next((r for r in reversed(OX) if r[0] <= b), None) or (OX[0] if OX[0][0] < o1[0] else None)  # si el índice arranca dentro del período, desde su primer dato
+        en = f"en {nom}" if o0 and o0[0] <= b else f"desde el {o0[0][8:10]}/{o0[0][5:7]}" if o0 else ""
+        dpb = lambda i: (o1[i] - o0[i]) if o0 and o1[i] is not None and o0[i] is not None else None
+        lect = "" if o1[4] is None else ("cara contra la región: no conviene estirar duration en ONs" if o1[4] < 100 else "barata contra la región: hay premio por riesgo argentino" if o1[4] > 200 else "en rango contra la región")
+        ons_html = (chips([("Índice ONs", n(o1[1], 0) + " pb", sg(dpb(1), 0, " pb") + " " + en, cv(dpb(1), True)),
+                           ("ICE BofA Latam", n(o1[2], 0) + " pb" if o1[2] is not None else "—", sg(dpb(2), 0, " pb") + " " + en, cv(dpb(2), True)),
+                           ("Diferencial", n(o1[4], 0) + " pb" if o1[4] is not None else "—", sg(dpb(4), 0, " pb") + " " + en, cv(dpb(4), True))])
+                    + f"<p {NOTE}>Spread contra el Treasury de igual duration de las ONs hard dollar de los emisores relevantes ({o1[5]} ONs, ponderado por monto operado), "
+                    f"contra el índice ICE BofA de bonos corporativos de Latinoamérica (FRED, con un par de días de atraso). Lectura: {lect}.</p>")
+    # ---------- flujos: licitaciones del Tesoro del período y especies que ganaron volumen ----------
+    flu = ""
+    try:
+        src = open(os.path.join(D, "..", "licitaciones.html"), encoding="utf-8").read()
+        LD = json.loads(re.search(r"const LD=(\{.*?\});\n", src).group(1))
+    except Exception:
+        LD = {}
+    PR = LD.get("PREM") or []
+    PR = PR if isinstance(PR, list) else [PR]
+    FN = {"fija": "fija", "cer": "CER", "tamar": "TAMAR", "dual": "duales", "dl": "dólar linked", "usd": "dólares"}
+    lic = []
+    for x in LD.get("ADJ") or []:
+        if b < x.get("l", "") <= H:
+            ro = (LD.get("ROLL") or {}).get(x["l"])
+            pm = next((q for q in PR if q.get("l") == x["l"]), {})
+            mix = sorted((x.get("f") or {}).items(), key=lambda kv: -kv[1])
+            lic.append([f"{x['l'][8:10]}/{x['l'][5:7]}", f"$ {n(x['a'], 2)} billones", (n(ro[0], 0) + "%", OK if ro[0] >= 100 else BAD) if ro else "—",
+                        ", ".join(f"{FN.get(k, k)} {n(v / x['a'] * 100, 0)}%" for k, v in mix[:3] if x.get("a")),
+                        ", ".join(f"{FN.get(k, k)} {sg(pm[k], 0)}" for k in ("fija", "cer", "tamar", "dual", "dl") if pm.get(k) is not None) or "—"])
+    if lic:
+        flu += (f"<p {PP}>Licitaciones del Tesoro que liquidaron en {nom}: lo adjudicado, el rollover sobre los vencimientos, cómo se repartió y el premio contra la curva (pb).</p>"
+                + tabla(["Liquidó", "Adjudicado", "Rollover", "Mix", "Premio"], lic, ["left", "right", "right", "left", "left"]))
+    if b2:
+        cz = sorted([c for c in crece if c[2] > 5e8], key=lambda c: -(c[2] - c[3]))[:6]
+        if cz:
+            flu += (sub(f"Las que más volumen ganaron contra las {nr} ruedas anteriores") +
+                    tabla(["Especie", "Familia", "Monto", "Antes"], [[t, f, f"$ {n(m / 1e6, 0)} M", f"$ {n(m_ / 1e6, 0)} M"] for t, f, m, m_ in cz]))
+    # ---------- acciones por sector: rendimiento, volumen y múltiplo contra su historia ----------
+    sec_html, ideas = "", []
+    try:
+        src = open(os.path.join(D, "..", "index.html"), encoding="utf-8").read()
+        SEC = json.loads(re.search(r"var SEC = (\[\[.*?\]\]);", src, re.S).group(1).replace("'", '"'))
+    except Exception as e:
+        print("sectores", e)
+        SEC = []
+    RT = (load("acciones/ratios.json") or {}).get("t") or {}
+    PXA = {}
+    for s_ in SEC:
+        for t in s_[3].split():
+            o = load(f"acciones/{t}.json") or {}
+            rr = [r for r in o.get("r", []) if r[4] and r[4] > 0]
+            PXA[t] = (dict(aj(t, [(r[0], r[4]) for r in rr])), {r[0]: r[4] * (r[5] or 0) for r in rr})
+    def ret_(t, d0, d1):
+        P = PXA.get(t, ({}, {}))[0]
+        a, z = al(P, d1), al(P, d0)
+        return var(a, z)
+    def monto(t, d0, d1):
+        return sum(v for d, v in PXA.get(t, ({}, {}))[1].items() if d0 < d <= d1)
+    def pvl_z(ts):  # P/VL del sector ponderado por la capitalización de hoy, a 1 año (como la tarjeta Evolución del múltiplo)
+        Wt = {t: RT[t]["ultimo"]["capitalizacion"] for t in ts if t in RT and RT[t].get("serie") and (RT[t].get("ultimo") or {}).get("capitalizacion")}
+        M = {t: {x[0]: x[2] for x in RT[t]["serie"]} for t in Wt}
+        last = max((d for m in M.values() for d in m), default=None)
+        if not last:
+            return None, None
+        frm = (dt.date.fromisoformat(last) - dt.timedelta(days=365)).isoformat()
+        out, lv = [], {}
+        for d in sorted({d for m in M.values() for d in m if d >= frm}):
+            sw = sy = 0
+            for t in Wt:
+                if d in M[t]:
+                    lv[t] = (d, M[t][d])
+                q = lv.get(t)
+                if q and q[1] and 0 < q[1] < 30 and (dt.date.fromisoformat(d) - dt.date.fromisoformat(q[0])).days <= 7:
+                    sw += Wt[t]; sy += Wt[t] * q[1]
+            if sw:
+                out.append(sy / sw)
+        if len(out) < 10:
+            return None, None
+        mu = sum(out) / len(out)
+        sd = (sum((x - mu) ** 2 for x in out) / (len(out) - 1)) ** .5
+        return out[-1], (out[-1] - mu) / sd if sd else None
+    sf = []
+    tot1 = sum(monto(t, b, H) for s_ in SEC for t in s_[3].split()) or 1
+    tot0 = sum(monto(t, b2, b) for s_ in SEC for t in s_[3].split()) if b2 else 0
+    for s_ in SEC:
+        ts = s_[3].split()
+        rs = [x for x in (ret_(t, b, H) for t in ts) if x is not None and abs(x) < 80]
+        if not rs:
+            continue
+        sh1 = sum(monto(t, b, H) for t in ts) / tot1 * 100
+        sh0 = sum(monto(t, b2, b) for t in ts) / tot0 * 100 if tot0 else None
+        pv, z = pvl_z(ts)
+        sf.append((s_[1], med(rs), sh1, sh1 - sh0 if sh0 is not None else None, pv, z))
+    sf.sort(key=lambda r: -r[1])
+    if sf:
+        sec_html = (f"<p {PP}>Mediana de la variación de cada sector en {nom} (todas las acciones), su peso en el volumen operado de acciones y cómo cambió contra las {nr} ruedas anteriores, "
+                    "y el P/VL del sector contra su último año (z: desvíos sobre el promedio; negativo, más barato que lo habitual).</p>"
+                    + tabla(["Sector", f"En {nom}", "Volumen", "P/VL", "z 1 año"],
+                            [[nm_, (sg(r_, 2, "%"), cv(r_)), n(sh, 1) + "%" + (f" <span style='color:{cv(dsh)}'>({sg(dsh, 1)})</span>" if dsh is not None else ""),
+                              (n(pv, 2) + "x") if pv else "—", (sg(z, 1), BAD if z and z > 1 else OK if z and z < -1 else "#e4e4e7") if z is not None else "—"] for nm_, r_, sh, dsh, pv, z in sf]))
+        for nm_, r_, sh, dsh, pv, z in sorted([x for x in sf if x[5] is not None], key=lambda x: -abs(x[5]))[:2]:  # los dos sectores más alejados de lo habitual
+            if abs(z) >= 1.5:
+                ideas.append(f"<b>{nm_}</b>: P/VL {n(pv, 2)}x, z {sg(z, 1)} contra su último año ({'más barato' if z < 0 else 'más caro'} que lo habitual).")
+    # ---------- ideas: ratios del panel líder estirados y bonos fuera de su curva ----------
+    lid = sorted(LIDER)
+    so = {t: s_[0] for s_ in SEC for t in s_[3].split()}
+    import math
+    pares = []
+    for i, x in enumerate(lid):
+        for y_ in lid[i + 1:]:
+            if so.get(x) != so.get(y_) or x not in PXA or y_ not in PXA:
+                continue
+            Px, Py = PXA[x][0], PXA[y_][0]
+            ds = [d for d in dates[-121:] if d in Px and d in Py]
+            if len(ds) < 80:
+                continue
+            lr = [math.log(Px[d] / Py[d]) for d in ds]
+            mu = sum(lr) / len(lr)
+            sd = (sum((v - mu) ** 2 for v in lr) / (len(lr) - 1)) ** .5
+            if sd:
+                pares.append((x, y_, (lr[-1] - mu) / sd, (math.exp(lr[-1] - lr[-6]) - 1) * 100 if len(lr) > 6 else None))
+    pares.sort(key=lambda p: -abs(p[2]))
+    for x, y_, z, w5 in pares[:3]:
+        if abs(z) >= 1.5:
+            ca, ba = (x, y_) if z > 0 else (y_, x)
+            ideas.append(f"<b>{x}/{y_}</b>: z {sg(z, 1)} contra sus últimos 6 meses; {ca} quedó cara contra {ba}" + (f" (el ratio {sg(w5, 1, '%')} en 5 ruedas)" if w5 is not None else "") + ".")
+    fuera.sort(key=lambda r: -r[2])
+    if len(fuera) >= 6 and fuera[0][2] > 30:
+        ideas.append("<b>Bonos que rinden por encima de su curva</b>: " + ", ".join(f"{t} ({nm_.split(' (')[0]}, {sg(e, 0, ' pb')})" for nm_, t, e in fuera[:3]) + ".")
+        ideas.append("<b>Bonos que rinden por debajo de su curva</b>: " + ", ".join(f"{t} ({nm_.split(' (')[0]}, {sg(e, 0, ' pb')})" for nm_, t, e in fuera[-3:][::-1]) + ".")
+    ide = ("<ul style='margin:0;padding-left:18px;font-size:14px;line-height:1.65;color:#d4d4d8'>" + "".join(f"<li style='margin-bottom:6px'>{x}</li>" for x in ideas) + "</ul>"
+           + f"<p {NOTE}>Ideas para mirar, no recomendaciones: un ratio estirado o un bono fuera de curva pueden tener motivos (balances, liquidez, cupones, riesgo de la emisora).</p>") if ideas else ""
+    # ---------- fin de mes: inflación que descuenta el mercado contra el REM y la que trae el CER ----------
+    inf_html = ""
+    if tipo == "mes":
+        pl = ((W.get("bei") or {}).get("plazos") or {})
+        ph = pl.get("head", [])
+        ix_ = {k: next((i for i, x in enumerate(ph) if x.upper().replace("?", "").startswith(k)), None) for k in ("PLAZO", "HOY", "REM HOY", "MERCADO")}
+        fl_ = [[r[ix_["PLAZO"]].split(" (")[0], r[ix_["HOY"]].split(" ")[0], r[ix_["REM HOY"]], r[ix_["MERCADO"]]] for r in pl.get("rows", []) if None not in ix_.values()]
+        CER = (load("indices.json") or {}).get("CER") or {}
+        c1_, c0_ = al(CER, H), al(CER, (hoy - dt.timedelta(days=30)).isoformat())
+        ipc = (c1_ / c0_ - 1) * 100 if c1_ and c0_ else None
+        if fl_ or ipc:
+            inf_html = ((f"<p {PP}>El CER de los últimos 30 días equivale a <b>{n(ipc, 2)}% mensual</b> (es la inflación que ya se conoce: el CER va unos 45 días atrás del IPC).</p>" if ipc else "")
+                        + (f"<p {PP}>Lo que descuenta el mercado (tasa fija contra CER al mismo plazo) contra lo que espera el REM del BCRA:</p>"
+                           + tabla(["Plazo", "Mercado", "REM", "Mercado − REM"], fl_) + f"<p {NOTE}>Si el mercado descuenta más que el REM y se cumple el REM, gana la tasa fija; al revés, gana el CER.</p>" if fl_ else ""))
+    if ideas:
+        pts.append(f"<b>Para mirar</b>: " + ideas[0].replace("<b>", "").replace("</b>", ""))
     rub = "Semana" if tipo == "semana" else "Mes"
     tit = "de la semana" if tipo == "semana" else f"de {MES[hoy.month - 1]}"
-    S = [(rub, f"Balance {tit}: dólar y riesgo país", chips(ch), AC), (rub, f"Renta fija en pesos: {nom}", rf if liq else "", FC["fija"]), (rub, f"Acciones: {nom}", ah, FC["acc"])]
+    S = [(rub, f"Balance {tit}: dólar y riesgo país", chips(ch), AC), (rub, f"Curvas: {nom}", cur_html, FC["usd"]), (rub, f"Renta fija en pesos: {nom}", rf if liq else "", FC["fija"]),
+         (rub, f"Flujos: {nom}", flu, FC["vol"]), (rub, "ONs en dólares contra la región", ons_html, FC["on"]), (rub, f"Acciones: {nom}", ah, FC["acc"]),
+         (rub, f"Sectores: {nom}", sec_html, FC["acc"]), (rub, "Ideas para mirar", ide, AC), (rub, "Inflación: mercado contra REM", inf_html, FC["cer"])]
     return S, pts
 
 
@@ -572,9 +772,9 @@ def armar(en_vivo=False, web=None):
          ("Mercado", "Volumen de renta fija", vol_html, FC["vol"])]
     tipo = os.environ.get("REPORTE_EDICION") or edicion(hoy)  # REPORTE_EDICION=semana|mes para probar
     if tipo in ("semana", "mes"):
-        SP, pp = periodo(hoy, tipo, PX, PSD, ON, PV)
+        SP, pp = periodo(hoy, tipo, PX, PSD, ON, PV, W, img)
         if tipo == "mes" and hoy.weekday() == 4:
-            SW, _ = periodo(hoy, "semana", PX, PSD, ON, PV)
+            SW, _ = periodo(hoy, "semana", PX, PSD, ON, PV, W, img)
             SP += SW[:1]
         S, pts = SP + S, pp + pts
     else:

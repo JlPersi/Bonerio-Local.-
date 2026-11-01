@@ -36,16 +36,17 @@ def datos():
     return PX, PSD, V
 
 
-def cierres(V, k):
-    """{ticker: (cierre de la rueda k, cierre de la rueda k-1)} con k = índice en V['dates']."""
+def cierres(V, k, kb=None):
+    """{ticker: (cierre de la rueda k, cierre de la rueda kb)} con k = índice en V['dates'] y kb la rueda de comparación (por defecto k-1)."""
+    kb = k - 1 if kb is None else kb
     out = {}
     for t, o in V["t"].items():
         acc, last = 0, {}
         for di, c in zip(o["i"], o["c"]):
             acc += di
-            if acc in (k, k - 1) and c and c > 0:
+            if acc in (k, kb) and c and c > 0:
                 last[acc] = c
-        out[t] = (last.get(k), last.get(k - 1))
+        out[t] = (last.get(k), last.get(kb))
     return out
 
 
@@ -116,11 +117,13 @@ def cer10f(PSD, biz):
     return cer10
 
 
-def curvas(en_vivo=False):
-    """Devuelve (fecha hoy, fecha ayer, etiqueta hoy, {curva: [(ticker, x, tir_hoy, tir_ayer)]}, precios hoy, precios ayer)."""
+def curvas(en_vivo=False, base=None):
+    """Devuelve (fecha hoy, fecha ayer, etiqueta hoy, {curva: [(ticker, x, tir_hoy, tir_ayer)]}, precios hoy, precios ayer).
+    base: fecha de comparación (la última rueda <= base) en vez de la rueda anterior, para los resúmenes semanal y mensual."""
     PX, PSD, V = datos()
     k = len(V["dates"]) - 1
-    C = cierres(V, k)
+    kb = max(i for i, d in enumerate(V["dates"]) if d <= base) if base else k - 1
+    C = cierres(V, k, kb)
     if en_vivo:
         live = vivo()
         hoy = {t: live.get(t) for t in C}
@@ -129,7 +132,7 @@ def curvas(en_vivo=False):
     else:
         hoy = {t: C[t][0] for t in C}
         ayer = {t: C[t][1] for t in C}
-        f_hoy, f_ayer, lab = V["dates"][k], V["dates"][k - 1], "Hoy"
+        f_hoy, f_ayer, lab = V["dates"][k], V["dates"][kb], "Hoy"
     biz = habil(PX.get("HOL", []))
     st = lambda f: next(t for t in range(day(dt.date.fromisoformat(f)) + 1, day(dt.date.fromisoformat(f)) + 10) if biz(t))  # T+1
 
@@ -166,7 +169,7 @@ def curvas(en_vivo=False):
     return f_hoy, f_ayer, lab, out, hoy, ayer
 
 
-def grafico(rows, titulo, xlab, color, lab_hoy, lab_ayer, ley=None):
+def grafico(rows, titulo, xlab, color, lab_hoy, lab_ayer, ley=None, oscuro=False):
     """PNG de la curva: los puntos de hoy (llenos) y los de ayer (huecos, en gris) unidos por un trazo fino que muestra cuánto se movió cada
     bono, y una curva ajustada (logarítmica) por grupo: la de hoy en color, la de ayer punteada. Sin unir los puntos entre sí."""
     import matplotlib
@@ -174,9 +177,12 @@ def grafico(rows, titulo, xlab, color, lab_hoy, lab_ayer, ley=None):
     import matplotlib.pyplot as plt
     import numpy as np
     from matplotlib.ticker import FuncFormatter
-    INK, MUTED, GRID, GRAY = "#18181b", "#71717a", "#ececec", "#a1a1aa"
+    INK, MUTED, GRID, GRAY = ("#f4f4f5", "#a1a1aa", "#2a2a2e", "#71717a") if oscuro else ("#18181b", "#71717a", "#ececec", "#a1a1aa")
+    BGc = "#131314" if oscuro else "white"  # oscuro: el fondo de las tarjetas del mail
     plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 10})
     fig, ax = plt.subplots(figsize=(6.4, 3.5), dpi=250)
+    fig.patch.set_facecolor(BGc)
+    ax.set_facecolor(BGc)
     grupos = [("", rows, color)] if not ley else [(p, [r for r in rows if r[0].startswith(p)], c) for p, c in zip(ley, ["#2563eb", "#d97706"])]
     xs = [r[1] for r in rows]
     span = (max(xs) - min(xs)) or 1
@@ -192,21 +198,23 @@ def grafico(rows, titulo, xlab, color, lab_hoy, lab_ayer, ley=None):
             for y, st, cc, lw in ((ya, (0, (3, 3)), GRAY, 1.3), (yh, "-", c, 2)):
                 b_, a_ = np.polyfit(np.log(x), y, 1)
                 ax.plot(xx, a_ + b_ * np.log(xx), linestyle=st, color=cc, lw=lw, zorder=1, alpha=.9)
-        ax.scatter(x, ya, s=26, facecolor="white", edgecolor=GRAY, linewidth=1.2, zorder=3)
-        ax.scatter(x, yh, s=36, color=c, edgecolor="white", linewidth=1, zorder=4,
+        ax.scatter(x, ya, s=26, facecolor=BGc, edgecolor=GRAY, linewidth=1.2, zorder=3)
+        ax.scatter(x, yh, s=36, color=c, edgecolor=BGc, linewidth=1, zorder=4,
                    label=(("Globales" if nm == "GD" else "Bonares") + " (" + lab_hoy.split(" (")[0].lower() + ")") if nm else lab_hoy)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:.0f}%" if abs(v - round(v)) < 1e-9 else f"{v:.1f}%".replace(".", ",")))
     ax.grid(axis="y", color=GRID, lw=1)
     ax.set_axisbelow(True)
     for sp in ("top", "right", "left"):
         ax.spines[sp].set_visible(False)
-    ax.spines["bottom"].set_color("#d4d4d8")
+    ax.spines["bottom"].set_color(GRID if oscuro else "#d4d4d8")
     ax.tick_params(axis="both", labelsize=8.5, colors=MUTED, length=0, pad=6)
     from matplotlib.transforms import Bbox
-    ax.scatter([], [], s=26, facecolor="white", edgecolor=GRAY, linewidth=1.2, label=lab_ayer)
+    ax.scatter([], [], s=26, facecolor=BGc, edgecolor=GRAY, linewidth=1.2, label=lab_ayer)
     ax.set_xlabel(xlab, fontsize=9, color=MUTED, labelpad=6)
     ax.margins(x=.06, y=.18)
-    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3, frameon=False, fontsize=8.5, handletextpad=.4, columnspacing=1.4, borderaxespad=.2)
+    lg = ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3, frameon=False, fontsize=8.5, handletextpad=.4, columnspacing=1.4, borderaxespad=.2)
+    for tx_ in lg.get_texts():
+        tx_.set_color(INK)
     fig.tight_layout()  # antes de ubicar las etiquetas: después ya no se mueve nada
     fig.canvas.draw()
     # etiquetas: arriba del punto de hoy; si choca, abajo, a la derecha o a la izquierda; si no entra en ningún lado, va sin etiqueta (está en la tabla)
@@ -221,7 +229,7 @@ def grafico(rows, titulo, xlab, color, lab_hoy, lab_ayer, ley=None):
                 break
             t.remove()
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", facecolor="white")
+    fig.savefig(buf, format="png", facecolor=BGc)
     plt.close(fig)
     return buf.getvalue()
 

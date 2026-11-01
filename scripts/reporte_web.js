@@ -121,7 +121,16 @@ async function extract(page, log = console.log) {
   await until(page, () => !!(document.getElementById('psFwR1') || {}).textContent, null, 20000); await wait(1500);
   out.fw = await page.evaluate(() => ({ txt: (document.getElementById('psFwR1') || {}).textContent || '', tbl: window.__tbl('psFwT1'), png: window.__png('psFwC1') }));
   log('forwards', out.fw.tbl ? out.fw.tbl.rows.length : 0);
+  out.onsix = await onsix(page, log);
   return out;
+}
+
+// índice de spread de las ONs hard dollar contra los ICE BofA (tarjeta de la pestaña ONs): [fecha, índice, Latam, EM HY, diferencial, ONs]
+async function onsix(page, log = console.log) {
+  await page.evaluate(() => window.ONSIX && window.ONSIX());
+  await until(page, () => { var d = window.ONSIX && window.ONSIX(); return d && d.length > 0; }, null, 40000);
+  const r = await page.evaluate(() => (window.ONSIX && window.ONSIX() || []).map(function (x) { return [x.d, x.idx, x.BAMLEMRLCRPILAOAS, x.BAMLEMHBHYCRPIOAS, x.dif, x.n]; }));
+  log('índice ONs', r.length); return r;
 }
 
 async function main() {
@@ -138,5 +147,5 @@ async function main() {
   await b.close(); srv.close();
 }
 
-module.exports = { extract, STUB };
+module.exports = { extract, onsix, STUB };
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
