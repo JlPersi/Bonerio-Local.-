@@ -12274,7 +12274,7 @@ window.RATG = (function () {
     if (typeof mktStarted === 'function' && !mktStarted()) { LV = {}; return g('https://data912.com/live/usa_adrs', LA); } // antes de la rueda (o sin rueda) data912 repite la anterior: se usa el último cierre
     return Promise.all([g('https://data912.com/live/arg_stocks', LV), g('https://data912.com/live/usa_adrs', LA)]);
   }
-  setInterval(function () { if (isAct() && (typeof mktOpen !== 'function' || mktOpen())) live().then(function () { table(); adrs(); valua(); head(); flow(); covered(); }); }, 30000);
+  setInterval(function () { if (isAct() && (typeof mktOpen !== 'function' || mktOpen())) live().then(function () { table(); adrs(); valua(); head(); flow(); covered(); if (ST.sub === 'bnd') { BDL = {}; bands(); } }); }, 30000);
 
   /* ---------- índice del panel líder ponderado por capitalización ---------- */
   var IDD = null, IMC = {};
@@ -13398,7 +13398,7 @@ window.RATG = (function () {
   function drawAll() { SX = {}; SL = {}; sub(ST.sub || 'panel'); table(); chart(); radar(); pair(); flow(); sectors(); scatter(); valua(); erp(); hold(); adrs(); covered(); }
   function render() {
     if (err) { $('accTs').textContent = err; return; }
-    load().then(function () { if (err) { $('accTs').textContent = err; return; } drawAll(); loadAll(); live().then(function () { table(); adrs(); valua(); head(); }); });
+    load().then(function () { if (err) { $('accTs').textContent = err; return; } drawAll(); loadAll(); live().then(function () { table(); adrs(); valua(); head(); if (ST.sub === 'bnd') { BDL = {}; bands(); } }); });
   }
   var _sw = window.switchTab; window.switchTab = function (id) { _sw(id); if (id === 'acc') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
   new MutationObserver(function () { if (isAct() && IX) drawAll(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); // claro / oscuro
