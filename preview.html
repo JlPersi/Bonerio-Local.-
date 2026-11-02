@@ -13870,6 +13870,12 @@ window.RATG = (function () {
 
   root.innerHTML = '<style>#res .seg{display:inline-flex;border:1px solid var(--bd);border-radius:10px;overflow:hidden}#res .seg button{background:none;border:0;color:var(--tx);padding:9px 14px;font:inherit;font-size:13.5px;cursor:pointer}#res .seg button.on{background:var(--tx);color:var(--bg);font-weight:700}' +
     '#res .sbn{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 18px}#res .sbn button{background:var(--card);color:var(--mu);border:1px solid var(--bd);border-radius:999px;padding:8px 16px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}#res .sbn button:hover{color:var(--tx)}#res .sbn button.on{background:var(--fc,var(--ac));border-color:var(--fc,var(--ac));color:#0b0b0c}' +
+    '#res .rkps{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin:16px 0 4px}@media(max-width:1300px){#res .rkps{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:620px){#res .rkps{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}}' +
+    '#res .rkp{position:relative;display:flex;flex-direction:column;min-width:0;border:1px solid var(--bd);border-radius:12px;padding:11px 13px 0;background:var(--bg);overflow:hidden}#res .rkp.np{padding-bottom:11px}' +
+    '#res .rkp small{display:block;color:var(--mu);font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '#res .rkp .v{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:3px}#res .rkp b{font-size:21px;font-variant-numeric:tabular-nums;letter-spacing:-.01em;color:var(--tx)}#res .rkp em{font-style:normal;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}' +
+    '#res .rkp span.s{display:block;color:var(--mu);font-size:11.5px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#res .rkp svg.sp{display:block;width:calc(100% + 26px);margin:auto -13px 0;height:34px;padding-top:6px}' +
+    '#res .rkp .vx{font-weight:700}#res .rkp .br{display:block;height:6px;border-radius:3px;background:#ff6b8b;margin:auto 0 13px;overflow:hidden}#res .rkp .br i{display:block;height:100%;background:#34d399}@media(max-width:600px){#res .rkp b{font-size:19px}}' +
     '#res .card+.card{margin-top:24px}#res h5{margin:0 0 8px;font-size:13px;color:var(--mu);font-weight:600;text-transform:uppercase;letter-spacing:.4px}' +
     '#res .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px 26px}#res .g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 26px}@media(max-width:1100px){#res .g3{grid-template-columns:1fr 1fr}}@media(max-width:760px){#res .g3,#res .g2{grid-template-columns:1fr}}' +
     '#res .vdt th{cursor:default;position:static}#res .vdt td small{color:var(--mu);font-size:11.5px;margin-left:6px;font-weight:400}#res .vdt td,#res .vdt th{text-align:right}#res .vdt td:first-child,#res .vdt th:first-child{text-align:left}#res .wrap{overflow:auto}' +
@@ -13885,7 +13891,7 @@ window.RATG = (function () {
     '<div class="ctl" id="resCtl"><div style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mu)">Período<span class="seg" id="resPer">' + PER.map(function (p) { return '<button data-v="' + p[0] + '">' + p[1] + '</button>'; }).join('') + '</span></div>' +
     '<label>Desde<input type="date" id="resA1"></label><label>Hasta<input type="date" id="resA2"></label>' +
     '<label>Comparar con<select id="resCm"><option value="">Nada</option><option value="prev">El período anterior</option><option value="c">Otras fechas</option></select></label><label>Desde<input type="date" id="resC1"></label><label>Hasta<input type="date" id="resC2"></label></div>' +
-    '<div class="vdchips" id="resKp"></div><p class="nar" id="resNar">Calculando…</p>' +
+    '<div class="rkps" id="resKp"></div><p class="nar" id="resNar">Calculando…</p>' +
     '<p class="note">El período va del cierre de la rueda de base al de la última (o al precio de ahora, con la rueda abierta). Riesgo país de ArgentinaDatos; MEP y CCL de AL30; brecha contra el A3500. Amplitud: cuántas especies de renta fija soberana subieron y cuántas bajaron de precio. Volumen diario: promedio por rueda del período, contra el de las 60 ruedas anteriores.</p></div>' +
     '<div class="card sx" id="resCmp" style="display:none;margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Comparación de períodos</p><p class="qs keep">Lo mismo para los dos períodos, lado a lado.</p></div></div><div class="wrap" id="resCmpT"></div>' +
     '<p class="note">Solo entran los bonos que siguen vigentes hoy, así los dos períodos se miden sobre las mismas especies. Retorno total: precio más los cupones y amortizaciones cobrados en cada período.</p></div>' +
@@ -14027,7 +14033,19 @@ window.RATG = (function () {
       ['Brecha CCL', br1 != null ? nf(br1 * 100, 1) + '%' : '—', br1 != null && br0 != null ? '<span' + col(br1 - br0, 1) + '>' + (br1 - br0 > 0 ? '+' : '') + nf((br1 - br0) * 100, 1) + ' pp</span>' : ''],
       ['Amplitud renta fija', up + ' / ' + dn, 'suben / bajan'],
       ['Volumen diario', mny(vt), vp > 0 ? '<span' + col(vt / vp - 1) + '>' + nf(vt / vp, 2) + '× su promedio</span>' : '']];
-    $o('resKp').innerHTML = K.map(function (k) { return '<div class="vdchip"><small>' + k[0] + '</small><b>' + k[1] + '</b><span>' + (k[2] || '&nbsp;') + '</span></div>'; }).join('');
+    var i0 = Math.max(0, e0 - 62), rng = function (f) { var a = []; for (var i = i0; i <= e0; i++) a.push(f(i)); return a; }; // la serie de los últimos 3 meses (hasta el fin del período) para la línea chica
+    var SPK = [rng(rpv), rng(function (i) { return i === e0 ? mep1 : MEP[i]; }), rng(function (i) { return i === e0 ? ccl1 : CCL[i]; }), rng(function (i) { var c = i === e0 ? ccl1 : CCL[i], a = a35(i); return c && a ? (c / a - 1) * 100 : null; })];
+    var spk = function (a, inv) { // SVG sin Chart, como las tarjetas de Mercado de dinero; sube = rojo en riesgo país, dólar y brecha
+      a = (a || []).filter(function (v) { return v != null && isFinite(v); }); if (a.length < 3) return '';
+      var mn = Math.min.apply(null, a), mx = Math.max.apply(null, a), rg = mx - mn || 1, c = (a[a.length - 1] >= a[0]) !== !!inv ? '#34d399' : '#ff6b8b';
+      var pts = a.map(function (v, i) { return (i / (a.length - 1) * 100).toFixed(2) + ',' + (27 - (v - mn) / rg * 22).toFixed(2); });
+      return '<svg class="sp" viewBox="0 0 100 30" preserveAspectRatio="none"><polygon points="0,30 ' + pts.join(' ') + ' 100,30" fill="' + c + '" fill-opacity=".13"/><polyline points="' + pts.join(' ') + '" fill="none" stroke="' + c + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>';
+    };
+    var SUB = ['spread de los globales', 'AL30 / AL30D', 'AL30 / AL30C', 'CCL contra el A3500', 'bonos con más operaciones', 'renta fija, ' + (live ? 'hoy' : 'en el período')];
+    $o('resKp').innerHTML = K.map(function (k, i) {
+      var ex = i === 4 ? '<span class="s">suben / bajan</span>' + (up + dn ? '<span class="br"><i style="width:' + (up / (up + dn) * 100).toFixed(1) + '%"></i></span>' : '') : '<span class="s">' + (i === 5 && k[2] ? k[2].replace('>', ' class="vx">') : SUB[i]) + '</span>' + (SPK[i] ? spk(SPK[i], 1) : '');
+      return '<div class="rkp' + (SPK[i] || i === 4 ? '' : ' np') + '"><small>' + k[0] + '</small><span class="v"><b>' + k[1] + '</b>' + (i >= 4 ? '' : '<em>' + (k[2] || '') + '</em>') + '</span>' + ex + '</div>';
+    }).join('');
 
     // curvas
     var tx = css('--mu') || '#8b95a7', gd = css('--bd') || 'rgba(128,128,128,.2)', UPC = '#4ade80', DNC = '#f87171';
