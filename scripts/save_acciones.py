@@ -9,6 +9,7 @@ Dos modos:
 Formato de cada archivo: {"t": "GGAL", "panel": "lider"|"general", "cols": ["d","o","h","l","c","v"], "r": [["2024-01-02", o, h, l, c, v], ...]}
 (o, h, l pueden ser null en los días agregados por el modo diario, porque /live solo trae el último precio).
 data/acciones/index.json: la lista de tickers con su panel, primera y última fecha y cantidad de ruedas.
+data/acciones/recientes.json: las últimas 130 ruedas de cada ticker (fecha, máximo, cierre, volumen), liviano para las bandas de todas las acciones.
 data/acciones/saltos.json: variaciones de más de 35% entre dos ruedas, candidatas a split o dividendo no ajustado (para revisar).
 Para pruebas: SOURCE_FILE=respuesta_live.json, HIST_DIR=carpeta con <TICKER>.json, FORCE_DATE=2026-10-13.
 """
@@ -119,20 +120,22 @@ def tickers_from_live(rows):
 
 
 def write_index():
-    idx, saltos = [], []
+    idx, saltos, rec = [], [], {}
     for fn in sorted(os.listdir(DIR)):
-        if not fn.endswith(".json") or fn in ("index.json", "saltos.json", "metricas.json", "ratios.json"):
+        if not fn.endswith(".json") or fn in ("index.json", "saltos.json", "metricas.json", "ratios.json", "recientes.json"):
             continue
         o = json.load(open(os.path.join(DIR, fn)))
         r = o.get("r") or []
         if not r:
             continue
+        rec[o["t"]] = [[x[0], x[2], x[4], x[5]] for x in r[-130:]]  # las últimas 130 ruedas (fecha, máximo, cierre, volumen): para las bandas de todas las acciones sin bajar cada archivo
         idx.append({"t": o["t"], "panel": "lider" if o["t"] in LIDER else "general", "desde": r[0][0], "hasta": r[-1][0], "n": len(r)})
         for a, b in zip(r, r[1:]):
             if a[4] and b[4] and abs(b[4] / a[4] - 1) > SALTO:
                 saltos.append({"t": o["t"], "de": a[0], "a": b[0], "c0": a[4], "c1": b[4], "var": round(b[4] / a[4] - 1, 4)})
     json.dump(idx, open(os.path.join(DIR, "index.json"), "w"), separators=(",", ":"))
     json.dump(saltos, open(os.path.join(DIR, "saltos.json"), "w"), indent=0)
+    json.dump({"t": rec}, open(os.path.join(DIR, "recientes.json"), "w"), separators=(",", ":"))
     print("index: %d tickers · %d saltos de más de %d%% para revisar" % (len(idx), len(saltos), SALTO * 100))
 
 
