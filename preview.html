@@ -258,6 +258,7 @@ window.BLBND = (function () {
     return { s: s, st: 1, BI: r.px_bid > 0 ? [[r.px_bid, r.q_bid || 0]] : [], OF: r.px_ask > 0 ? [[r.px_ask, r.q_ask || 0]] : [], LA: op && r.c > 0 ? [r.c, null, null] : null, CL: op ? cl : r.c > 0 ? r.c : null };
   };
   var want = function (ch) { // el punto marcado tiene puntas para mostrar: {k, d}
+    if (window.BLPRO && !window.BLPRO()) return null; // la caja de puntas es PRO
     var tp = ch.tooltip, a = tp && tp.getActiveElements ? tp.getActiveElements() : [];
     if (!a || a.length !== 1 || (typeof mktOpen === 'function' && !mktOpen())) return null;
     var k = keyOf(ch, a[0]); if (!k) return null; var sy = symFor(k), fs = fromStream(sy), d = get(sy, ch) || fs, r = ch.data.datasets[a[0].datasetIndex].data[a[0].index]; BX.y = r && typeof r.y === 'number' ? r.y : null;
@@ -14338,6 +14339,53 @@ window.RATG = (function () {
   }
   new MutationObserver(function (m) { if (T) return; for (var i = 0; i < m.length; i++) { var t = m[i].target; if (t.nodeType === 1 && t.classList && t.classList.contains('xf')) continue; T = setTimeout(run, 200); return; } }).observe(document.body, { childList: true, subtree: true, characterData: true });
   window.addEventListener('load', function () { setTimeout(run, 500); });
+})();
+/* ---------- Bonerío PRO: secciones gratis y el resto con candado (popup para suscribirse) ----------
+   PRO = app_metadata.pro_hasta (AAAA-MM-DD) del usuario en Supabase, que se carga con el workflow «Alta PRO».
+   Hasta FREE_HASTA (fin de la prueba gratis) está todo abierto. */
+(function () {
+  var FREE_HASTA = '2026-11-16', FREE = /^(home|tabla|curva|pesos|dol|macro|lic|cons|res)$/;
+  var PLANES = [['Mensual', '$ 15.000', 'por mes', ''], ['6 meses', '$ 80.000', 'ahorrás 11%', ''], ['12 meses', '$ 160.000', 'ahorrás 11%', '']]; // [nombre, precio, nota, link de Mercado Pago]
+  var U = null, hoy = function () { return new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10); };
+  var pro = window.BLPRO = function () {
+    if (hoy() < FREE_HASTA) return true;
+    var a = window.BLAUTH && window.BLAUTH(), u = U || (a && a.user), m = u && u.app_metadata || {};
+    return !!(m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoy());
+  };
+  var st = document.createElement('style');
+  st.textContent = '.tab-btn.pl::after,#sideNav .sn-it.pl span::after{content:"";display:inline-block;width:10px;height:10px;margin-left:6px;opacity:.6;vertical-align:-1px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M6 10V8a6 6 0 1 1 12 0v2h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1zm2 0h8V8a4 4 0 1 0-8 0z%27/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M6 10V8a6 6 0 1 1 12 0v2h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1zm2 0h8V8a4 4 0 1 0-8 0z%27/%3E%3C/svg%3E") center/contain no-repeat}' +
+    '#blPro{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px}#blPro .bx{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:16px;max-width:440px;width:100%;padding:26px 24px 22px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.4)}' +
+    '#blPro .x{position:absolute;top:10px;right:12px;background:none;border:0;color:var(--mu);font-size:24px;cursor:pointer}#blPro .tg{display:inline-flex;gap:6px;align-items:center;font:700 12px Inter,sans-serif;letter-spacing:.06em;color:#ffc542;text-transform:uppercase}#blPro h3{margin:8px 0 6px;font-size:21px}#blPro p{margin:0 0 16px;color:var(--mu);font-size:14.5px;line-height:1.5}' +
+    '#blPro .pl a{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;margin:0 0 8px;border:1px solid var(--bd);border-radius:10px;color:var(--tx);text-decoration:none;font-weight:600}#blPro .pl a:hover{border-color:#ffc542}#blPro .pl a.on{border-color:#ffc542;background:rgba(255,197,66,.08)}#blPro .pl small{display:block;color:var(--mu);font-weight:500;font-size:12px}#blPro .pl b{font-size:17px}#blPro .ft{margin:12px 0 0;font-size:12.5px;text-align:center}';
+  document.head.appendChild(st);
+  var nm = function (id) { var b = document.querySelector('#sideNav [data-t="' + id + '"]') || [].filter.call(document.querySelectorAll('.tab-btn'), function (x) { return (x.getAttribute('onclick') || '').indexOf("'" + id + "'") >= 0; })[0]; return b ? b.textContent.trim() : 'Esta sección'; };
+  var modal = window.BLPROPOP = function (id) {
+    var w = document.getElementById('blPro'); if (w) w.remove(); w = document.createElement('div'); w.id = 'blPro'; w.setAttribute('data-html2canvas-ignore', 'true');
+    var mail = 'mailto:hola@boneriolocal.com.ar?subject=' + encodeURIComponent('Quiero Bonerío PRO');
+    w.innerHTML = '<div class="bx"><button class="x" title="Cerrar">×</button><span class="tg">🔒 Función PRO</span><h3>' + nm(id) + ' es parte de Bonerío PRO</h3>' +
+      '<p>Suscribite para usar todas las herramientas: caja de puntas en vivo, carry, sintéticos, forwards, ONs, acciones, alertas y más.</p><div class="pl">' +
+      PLANES.map(function (p, i) { return '<a href="' + (p[3] || mail) + '" target="_blank" rel="noopener"' + (i === 2 ? ' class="on"' : '') + '><span>' + p[0] + '<small>' + p[2] + '</small></span><b>' + p[1] + '</b></a>'; }).join('') +
+      '</div><p class="ft">Pagás con Mercado Pago. Si ya pagaste, la activamos en el día con el mail de tu cuenta.</p></div>';
+    w.addEventListener('click', function (e) { if (e.target === w || (e.target.closest && e.target.closest('.x'))) w.remove(); });
+    document.body.appendChild(w);
+  };
+  var locked = function (id) { return id && !FREE.test(id) && !pro(); };
+  var marks = function () {
+    var on = !pro();
+    [].forEach.call(document.querySelectorAll('.tab-btn'), function (b) { var m = /switchTab\('([a-z]+)'\)/.exec(b.getAttribute('onclick') || ''); if (m) b.classList.toggle('pl', on && !FREE.test(m[1])); });
+    [].forEach.call(document.querySelectorAll('#sideNav .sn-it[data-t]'), function (b) { b.classList.toggle('pl', on && !FREE.test(b.getAttribute('data-t'))); });
+  };
+  var _sw = window.switchTab;
+  window.switchTab = function (id) { if (locked(id)) { modal(id); return; } return _sw.apply(this, arguments); };
+  var check = function () { // si quedó abierta una sección con candado (al recargar), vuelve al inicio
+    marks(); var c = document.querySelector('.tab-content.active'); if (c && locked(c.id)) { _sw('home'); modal(c.id); }
+  };
+  document.addEventListener('bl-auth', function () {
+    var a = window.BLAUTH && window.BLAUTH(); check();
+    if (a && a.sb && a.sb.auth.getUser) a.sb.auth.getUser().then(function (r) { if (r && r.data && r.data.user) { U = r.data.user; check(); } }, function () { });
+  });
+  window.addEventListener('load', function () { setTimeout(check, 800); });
+  setInterval(marks, 5000); // el menú lateral se arma después
 })();
 </script>
 </body>

@@ -1,0 +1,25 @@
+name: Alta PRO
+# Marca a un usuario como PRO (por el mail con el que entra a la página) por 1, 6 o 12 meses. 0 = quitarle el PRO.
+on:
+  workflow_dispatch:
+    inputs:
+      mail:
+        description: "Mail de la cuenta del usuario"
+        required: true
+      meses:
+        description: "Meses pagados (1, 6 o 12; 0 = quitar PRO)"
+        type: choice
+        options: ["1", "6", "12", "0"]
+        default: "1"
+permissions:
+  contents: read
+jobs:
+  pro:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          MAIL: ${{ inputs.mail }}
+          MESES: ${{ inputs.meses }}
+        run: python3 scripts/pro.py "$MAIL" "$MESES"
