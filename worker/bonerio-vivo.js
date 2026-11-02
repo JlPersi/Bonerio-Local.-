@@ -207,7 +207,7 @@ export default {
       try { const md = await snapshot(env, [sym('AL30'), sym('GD30')], 5000); d.websocket = 'ok'; d.precios = md; } catch (e) { d.websocket = String(e.message || e); }
       return new Response(JSON.stringify(d, null, 1), { headers: h });
     }
-    const bk = /^\/book\/((?:DLR|CAUC)(?:\/|%2F)[A-Z]{3}\d{2}|[A-Z0-9]{2,10})$/i.exec(u.pathname); // un bono o acción (MERV - XMEV - <t> - 24hs) o un futuro de A3 (DLR/NOV26)
+    const bk = /^\/book\/((?:DLR|CAUC)(?:\/|%2F)[A-Z]{3}\d{2}|CAU-(?:ARS|USD|EXT)(?:-\d+)?|[A-Z0-9]{2,10})$/i.exec(u.pathname); // también la caución: CAU-<moneda>[-<días>] // un bono o acción (MERV - XMEV - <t> - 24hs) o un futuro de A3 (DLR/NOV26)
     if (bk) bk[1] = decodeURIComponent(bk[1]).toUpperCase();
     if (bk) { // caja de puntas a pedido (al pasar el mouse por un bono): se guarda 2 segundos
       const ci = u.searchParams.get('s') === 'ci', k = u.pathname + (ci ? '?ci' : ''), m = MEM[k], hb = Object.assign({}, h, { 'Cache-Control': 'no-store' });
@@ -215,13 +215,18 @@ export default {
       try {
         const pz = ci ? ' - CI' : ' - 24hs', lv = (a) => (Array.isArray(a) ? a : a ? [a] : []).filter((x) => x && x.price > 0).slice(0, 5).map((x) => [x.price, x.size]);
         const get = async (t) => { // ?s=ci: contado inmediato (la ficha, con su switch CI / 24 hs)
-          const q = base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(t.includes('/') ? t : 'MERV - XMEV - ' + t + pz) + '&entries=BI,OF,LA,CL,SE&depth=5';
+          const q = base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(t.includes('/') || t.startsWith('MERV - ') ? t : 'MERV - XMEV - ' + t + pz) + '&entries=BI,OF,LA,CL,SE&depth=5';
           let r = await fetch(q, { headers: { 'X-Auth-Token': await token(env) } });
           if (r.status === 401 || r.status === 403) r = await fetch(q, { headers: { 'X-Auth-Token': await token(env, true) } });
           const j = await r.json(); return (j && j.marketData) || {};
         };
-        let t = bk[1], md = await get(t);
-        if (!t.includes('/') && !lv(md.BI).length && !lv(md.OF).length) { // sin puntas en pesos (BOPREAL y otros que operan en dólares o con otro nombre en Primary): la especie D, la C o el nombre de Primary
+        let t = bk[1], md;
+        const cm = /^CAU-(ARS|USD|EXT)(?:-(\d+))?$/.exec(t);
+        if (cm) { // la caución de esa moneda: el plazo pedido o, si no, el más corto con puntas
+          const S = await cauSyms(env), L = Object.keys(S).filter((s) => S[s][0] === cm[1] && (!cm[2] || S[s][1] === +cm[2])).sort((a, b) => S[a][1] - S[b][1]); md = {};
+          for (const s of L) { const m2 = await get(s); if (lv(m2.BI).length || lv(m2.OF).length) { md = m2; t = 'Caución ' + { ARS: 'en pesos', USD: 'MEP', EXT: 'cable' }[cm[1]] + ' · ' + S[s][1] + (S[s][1] === 1 ? ' día' : ' días'); break; } }
+        } else md = await get(t);
+        if (!cm && !t.includes('/') && !lv(md.BI).length && !lv(md.OF).length) { // sin puntas en pesos (BOPREAL y otros que operan en dólares o con otro nombre en Primary): la especie D, la C o el nombre de Primary
           const al = []; try { (await instruments(env)).forEach((i) => { const m = /^MERV - XMEV - (.+) - (24hs|CI)$/.exec((i.instrumentId || {}).symbol || ''); if (m && m[2] === pz.slice(3) && m[1] !== t && m[1].replace(/^BPO/, 'BP').replace(/[DC]$/, '') === t) al.push(m[1]); }); } catch (e) { }
           for (const c of [t + 'D', t + 'C'].concat(al.filter((x) => x !== t + 'D' && x !== t + 'C'))) { const m2 = await get(c); if (lv(m2.BI).length || lv(m2.OF).length) { t = c; md = m2; break; } }
         }
