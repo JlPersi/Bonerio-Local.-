@@ -14376,7 +14376,7 @@ window.RATG = (function () {
     });
     ((J.lic && J.lic.cv) || []).concat(J.man || []).sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; }).forEach(function (e) { // canjes: suman lo adjudicado y restan lo rescatado después del último dato de cada bono
       var o = R[e[1]]; if (!o) { var ins = I[e[1]]; if (!ins || !CL[ins.k] || e[2] <= 0) return; o = R[e[1]] = { t: e[1], c: ins.k, v: vtoOf(ins), x: 0, u: e[3], f: e[0], s: 'cv' }; }
-      else if (e[0] <= o.f || o.u !== e[3]) return; else { o.x += e[2]; o.s = 'cv'; o.f = e[0]; return; }
+      else if (e[0] <= o.f || o.u !== e[3]) return; else { o.x += e[2]; o.s = e[2] < 0 ? 'rs' : 'cv'; o.f = e[0]; return; }
       o.x += e[2];
     });
     return Object.keys(R).map(function (k) { return R[k]; }).filter(function (r) { return r.v > hoy && r.x > 0; }).sort(function (a, b) { return a.v - b.v; });
@@ -14393,7 +14393,7 @@ window.RATG = (function () {
         scales: { x: { ticks: { color: tx, maxRotation: 90, minRotation: 60, autoSkip: false, font: { size: 10 } }, grid: { display: false } }, y: { title: { display: true, text: un, color: tx }, ticks: { color: mu }, grid: { color: 'rgba(128,128,128,.15)' } } } } });
     var seen = {}; $('outLg').innerHTML = S.map(function (r) { var c = CL[r.c]; if (seen[c[0]]) return ''; seen[c[0]] = 1; return '<span style="display:inline-flex;align-items:center;gap:6px;margin-right:14px"><i style="width:10px;height:10px;border-radius:2px;background:' + c[1] + '"></i>' + c[0] + '</span>'; }).join('');
     $('outT').innerHTML = '<thead><tr><th class="l">Bono</th><th class="l">Tipo</th><th>Vence</th><th>En circulación<br><small>' + (usd ? 'US$ M de VN' : '$ millones de VN') + '</small></th><th>% del total</th><th class="l">Dato</th></tr></thead><tbody>' +
-      S.slice().sort(function (a, b) { return b.x - a.x; }).map(function (r) { return '<tr><td class="l"><b>' + r.t + '</b></td><td class="l">' + CL[r.c][0] + '</td><td>' + ds(r.v) + '</td><td>' + nf(r.x, 0) + '</td><td>' + nf(r.x / k / tot * 100, 1) + '%</td><td class="l" style="color:var(--mu)">' + (r.s === 'lic' ? 'Licitación ' : r.s === 'cv' ? 'Canje ' : r.s === 'col' ? 'Colocaciones ' : 'Finanzas ') + ds(dn(r.f)) + (r.s === 'trimA' ? ' − amort.' : '') + '</td></tr>'; }).join('') + '</tbody>';
+      S.slice().sort(function (a, b) { return b.x - a.x; }).map(function (r) { return '<tr><td class="l"><b>' + r.t + '</b></td><td class="l">' + CL[r.c][0] + '</td><td>' + ds(r.v) + '</td><td>' + nf(r.x, 0) + '</td><td>' + nf(r.x / k / tot * 100, 1) + '%</td><td class="l" style="color:var(--mu)">' + (r.s === 'lic' ? 'Licitación ' : r.s === 'cv' ? 'Canje ' : r.s === 'rs' ? 'Rescate ' : r.s === 'col' ? 'Colocaciones ' : 'Finanzas ') + ds(dn(r.f)) + (r.s === 'trimA' ? ' − amort.' : '') + '</td></tr>'; }).join('') + '</tbody>';
   }
   function build() {
     W.innerHTML = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><h3 style="margin:0">Deuda del Tesoro en circulación por bono</h3>' +
