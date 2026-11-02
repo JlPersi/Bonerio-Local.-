@@ -251,10 +251,16 @@ window.BLBND = (function () {
       '<table><thead><tr><th>Cant. C</th><th>Compra</th><th>Venta</th><th>Cant. V</th></tr></thead><tbody>' + rw + '</tbody></table>' + (ft ? '<div class="ft">' + ft + '</div>' : '') +
       (isUsd(k) ? '<div class="sp">' + [['P', 'Pesos'], ['D', 'MEP'], ['C', 'Cable']].map(function (x) { return '<span' + (x[0] === e0 ? ' class="on"' : '') + '>' + x[1] + '</span>'; }).join('') + '<small>teclas P · D · C</small></div>' : '');
   };
+  var fromStream = function (s) { // la primera punta y el último precio que ya trae el stream: la caja sale al instante, y la profundidad (5 niveles) llega después
+    var B = window.BLS, r = B && B.ok && B.by ? B.by[s] : null; if (!r || !(r.px_bid > 0 || r.px_ask > 0 || r.c > 0)) return null;
+    var op = r.v > 0 || r.q_op > 0, cl = r.c > 0 && r.pct_change != null && isFinite(r.pct_change) ? r.c / (1 + r.pct_change / 100) : null;
+    return { s: s, st: 1, BI: r.px_bid > 0 ? [[r.px_bid, r.q_bid || 0]] : [], OF: r.px_ask > 0 ? [[r.px_ask, r.q_ask || 0]] : [], LA: op && r.c > 0 ? [r.c, null, null] : null, CL: op ? cl : r.c > 0 ? r.c : null };
+  };
   var want = function (ch) { // el punto marcado tiene puntas para mostrar: {k, d}
     var tp = ch.tooltip, a = tp && tp.getActiveElements ? tp.getActiveElements() : [];
     if (!a || a.length !== 1 || (typeof mktOpen === 'function' && !mktOpen())) return null;
-    var k = keyOf(ch, a[0]); if (!k) return null; var sy = symFor(k), d = get(sy, ch), r = ch.data.datasets[a[0].datasetIndex].data[a[0].index]; BX.y = r && typeof r.y === 'number' ? r.y : null;
+    var k = keyOf(ch, a[0]); if (!k) return null; var sy = symFor(k), fs = fromStream(sy), d = get(sy, ch) || fs, r = ch.data.datasets[a[0].datasetIndex].data[a[0].index]; BX.y = r && typeof r.y === 'number' ? r.y : null;
+    if (d && fs && d !== fs && !d.LA && fs.LA) d = Object.assign({}, d, { LA: fs.LA, CL: d.CL || fs.CL }); // el libro sin última operación: la del stream
     return d ? { k: k, d: d, tp: tp } : BK[sy] && BK[sy].p ? { k: k, d: null, tp: tp } : { k: k, d: { s: sy, BI: [], OF: [], none: 1 }, tp: tp }; // mientras llegan las puntas, la caja ya aparece (vacía); sin puntas, la caja lo dice: nunca el cuadrito de antes
   };
   Chart.register({ id: 'bkBox', beforeTooltipDraw: function (ch) { if (want(ch)) return false; }, // con la caja de puntas no hace falta el cuadrito del tooltip
@@ -284,7 +290,7 @@ window.BLBND = (function () {
     if (/^(DLR|CAUC)\/[A-Z]{3}\d{2}$/.test(q) || (/^[A-Z0-9]{3,8}$/.test(q) && !/^(A3500|TAMAR|BADLAR)$/.test(q))) return q; return '';
   };
   var showDom = function () {
-    var row = DM.el, d = row && row.isConnected && !BX.ch && !(typeof mktOpen === 'function' && !mktOpen()) ? get(DM.k, null) : null;
+    var row = DM.el, d = row && row.isConnected && !BX.ch && !(typeof mktOpen === 'function' && !mktOpen()) ? get(DM.k, null) || fromStream(DM.k) : null;
     if (!d) { if (BX.dom) { BX.dom = null; hide(); } return; }
     if (!el) { el = document.createElement('div'); el.id = 'bkBox'; document.body.appendChild(el); }
     BX.y = null; var h = html(DM.k, d); if (h !== BX.h) { el.innerHTML = h; BX.h = h; } BX.dom = row; el.style.display = 'block';
