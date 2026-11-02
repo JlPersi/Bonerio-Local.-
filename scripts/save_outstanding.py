@@ -115,7 +115,29 @@ def licitaciones(prev):
                 L = [y for y in out.get(mm.group(1), []) if y[0] != f] + [x]
                 out[mm.group(1)] = sorted(L)
         i += 1
-    return {"vistos": vistos, "t": out}
+    # canjes / conversiones: comunicados aparte (los que linkea la portada de Finanzas). Suman lo adjudicado y restan lo rescatado.
+    cv, cvv = list(prev.get("cv", [])), dict(prev.get("cvv", {}))
+    try:
+        pg = get(GOB + "/economia/finanzas") or b""
+        for slug in sorted(set(re.findall(r'href="(/noticias/resultado-de-la-licitacion-(?:para-la-)?conversion[^"]*)"', pg.decode("utf-8", "ignore")))):
+            if slug in cvv:
+                continue
+            b = get(GOB + slug); time.sleep(1.5)
+            if not b:
+                continue
+            t = texto(b); m = re.search(r"(\d{1,2}) de ([a-z]+) de (20\d\d) Compartir", t)
+            if not m:
+                continue
+            f = "%s-%02d-%02d" % (m.group(3), MES[m.group(2)], int(m.group(1))); cvv[slug] = f
+            for mm in re.finditer(r"\(([A-Z][A-Z0-9]{3,5})\s*-\s*(?:nueva|reapertura)[^)]*\)((?:\s*(?:\$|USD|U\$S)\s*[\d.,]+)+)", t):
+                am = re.findall(r"(\$|USD|U\$S)\s*([\d.]+(?:,\d+)?)", mm.group(2))
+                if len(am) >= 2:
+                    cv.append([f, mm.group(1), float(am[1][1].replace(".", "").replace(",", ".")), "ARS" if am[1][0] == "$" else "USD"])
+            for mm in re.finditer(r"VNO RESCATADO TOTAL (?:DE LA |DEL )?(?:[A-Z]+ )?([A-Z][A-Z0-9]{3,5}) (\$|USD|U\$S)\s*([\d.]+(?:,\d+)?)", t):
+                cv.append([f, mm.group(1), -float(mm.group(3).replace(".", "").replace(",", ".")), "ARS" if mm.group(2) == "$" else "USD"])
+    except Exception as e:
+        print("conversiones:", e)
+    return {"vistos": vistos, "t": out, "cv": sorted(cv), "cvv": cvv}
 
 
 def main():
