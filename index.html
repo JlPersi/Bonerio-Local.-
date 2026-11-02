@@ -211,7 +211,7 @@ window.BLBND = (function () {
     BK[k] = { t: Date.now(), p: 1, d: b && b.d };
     fetch((window.BL_LIVE || 'https://bonerio-vivo.persijuanluis.workers.dev').replace(/\/+$/, '') + '/book/' + encodeURIComponent(k), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
       BK[k] = { t: Date.now(), d: d && (d.BI && d.BI.length || d.OF && d.OF.length) ? d : null };
-      if (BX.ch === ch || !BX.ch) try { ch.draw(); } catch (e) { }
+      if (!ch) { if (DM.el && DM.k === k) showDom(); } else if (BX.ch === ch || !BX.ch) try { ch.draw(); } catch (e) { }
     }).catch(function () { BK[k] = { t: Date.now(), d: null }; });
     return b && b.d;
   };
@@ -236,12 +236,12 @@ window.BLBND = (function () {
   var html = function (k, d) {
     var dc = function (v) { return v >= 1000 ? 0 : v >= 10 ? 2 : 3; }, rw = '', q = function (v) { return v >= 1e6 ? nf(v / 1e6, v >= 1e8 ? 0 : 1) + ' M' : nf(v, 0); }; // cantidades grandes en millones
     for (var i = 0; i < 5; i++) { var bi = d.BI[i], of = d.OF[i]; if (!bi && !of) break; rw += '<tr><td>' + (bi ? q(bi[1]) : '') + '</td><td>' + (bi ? nf(bi[0], dc(bi[0])) : '—') + '</td><td>' + (of ? nf(of[0], dc(of[0])) : '—') + '</td><td>' + (of ? q(of[1]) : '') + '</td></tr>'; }
-    var b0 = d.BI[0], o0 = d.OF[0], sp = b0 && o0 && b0[0] > 0 ? (o0[0] / b0[0] - 1) * 100 : null;
+    var b0 = d.BI[0], o0 = d.OF[0], sp = b0 && o0 && b0[0] > 0 ? (/^CAU-/.test(k) ? o0[0] - b0[0] : (o0[0] / b0[0] - 1) * 100) : null; // en la caución el precio ya es la tasa: el spread va en puntos
     var la = d.LA && d.LA[0] > 0 ? d.LA[0] : null, cl = d.CL > 0 ? d.CL : null, pv = la || (b0 && o0 ? (b0[0] + o0[0]) / 2 : cl), ch = la && cl ? (la / cl - 1) * 100 : null;
     var hr = ''; try { if (d.LA && d.LA[2]) { var t = new Date(typeof d.LA[2] === 'string' && /^\d+$/.test(d.LA[2]) ? +d.LA[2] : d.LA[2]); if (!isNaN(t)) hr = t.toLocaleTimeString('es-AR', { hour12: false, timeZone: 'America/Argentina/Buenos_Aires' }); } } catch (e) { }
     var fy = /\//.test(k) && BX.y != null ? BX.y : null, e0 = spOf(k), u = !isUsd(k) || e0 === pgE() ? uni(k) : null, it = function (l, v) { return v ? '<span>' + l + ' <b>' + v + '</b></span>' : ''; }; // la TIR es la de la página: solo si la caja muestra su misma especie
-    var ft = it('TNA implícita', fy != null && isFinite(fy) ? nf(fy, 2) + '%' : '') + it(u && u.tl ? u.tl.replace(/^TIR.*/, 'TIR') : 'TIR', u && u.tir != null && isFinite(u.tir) ? nf(u.tir * 100, 2) + '%' : '') + it('Dur. mod.', u && u.md > 0 ? nf(u.md, 2) : '') + it('Spread', sp != null ? nf(sp, 2) + '%' : '') + it('Cierre ant.', cl ? nf(cl, dc(cl)) : '');
-    return '<div class="h"><b>' + (d.s || k) + '</b><span>Primary' + (hr ? ' · ' + hr : '') + '</span></div>' +
+    var ft = it('TNA implícita', fy != null && isFinite(fy) ? nf(fy, 2) + '%' : '') + it(u && u.tl ? u.tl.replace(/^TIR.*/, 'TIR') : 'TIR', u && u.tir != null && isFinite(u.tir) ? nf(u.tir * 100, 2) + '%' : '') + it('Dur. mod.', u && u.md > 0 ? nf(u.md, 2) : '') + it('Spread', sp != null ? nf(sp, 2) + (/^CAU-/.test(k) ? ' pp' : '%') : '') + it('Cierre ant.', cl ? nf(cl, dc(cl)) : '');
+    return '<div class="h"><b>' + (/^CAU-/.test(k) && d.t ? d.t : d.s || k) + '</b><span>Primary' + (hr ? ' · ' + hr : '') + '</span></div>' +
       '<div class="px"><b>' + (pv ? nf(pv, dc(pv)) : '—') + '</b>' + (ch != null ? '<em class="' + (ch > 0 ? 'up' : ch < 0 ? 'dn' : 'mu') + '">' + (ch > 0 ? '+' : '') + nf(ch, 2) + '%</em>' : !la ? '<em class="mu">sin operaciones hoy</em>' : '') + '</div>' +
       '<table><thead><tr><th>Cant. C</th><th>Compra</th><th>Venta</th><th>Cant. V</th></tr></thead><tbody>' + rw + '</tbody></table>' + (ft ? '<div class="ft">' + ft + '</div>' : '') +
       (isUsd(k) ? '<div class="sp">' + [['P', 'Pesos'], ['D', 'MEP'], ['C', 'Cable']].map(function (x) { return '<span' + (x[0] === e0 ? ' class="on"' : '') + '>' + x[1] + '</span>'; }).join('') + '<small>teclas P · D · C</small></div>' : '');
@@ -266,8 +266,28 @@ window.BLBND = (function () {
     y = Math.min(y, vh - H - 6);
     el.style.left = Math.max(6, Math.min(x, vw - W - 6)) / z + 'px'; el.style.top = Math.max(6, y) / z + 'px';
   }, afterEvent: function (ch, args) { if (args.event.type === 'mouseout' && BX.ch === ch) hide(); }, afterDestroy: function (ch) { setTimeout(function () { if (BX.ch === ch) hide(); }, 120); } });
-  setInterval(function () { if (BX.ch && BX.k) get(BX.k, BX.ch); }, 3000); // mientras está abierta, las puntas se refrescan solas
-  window.addEventListener('scroll', function () { if (BX.ch) hide(); }, true);
+  setInterval(function () { if (BX.ch && BX.k) get(symFor(BX.k), BX.ch); else if (DM.el) { get(DM.k, null); showDom(); } }, 3000); // mientras está abierta, las puntas se refrescan solas
+  window.addEventListener('scroll', function () { if (BX.ch || BX.dom) { BX.dom = null; hide(); } }, true);
+  /* tarjetas y tablas de Mercado de dinero y Futuros: la caja al pasar el mouse por una caución, una Lecap o un futuro */
+  var DM = { el: null, k: '', x: 0, y: 0 };
+  var domKey = function (q, row) {
+    var m = /^CAUCION( USD| CABLE)?$/.exec(q); if (m) { var c = m[1] === ' USD' ? 'USD' : m[1] === ' CABLE' ? 'EXT' : 'ARS', dd = row && row.tagName === 'TR' && /^\s*(\d+) d/.exec((row.cells[0] || {}).textContent || ''); return 'CAU-' + c + (dd ? '-' + dd[1] : ''); } // la caución de ese plazo (en las tarjetas, la más corta)
+    if (/^(DLR|CAUC)\/[A-Z]{3}\d{2}$/.test(q) || (/^[A-Z0-9]{3,8}$/.test(q) && !/^(A3500|TAMAR|BADLAR)$/.test(q))) return q; return '';
+  };
+  var showDom = function () {
+    var row = DM.el, d = row && row.isConnected && !BX.ch && !(typeof mktOpen === 'function' && !mktOpen()) ? get(DM.k, null) : null;
+    if (!d) { if (BX.dom) { BX.dom = null; hide(); } return; }
+    if (!el) { el = document.createElement('div'); el.id = 'bkBox'; document.body.appendChild(el); }
+    BX.y = null; var h = html(DM.k, d); if (h !== BX.h) { el.innerHTML = h; BX.h = h; } BX.dom = row; el.style.display = 'block';
+    var z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1, W = el.offsetWidth * z, H = el.offsetHeight * z, vw = window.innerWidth, vh = window.innerHeight;
+    var x = DM.x + 18, y = DM.y - H / 2; if (x + W > vw - 6) x = DM.x - W - 18; y = Math.min(y, vh - H - 6);
+    el.style.left = Math.max(6, Math.min(x, vw - W - 6)) / z + 'px'; el.style.top = Math.max(6, y) / z + 'px';
+  };
+  document.addEventListener('mouseover', function (e) {
+    var r = e.target && e.target.closest ? e.target.closest('#tcor [data-qv], #tfut [data-qv]') : null; if (r === DM.el) return;
+    DM.el = r; DM.k = r ? domKey(r.getAttribute('data-qv'), r) : ''; if (!DM.k) DM.el = null; if (!DM.el) { if (BX.dom) { BX.dom = null; hide(); } }
+  });
+  document.addEventListener('mousemove', function (e) { if (!DM.el) return; DM.x = e.clientX; DM.y = e.clientY; showDom(); }, { passive: true });
 })();
 /* Gráficos en vivo sin saltos: cuando un gráfico se vuelve a armar con datos nuevos (cada pocos segundos en la rueda), arranca con los puntos de antes
    y se mueven hasta los nuevos, en vez de redibujarse de cero. El punto que estaba marcado con el mouse sigue marcado */
@@ -276,9 +296,12 @@ window.BLBND = (function () {
   var snap = function (ch) {
     var id = ch.canvas && ch.canvas.id; if (!id) return;
     var tp = ch.tooltip, a = tp && tp.getActiveElements ? tp.getActiveElements() : [];
-    LAST[id] = { t: Date.now(), type: ch.config.type, sets: ch.data.datasets.map(function (d) { return { l: d.label, data: (d.data || []).slice() }; }), labels: (ch.data.labels || []).slice(),
-      act: (a || []).map(function (e) { var d = ch.data.datasets[e.datasetIndex]; return { datasetIndex: e.datasetIndex, key: keyOf(d && d.data && d.data[e.index], e.index, ch.data.labels) }; }), pos: tp && tp.caretX != null ? { x: tp.caretX, y: tp.caretY } : null };
+    var M = ch.$mv, p = M ? (Date.now() - M.t0) / 450 : 1, e = 1 - Math.pow(1 - Math.max(0, Math.min(1, p)), 3); // si se vuelve a armar a mitad del movimiento, se parte de donde iban los puntos (no del final): no hay salto
+    LAST[id] = { t: Date.now(), type: ch.config.type, sets: ch.data.datasets.map(function (d, i) { var a = (d.data || []).slice(), f = p < 1 && M.from[i]; if (f && f.length === a.length) a = a.map(function (v, j) { return mix(f[j], v, e); }); return { l: d.label, data: a }; }), labels: (ch.data.labels || []).slice(),
+      act: (a || []).map(function (e) { var d = ch.data.datasets[e.datasetIndex]; return { datasetIndex: e.datasetIndex, key: keyOf(d && d.data && d.data[e.index], e.index, ch.data.labels) }; }),
+      sc: Object.keys(ch.scales || {}).reduce(function (o, id) { var x = ch.scales[id]; if (x && /^(linear|logarithmic)$/.test(x.type) && isFinite(x.min) && isFinite(x.max)) o[id] = [x.min, x.max, x.axis]; return o; }, {}), pos: tp && tp.caretX != null ? { x: tp.caretX, y: tp.caretY } : null };
   };
+  var mix = function (a, b, e) { if (typeof a === 'number' && typeof b === 'number' && isFinite(a) && isFinite(b)) return a + (b - a) * e; if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(b) && typeof a.y === 'number' && typeof b.y === 'number') { var o = Object.assign({}, b, { y: a.y + (b.y - a.y) * e }); if (typeof a.x === 'number' && typeof b.x === 'number') o.x = a.x + (b.x - a.x) * e; return o; } return b; };
   Chart.prototype.destroy = function () { try { snap(this); } catch (e) { } return _d.apply(this, arguments); };
   var keyOf = function (p, i, lb) { if (p && typeof p === 'object' && !Array.isArray(p)) { var k = p.k || p.t || p.tk || p.bono; return typeof k === 'string' ? 'k' + k : p.x != null ? 'x' + (p.x instanceof Date ? +p.x : p.x) : 'i' + i; } return lb && lb[i] != null ? 'l' + lb[i] : 'i' + i; };
   var xy = function (p) { return p && typeof p === 'object' && !Array.isArray(p) ? [p.x, p.y] : null; };
@@ -303,16 +326,26 @@ window.BLBND = (function () {
     });
     var act = [], pos = L.pos; // el punto marcado con el mouse: el mismo ticker o fecha en el gráfico nuevo
     L.act.forEach(function (e) { var d = DS[e.datasetIndex], k = e.key; if (!d || !d.data || !d.data.length) return; for (var j = 0; j < d.data.length; j++) if (keyOf(d.data[j], j, nl) === k) { act.push({ datasetIndex: e.datasetIndex, index: j }); return; } });
-    if (!chg && !act.length) return;
+    // ejes quietos: si los datos nuevos entran en la escala de antes, se queda la de antes (los ejes no se animan: cambiarlos cada pocos segundos es lo que hace «saltar» el gráfico)
+    var SO = ch.config.options.scales = ch.config.options.scales || {};
+    Object.keys(L.sc || {}).forEach(function (id) {
+      var o = SO[id] = SO[id] || {}, old = L.sc[id], ax = old[2]; if (o.min != null && !o.$pin || o.max != null && !o.$pin) return; // el gráfico fija su propia escala
+      var lo = Infinity, hi = -Infinity; DS.forEach(function (d) { if ((ax === 'x' ? d.xAxisID || 'x' : d.yAxisID || 'y') !== id || d.hidden) return; (d.data || []).forEach(function (p) { var v = p == null ? null : typeof p === 'number' ? (ax === 'x' ? null : p) : ax === 'x' ? p.x : p.y; if (typeof v === 'number' && isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } }); });
+      if (lo === Infinity) return; var span = old[1] - old[0], pad = span * 0.02;
+      if (lo >= old[0] + pad * (old[0] === 0 ? 0 : 1) && hi <= old[1] - pad && (hi - lo) > span * 0.6) { o.min = old[0]; o.max = old[1]; o.$pin = 1; } // entra con margen y no quedó todo apretado: misma escala
+      else if (o.$pin) { delete o.min; delete o.max; delete o.$pin; }
+    });
+    var an = ch.config.options.animation, back = function () { if (an === undefined) delete ch.config.options.animation; else ch.config.options.animation = an; };
+    if (!chg && !act.length) { ch.config.options.animation = false; requestAnimationFrame(back); return; } // mismo dibujo que antes: aparece quieto, sin la animación de entrada (aunque los datos lleguen tarde, fuera del tick en vivo)
     ch.$morph = 1;
-    var nw = DS.map(function (d) { return d.data; }), an = ch.config.options.animation;
+    var nw = DS.map(function (d) { return d.data; });
     if (chg) { DS.forEach(function (d, i) { d.data = init[i]; }); ch.config.options.animation = false; } // primero se dibuja como estaba...
     requestAnimationFrame(function () {
       if (!ch.canvas) return;
       if (act.length && pos) try { ch.setActiveElements(act); ch.tooltip.setActiveElements(act, pos); } catch (e) { }
-      if (chg) { DS.forEach(function (d, i) { d.data = nw[i]; }); ch.config.options.animation = { duration: 450, easing: 'easeOutCubic' }; } // ...y cada punto se mueve a su lugar nuevo
+      if (chg) { DS.forEach(function (d, i) { d.data = nw[i]; }); ch.config.options.animation = { duration: 450, easing: 'easeOutCubic' }; ch.$mv = { t0: Date.now(), from: init }; } // ...y cada punto se mueve a su lugar nuevo
       ch.update();
-      if (an === undefined) delete ch.config.options.animation; else ch.config.options.animation = an;
+      back();
     });
   } });
 })();
@@ -6755,15 +6788,15 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         '<p class="note" style="margin-top:4px" id="tcSub"></p></div>' + dl('tcCap', 'Mercado_de_dinero', 'Descargar la pestaña en HD') + '</div>' +
         '<div class="rcards" id="tcCards"></div>' +
         '<div class="rs" id="tcS1"><div style="' + HD + '"><h4>Curva de tasas en pesos (TNA)</h4><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="tcCfx"></span><span id="tcH"></span>' + dl('tcS1', 'Mercado_de_dinero_Curva', 'Descargar la curva en HD') + '</span></div>' +
-        '<div class="cw" style="height:420px"><canvas id="tcCh1"></canvas></div><p class="ft" id="tcKn"></p><div class="spr" id="tcSp"></div></div>' +
+        '<div class="cw" style="height:min(600px,62vh)"><canvas id="tcCh1"></canvas></div><p class="ft" id="tcKn"></p><div class="spr" id="tcSp"></div></div>' +
         '<div class="rs" id="tcS5"><div style="' + HD + '"><h4 id="tcT5">Lecaps y Boncaps</h4>' + dl('tcS5', 'Mercado_de_dinero_Lecaps', 'Descargar la tabla en HD') + '</div>' +
         '<div class="sc"><table class="rt" id="tcLec"></table></div><p class="ft">Volumen diario: promedio de las últimas 20 ruedas (en naranja, menos de $ 100 M). Tocá una fila para ver su ticker.</p></div>' +
         '<div class="rs rg" id="tcS4"><div><div style="' + HD + '"><h4 id="tcT4">Caución en pesos</h4>' + dl('tcS4', 'Mercado_de_dinero_Caucion', 'Descargar la caución en HD') + '</div><div class="sc"><table class="rt" id="tcCau"></table></div>' +
-        '<div class="bar" style="margin-top:14px"><h5 style="margin:0" id="tcT7">Plazo más corto de cada rueda, 1 día hábil (TNA)</h5><span id="tcRc"></span></div><div class="cw" style="height:250px"><canvas id="tcCh4"></canvas><div class="ce" id="tcE4"></div></div></div>' +
+        '<div class="bar" style="margin-top:14px"><h5 style="margin:0" id="tcT7">Plazo más corto de cada rueda, 1 día hábil (TNA)</h5><span id="tcRc"></span></div><div class="cw" style="height:340px"><canvas id="tcCh4"></canvas><div class="ce" id="tcE4"></div></div></div>' +
         '<div><div style="' + HD + '"><h4 id="tcT6">Caución en dólares</h4></div><div class="sc"><table class="rt" id="tcCauD"></table></div>' +
-        '<div class="bar" style="margin-top:14px"><h5 style="margin:0">Plazo más corto de cada rueda, 1 día hábil (TNA)</h5><span id="tcRd"></span></div><div class="cw" style="height:250px"><canvas id="tcCh3"></canvas><div class="ce" id="tcE3"></div></div></div></div>' +
+        '<div class="bar" style="margin-top:14px"><h5 style="margin:0">Plazo más corto de cada rueda, 1 día hábil (TNA)</h5><span id="tcRd"></span></div><div class="cw" style="height:340px"><canvas id="tcCh3"></canvas><div class="ce" id="tcE3"></div></div></div></div>' +
         '<div class="rs" id="tcS2"><div style="' + HD + '"><h4 id="tcT2">Histórico de tasas</h4>' + dl('tcS2', 'Mercado_de_dinero_Historia', 'Descargar la historia en HD') + '</div>' +
-        '<div class="bar"><span id="tcSer"></span><span id="tcW"></span></div><div class="cw" style="height:360px"><canvas id="tcCh2"></canvas></div></div>' +
+        '<div class="bar"><span id="tcSer"></span><span id="tcW"></span></div><div class="cw" style="height:440px"><canvas id="tcCh2"></canvas></div></div>' +
         '<div class="rs"><div class="hl" style="margin:0"><p><b>Cómo se lee</b></p><ul>' +
         '<li><b>Caución</b>: el préstamo de corto plazo con garantía de títulos. El que coloca presta pesos (o dólares) y cobra la tasa; el que toma se financia. La de A3 es el promedio ponderado por monto de cada plazo al cierre; la de BYMA, la última operada en la rueda. El plazo más corto es <b>1 día hábil</b>: 1 día corrido de lunes a jueves, 3 los viernes y 4 si hay feriado.</li>' +
         '<li><b>Caución en dólares</b>: <b>MEP</b> se liquida en dólares en cuentas locales; <b>cable</b>, en dólares en el exterior.</li>' +
@@ -13679,7 +13712,7 @@ window.RATG = (function () {
       Object.keys(ms).map(Number).sort(function (x, y) { return x - y; }).forEach(function (m) { while (i < sa.length && sa[i][0] <= m) va = sa[i++][1]; while (k < sb.length && sb[k][0] <= m) vb = sb[k++][1]; if (va > 0 && vb > 0) pts.push({ time: tsOf(d, m), value: va / vb }); });
       var a = pxNow(A), b = pxNow(Bt), m = hm0(); if (a > 0 && b > 0 && m >= 600 && m <= 1050 && (!pts.length || pts[pts.length - 1].time < tsOf(d, m))) pts.push({ time: tsOf(d, m), value: a / b });
       var mt2 = css('--mu') || '#a1a1aa', bd = css('--bd') || '#27272a', fc = css('--fc') || '#4ade80', last = pts.length ? pts[pts.length - 1].value : (a > 0 && b > 0 ? a / b : null), dec = last && last < 1 ? 4 : last && last < 10 ? 3 : 2;
-      if (PT) { PT.remove(); PT = null; }
+      if (PT) { PT.remove(); PT = null; } var sbx = $('accPsel'); if (sbx) sbx.innerHTML = ''; // en «hoy» no hay período para marcar
       PT = LC.createChart($('accPtv'), { autoSize: true, layout: { background: { type: 'solid', color: 'transparent' }, textColor: mt2, fontFamily: "Inter, system-ui, -apple-system, sans-serif", fontSize: innerWidth < 700 ? 11 : 13 }, grid: { vertLines: { visible: false }, horzLines: { color: bd } }, rightPriceScale: { borderVisible: false },
         timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false, rightOffset: 3 }, localization: { locale: 'es-AR', timeFormatter: function (t) { var x = new Date(t * 1000); return ('0' + x.getUTCHours()).slice(-2) + ':' + ('0' + x.getUTCMinutes()).slice(-2); } }, handleScroll: { mouseWheel: false, vertTouchDrag: false }, handleScale: { mouseWheel: false } });
       var sr = PT.addSeries(LC.LineSeries, { color: fc, lineWidth: 2, priceLineVisible: true, priceLineColor: fc, lastValueVisible: true, priceFormat: fmtP(dec) }); sr.setData(pts);
@@ -13734,6 +13767,23 @@ window.RATG = (function () {
       var usd = ST.mon === 'ccl', px = function (v, d) { if (!usd) return '$ ' + nf(v, 2); var f = fxd(d); return f ? 'US$ ' + nf(v / f, 2) : '—'; };
       var lg = function (i) { if (i == null || i < 0 || i >= N) i = N - 1; $('accPl').innerHTML = '<b>' + A + ' / ' + Bt + '</b>' + fr(D[i]) + ' <i style="color:' + fc + '">Ratio ' + nf(Rr[i], dec) + '</i><i style="color:#ffc542">Media ' + nf(mu[i], dec) + '</i><i>Bandas ±' + KM + 'σ ' + nf(dn[i], dec) + ' – ' + nf(up[i], dec) + '</i>' + ((ST.pbx || []).indexOf('hm') >= 0 || (ST.pbx || []).indexOf('hs') >= 0 ? '<i style="color:#60a5fa">Media hist. ' + nf(Math.exp(hm), dec) + ' · σ ' + nf(hs * 100, 1) + '%</i>' : '') + '<i' + cl(z[i] == null ? null : -z[i]) + '>z ' + sg(z[i], 2) + '</i>' + (fk ? '<i style="color:#c9a0ff">z ' + VXN[fk] + ' ' + sg(zf[i], 2) + '</i>' : '') + '<br><i>' + A + ' ' + px(P[i][2], D[i]) + '</i><i>' + Bt + ' ' + px(P[i][3], D[i]) + '</i>' + (usd ? '<i>CCL</i>' : ''); };
       lg(); PT.subscribeCrosshairMove(function (pr) { lg(pr && pr.point && pr.logical != null ? Math.round(pr.logical) : null); });
+      // tocar el gráfico marca un período: el primer clic es el inicio (hasta hoy), el segundo el final y el tercero empieza otro. Cuánto se movió cada acción en ese tramo
+      var PS = window.__psel = window.__psel || {}, PK = A + '/' + Bt, ix = function (d) { if (!d) return null; var i = D.indexOf(d); if (i < 0) { i = 0; while (i < N - 1 && D[i] < d) i++; } return i; }; // el período elegido sobrevive a las actualizaciones en vivo (se guarda por fecha)
+      var SEL = { a: ix((PS[PK] || {}).a), b: ix((PS[PK] || {}).b) }, sb = $('accPsel'); if (!sb) { sb = document.createElement('div'); sb.id = 'accPsel'; $('accPg').parentNode.insertBefore(sb, $('accPg').nextSibling); }
+      sb.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:8px 0 0;font-size:13px;color:var(--mu);font-variant-numeric:tabular-nums';
+      var selShow = function () {
+        if (SEL.a == null) { sb.innerHTML = '<span>Tocá el gráfico para marcar un período (inicio y, si querés, final) y ver cuánto se movió cada acción.</span>'; return; }
+        var i0 = Math.min(SEL.a, SEL.b == null ? N - 1 : SEL.b), i1 = Math.max(SEL.a, SEL.b == null ? N - 1 : SEL.b); if (i1 === i0) i1 = Math.min(N - 1, i0 + 1);
+        var rA = P[i1][2] / P[i0][2] - 1, rB = P[i1][3] / P[i0][3] - 1, rR = Rr[i1] / Rr[i0] - 1, fx0 = usd ? fxd(D[i0]) : null, fx1 = usd ? fxd(D[i1]) : null;
+        var uA = usd && fx0 && fx1 ? (P[i1][2] / fx1) / (P[i0][2] / fx0) - 1 : null, uB = usd && fx0 && fx1 ? (P[i1][3] / fx1) / (P[i0][3] / fx0) - 1 : null;
+        var ch = function (t, v, u) { return '<span style="border:1px solid var(--bd);border-radius:999px;padding:4px 11px;color:var(--tx)"><b>' + t + '</b> <b style="color:' + (v > 0 ? UP : v < 0 ? DN : 'var(--mu)') + '">' + pc(v) + '</b>' + (u != null ? ' <small style="color:var(--mu)">en US$ ' + pc(u) + '</small>' : '') + '</span>'; };
+        sb.innerHTML = '<span><b style="color:var(--tx)">Período seleccionado</b> ' + fr(D[i0]) + ' → ' + fr(D[i1]) + (SEL.b == null ? ' (hoy)' : '') + ' · ' + (i1 - i0) + ' ruedas</span>' + ch(A, rA, uA) + ch(Bt, rB, uB) + ch('Ratio', rR) +
+          '<button type="button" id="accPselX" style="background:none;border:0;color:var(--mu);cursor:pointer;font:inherit;text-decoration:underline">Borrar</button>';
+        var x = $('accPselX'); if (x) x.onclick = function () { SEL = { a: null, b: null }; mk(); selShow(); };
+      };
+      var mk = function () { PS[PK] = { a: SEL.a == null ? null : D[SEL.a], b: SEL.b == null ? null : D[SEL.b] }; try { if (!PLV.s) return; var M = []; if (SEL.a != null) M.push({ time: D[SEL.a], position: 'belowBar', color: fc, shape: 'arrowUp', text: 'Desde' }); if (SEL.b != null) M.push({ time: D[SEL.b], position: 'aboveBar', color: fc, shape: 'arrowDown', text: 'Hasta' }); M.sort(function (p, q) { return p.time < q.time ? -1 : 1; }); if (LC.createSeriesMarkers) { if (PLV.mk) PLV.mk.setMarkers(M); else PLV.mk = LC.createSeriesMarkers(PLV.s, M); } else if (PLV.s.setMarkers) PLV.s.setMarkers(M); } catch (e) { } };
+      PT.subscribeClick(function (pr) { if (!pr || pr.logical == null) return; var i = Math.max(0, Math.min(N - 1, Math.round(pr.logical))); if (SEL.a == null || SEL.b != null) SEL = { a: i, b: null }; else SEL.b = i; mk(); selShow(); });
+      mk(); selShow();
       // indicadores
       var rg = Rr.slice(k0), last = Rr[N - 1], pct = rg.filter(function (v) { return v <= last; }).length / rg.length, X = [], Y = [];
       for (var i = Math.max(1, k0); i < N; i++) { X.push(Math.log(P[i][3] / P[i - 1][3])); Y.push(Math.log(P[i][2] / P[i - 1][2])); } var co = reg(X, Y), zl = z[N - 1];
@@ -14399,12 +14449,12 @@ window.RATG = (function () {
     var famS = function (r) { return '<small>' + FAM[r.fam] + '</small>'; };
     var bars = function (h, L, v, fmt, c, sub) {
       var mx = Math.max.apply(null, L.map(function (r) { return Math.abs(v(r)) || 0; }).concat([1e-12]));
-      return '<div class="bl"><h5>' + h + '</h5>' + (L.length ? L.map(function (r) { var x = v(r), cc = typeof c === 'function' ? c(r) : c, w = Math.max(3, Math.abs(x) / mx * 100);
-        return '<div class="br"><div class="bk"><b>' + r.k + '</b>' + (sub ? sub(r) : '') + '</div><div class="bt"><i style="--c:' + cc + ';width:' + w.toFixed(1) + '%"></i></div><span class="bv" style="color:rgb(' + cc + ')">' + fmt(x, r) + '</span></div>'; }).join('') : '<p class="note" style="margin:6px 0 0">Sin datos de esta familia en el período.</p>') + '</div>'; };
+      return '<div class="bl"><h5>' + h + (L.length > 10 ? ' <small style="font-weight:500;opacity:.7">(' + L.length + ')</small>' : '') + '</h5>' + (L.length ? (L.length > 10 ? '<div style="max-height:330px;overflow-y:auto;overscroll-behavior:contain;padding-right:4px">' : '<div>') + L.map(function (r) { var x = v(r), cc = typeof c === 'function' ? c(r) : c, w = Math.max(3, Math.abs(x) / mx * 100);
+        return '<div class="br"><div class="bk"><b>' + r.k + '</b>' + (sub ? sub(r) : '') + '</div><div class="bt"><i style="--c:' + cc + ';width:' + w.toFixed(1) + '%"></i></div><span class="bv" style="color:rgb(' + cc + ')">' + fmt(x, r) + '</span></div>'; }).join('') + '</div>' : '<p class="note" style="margin:6px 0 0">Sin datos de esta familia en el período.</p>') + '</div>'; };
     var gf = ST.gf || 'all', RF = liq.concat(xl), pool = gf === 'all' ? RF : gf === 'acc' ? accL : RF.filter(function (r) { return r.fam === gf; });
     var sub2 = gf === 'all' || gf === 'acc' && false ? famS : null, sR = function (L) { return L.slice().sort(function (x, y) { return y.ret - x.ret; }); };
     var byR = sR(liq), aR = sR(accL); // para la narrativa y la comparación
-    var upL = sR(pool).filter(function (r) { return r.ret > 1e-6; }).slice(0, 10), dnL = sR(pool).reverse().filter(function (r) { return r.ret < -1e-6; }).slice(0, 10);
+    var upL = sR(pool).filter(function (r) { return r.ret > 1e-6; }), dnL = sR(pool).reverse().filter(function (r) { return r.ret < -1e-6; }); // todos los de la familia (con scroll si son muchos)
     var ttl = gf === 'all' ? 'Renta fija' : gf === 'acc' ? 'Panel líder' : FAM[gf];
     var sec = function (t, s2) { return '<div class="bsec"><b>' + t + '</b><span>' + s2 + '</span></div>'; };
     var gl = sec('Precio', 'variación % del período · en bonos, retorno total (precio + cupones y amortizaciones cobrados)') + bars(ttl + ' · suben', upL, function (r) { return r.ret; }, function (x) { return pc(x); }, UP, sub2) + bars(ttl + ' · bajan', dnL, function (r) { return r.ret; }, function (x) { return pc(x); }, DN, sub2);
