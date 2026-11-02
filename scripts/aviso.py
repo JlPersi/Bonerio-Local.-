@@ -1,5 +1,6 @@
 """Aviso por mail a todos los usuarios registrados (Supabase Auth), por Resend. Se corre a mano desde Actions ("Aviso a usuarios").
    modo=prueba: solo a la dirección de prueba. modo=todos: a todos los registrados (de a 100 por pedido, con el envío en lote de Resend).
+   tanda=1, 2, 3…: solo esa tanda de 90 (la lista va ordenada, así cada día sale la siguiente sin repetir); vacío o 0: todos.
    El texto sale de scripts/aviso.html (la primera línea <!-- asunto: ... --> es el asunto). No sale a todos si el texto tiene COMPLETAR.
    Secrets: SUPABASE_SERVICE_KEY y RESEND_API_KEY (los mismos del reporte diario)."""
 import json, os, re, sys, time, urllib.request, urllib.error
@@ -48,6 +49,11 @@ def main():
         if "COMPLETAR" in html:
             sys.exit("el texto todavía tiene COMPLETAR: no sale a todos")
         mails = usuarios()
+        tanda = int(os.environ.get("TANDA") or 0)  # el plan gratis de Resend manda 100 por día: de a 90, una tanda por día (0 = todos juntos)
+        tam = int(os.environ.get("TAM") or 90)
+        if tanda > 0:
+            print(len(mails), "usuarios en total; tanda", tanda, "de", -(-len(mails) // tam), "(de a", tam, ")")
+            mails = mails[(tanda - 1) * tam:tanda * tam]
     else:
         if not prueba:
             sys.exit("falta la dirección de prueba")
