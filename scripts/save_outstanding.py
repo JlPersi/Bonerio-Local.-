@@ -155,6 +155,22 @@ def colocaciones():
     """data/colocaciones.xlsx (Oficina Nacional de Crédito Público, «Colocaciones de deuda»): cada colocación del año por instrumento,
        con su fecha de liquidación y el VN (en millones de la moneda de origen). Las conversiones suman el nuevo y restan el que se da de baja."""
     f = os.path.join(ROOT, "data", "colocaciones.xlsx")
+    # Finanzas lo publica como /sites/default/files/colocaciones_DD-MM-AA.xlsx (último día del mes): se busca el más nuevo
+    hoy, prev = dt.date.today(), json.load(open(OUT)).get("col", {}) if os.path.exists(OUT) else {}
+    for k in range(0, 4):
+        y, m = hoy.year, hoy.month - k
+        while m <= 0:
+            y, m = y - 1, m + 12
+        fin = (dt.date(y + (m == 12), m % 12 + 1, 1) - dt.timedelta(days=1))
+        if prev and prev.get("corte") and fin.isoformat() <= prev["corte"][:7] + "-31" and os.path.exists(f):
+            break
+        hit = None
+        for suf in ("", "_0", "_1"):
+            b = get("%s/sites/default/files/colocaciones_%s%s.xlsx" % (GOB, fin.strftime("%d-%m-%y"), suf), tries=1)
+            if b:
+                hit = b; break
+        if hit:
+            open(f, "wb").write(hit); print("colocaciones nuevas:", fin); break
     if not os.path.exists(f):
         return None
     import openpyxl
@@ -163,7 +179,7 @@ def colocaciones():
     def vto(d):
         m = re.search(r"(\d\d)-(\d\d)-(\d{4})", d)
         return "%s-%s-%s" % (m.group(3), m.group(2), m.group(1)) if m else None
-    for h in ("Bonos", "Letras", "Canjes- Conversiones"):
+    for h in ("Bonos", "Letras", "Canjes- Conversiones", "Otras Operaciones"):  # otras: colocaciones directas por resolución (suman)
         if h not in wb.sheetnames:
             continue
         for r in wb[h].iter_rows(values_only=True):

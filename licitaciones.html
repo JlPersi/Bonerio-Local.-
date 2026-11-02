@@ -208,6 +208,8 @@ h1,.qh,.st .d,.k b,.kk b{font-family:var(--fh);letter-spacing:-.02em}
 
 
 
+<div class="seg" id="licTabs" style="margin:0 0 16px;flex-wrap:wrap"><button data-k="prox" class="on">Próxima y cronograma</button><button data-k="res">Resultados</button><button data-k="col">Colocación y rollover</button><button data-k="ven">Vencimientos</button></div>
+
 <!-- PRÓXIMA -->
 <section class="card" id="prox"></section>
 
@@ -710,6 +712,15 @@ function renderCro(){
 
 function all(){renderProx();renderUlt();renderCurves();renderRoll();renderPlz();renderPerf();renderHis();renderCro();endScroll()}
 function endScroll(){document.querySelectorAll("#roll .scr,#plz .scr,#his .scr").forEach(e=>{if(!e.dataset.sc){if(e.scrollWidth>e.clientWidth+40)e.scrollLeft=e.scrollWidth;e.dataset.sc=1}})}
+/* pestañas: cada grupo de tarjetas por separado, así la página no queda tan larga */
+const LTAB={prox:["prox","cro"],res:["ult","his"],col:["roll","plz"],ven:["perf"]};let LT="prox";
+try{const q=sessionStorage.getItem("licTab");if(LTAB[q])LT=q}catch(e){}
+function licTab(k){LT=k;try{sessionStorage.setItem("licTab",k)}catch(e){}
+  Object.keys(LTAB).forEach(g=>LTAB[g].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=g===k?"":"none"}));
+  document.querySelectorAll("#licTabs button").forEach(b=>b.classList.toggle("on",b.dataset.k===k));
+  try{all()}catch(e){}}
+document.getElementById("licTabs").addEventListener("click",e=>{const b=e.target.closest("button");if(b)licTab(b.dataset.k)});
+setTimeout(()=>licTab(LT),0);
 let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{renderCurves();renderProx()},150)});
 $("#thm").onclick=()=>{const r=document.documentElement;r.dataset.theme=r.dataset.theme==="light"?"dark":"light"};
 if(qp.get("tema")==="light")document.documentElement.dataset.theme="light";
@@ -725,7 +736,7 @@ all();
   var syncTheme = function () { try { var t = window.parent.document.documentElement.getAttribute('data-theme'); document.documentElement.dataset.theme = t === 'light' ? 'light' : 'dark'; } catch (e) { } };
   syncTheme();
   window.addEventListener('message', function (e) { if (e.data && e.data.licTheme) document.documentElement.dataset.theme = e.data.licTheme === 'light' ? 'light' : 'dark'; });
-  var last = 0, post = function () { var h = Math.ceil(document.documentElement.scrollHeight); if (Math.abs(h - last) > 1) { last = h; try { window.parent.postMessage({ licH: h }, '*'); } catch (e) { } } };
+  var last = 0, post = function () { var m = document.getElementById('licMain'), h = Math.ceil(m ? m.getBoundingClientRect().bottom + window.scrollY + 24 : document.documentElement.scrollHeight); if (Math.abs(h - last) > 1) { last = h; try { window.parent.postMessage({ licH: h }, '*'); } catch (e) { } } };
   if (window.ResizeObserver) new ResizeObserver(post).observe(document.body);
   window.addEventListener('load', post); setTimeout(post, 300); setTimeout(post, 1500);
 })();
