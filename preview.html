@@ -12269,7 +12269,9 @@ window.RATG = (function () {
     return out;
   }
   function live() {
-    if (Date.now() - lvT < 25000) return Promise.resolve(); lvT = Date.now();
+    var B = window.BLS; if (Date.now() - lvT < 25000) { // con el stream de Primary, las acciones se toman de ahí en cada tic (sin red); el ADR sigue cada 25 s
+      if (B && B.ok && B.rows.arg_stocks && !(typeof mktStarted === 'function' && !mktStarted())) B.rows.arg_stocks.forEach(function (r) { if (r && r.symbol) LV[r.symbol] = { c: r.c, pct: r.pct_change, v: r.v, q: r.q_op, b: r.px_bid, a: r.px_ask }; });
+      return Promise.resolve(); } lvT = Date.now();
     var g = function (u, into) { return fetch(u, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (rs) { (rs || []).forEach(function (r) { if (r && r.symbol) into[r.symbol] = { c: r.c, pct: r.pct_change, v: r.v, q: r.q_op, b: r.px_bid, a: r.px_ask }; }); }).catch(function () { }); };
     if (typeof mktStarted === 'function' && !mktStarted()) { LV = {}; return g('https://data912.com/live/usa_adrs', LA); } // antes de la rueda (o sin rueda) data912 repite la anterior: se usa el último cierre
     return Promise.all([g('https://data912.com/live/arg_stocks', LV), g('https://data912.com/live/usa_adrs', LA)]);
