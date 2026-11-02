@@ -191,6 +191,85 @@ window.BLBND = (function () {
     }
   };
 })();
+/* Caja de puntas: al pasar el mouse por un bono o una acción en cualquier gráfico, al lado del tooltip aparece una cajita con las 5 mejores puntas de Primary (vía el Worker), durante la rueda */
+(function () {
+  var BK = {}, BX = { ch: null, k: '', h: '' }, el = null;
+  var nf = function (v, d) { return v == null ? '' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  var st = document.createElement('style');
+  st.textContent = '#bkBox{position:fixed;z-index:9999;pointer-events:none;background:var(--card,#0f0f10);border:1px solid var(--bd,#27272a);border-radius:10px;padding:8px 10px 6px;box-shadow:0 10px 30px rgba(0,0,0,.35);font:12px Inter,system-ui,sans-serif;color:var(--tx,#fafafa);font-variant-numeric:tabular-nums;display:none}' +
+    '#bkBox .h{display:flex;justify-content:space-between;gap:14px;margin-bottom:5px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mu,#a1a1aa)}#bkBox .h b{color:var(--tx,#fafafa);letter-spacing:.02em}' +
+    '#bkBox table{border-collapse:collapse}#bkBox th{font-size:10px;font-weight:600;color:var(--mu,#a1a1aa);padding:0 6px 3px;text-align:right}#bkBox td{padding:2px 6px;text-align:right;white-space:nowrap}' +
+    '#bkBox tr>*:nth-child(2){color:var(--ok,#22c55e);border-right:1px solid var(--bd,#27272a);padding-right:9px}#bkBox tr>*:nth-child(3){color:var(--bad,#f43f5e);padding-left:9px}#bkBox th:nth-child(2),#bkBox th:nth-child(3){color:var(--mu,#a1a1aa)}' +
+    '#bkBox td:first-child,#bkBox td:last-child{color:var(--mu,#a1a1aa)}#bkBox tbody tr:first-child td{font-weight:700}#bkBox tbody tr:first-child td:first-child,#bkBox tbody tr:first-child td:last-child{color:var(--tx,#fafafa)}' +
+    '#bkBox .f{margin-top:4px;padding-top:4px;border-top:1px solid var(--bd,#27272a);font-size:10.5px;color:var(--mu,#a1a1aa)}';
+  document.head.appendChild(st);
+  var hide = function () { if (el) el.style.display = 'none'; BX.ch = null; BX.k = ''; };
+  var get = function (k, ch) {
+    var b = BK[k]; if (b && (b.p || Date.now() - b.t < 3000)) return b.d;
+    BK[k] = { t: Date.now(), p: 1, d: b && b.d };
+    fetch((window.BL_LIVE || 'https://bonerio-vivo.persijuanluis.workers.dev').replace(/\/+$/, '') + '/book/' + k, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      BK[k] = { t: Date.now(), d: d && (d.BI && d.BI.length || d.OF && d.OF.length) ? d : null };
+      if (BX.ch === ch || !BX.ch) try { ch.draw(); } catch (e) { }
+    }).catch(function () { BK[k] = { t: Date.now(), d: null }; });
+    return b && b.d;
+  };
+  var keyOf = function (ch, a) { var ds = ch.data.datasets[a.datasetIndex], r = ds && ds.data[a.index], k = r && (r.k || r.t || r.bono || r.tk || (r.e && r.e.k)); return typeof k === 'string' && /^[A-Z0-9]{3,8}$/.test(k) ? k : ''; };
+  var html = function (k, d) {
+    var dc = function (v) { return v >= 1000 ? 0 : v >= 10 ? 2 : 3; }, rw = '';
+    for (var i = 0; i < 5; i++) { var bi = d.BI[i], of = d.OF[i]; if (!bi && !of) break; rw += '<tr><td>' + (bi ? nf(bi[1], 0) : '') + '</td><td>' + (bi ? nf(bi[0], dc(bi[0])) : '—') + '</td><td>' + (of ? nf(of[0], dc(of[0])) : '—') + '</td><td>' + (of ? nf(of[1], 0) : '') + '</td></tr>'; }
+    var b0 = d.BI[0], o0 = d.OF[0], sp = b0 && o0 && b0[0] > 0 ? (o0[0] / b0[0] - 1) * 100 : null;
+    return '<div class="h"><span>Puntas · <b>' + k + '</b></span><span>Primary</span></div><table><thead><tr><th>Cant.</th><th>Compra</th><th>Venta</th><th>Cant.</th></tr></thead><tbody>' + rw + '</tbody></table>' +
+      (sp != null ? '<div class="f">Spread ' + nf(sp, 2) + '%' + (d.LA && d.LA[0] ? ' · última ' + nf(d.LA[0], dc(d.LA[0])) : '') + '</div>' : '');
+  };
+  Chart.register({ id: 'bkBox', afterDraw: function (ch) {
+    var tp = ch.tooltip, a = tp && tp.getActiveElements ? tp.getActiveElements() : [];
+    if (!a || a.length !== 1 || !(tp.opacity > 0) || (typeof mktOpen === 'function' && !mktOpen())) { if (BX.ch === ch) hide(); return; }
+    var k = keyOf(ch, a[0]); if (!k) { if (BX.ch === ch) hide(); return; }
+    var d = get(k, ch); if (!d) { if (BX.ch === ch) hide(); return; }
+    if (!el) { el = document.createElement('div'); el.id = 'bkBox'; document.body.appendChild(el); }
+    var h = html(k, d); if (h !== BX.h) { el.innerHTML = h; BX.h = h; }
+    BX.ch = ch; BX.k = k; el.style.display = 'block';
+    var z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1; // la página va con html{zoom:.9}: las cuentas en px de pantalla y al final se pasan a px de CSS
+    var r = ch.canvas.getBoundingClientRect(), W = el.offsetWidth * z, H = el.offsetHeight * z, vw = window.innerWidth, vh = window.innerHeight;
+    var sx = ch.width ? r.width / ch.width : 1, sy = ch.height ? r.height / ch.height : 1, tx = tp.x * sx, ty = tp.y * sy, th = tp.height * sy, tw = tp.width * sx; // el canvas puede estar escalado por CSS
+    var x = r.left + tx, y = r.top + ty + th + 6;
+    if (y + H > vh - 6) y = r.top + ty - H - 6; // no entra abajo: arriba del tooltip
+    if (y < 6) { y = Math.max(6, r.top + ty); x = r.left + tx + tw + 6; if (x + W > vw - 6) x = r.left + tx - W - 6; } // ni abajo ni arriba: al costado
+    el.style.left = Math.max(6, Math.min(x, vw - W - 6)) / z + 'px'; el.style.top = Math.max(6, y) / z + 'px';
+  }, afterEvent: function (ch, args) { if (args.event.type === 'mouseout' && BX.ch === ch) hide(); }, afterDestroy: function (ch) { setTimeout(function () { if (BX.ch === ch) hide(); }, 120); } });
+  setInterval(function () { if (BX.ch && BX.k) get(BX.k, BX.ch); }, 3000); // mientras está abierta, las puntas se refrescan solas
+  window.addEventListener('scroll', function () { if (BX.ch) hide(); }, true);
+})();
+/* Gráficos en vivo sin saltos: cuando un gráfico se vuelve a armar con datos nuevos (cada pocos segundos en la rueda), arranca con los puntos de antes
+   y se mueven hasta los nuevos, en vez de redibujarse de cero. El punto que estaba marcado con el mouse sigue marcado */
+(function () {
+  var LAST = {}, _d = Chart.prototype.destroy;
+  var snap = function (ch) {
+    var id = ch.canvas && ch.canvas.id; if (!id) return;
+    var tp = ch.tooltip, a = tp && tp.getActiveElements ? tp.getActiveElements() : [];
+    LAST[id] = { t: Date.now(), type: ch.config.type, sets: ch.data.datasets.map(function (d) { return { l: d.label, data: (d.data || []).slice() }; }), labels: (ch.data.labels || []).slice(),
+      act: (a || []).map(function (e) { return { datasetIndex: e.datasetIndex, index: e.index }; }), pos: tp && tp.caretX != null ? { x: tp.caretX, y: tp.caretY } : null };
+  };
+  Chart.prototype.destroy = function () { try { snap(this); } catch (e) { } return _d.apply(this, arguments); };
+  Chart.register({ id: 'liveMorph', afterInit: function (ch) {
+    var id = ch.canvas && ch.canvas.id; if (!id) return;
+    if (!LAST[id]) Object.values(Chart.instances || {}).forEach(function (o) { if (o !== ch && o.canvas && o.canvas.id === id && !o.canvas.isConnected) try { snap(o); } catch (e) { } }); // el canvas viejo quedó fuera de la página sin destruirse
+    var L = LAST[id]; delete LAST[id];
+    if (!L || Date.now() - L.t > 15000 || L.type !== ch.config.type || L.sets.length !== ch.data.datasets.length) return;
+    var ok = ch.data.datasets.every(function (d, i) { var o = L.sets[i], n = (d.data || []).length; return o.l === d.label && n && Math.abs(o.data.length - n) <= 3; });
+    if (!ok || Math.abs(L.labels.length - (ch.data.labels || []).length) > 3) return;
+    var nw = ch.data.datasets.map(function (d) { return d.data; }), nl = ch.data.labels, an = ch.config.options.animation;
+    ch.data.datasets.forEach(function (d, i) { d.data = L.sets[i].data; }); if (L.labels.length) ch.data.labels = L.labels;
+    ch.config.options.animation = false; // primero se dibuja como estaba...
+    requestAnimationFrame(function () {
+      if (!ch.canvas) return; ch.data.datasets.forEach(function (d, i) { d.data = nw[i]; }); ch.data.labels = nl;
+      var act = L.act.filter(function (e) { var d = ch.data.datasets[e.datasetIndex]; return d && d.data && e.index < d.data.length; });
+      if (act.length && L.pos) try { ch.setActiveElements(act); ch.tooltip.setActiveElements(act, L.pos); } catch (e) { }
+      ch.config.options.animation = { duration: 450, easing: 'easeOutCubic' }; ch.update(); // ...y los puntos se mueven a su lugar nuevo
+      if (an === undefined) delete ch.config.options.animation; else ch.config.options.animation = an;
+    });
+  } });
+})();
 /*@@AMP_START@@*/
 /* Ampliar: cada gráfico lleva un botón que lo abre grande en el centro, con el fondo difuminado. Es el mismo gráfico (con su tooltip y sus
    controles): se mueve a la ventana y al cerrar (X, Esc o clic afuera) vuelve a su lugar. El botón no sale en las capturas. */
@@ -6309,7 +6388,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var devm = function (v) { return v == null ? null : (Math.pow(1 + v / 100 * 90 / 365, 1 / 3) - 1) * 100; }; // devaluación mensual de la tasa a 3 meses
   var dias = function (n) { return n + (n === 1 ? ' día' : ' días'); };
   var cauDias = function (ds) { if (!ds) return null; var t = bxDayNum(String(ds).slice(0, 10)), n = t + 1; if (!isFinite(t)) return null; while (!bxIsBiz(n) && n - t < 15) n++; return n - t; }; // plazo de la caución más corta según nuestro calendario: 1 día corrido, 3 un viernes, más si hay feriados
-  var cauT = function (k, t) { var o = inst(k); if (!o) return t; var hk = keys(o.h || {}), ds = o.i && o.i.d === todayBA() ? o.i.d : hk[hk.length - 1], n = cauDias(ds); return t + ' · ' + (n ? dias(n) : '1 día hábil'); };
+  var cauT = function (k, t) { var o = inst(k); if (!o) return t; var hk = keys(o.h || {}), ds = o.i && o.i.d === todayBA() ? o.i.d : hk[hk.length - 1], n = o.dl || cauDias(ds); return t + ' · ' + (n ? dias(n) : '1 día hábil'); };
   var hm = function (m) { m = Math.round(m); return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2); };
   var P = function (v) { return v == null || !isFinite(v) ? 'n/a' : nf(v, 2) + '%'; };
   var PS = function (v) { return v == null || !isFinite(v) ? 'n/a' : '$ ' + nf(v, v >= 1000 ? 1 : 2); };
@@ -6403,6 +6482,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       }
       else if (o.i && o.i.d === td) { var lp = o.i.p[o.i.p.length - 1]; o.v = lp[1]; o.vs = 'BYMA, ' + (o.i.dias ? dias(o.i.dias) + ', ' : '') + 'hoy ' + hm(lp[0]); }
       else if (b) { o.v = cp(b); o.vs = 'BYMA, ' + dias(b[0]) + ', hoy ' + (S.bts || '').slice(11, 16); }
+      if (o.v == null && m === 'ARS' && S.vivoOk && S.vd === td) { // BYMA todavía sin datos de hoy: la caución en pesos de A3 por Primary (plazo más corto con operaciones)
+        var pr = (S.V.cau || []).filter(function (r) { return r[3] > 0; })[0];
+        if (pr) { o.v = pr[3]; o.dl = pr[0]; o.vs = 'A3, ' + dias(pr[0]) + ', hoy ' + String(S.V.ts || '').slice(11, 16); }
+      }
       if (o.v != null && l && l < td) o.prev = h[l];
       return b;
     };
@@ -10724,7 +10807,18 @@ window.USTX = (function () {
     bk.innerHTML = (Q.bid || Q.ask ? '<div class="bnBk"><div class="bi"><small>Compra</small><b>' + fm(Q.bid, 2) + '</b><span>' + qq(Q.qb) + '</span></div><div class="as"><small>Venta</small><b>' + fm(Q.ask, 2) + '</b><span>' + qq(Q.qa) + '</span></div></div>'
       : '<p class="bnNt" style="margin:0 0 12px">' + (Object.keys(window.PXQ || {}).length ? 'No hay puntas de ' + esc(sym) + ' en este momento.' : 'Sin precios en vivo: el mercado está cerrado o data912 no responde. Abajo, el último cierre.') + '</p>') +
       (pre ? '<p class="bnNt" style="margin:0 0 12px">Todavía no abrió la rueda de hoy: los datos son de la rueda' + (pv ? ' del ' + dd(pv) : ' anterior') + '.</p>' : '') +
-      '<div class="kv">' + kv('Último', Q.c > 0 ? unit + fm(Q.c, 2) + (pre && pv ? '<i>' + dd(pv) + '</i>' : '') : '—') + kv('Spread compra/venta', spr != null ? fm(spr, 2) + '%' : '—') + kv('Volumen', Q.v ? big(Q.v) + ' VN' : '—') + kv('Monto operado', monto ? unit + big(monto) : '—') + kv('Operaciones', Q.nop ? fm(Q.nop, 0) : '—') + kv('Cierre anterior', ref ? unit + fm(ref[1], 2) + '<i>' + dd(ref) + '</i>' : '—') + '</div>';
+      (setTimeout(function () { deep(sym); }, 0), '') + '<div class="kv">' + kv('Último', Q.c > 0 ? unit + fm(Q.c, 2) + (pre && pv ? '<i>' + dd(pv) + '</i>' : '') : '—') + kv('Spread compra/venta', spr != null ? fm(spr, 2) + '%' : '—') + kv('Volumen', Q.v ? big(Q.v) + ' VN' : '—') + kv('Monto operado', monto ? unit + big(monto) : '—') + kv('Operaciones', Q.nop ? fm(Q.nop, 0) : '—') + kv('Cierre anterior', ref ? unit + fm(ref[1], 2) + '<i>' + dd(ref) + '</i>' : '—') + '</div>';
+  }
+
+  /* caja de puntas de Primary (5 niveles) debajo de compra / venta, durante la rueda */
+  var BKD = {};
+  function deep(sym) {
+    var el = document.getElementById('bnBk'); if (!el || (typeof mktOpen === 'function' && !mktOpen())) return;
+    var put = function (d) { var el2 = document.getElementById('bnBk'); if (!el2 || !d || !(d.BI.length || d.OF.length)) return; var old = el2.querySelector('.bnDeep'); if (old) old.remove();
+      var rw = ''; for (var i = 0; i < 5; i++) { var b = d.BI[i], o = d.OF[i]; if (!b && !o) break; rw += '<tr><td>' + (b ? big(b[1]) : '') + '</td><td class="up">' + (b ? fm(b[0], 2) : '') + '</td><td class="dn">' + (o ? fm(o[0], 2) : '') + '</td><td>' + (o ? big(o[1]) : '') + '</td></tr>'; }
+      el2.insertAdjacentHTML('afterbegin', '<div class="bnDeep"><table style="width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;margin:0 0 12px"><tr style="color:var(--mu);font-size:11px;text-transform:uppercase"><th style="text-align:left">Cant.</th><th style="text-align:right">Compra</th><th style="text-align:left;padding-left:14px">Venta</th><th style="text-align:right">Cant.</th></tr>' + rw.replace(/<td>/g, '<td style="padding:3px 0">').replace(/<td class="up">/g, '<td style="text-align:right;color:var(--ok,#34d399)">').replace(/<td class="dn">/g, '<td style="padding-left:14px;color:var(--bad,#ff6b8b)">') + '</table><p class="bnNt" style="margin:-6px 0 12px">Caja de puntas de Primary, 5 niveles, en vivo.</p></div>'); };
+    var c = BKD[sym]; if (c && Date.now() - c.t < 3000) { put(c.d); return; }
+    fetch((window.BL_LIVE || 'https://bonerio-vivo.persijuanluis.workers.dev').replace(/\/+$/, '') + '/book/' + sym, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) { BKD[sym] = { t: Date.now(), d: d }; if (symOf() === sym) put(d); }).catch(function () {});
   }
 
   /* gráfico de precio */
