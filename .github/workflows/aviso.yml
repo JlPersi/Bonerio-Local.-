@@ -1,0 +1,24 @@
+name: Aviso a usuarios
+# Manda scripts/aviso.html por mail: en modo prueba, solo a la dirección de prueba; en modo todos, a todos los usuarios registrados.
+on:
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "prueba (solo a la dirección de abajo) o todos (a todos los usuarios)"
+        type: choice
+        options: [prueba, todos]
+        default: prueba
+      prueba_a:
+        description: "Dirección para la prueba"
+        default: ""
+permissions:
+  contents: read
+jobs:
+  aviso:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: python3 scripts/aviso.py "${{ inputs.modo }}" "${{ inputs.prueba_a }}"
