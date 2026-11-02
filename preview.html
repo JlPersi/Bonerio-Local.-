@@ -12164,8 +12164,8 @@ window.RATG = (function () {
     '<div class="ctl"><label>Para el gráfico<span class="seg" id="accBp"><button data-v="1">Última rueda</button><button data-v="5">5 ruedas</button><button data-v="20">20 ruedas</button></span></label></div>' +
     '<div class="f2"><div><h5>Por sector: presión neta y monto</h5><div class="tw" style="max-height:none;margin-top:0"><table id="accBt"></table></div></div><div><h5 id="accBh">Acciones con más presión</h5><div class="cw2" style="height:380px"><canvas id="accBc"></canvas></div></div></div><p class="note" id="accBn" style="margin-top:8px"></p></div>' +
 
-    '<div class="card sx" id="accBd" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Bandas de corto, mediano y largo plazo</p><p class="qs" id="accBds">Dónde está el precio contra su media de máximos y los máximos y mínimos probables.</p></div></div>' +
-    '<div class="ctl"><div style="display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--mu)">Ver<span class="seg" id="accBdM"><button data-v="a">Una acción</button><button data-v="p">Pares del mismo sector</button></span></div><label id="accBdTL">Acción<input type="search" id="accBdT" list="accTkL" placeholder="Ticker o empresa" autocomplete="off" style="width:190px;font-weight:700"></label><label id="accBdSL">Sector<select id="accBdS"></select></label><label id="accBdPL">Par<input type="search" id="accBdA" list="accTkL" autocomplete="off" style="width:96px;font-weight:700;text-transform:uppercase"></label><label id="accBdPL2">contra<input type="search" id="accBdB" list="accTkL" autocomplete="off" style="width:96px;font-weight:700;text-transform:uppercase"></label><div style="display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--mu)">Moneda<span class="seg" id="accBdC2"><button data-v="ars">Pesos</button><button data-v="ccl">Dólar CCL</button></span></div><div style="display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--mu)">Plazo<span class="seg" id="accBdP"><button data-v="5">Corto · 5 ruedas</button><button data-v="20">Mediano · 20 ruedas</button><button data-v="60">Largo · 60 ruedas</button></span></div></div>' +
+    '<div class="card sx" id="accBd" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Bandas de corto, mediano y largo plazo</p><p class="qs" id="accBds">Dónde está el precio contra su media de máximos y los máximos y mínimos probables.</p></div><div class="sxb">' + dlb('accBd', 'Bonerio_bandas') + '</div></div>' +
+    '<div class="ctl"><div style="display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--mu)">Ver<span class="seg" id="accBdM"><button data-v="a">Una acción</button><button data-v="p">Pares del mismo sector</button></span></div><label id="accBdTL">Acción<input type="search" id="accBdT" list="accTkL" placeholder="Ticker o empresa" autocomplete="off" style="width:190px;font-weight:700"></label><label id="accBdSL">Sector<select id="accBdS"></select></label><label id="accBdPL">Par<input type="search" id="accBdA" list="accTkL" autocomplete="off" style="width:96px;font-weight:700;text-transform:uppercase"></label><label id="accBdPL2">contra<input type="search" id="accBdB" list="accTkL" autocomplete="off" style="width:96px;font-weight:700;text-transform:uppercase"></label><div style="display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--mu)">Moneda<span class="seg" id="accBdC2"><button data-v="ars">Pesos</button><button data-v="mep">Dólares (especie D)</button></span></div><div style="display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--mu)">Plazo<span class="seg" id="accBdP"><button data-v="5">Corto · 5 ruedas</button><button data-v="20">Mediano · 20 ruedas</button><button data-v="60">Largo · 60 ruedas</button></span></div></div>' +
     '<div class="kp" id="accBdK" style="margin-top:16px"></div><div style="position:relative;height:420px;margin-top:14px"><canvas id="accBdC"></canvas></div>' +
     '<h5 style="margin:26px 0 8px" id="accBdH">Todas las acciones</h5><div class="tw" id="accBdL"><p class="note">Cargando…</p></div>' +
     '<p class="note" id="accBdN" style="margin-top:12px"></p></div>' +
@@ -12959,7 +12959,21 @@ window.RATG = (function () {
   }
   function F0(t) { return OPS && OPS[t]; }
   /* ---------- Bandas (método de corto plazo de máximos y volatilidad, y sus versiones de mediano y largo plazo) ---------- */
-  var CHBD = null, BDL = {};
+  var CHBD = null, BDL = {}, RECP = null, REC = null, MEPP = null, MEPD = null;
+  function mepLoad() { // MEP de cada día (AL30 / AL30D): el precio en dólares de la especie D es el de pesos dividido por el MEP
+    if (!MEPP) MEPP = new Promise(function (ok) { var go2 = function (V) { var m = {}; if (V && V.t && V.t.AL30 && V.t.AL30D) { var ser = function (k) { var o = V.t[k], out = {}, acc = 0; for (var i = 0; i < o.i.length; i++) { acc += o.i[i]; if (o.c[i] > 0) out[V.dates[acc]] = o.c[i]; } return out; }; var a = ser('AL30'), d = ser('AL30D'); Object.keys(a).forEach(function (k) { if (d[k] > 0) m[k] = a[k] / d[k]; }); } MEPD = m; ok(m); };
+      if (window.VOLX && window.VOLX.raw) window.VOLX.raw(go2); else j('data/volumen.json').then(go2); });
+    return MEPP;
+  }
+  function inMon(r, mon) { if (mon !== 'mep') return r; var ks = Object.keys(MEPD || {}).sort(), k = 0, last = null, out = []; // cada rueda al MEP de ese día (o el último anterior)
+    r.forEach(function (x) { while (k < ks.length && ks[k] <= x[0]) { last = MEPD[ks[k]]; k++; } if (last > 0) out.push([x[0], null, x[2] > 0 ? x[2] / last : null, null, x[4] / last, x[5]]); }); return out; }
+  function recLoad() { if (!RECP) RECP = j('data/acciones/recientes.json').then(function (d) { REC = (d && d.t) || {}; return REC; }); return RECP; }
+  function recRows(t, mon) { // [fecha, apertura, máximo, mínimo, cierre, volumen] de las últimas ruedas, ajustadas por splits y en la moneda elegida
+    var r = adj(t, ((REC && REC[t]) || []).map(function (x) { return [x[0], null, x[1], null, x[2], x[3]]; })), out = [];
+    r.forEach(function (x) { var f = 1; if (mon === 'ccl') { f = fxd(x[0]); if (!f) return; } out.push([x[0], null, x[2] > 0 ? x[2] / f : null, null, x[4] / f, x[5]]); });
+    var L = LV[t], d = today(); if (mon === 'ars' && L && L.c > 0 && out.length && out[out.length - 1][0] < d && L.v > 0) out.push([d, null, null, null, L.c, L.v]);
+    return out;
+  }
   function bandOf(r, n) { // r: filas [fecha, apertura, máximo, mínimo, cierre, volumen]; n: ruedas de la media
     var hq = [], H = r.map(function (x) { if (x[2] > 0 && x[4] > 0) { hq.push(x[2] / x[4]); if (hq.length > 20) hq.shift(); return x[2]; } var k = hq.length ? hq.reduce(function (z, v) { return z + v; }, 0) / hq.length : 1; return x[4] * k; }), C = r.map(function (x) { return x[4]; }), m = sma(H, n), v = rstd(C, n), cut = { 5: 0.07, 20: 0.14, 60: 0.24 }[n] || 0.07;
     return r.map(function (x, i) { var a = m[i], s = v[i]; return a == null || s == null ? null : { d: x[0], c: x[4], az: a - s, up: a + 3 * s, lo: a * (1 - cut) }; });
@@ -12972,7 +12986,7 @@ window.RATG = (function () {
     return bandOf(r, n);
   }
   function bands() {
-    if (!IX) return; var BM = ST.bdmon || ST.mon || 'ars', n = +(ST.bdn || 5), md = ST.bdm || 'a', u = md === 'p' ? '' : BM === 'ccl' ? 'US$ ' : '$ ';
+    if (!IX) return; var BM = ST.bdmon === 'mep' ? 'mep' : 'ars', n = +(ST.bdn || 5), md = ST.bdm || 'a', u = md === 'p' ? '' : BM === 'mep' ? 'US$ ' : '$ ';
     if (!$('accBdS').options.length) {
       $('accBdS').innerHTML = SEC.filter(function (q) { return q[3].split(' ').filter(function (t) { return IX.some(function (x) { return x.t === t; }); }).length > 1; }).map(function (q) { return '<option value="' + q[0] + '">' + q[1] + '</option>'; }).join('');
       $('accBdT').onchange = function () { var t = tkOf(this.value); if (t) { ST.bdt = t; save(); bands(); } else this.value = ST.bdt || ''; };
@@ -12990,43 +13004,29 @@ window.RATG = (function () {
     var t = ST.bdt || ST.sel || 'GGAL'; $('accBdT').value = t;
     if (md === 'p') { if (!ST.bds) ST.bds = secOf(ST.bdt || ST.sel || 'GGAL'); var st0 = secTs(ST.bds); if (st0.length < 2) { ST.bds = 'ban'; st0 = secTs('ban'); } if (!ST.bpa || st0.indexOf(ST.bpa) < 0) ST.bpa = st0[0]; if (!ST.bpb || st0.indexOf(ST.bpb) < 0 || ST.bpb === ST.bpa) ST.bpb = st0.filter(function (x) { return x !== ST.bpa; })[0]; $('accBdS').value = ST.bds; $('accBdA').value = ST.bpa; $('accBdB').value = ST.bpb; }
     var cut = { 5: 7, 20: 14, 60: 24 }[n];
-    $('accBdN').innerHTML = '<b>Azul</b>: media de ' + n + ' ruedas de los precios máximos menos la volatilidad de ' + n + ' ruedas (1 desvío de los cierres, en pesos o dólares). <b>Máximo probable</b> (rojo, arriba): la misma media más 3 desvíos (3 sigmas). <b>Mínimo probable</b> (verde, abajo): ' + cut + '% debajo de la media de máximos. El corto plazo es el método de 5 ruedas con 7%; mediano (20 ruedas) y largo (60 ruedas) usan la misma regla con un piso más ancho (14% y 24%: el 7% escalado por la raíz del plazo). Posición: 0% es el mínimo probable y 100% el máximo. <b>Pares</b>: el mismo método sobre el ratio A / B (el «máximo» del ratio es el máximo de A sobre el máximo de B); abajo del mínimo, A está barata contra B; arriba del máximo, cara. Las últimas ruedas sin máximo (el cierre diario guarda solo el último precio; el máximo se completa los viernes) usan el cierre por la relación máximo / cierre promedio de las 20 ruedas anteriores. Precios ajustados por splits, en pesos o en dólares CCL (el precio en pesos dividido por el CCL de cada día). No es una recomendación de inversión.';
+    $('accBdN').innerHTML = '<b>Azul</b>: media de ' + n + ' ruedas de los precios máximos menos la volatilidad de ' + n + ' ruedas (1 desvío de los cierres, en pesos o dólares). <b>Máximo probable</b> (rojo de arriba): la misma media más 3 desvíos (3 sigmas). <b>Mínimo probable</b> (rojo de abajo): ' + cut + '% debajo de la media de máximos. El corto plazo es el método de 5 ruedas con 7%; mediano (20 ruedas) y largo (60 ruedas) usan la misma regla con un piso más ancho (14% y 24%: el 7% escalado por la raíz del plazo). Posición: 0% es el mínimo probable y 100% el máximo. <b>Pares</b>: el mismo método sobre el ratio A / B (el «máximo» del ratio es el máximo de A sobre el máximo de B); abajo del mínimo, A está barata contra B; arriba del máximo, cara. Las últimas ruedas sin máximo (el cierre diario guarda solo el último precio; el máximo se completa los viernes) usan el cierre por la relación máximo / cierre promedio de las 20 ruedas anteriores. Precios ajustados por splits, en pesos o en dólares de la especie D (el precio en pesos dividido por el MEP de AL30 de cada día, que es lo que cotiza por ejemplo GGALD). No es una recomendación de inversión.';
     var draw = function (P, ttl, dec) {
       var L = P[P.length - 1]; if (!L) { $('accBdK').innerHTML = ''; return; } var lc = bLect(L), q = md === 'p';
       $('accBdK').innerHTML = [[q ? 'Ratio' : 'Precio', u + nf(L.c, dec), L.d.split('-').reverse().join('/')], ['Media (azul)', u + nf(L.az, dec), pc(L.c / L.az - 1) + (q ? ' el ratio' : ' el precio')], ['Máximo probable', u + nf(L.up, dec), pc(L.up / L.c - 1) + (q ? ' desde el ratio' : ' desde el precio')], ['Mínimo probable', u + nf(L.lo, dec), pc(L.lo / L.c - 1) + (q ? ' desde el ratio' : ' desde el precio')], ['Posición en la banda', nf(lc[2] * 100, 0) + '%', '<span style="color:' + lc[1] + '">' + (q ? lc[0].replace('exagerado a la baja', ST.bpa + ' barata contra ' + ST.bpb).replace('exagerado al alza', ST.bpa + ' cara contra ' + ST.bpb) : lc[0]) + '</span>']]
         .map(function (k) { return '<div><small>' + k[0] + '</small><b>' + k[1] + '</b><span>' + k[2] + '</span></div>'; }).join('');
       $('accBds').textContent = ttl + ' · ' + { 5: 'corto', 20: 'mediano', 60: 'largo' }[n] + ' plazo · últimas ' + P.length + ' ruedas';
-      var tx = css('--mu') || '#a1a1aa', gd = css('--bd') || '#27272a', dot = css('--tx') || '#fafafa', RD = '#fb7185', GN = '#34d399', AZ = '#38bdf8';
+      var tx = css('--mu') || '#a1a1aa', gd = css('--bd') || '#27272a', dot = css('--tx') || '#fafafa', RD = '#f97316', AZ = '#38bdf8';
       if (CHBD) CHBD.destroy();
-      var cv = $('accBdC'), g2 = cv.getContext('2d'), band = function (c) { var a = c.chart.chartArea; if (!a) return 'rgba(56,189,248,.06)'; var g = g2.createLinearGradient(0, a.top, 0, a.bottom); g.addColorStop(0, 'rgba(251,113,133,.16)'); g.addColorStop(0.5, 'rgba(56,189,248,.05)'); g.addColorStop(1, 'rgba(52,211,153,.16)'); return g; };
-      var tags = { id: 'bdTags', afterDatasetsDraw: function (c) { // el último valor de cada línea, en una etiqueta a la derecha
-        var a = c.chartArea, y = c.scales.y, ctx = c.ctx; ctx.save(); ctx.font = '600 11.5px Inter, system-ui, sans-serif'; ctx.textBaseline = 'middle';
-        var T = c.data.datasets.map(function (d) { var v = d.data[d.data.length - 1]; return v == null ? null : { v: v, py: y.getPixelForValue(v), col: d.tagC || d.borderColor }; }).filter(Boolean).sort(function (p1, p2) { return p1.py - p2.py; });
-        for (var k = 1; k < T.length; k++) if (T[k].py - T[k - 1].py < 21) T[k].py = T[k - 1].py + 21; // sin encimarse
-        var ov = T.length ? T[T.length - 1].py + 10 - (c.height - 2) : 0; if (ov > 0) T.forEach(function (t2) { t2.py -= ov; });
-        T.forEach(function (t2) { var t = nf(t2.v, dec), w = ctx.measureText(t).width + 12, x0 = a.right + 6; ctx.fillStyle = t2.col; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x0, t2.py - 10, w, 20, 6); else ctx.rect(x0, t2.py - 10, w, 20); ctx.fill(); ctx.fillStyle = '#0b0b0c'; ctx.fillText(t, x0 + 6, t2.py + 0.5); });
-        ctx.restore(); } };
-      var glow = { id: 'bdGlow', beforeDatasetDraw: function (c, e) { if (e.index === 1) { c.ctx.save(); c.ctx.shadowColor = 'rgba(56,189,248,.55)'; c.ctx.shadowBlur = 10; } }, afterDatasetDraw: function (c, e) { if (e.index === 1) c.ctx.restore(); } };
-      var lastI = P.length - 1;
-      CHBD = new Chart(cv, { type: 'line', plugins: [tags, glow], data: { labels: P.map(function (b) { var d = b.d; return d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(2, 4); }), datasets: [
-        { label: q ? 'Ratio' : 'Precio', data: P.map(function (b) { return b.c; }), borderColor: dot, backgroundColor: dot, tagC: dot, borderWidth: 1.4, tension: 0.15, order: 0,
-          pointRadius: function (c) { return c.dataIndex === lastI ? 4.5 : n === 5 ? 1.8 : 0; }, pointBackgroundColor: dot, pointBorderWidth: 0, pointHoverRadius: 5 },
-        { label: 'Media (azul)', data: P.map(function (b) { return b.az; }), borderColor: AZ, borderWidth: 2.6, pointRadius: 0, pointHoverRadius: 0, tension: 0.35, order: 1 },
-        { label: 'Máximo probable', data: P.map(function (b) { return b.up; }), borderColor: 'rgba(251,113,133,.9)', tagC: RD, borderWidth: 1.6, pointRadius: 0, pointHoverRadius: 0, tension: 0.35, fill: { target: 3 }, backgroundColor: band, order: 2 },
-        { label: 'Mínimo probable', data: P.map(function (b) { return b.lo; }), borderColor: 'rgba(52,211,153,.9)', tagC: GN, borderWidth: 1.6, pointRadius: 0, pointHoverRadius: 0, tension: 0.35, order: 3 }] },
-        options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { right: 70, top: 4 } }, interaction: { mode: 'index', intersect: false },
-          plugins: { legend: { align: 'start', labels: { color: tx, usePointStyle: true, pointStyle: 'line', boxWidth: 22, padding: 16, font: { size: 12.5, weight: '600' } } },
-            tooltip: { backgroundColor: 'rgba(17,17,19,.95)', borderColor: gd, borderWidth: 1, padding: 10, titleFont: { weight: '700' }, callbacks: { label: function (c) { return ' ' + c.dataset.label + ': ' + u + nf(c.raw, dec); } } } },
-          scales: { x: { ticks: { color: tx, maxTicksLimit: 8, maxRotation: 0, font: { size: 11.5 } }, grid: { display: false }, border: { color: gd } },
-            y: { position: 'left', ticks: { color: tx, maxTicksLimit: 7, font: { size: 11.5 }, callback: function (v) { return nf(v, dec); } }, grid: { color: 'rgba(161,161,170,.10)' }, border: { display: false } } } } });
+      CHBD = new Chart($('accBdC'), { type: 'line', data: { labels: P.map(function (b) { var d = b.d; return d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(2, 4); }), datasets: [
+        { label: q ? 'Ratio' : 'Precio', data: P.map(function (b) { return b.c; }), borderColor: dot, backgroundColor: dot, borderWidth: 1, pointRadius: n === 5 ? 2.6 : 0, tension: 0 },
+        { label: 'Media (azul)', data: P.map(function (b) { return b.az; }), borderColor: AZ, borderWidth: 2.2, pointRadius: 0, tension: 0.25 },
+        { label: 'Máximo probable', data: P.map(function (b) { return b.up; }), borderColor: RD, borderWidth: 1.8, pointRadius: 0, tension: 0.25 },
+        { label: 'Mínimo probable', data: P.map(function (b) { return b.lo; }), borderColor: RD, borderWidth: 1.8, pointRadius: 0, tension: 0.25, borderDash: [6, 4] }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: tx, usePointStyle: true, boxWidth: 10 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + u + nf(c.raw, dec); } } } },
+          scales: { x: { ticks: { color: tx, maxTicksLimit: 10, maxRotation: 0 }, grid: { color: gd } }, y: { ticks: { color: tx, callback: function (v) { return nf(v, dec); } }, grid: { color: gd } } } } });
     };
     var show = { 5: 110, 20: 250, 60: 500 }[n];
     if (md === 'p') {
       var A = ST.bpa, Bt = ST.bpb, ts = secTs(ST.bds);
-      Promise.all([file(A), file(Bt)]).then(function () { var P = bandRatio(rows(A, BM), rows(Bt, BM), n).slice(-show).filter(Boolean), L = P[P.length - 1]; draw(P, A + ' / ' + Bt, L && L.c < 10 ? 4 : 2); });
+      Promise.all([file(A), file(Bt), mepLoad()]).then(function () { var P = bandRatio(inMon(rows(A, 'ars'), BM), inMon(rows(Bt, 'ars'), BM), n).slice(-show).filter(Boolean), L = P[P.length - 1]; draw(P, A + ' / ' + Bt, L && L.c < 10 ? 4 : 2); });
       $('accBdH').textContent = 'Todos los pares de ' + SN[ST.bds];
-      Promise.all(ts.map(file)).then(function () {
-        var R = []; ts.forEach(function (a) { ts.forEach(function (b2) { if (a >= b2) return; var B2 = bandRatio(rows(a, BM).slice(-90), rows(b2, BM).slice(-90), n), L2 = B2[B2.length - 1]; if (L2) R.push({ a: a, b: b2, x: L2, l: bLect(L2) }); }); });
+      Promise.all([recLoad(), mepLoad()]).then(function () {
+        var R = []; ts.forEach(function (a) { ts.forEach(function (b2) { if (a >= b2) return; var B2 = bandRatio(inMon(recRows(a, 'ars'), BM), inMon(recRows(b2, 'ars'), BM), n), L2 = B2[B2.length - 1]; if (L2) R.push({ a: a, b: b2, x: L2, l: bLect(L2) }); }); });
         R.sort(function (x, y) { return Math.abs(y.l[2] - 0.5) - Math.abs(x.l[2] - 0.5); });
         $('accBdL').innerHTML = '<table><thead><tr><th>Par</th><th>Ratio</th><th>Media (azul)</th><th>Máx. probable</th><th>Mín. probable</th><th>Posición</th><th class="l">Lectura</th></tr></thead><tbody>' + R.map(function (r) { var b = r.x, dd = b.c < 10 ? 4 : 2, lt = r.x.c < r.x.lo ? r.a + ' barata contra ' + r.b : r.x.c > r.x.up ? r.a + ' cara contra ' + r.b : r.l[0];
           return '<tr data-p="' + r.a + '/' + r.b + '" style="cursor:pointer"><td>' + r.a + ' / ' + r.b + '</td><td>' + nf(b.c, dd) + '</td><td>' + nf(b.az, dd) + '</td><td>' + nf(b.up, dd) + '</td><td>' + nf(b.lo, dd) + '</td><td style="color:' + r.l[1] + '">' + nf(r.l[2] * 100, 0) + '%</td><td class="l" style="color:' + r.l[1] + '">' + lt + '</td></tr>'; }).join('') + '</tbody></table>';
@@ -13035,17 +13035,17 @@ window.RATG = (function () {
       return;
     }
     $('accBdH').textContent = 'Todas las acciones';
-    file(t).then(function () { var P = bandOf(rows(t, BM), n).slice(-show).filter(Boolean), L = P[P.length - 1]; draw(P, t + (ISS[t] ? ' · ' + ISS[t] : ''), L && L.c < 100 ? 2 : 0); });
+    Promise.all([file(t), mepLoad()]).then(function () { var P = bandOf(inMon(rows(t, 'ars'), BM), n).slice(-show).filter(Boolean), L = P[P.length - 1]; draw(P, t + (ISS[t] ? ' · ' + ISS[t] : ''), L && L.c < 1 ? 4 : L && L.c < 100 ? 2 : 0); });
     // todas las acciones: se van cargando
     var key = n + BM, ts = IX.map(function (x) { return x.t; });
     var paintL = function () {
       var R = ts.map(function (t2) { var b = BDL[key] && BDL[key][t2]; return b ? { t: t2, b: b, l: bLect(b) } : null; }).filter(Boolean).sort(function (a, b) { return a.l[2] - b.l[2]; });
-      $('accBdL').innerHTML = '<table><thead><tr><th>Acción</th><th>Precio</th><th>Media (azul)</th><th>Máx. probable</th><th>Mín. probable</th><th>Posición</th><th class="l">Lectura</th></tr></thead><tbody>' + R.map(function (x) { var b = x.b, dd = b.c < 100 ? 2 : 0;
-        return '<tr data-t="' + x.t + '" style="cursor:pointer"><td>' + x.t + '</td><td>' + nf(b.c, dd) + '</td><td>' + nf(b.az, dd) + '</td><td>' + nf(b.up, dd) + '</td><td>' + nf(b.lo, dd) + '</td><td style="color:' + x.l[1] + '">' + nf(x.l[2] * 100, 0) + '%</td><td class="l" style="color:' + x.l[1] + '">' + x.l[0] + '</td></tr>'; }).join('') + '</tbody></table>' + (R.length < ts.length ? '<p class="note">Cargando ' + R.length + ' de ' + ts.length + '…</p>' : '');
+      $('accBdL').innerHTML = '<table><thead><tr><th>Acción</th><th>Precio</th><th>Media (azul)</th><th>Máx. probable</th><th>Mín. probable</th><th>Posición</th><th class="l">Lectura</th></tr></thead><tbody>' + R.map(function (x) { var b = x.b, dd = b.c < 1 ? 4 : b.c < 100 ? 2 : 0;
+        return '<tr data-t="' + x.t + '" style="cursor:pointer"><td>' + x.t + '</td><td>' + nf(b.c, dd) + '</td><td>' + nf(b.az, dd) + '</td><td>' + nf(b.up, dd) + '</td><td>' + nf(b.lo, dd) + '</td><td style="color:' + x.l[1] + '">' + nf(x.l[2] * 100, 0) + '%</td><td class="l" style="color:' + x.l[1] + '">' + x.l[0] + '</td></tr>'; }).join('') + '</tbody></table>' + (!REC ? '<p class="note">Cargando…</p>' : '');
       $('accBdL').onclick = function (e) { var tr = e.target.closest('tr[data-t]'); if (!tr) return; ST.bdt = tr.getAttribute('data-t'); save(); bands(); $('accBd').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
     };
-    BDL[key] = BDL[key] || {}; paintL(); var tm = 0;
-    ts.forEach(function (t2) { if (BDL[key][t2]) return; file(t2).then(function () { var B2 = bandOf(rows(t2, BM).slice(-80), n), L2 = B2[B2.length - 1]; if (L2) BDL[key][t2] = L2; if (!tm) tm = setTimeout(function () { tm = 0; if (ST.sub === 'bnd' && (ST.bdm || 'a') === 'a') paintL(); }, 300); }); });
+    BDL[key] = BDL[key] || {}; paintL();
+    Promise.all([recLoad(), mepLoad()]).then(function () { ts.forEach(function (t2) { if (BDL[key][t2]) return; var B2 = bandOf(inMon(recRows(t2, 'ars'), BM), n), L2 = B2[B2.length - 1]; if (L2) BDL[key][t2] = L2; }); if (ST.sub === 'bnd' && (ST.bdm || 'a') === 'a') paintL(); });
   }
   function covered() {
     if (!IX) return;
