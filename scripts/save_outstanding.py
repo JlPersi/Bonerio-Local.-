@@ -219,7 +219,12 @@ def main():
         col = colocaciones()
     except Exception as e:
         print("colocaciones:", e)
-    json.dump({"act": dt.date.today().isoformat(), "trim": q, "fx": fx, "lic": lic, "col": col}, open(OUT, "w"), ensure_ascii=False, separators=(",", ":"))
+    man = []  # operaciones cargadas a mano (conversiones con el BCRA por resolución que no tienen comunicado): data/outstanding_manual.json
+    try:
+        man = [[x[0], x[1], x[2], x[3]] for x in json.load(open(os.path.join(ROOT, "data", "outstanding_manual.json")))]
+    except Exception:
+        pass
+    json.dump({"act": dt.date.today().isoformat(), "trim": q, "fx": fx, "lic": lic, "col": col, "man": man}, open(OUT, "w"), ensure_ascii=False, separators=(",", ":"))
     print("outstanding:", q and q.get("corte"), len(q and q.get("rows") or []), "títulos;", len(lic.get("t", {})), "tickers de licitaciones")
 
 
