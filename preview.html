@@ -240,8 +240,9 @@ window.BLBND = (function () {
   });
   var html = function (k, d) {
     var dc = function (v) { return v >= 1000 ? 0 : v >= 10 ? 2 : 3; }, rw = '', q = function (v) { return v >= 1e6 ? nf(v / 1e6, v >= 1e8 ? 0 : 1) + ' M' : nf(v, 0); }; // cantidades grandes en millones
-    for (var i = 0; i < 5; i++) { var bi = d.BI[i], of = d.OF[i]; if (!bi && !of) break; rw += '<tr><td>' + (bi ? q(bi[1]) : '') + '</td><td>' + (bi ? nf(bi[0], dc(bi[0])) : '—') + '</td><td>' + (of ? nf(of[0], dc(of[0])) : '—') + '</td><td>' + (of ? q(of[1]) : '') + '</td></tr>'; }
-    var b0 = d.BI[0], o0 = d.OF[0], sp = b0 && o0 && b0[0] > 0 ? (/^CAU-/.test(k) ? o0[0] - b0[0] : (o0[0] / b0[0] - 1) * 100) : null; // en la caución el precio ya es la tasa: el spread va en puntos
+    for (var i = 0; i < 5; i++) { var bi = (d.BI || [])[i], of = (d.OF || [])[i]; if (!bi && !of) break; rw += '<tr><td>' + (bi ? q(bi[1]) : '') + '</td><td>' + (bi ? nf(bi[0], dc(bi[0])) : '—') + '</td><td>' + (of ? nf(of[0], dc(of[0])) : '—') + '</td><td>' + (of ? q(of[1]) : '') + '</td></tr>'; }
+    if (!rw) rw = '<tr><td colspan="4" style="text-align:center;opacity:.65;font-weight:400">sin puntas en este momento</td></tr>';
+    var b0 = (d.BI || [])[0], o0 = (d.OF || [])[0], sp = b0 && o0 && b0[0] > 0 ? (/^CAU-/.test(k) ? o0[0] - b0[0] : (o0[0] / b0[0] - 1) * 100) : null; // en la caución el precio ya es la tasa: el spread va en puntos
     var la = d.LA && d.LA[0] > 0 ? d.LA[0] : null, cl = d.CL > 0 ? d.CL : null, pv = la || (b0 && o0 ? (b0[0] + o0[0]) / 2 : cl), ch = la && cl ? (la / cl - 1) * 100 : null;
     var hr = ''; try { if (d.LA && d.LA[2]) { var t = new Date(typeof d.LA[2] === 'string' && /^\d+$/.test(d.LA[2]) ? +d.LA[2] : d.LA[2]); if (!isNaN(t)) hr = t.toLocaleTimeString('es-AR', { hour12: false, timeZone: 'America/Argentina/Buenos_Aires' }); } } catch (e) { }
     var fy = /\//.test(k) && BX.y != null ? BX.y : null, e0 = spOf(k), u = !isUsd(k) || e0 === pgE() ? uni(k) : null, it = function (l, v) { return v ? '<span>' + l + ' <b>' + v + '</b></span>' : ''; }; // la TIR es la de la página: solo si la caja muestra su misma especie
@@ -255,7 +256,7 @@ window.BLBND = (function () {
     var tp = ch.tooltip, a = tp && tp.getActiveElements ? tp.getActiveElements() : [];
     if (!a || a.length !== 1 || (typeof mktOpen === 'function' && !mktOpen())) return null;
     var k = keyOf(ch, a[0]); if (!k) return null; var sy = symFor(k), d = get(sy, ch), r = ch.data.datasets[a[0].datasetIndex].data[a[0].index]; BX.y = r && typeof r.y === 'number' ? r.y : null;
-    return d ? { k: k, d: d, tp: tp } : BK[sy] && BK[sy].p ? { k: k, d: null, tp: tp } : null; // mientras llegan las puntas, la caja ya aparece (vacía), sin el cuadrito de antes
+    return d ? { k: k, d: d, tp: tp } : BK[sy] && BK[sy].p ? { k: k, d: null, tp: tp } : { k: k, d: { s: sy, BI: [], OF: [], none: 1 }, tp: tp }; // mientras llegan las puntas, la caja ya aparece (vacía); sin puntas, la caja lo dice: nunca el cuadrito de antes
   };
   Chart.register({ id: 'bkBox', beforeTooltipDraw: function (ch) { if (want(ch)) return false; }, // con la caja de puntas no hace falta el cuadrito del tooltip
   afterDraw: function (ch) {
