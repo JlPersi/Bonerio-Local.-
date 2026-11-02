@@ -210,14 +210,19 @@ window.BLBND = (function () {
   var get = function (k, ch) {
     var b = BK[k]; if (b && (b.p || Date.now() - b.t < 3000)) return b.d;
     BK[k] = { t: Date.now(), p: 1, d: b && b.d };
-    fetch((window.BL_LIVE || 'https://bonerio-vivo.persijuanluis.workers.dev').replace(/\/+$/, '') + '/book/' + k, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+    fetch((window.BL_LIVE || 'https://bonerio-vivo.persijuanluis.workers.dev').replace(/\/+$/, '') + '/book/' + encodeURIComponent(k), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
       BK[k] = { t: Date.now(), d: d && (d.BI && d.BI.length || d.OF && d.OF.length) ? d : null };
       if (BX.ch === ch || !BX.ch) try { ch.draw(); } catch (e) { }
     }).catch(function () { BK[k] = { t: Date.now(), d: null }; });
     return b && b.d;
   };
   var OLD = /cierre|hace \d|anterior|\b(del|al) \d{1,2}\/\d{1,2}/i; // la serie de una fecha anterior (el círculo del cierre de ayer): sin puntas
-  var keyOf = function (ch, a) { var ds = ch.data.datasets[a.datasetIndex], r = ds && ds.data[a.index], k = r && (r.k || r.t || r.bono || r.tk || (r.e && r.e.k)); if (!ds || ds.$nobk || OLD.test(ds.label || '')) return ''; return typeof k === 'string' && /^[A-Z0-9]{3,8}$/.test(k) ? k : ''; };
+  var ALLOW = { curva: 1, tabla: 1, desglose: 1, pesos: 1, lic: 1, ons: 1, onsf: 1, pvs: 1, pvsf: 1, tcor: 1, tfut: 1 }; // solo en Renta fija (dólares, pesos, ONs, provinciales), Mercado de dinero y Futuros
+  var okTab = function (ch) { if (ch.$bkOk != null) return ch.$bkOk; var c = ch.canvas; if (!c || !c.isConnected || c.closest('#ampOv')) return false; for (var e = c; e; e = e.parentElement) if (e.id && ALLOW[e.id]) return (ch.$bkOk = true); return (ch.$bkOk = false); };
+  var FUT = /^(DLR|CAUC)[ \/]([A-Z]{3}\d{2})$/; // futuros de A3 en Primary: «DLR/NOV26»
+  var keyOf = function (ch, a) { var ds = ch.data.datasets[a.datasetIndex], r = ds && ds.data[a.index]; if (!ds || !r || ds.$nobk || OLD.test(ds.label || '') || !okTab(ch)) return '';
+    var f = typeof r.s === 'string' && FUT.exec(r.s); if (f) return f[1] + '/' + f[2];
+    var k = r.k || r.t || r.bono || r.tk || (r.e && r.e.k); return typeof k === 'string' && /^[A-Z0-9]{3,8}$/.test(k) ? k : ''; };
   var UV = null, UVt = 0, uni = function (k) { if (!UV || Date.now() - UVt > 10000) { UV = {}; UVt = Date.now(); try { (window.PFQ && window.PFQ.universe ? window.PFQ.universe() : []).forEach(function (r) { UV[r.k] = r; }); } catch (e) { } } return UV[k]; }; // TIR y duración del bono, las de la página
   var SP = 'auto'; try { SP = localStorage.getItem('bkSp') || 'auto'; } catch (e) { } // en qué especie ver las puntas de un bono en dólares: auto (la de la página, MEP o cable), P (pesos), D o C
   var BOP = /^BP[A-D]\d$/, isUsd = function (k) { if (BOP.test(k)) return true; var u = uni(k); return !!u && u.grp === 'usd'; }; // BOPREAL: en pesos es BPOA7, en dólares BPA7D / BPA7C
@@ -235,8 +240,8 @@ window.BLBND = (function () {
     var b0 = d.BI[0], o0 = d.OF[0], sp = b0 && o0 && b0[0] > 0 ? (o0[0] / b0[0] - 1) * 100 : null;
     var la = d.LA && d.LA[0] > 0 ? d.LA[0] : null, cl = d.CL > 0 ? d.CL : null, pv = la || (b0 && o0 ? (b0[0] + o0[0]) / 2 : cl), ch = la && cl ? (la / cl - 1) * 100 : null;
     var hr = ''; try { if (d.LA && d.LA[2]) { var t = new Date(typeof d.LA[2] === 'string' && /^\d+$/.test(d.LA[2]) ? +d.LA[2] : d.LA[2]); if (!isNaN(t)) hr = t.toLocaleTimeString('es-AR', { hour12: false, timeZone: 'America/Argentina/Buenos_Aires' }); } } catch (e) { }
-    var e0 = spOf(k), u = !isUsd(k) || e0 === pgE() ? uni(k) : null, it = function (l, v) { return v ? '<span>' + l + ' <b>' + v + '</b></span>' : ''; }; // la TIR es la de la página: solo si la caja muestra su misma especie
-    var ft = it(u && u.tl ? u.tl.replace(/^TIR.*/, 'TIR') : 'TIR', u && u.tir != null && isFinite(u.tir) ? nf(u.tir * 100, 2) + '%' : '') + it('Dur. mod.', u && u.md > 0 ? nf(u.md, 2) : '') + it('Spread', sp != null ? nf(sp, 2) + '%' : '') + it('Cierre ant.', cl ? nf(cl, dc(cl)) : '');
+    var fy = /\//.test(k) && BX.y != null ? BX.y : null, e0 = spOf(k), u = !isUsd(k) || e0 === pgE() ? uni(k) : null, it = function (l, v) { return v ? '<span>' + l + ' <b>' + v + '</b></span>' : ''; }; // la TIR es la de la página: solo si la caja muestra su misma especie
+    var ft = it('TNA implícita', fy != null && isFinite(fy) ? nf(fy, 2) + '%' : '') + it(u && u.tl ? u.tl.replace(/^TIR.*/, 'TIR') : 'TIR', u && u.tir != null && isFinite(u.tir) ? nf(u.tir * 100, 2) + '%' : '') + it('Dur. mod.', u && u.md > 0 ? nf(u.md, 2) : '') + it('Spread', sp != null ? nf(sp, 2) + '%' : '') + it('Cierre ant.', cl ? nf(cl, dc(cl)) : '');
     return '<div class="h"><b>' + (d.s || k) + '</b><span>Primary' + (hr ? ' · ' + hr : '') + '</span></div>' +
       '<div class="px"><b>' + (pv ? nf(pv, dc(pv)) : '—') + '</b>' + (ch != null ? '<em class="' + (ch > 0 ? 'up' : ch < 0 ? 'dn' : 'mu') + '">' + (ch > 0 ? '+' : '') + nf(ch, 2) + '%</em>' : !la ? '<em class="mu">sin operaciones hoy</em>' : '') + '</div>' +
       '<table><thead><tr><th>Cant. C</th><th>Compra</th><th>Venta</th><th>Cant. V</th></tr></thead><tbody>' + rw + '</tbody></table>' + (ft ? '<div class="ft">' + ft + '</div>' : '') +
@@ -245,7 +250,7 @@ window.BLBND = (function () {
   var want = function (ch) { // el punto marcado tiene puntas para mostrar: {k, d}
     var tp = ch.tooltip, a = tp && tp.getActiveElements ? tp.getActiveElements() : [];
     if (!a || a.length !== 1 || (typeof mktOpen === 'function' && !mktOpen())) return null;
-    var k = keyOf(ch, a[0]); if (!k) return null; var d = get(symFor(k), ch); return d ? { k: k, d: d, tp: tp } : null;
+    var k = keyOf(ch, a[0]); if (!k) return null; var d = get(symFor(k), ch); if (d) { var r = ch.data.datasets[a[0].datasetIndex].data[a[0].index]; BX.y = r && typeof r.y === 'number' ? r.y : null; } return d ? { k: k, d: d, tp: tp } : null;
   };
   Chart.register({ id: 'bkBox', beforeTooltipDraw: function (ch) { if (want(ch)) return false; }, // con la caja de puntas no hace falta el cuadrito del tooltip
   afterDraw: function (ch) {
