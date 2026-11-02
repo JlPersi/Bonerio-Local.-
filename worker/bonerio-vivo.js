@@ -143,13 +143,17 @@ export class Feed {
 }
 
 // caución por Primary: los símbolos 'MERV - XMEV - <moneda> - <n>D' (la lista de instrumentos se guarda 6 horas) y una foto por websocket
-let CSY = null, CSYT = 0;
-async function cauSyms(env) {
-  if (CSY && Date.now() - CSYT < 6 * 3600e3) return CSY;
+let CSY = null, CSYT = 0, INS = null, INST = 0;
+async function instruments(env) { // la lista de instrumentos de Primary (se guarda 6 horas)
+  if (INS && Date.now() - INST < 6 * 3600e3) return INS;
   let r = await fetch(base(env) + '/rest/instruments/details', { headers: { 'X-Auth-Token': await token(env) } });
   if (r.status === 401 || r.status === 403) r = await fetch(base(env) + '/rest/instruments/details', { headers: { 'X-Auth-Token': await token(env, true) } });
-  const j = await r.json(), out = {};
-  (j.instruments || []).forEach((i) => {
+  const j = await r.json(); INS = j.instruments || []; INST = Date.now(); return INS;
+}
+async function cauSyms(env) {
+  if (CSY && Date.now() - CSYT < 6 * 3600e3) return CSY;
+  const L = await instruments(env), out = {};
+  L.forEach((i) => {
     const s = (i.instrumentId || {}).symbol || '', m = /^MERV - XMEV - (.+) - (\d+)D$/.exec(s); if (!m || +m[2] > 35) return;
     const c = String(i.currency || '').toUpperCase(), n = m[1].toUpperCase();
     out[s] = [n === 'PESOS' || c === 'ARS' ? 'ARS' : c === 'EXT' || /EXT|CABLE/.test(n) ? 'EXT' : 'USD', +m[2]];
@@ -208,11 +212,19 @@ export default {
       const ci = u.searchParams.get('s') === 'ci', k = u.pathname + (ci ? '?ci' : ''), m = MEM[k], hb = Object.assign({}, h, { 'Cache-Control': 'no-store' });
       if (m && Date.now() - m.t < 2000) return new Response(m.b, { headers: hb });
       try {
-        const q = base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(ci ? 'MERV - XMEV - ' + bk[1] + ' - CI' : sym(bk[1])) + '&entries=BI,OF,LA,CL&depth=5'; // ?s=ci: contado inmediato (la ficha, con su switch CI / 24 hs)
-        let r = await fetch(q, { headers: { 'X-Auth-Token': await token(env) } });
-        if (r.status === 401 || r.status === 403) r = await fetch(q, { headers: { 'X-Auth-Token': await token(env, true) } });
-        const j = await r.json(), md = (j && j.marketData) || {}, lv = (a) => (Array.isArray(a) ? a : a ? [a] : []).filter((x) => x && x.price > 0).slice(0, 5).map((x) => [x.price, x.size]);
-        const body = JSON.stringify({ t: Date.now(), BI: lv(md.BI), OF: lv(md.OF), LA: md.LA && md.LA.price > 0 ? [md.LA.price, md.LA.size, md.LA.date || null] : null, CL: md.CL && md.CL.price > 0 ? md.CL.price : null });
+        const pz = ci ? ' - CI' : ' - 24hs', lv = (a) => (Array.isArray(a) ? a : a ? [a] : []).filter((x) => x && x.price > 0).slice(0, 5).map((x) => [x.price, x.size]);
+        const get = async (t) => { // ?s=ci: contado inmediato (la ficha, con su switch CI / 24 hs)
+          const q = base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent('MERV - XMEV - ' + t + pz) + '&entries=BI,OF,LA,CL&depth=5';
+          let r = await fetch(q, { headers: { 'X-Auth-Token': await token(env) } });
+          if (r.status === 401 || r.status === 403) r = await fetch(q, { headers: { 'X-Auth-Token': await token(env, true) } });
+          const j = await r.json(); return (j && j.marketData) || {};
+        };
+        let t = bk[1], md = await get(t);
+        if (!lv(md.BI).length && !lv(md.OF).length) { // sin puntas en pesos (BOPREAL y otros que operan en dólares o con otro nombre en Primary): la especie D, la C o el nombre de Primary
+          const al = []; try { (await instruments(env)).forEach((i) => { const m = /^MERV - XMEV - (.+) - (24hs|CI)$/.exec((i.instrumentId || {}).symbol || ''); if (m && m[2] === pz.slice(3) && m[1] !== t && m[1].replace(/^BPO/, 'BP').replace(/[DC]$/, '') === t) al.push(m[1]); }); } catch (e) { }
+          for (const c of [t + 'D', t + 'C'].concat(al.filter((x) => x !== t + 'D' && x !== t + 'C'))) { const m2 = await get(c); if (lv(m2.BI).length || lv(m2.OF).length) { t = c; md = m2; break; } }
+        }
+        const body = JSON.stringify({ t: Date.now(), s: t, BI: lv(md.BI), OF: lv(md.OF), LA: md.LA && md.LA.price > 0 ? [md.LA.price, md.LA.size, md.LA.date || null] : null, CL: md.CL && md.CL.price > 0 ? md.CL.price : null });
         MEM[k] = { t: Date.now(), b: body };
         return new Response(body, { headers: hb });
       } catch (e) { LASTERR = String(e.message || e); return new Response(JSON.stringify({ error: LASTERR }), { status: 502, headers: hb }); }
