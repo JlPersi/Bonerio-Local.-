@@ -207,24 +207,25 @@ export default {
       try { const md = await snapshot(env, [sym('AL30'), sym('GD30')], 5000); d.websocket = 'ok'; d.precios = md; } catch (e) { d.websocket = String(e.message || e); }
       return new Response(JSON.stringify(d, null, 1), { headers: h });
     }
-    const bk = /^\/book\/([A-Z0-9]{2,10})$/.exec(u.pathname);
+    const bk = /^\/book\/((?:DLR|CAUC)(?:\/|%2F)[A-Z]{3}\d{2}|[A-Z0-9]{2,10})$/i.exec(u.pathname); // un bono o acción (MERV - XMEV - <t> - 24hs) o un futuro de A3 (DLR/NOV26)
+    if (bk) bk[1] = decodeURIComponent(bk[1]).toUpperCase();
     if (bk) { // caja de puntas a pedido (al pasar el mouse por un bono): se guarda 2 segundos
       const ci = u.searchParams.get('s') === 'ci', k = u.pathname + (ci ? '?ci' : ''), m = MEM[k], hb = Object.assign({}, h, { 'Cache-Control': 'no-store' });
       if (m && Date.now() - m.t < 2000) return new Response(m.b, { headers: hb });
       try {
         const pz = ci ? ' - CI' : ' - 24hs', lv = (a) => (Array.isArray(a) ? a : a ? [a] : []).filter((x) => x && x.price > 0).slice(0, 5).map((x) => [x.price, x.size]);
         const get = async (t) => { // ?s=ci: contado inmediato (la ficha, con su switch CI / 24 hs)
-          const q = base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent('MERV - XMEV - ' + t + pz) + '&entries=BI,OF,LA,CL&depth=5';
+          const q = base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(t.includes('/') ? t : 'MERV - XMEV - ' + t + pz) + '&entries=BI,OF,LA,CL,SE&depth=5';
           let r = await fetch(q, { headers: { 'X-Auth-Token': await token(env) } });
           if (r.status === 401 || r.status === 403) r = await fetch(q, { headers: { 'X-Auth-Token': await token(env, true) } });
           const j = await r.json(); return (j && j.marketData) || {};
         };
         let t = bk[1], md = await get(t);
-        if (!lv(md.BI).length && !lv(md.OF).length) { // sin puntas en pesos (BOPREAL y otros que operan en dólares o con otro nombre en Primary): la especie D, la C o el nombre de Primary
+        if (!t.includes('/') && !lv(md.BI).length && !lv(md.OF).length) { // sin puntas en pesos (BOPREAL y otros que operan en dólares o con otro nombre en Primary): la especie D, la C o el nombre de Primary
           const al = []; try { (await instruments(env)).forEach((i) => { const m = /^MERV - XMEV - (.+) - (24hs|CI)$/.exec((i.instrumentId || {}).symbol || ''); if (m && m[2] === pz.slice(3) && m[1] !== t && m[1].replace(/^BPO/, 'BP').replace(/[DC]$/, '') === t) al.push(m[1]); }); } catch (e) { }
           for (const c of [t + 'D', t + 'C'].concat(al.filter((x) => x !== t + 'D' && x !== t + 'C'))) { const m2 = await get(c); if (lv(m2.BI).length || lv(m2.OF).length) { t = c; md = m2; break; } }
         }
-        const body = JSON.stringify({ t: Date.now(), s: t, BI: lv(md.BI), OF: lv(md.OF), LA: md.LA && md.LA.price > 0 ? [md.LA.price, md.LA.size, md.LA.date || null] : null, CL: md.CL && md.CL.price > 0 ? md.CL.price : null });
+        const body = JSON.stringify({ t: Date.now(), s: t, BI: lv(md.BI), OF: lv(md.OF), LA: md.LA && md.LA.price > 0 ? [md.LA.price, md.LA.size, md.LA.date || null] : null, CL: md.CL && md.CL.price > 0 ? md.CL.price : md.SE && md.SE.price > 0 ? md.SE.price : null });
         MEM[k] = { t: Date.now(), b: body };
         return new Response(body, { headers: hb });
       } catch (e) { LASTERR = String(e.message || e); return new Response(JSON.stringify({ error: LASTERR }), { status: 502, headers: hb }); }
