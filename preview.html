@@ -14354,11 +14354,12 @@ window.RATG = (function () {
   var vtoOf = function (o) { return o && o.r && o.r.length ? o.r[o.r.length - 1][0] : null; };
   function rows() {
     var I = INS(), H = HDX(), q = J.trim || {}, fx = J.fx, R = {}, hoy = Math.floor(Date.now() / 864e5), corte = q.corte || '';
-    var match = function (r) { var v = dn(r.v), c = r.c, m = Object.keys(I).filter(function (k) { var t = vtoOf(I[k]); return I[k].k === c && t != null && Math.abs(t - v) <= 3; }); return m.length === 1 ? m[0] : null; };
+    var match = function (r) { var v = dn(r.v), c = r.c, m = Object.keys(I).filter(function (k) { var t = vtoOf(I[k]); return I[k].k === c && t != null && Math.abs(t - v) <= 3; }); return m.length === 1 ? m[0] : (m = m.filter(function (k) { return /P$/.test(k); })).length === 1 ? m[0] : null; }; // DICP/DIP0, PARP/PAP0: el de la serie P
     (q.rows || []).forEach(function (r) {
-      var t = r.t || match(r); if (!t) return; var usd = r.c === 'usd' || r.c === 'dl';
+      var t = r.t || match(r) || ((r.d || '').match(/\/([A-Z]{2}\d{2})$/) || [])[1]; if (!t) return; var usd = r.c === 'usd' || r.c === 'dl'; // sin precio en el panel (PR17): el ticker sale de la descripción
       var fl = (H[t] || I[t] || {}).r, cd = dn(corte), am = function (d) { return (fl || []).reduce(function (a, x) { return a + (x[0] <= d ? x[2] || 0 : 0); }, 0); }, fa = fl ? (100 - am(hoy)) / Math.max(1e-9, 100 - am(cd)) : 1; // amortizaciones pagadas desde el corte
-      R[t] = { t: t, c: r.c === 'usd' ? (/^GD/.test(t) ? 'gd' : 'al') : r.c, v: dn(r.v), x: (usd ? r.vn / 1e3 : r.vn * fx / 1e3) * (fa > 0 && fa <= 1 ? fa : 1), u: usd ? 'USD' : 'ARS', f: corte, s: fa < 0.999 ? 'trimA' : 'trim', d: r.d };
+      var x = (usd ? r.vn / 1e3 : r.vn * fx / 1e3) * (fa > 0 && fa <= 1 ? fa : 1); if (R[t]) { R[t].x += x; return; } // el mismo bono en dos decretos (Discount y Par)
+      R[t] = { t: t, c: r.c === 'usd' ? (/^GD/.test(t) ? 'gd' : 'al') : r.c, v: dn(r.v), x: x, u: usd ? 'USD' : 'ARS', f: corte, s: fa < 0.999 ? 'trimA' : 'trim', d: r.d };
     });
     var C = J.col || {}, cc = C.corte || corte;
     (C.ops || []).forEach(function (e) { // colocaciones (ONCP) después del corte trimestral: licitaciones, conversiones y canjes, con su fecha de liquidación
@@ -14384,7 +14385,9 @@ window.RATG = (function () {
   function draw() {
     if (!J || !J.trim) return; var A = rows(), usd = ST.m === 'usd', S = A.filter(function (r) { return usd ? r.u === 'USD' : r.u === 'ARS'; });
     var k = usd ? 1 : 1e6, un = usd ? 'US$ M' : '$ billones', tot = S.reduce(function (a, r) { return a + r.x; }, 0) / k;
+    if (ST.o === 'a' || ST.o === 'd') S.sort(function (a, b) { return ST.o === 'a' ? a.x - b.x : b.x - a.x; });
     $('outSeg').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-v') === ST.m); });
+    $('outOrd').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-o') === (ST.o || 'v')); });
     $('outTot').textContent = 'Total: ' + (usd ? 'US$ ' + nf(tot / 1e3, 1) + ' mil millones' : '$ ' + nf(tot, 1) + ' billones') + ' en ' + S.length + ' bonos';
     var tx = getComputedStyle(document.body).getPropertyValue('--tx').trim() || '#ddd', mu = getComputedStyle(document.body).getPropertyValue('--mu').trim() || '#999';
     if (CH) { CH.destroy(); CH = null; }
@@ -14396,18 +14399,20 @@ window.RATG = (function () {
       S.slice().sort(function (a, b) { return b.x - a.x; }).map(function (r) { return '<tr><td class="l"><b>' + r.t + '</b></td><td class="l">' + CL[r.c][0] + '</td><td>' + ds(r.v) + '</td><td>' + nf(r.x, 0) + '</td><td>' + nf(r.x / k / tot * 100, 1) + '%</td><td class="l" style="color:var(--mu)">' + (r.s === 'lic' ? 'Licitación ' : r.s === 'cv' ? 'Canje ' : r.s === 'rs' ? 'Rescate ' : r.s === 'col' ? 'Colocaciones ' : 'Finanzas ') + ds(dn(r.f)) + (r.s === 'trimA' ? ' − amort.' : '') + '</td></tr>'; }).join('') + '</tbody>';
   }
   function build() {
+    if (!$('outFoldCss')) { var st = document.createElement('style'); st.id = 'outFoldCss'; st.textContent = '.outfold{margin-top:14px;border:1px solid var(--bd);border-radius:10px;padding:0 14px}.outfold>summary{cursor:pointer;padding:11px 0;font-weight:600;color:var(--tx);list-style:none;display:flex;align-items:center;gap:10px}.outfold>summary::-webkit-details-marker{display:none}.outfold>summary:before{content:"\\25B8";color:var(--ac);transition:transform .15s}.outfold[open]>summary:before{transform:rotate(90deg)}'; document.head.appendChild(st); }
     W.innerHTML = '<div class="card" id="outCard"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><h3 style="margin:0">Deuda del Tesoro en circulación por bono</h3>' +
-      '<div style="display:flex;gap:8px;align-items:center" data-html2canvas-ignore="true"><span class="seg" id="outSeg"><button data-v="ars">Pesos</button><button data-v="usd">Dólares</button></span>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" data-html2canvas-ignore="true"><span class="seg" id="outOrd" title="Orden de las barras"><button data-o="v">Vencimiento</button><button data-o="a">Menor a mayor</button><button data-o="d">Mayor a menor</button></span><span class="seg" id="outSeg"><button data-v="ars">Pesos</button><button data-v="usd">Dólares</button></span>' +
       '<a class="icon-btn" id="outXl" href="#" title="Descargar la tabla (Excel)" style="width:auto;padding:0 11px;gap:6px;font-size:12.5px;font-weight:600;text-decoration:none;align-self:stretch"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>Excel</a>' +
       '<button class="icon-btn" id="outHd" title="Descargar en HD"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div><p class="qs" id="outTot" style="margin:8px 0 12px"></p>' +
-      '<div style="position:relative;height:380px"><canvas id="outCh"></canvas></div><div id="outLg" style="margin:10px 0 0;font-size:13px;color:var(--mu)"></div>' +
-      '<div class="sc" style="max-height:420px;overflow:auto;margin-top:16px"><table class="rt" id="outT"></table></div>' +
-      '<div class="hl" style="margin:14px 0 0"><b>Cómo se lee</b>: el valor nominal que queda en manos del mercado de cada bono (lo emitido menos lo amortizado y rescatado). En pesos, el VN sin ajustar por CER. A los que amortizaron después del corte se les descuenta lo pagado. Sale del stock por título que publica la Secretaría de Finanzas cada trimestre, más las colocaciones posteriores de la Oficina de Crédito Público (licitaciones, canjes y conversiones) y, para lo más reciente, del «VNO total en circulación» de cada comunicado de licitación, más lo adjudicado y menos lo rescatado en cada canje.</div></div>';
+      '<div style="position:relative;height:540px;width:0;min-width:100%"><canvas id="outCh"></canvas></div><div id="outLg" style="margin:10px 0 0;font-size:13px;color:var(--mu)"></div>' +
+      '<details class="outfold" id="outDet"><summary>Ver los datos por bono</summary><div class="sc" style="max-height:420px;overflow:auto;margin-top:4px"><table class="rt" id="outT"></table></div>' +
+      '<div class="hl" style="margin:14px 0 14px"><b>Cómo se lee</b>: el valor nominal que queda en manos del mercado de cada bono (lo emitido menos lo amortizado y rescatado). En pesos, el VN sin ajustar por CER. A los que amortizaron después del corte se les descuenta lo pagado. Sale del stock por título que publica la Secretaría de Finanzas cada trimestre, más las colocaciones posteriores de la Oficina de Crédito Público (licitaciones, canjes y conversiones) y, para lo más reciente, del «VNO total en circulación» de cada comunicado de licitación, más lo adjudicado y menos lo rescatado en cada canje.</div></details></div>';
     $('outHd').onclick = function () { if (window.downloadSnapshotHD) window.downloadSnapshotHD('outCard', 'Bonerio_Deuda_en_circulacion_' + (ST.m === 'usd' ? 'dolares' : 'pesos')); };
     $('outXl').onclick = function (e) { e.preventDefault(); // la tabla tal cual se ve (separador ; y coma decimal para Excel en español)
       var csv = [].map.call($('outT').querySelectorAll('tr'), function (tr) { return [].map.call(tr.children, function (c) { var sm = c.querySelector('small'); return '"' + (sm ? c.firstChild.textContent + ' (' + sm.textContent + ')' : c.textContent).replace(/\s+/g, ' ').trim().replace(/"/g, '""') + '"'; }).join(';'); }).join('\r\n');
       var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })); a.download = 'Bonerio_Deuda_en_circulacion_' + (ST.m === 'usd' ? 'dolares' : 'pesos') + '.csv'; document.body.appendChild(a); a.click(); a.remove();
     };
+    $('outOrd').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; ST.o = b.getAttribute('data-o'); draw(); });
     $('outSeg').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; ST.m = b.getAttribute('data-v'); draw(); });
   }
   function go() { if (!$('outT')) build(); if (J) { draw(); return; } fetch('data/outstanding.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { J = j; if (J) draw(); else W.innerHTML = ''; }).catch(function () { W.innerHTML = ''; }); }
