@@ -140,6 +140,46 @@ def licitaciones(prev):
     return {"vistos": vistos, "t": out, "cv": sorted(cv), "cvv": cvv}
 
 
+def clase_col(d):
+    u = d.upper()
+    if "DUAL" in u:
+        return "dual" if ("CER" in u or "DLK" in u) else "dualtf"
+    if "PAGA EN PESOS" in u or "DLK" in u or "U$D" in u:
+        return "dl"
+    if u.startswith(("LECER", "BONCER")):
+        return "cer0" if ("TASA CERO" in u or u.startswith("LECER") or re.match(r"BONCER/\$/CER/\d", u)) else "cerc"
+    return clase(d, "A.1.7" if "U$S" not in u or "DLK" in u or "U$D" in u else "A.1.9")
+
+
+def colocaciones():
+    """data/colocaciones.xlsx (Oficina Nacional de Crédito Público, «Colocaciones de deuda»): cada colocación del año por instrumento,
+       con su fecha de liquidación y el VN (en millones de la moneda de origen). Las conversiones suman el nuevo y restan el que se da de baja."""
+    f = os.path.join(ROOT, "data", "colocaciones.xlsx")
+    if not os.path.exists(f):
+        return None
+    import openpyxl
+    wb = openpyxl.load_workbook(f, read_only=True, data_only=True)
+    out, corte = [], None
+    def vto(d):
+        m = re.search(r"(\d\d)-(\d\d)-(\d{4})", d)
+        return "%s-%s-%s" % (m.group(3), m.group(2), m.group(1)) if m else None
+    for h in ("Bonos", "Letras", "Canjes- Conversiones"):
+        if h not in wb.sheetnames:
+            continue
+        for r in wb[h].iter_rows(values_only=True):
+            if len(r) < 11 or not isinstance(r[0], str) or not hasattr(r[7], "year") or not isinstance(r[8], (int, float)):
+                continue
+            d, fl, cur = r[0].strip(), r[7].date().isoformat(), "USD" if str(r[6]).strip().upper() == "USD" else "ARS"
+            if not vto(d) or "INTRA" in d.upper() or "/BCRA/" in d.upper():
+                continue
+            out.append([fl, d, vto(d), clase_col(d), round(float(r[8]), 3), cur])
+            if h.startswith("Canjes") and isinstance(r[9], str) and isinstance(r[10], (int, float)) and vto(r[9]):
+                out.append([fl, r[9].strip(), vto(r[9]), clase_col(r[9]), -round(float(r[10]), 3), cur])
+            corte = max(corte or fl, fl)
+    m = re.search(r"(\d\d)-(\d\d)-(\d\d)", os.path.basename(f))
+    return {"corte": corte, "ops": sorted(out)}
+
+
 def main():
     prev = json.load(open(OUT)) if os.path.exists(OUT) else {}
     q = prev.get("trim")
@@ -158,7 +198,12 @@ def main():
         fx = a.get(q["corte"]) or a[max(k for k in a if k <= q["corte"])]
     except Exception:
         pass
-    json.dump({"act": dt.date.today().isoformat(), "trim": q, "fx": fx, "lic": lic}, open(OUT, "w"), ensure_ascii=False, separators=(",", ":"))
+    col = None
+    try:
+        col = colocaciones()
+    except Exception as e:
+        print("colocaciones:", e)
+    json.dump({"act": dt.date.today().isoformat(), "trim": q, "fx": fx, "lic": lic, "col": col}, open(OUT, "w"), ensure_ascii=False, separators=(",", ":"))
     print("outstanding:", q and q.get("corte"), len(q and q.get("rows") or []), "títulos;", len(lic.get("t", {})), "tickers de licitaciones")
 
 
