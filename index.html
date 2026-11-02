@@ -7225,7 +7225,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var c = fc(), Sp = c.length ? c[0].sp : null, base = c.length ? dp(c[0].base) : s0;
       var D = { s0: s0, fija: fija, c: c, Sp: Sp, dls: by(function (o) { return o.ins.k === 'dl' && o.usdTea != null && o.d >= 7; }) };
       var a3 = at(S.fx, '9999'); D.fx = a3[1] || (D.dls[0] && D.dls[0].fx0) || Sp; D.fxD = a3[1] ? a3[0] : null; // el A3500: con el que el dollar linked da su tasa en dólares, así el sintético se compara igual
-      D.fCurve = [[base, Sp]].concat(c.map(function (f) { return [dp(f.v), f.F]; })); // el futuro por fecha, desde el spot de la rueda
+      D.fCurve = [[base, Sp]].concat(c.map(function (f) { return [dp(f.v), f.F, f.s]; })); // el futuro por fecha, desde el spot de la rueda
       D.Fat = function (day) { return li(D.fCurve, day); };
       D.ctr = function (day) { // el contrato del mes del vencimiento; interpolado si el bono vence antes del fin de mes (riesgo de base)
         var ym = bxDayStr(day).slice(0, 7), f = c.filter(function (x) { return String(x.v).slice(0, 7) === ym; })[0];
@@ -7398,7 +7398,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '@media(max-width:1000px){#carry .cy,#carry .flow{grid-template-columns:1fr 1fr}#carry .cy div:nth-child(3),#carry .flow > div:nth-child(3){border-left:0}#carry .sim{grid-template-columns:1fr}#carry .flow > div:nth-child(3):before{display:none}}</style>' +
       '<div class="card" id="cyCap"><p style="margin:0;color:var(--tx);font-size:18px;font-weight:700">Carry trade con la banda cambiaria</p><p class="note" style="margin-top:4px" id="cySub"></p>' +
       '<div class="cy" id="cyK"></div>' +
-      '<div class="rs"><h4 style="margin:0 0 10px">Dólar de breakeven de cada Lecap contra el techo de la banda</h4><div style="position:relative;height:380px"><canvas id="cyCh"></canvas></div></div>' +
+      '<div class="rs"><h4 style="margin:0 0 10px">Dólar de breakeven de cada Lecap contra el techo de la banda</h4><div style="position:relative;height:460px"><canvas id="cyCh"></canvas></div></div>' +
       '<div class="rs"><div class="rc" style="margin-bottom:14px"><label>Entrás por<select id="cyB"></select></label><label>Mostrar<select id="cyM"><option value="d">Retorno directo</option><option value="t">TEA (anualizada)</option></select></label><label>Dólar de salida propio<input id="cyCu" type="number" step="10" placeholder="ej. 1750"></label></div>' +
       '<div class="sc" style="overflow:auto"><table class="rt" id="cyT"></table></div><p class="note" id="cyTN" style="margin-top:6px"></p></div>' +
       '<div class="rs"><h4 style="margin:0 0 4px">Simulador</h4><p class="note" style="margin:0 0 14px">Cuántos dólares terminás teniendo si hacés el carry con un bono.</p><div class="sim"><div class="rc">' +
@@ -7482,19 +7482,28 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       // gráfico: el techo de la banda, los futuros, el REM y el breakeven de cada Lecap, por fecha de vencimiento
       var x1 = Math.max.apply(null, ROWS.map(function (r) { return r.o.mat; }).concat([s0 + 60])) + 10, tp = [], k;
       for (k = s0; k <= x1; k += 5) tp.push({ x: k, y: techo(k) });
-      var fu = (D.fCurve || []).filter(function (p) { return p[0] <= x1; }).map(function (p) { return { x: p[0], y: p[1] }; }), re = [];
+      var fu = (D.fCurve || []).filter(function (p) { return p[0] <= x1; }).map(function (p, i) { var s = i && p[2] ? String(p[2]) : ''; return { x: p[0], y: p[1], k: s.replace(/^DLR\//, ''), bk: /^DLR\/[A-Z]{3}\d{2}$/.test(s) ? s : '' }; }), re = [];
       var R = window.PSREM; if (R && R.fx) R.fx.forEach(function (v, i) { var m = R.m0 + i, d = bxDayNum(ms(m) + '-15'); if (v > 0 && d > s0 && d <= x1) re.push({ x: d, y: v }); });
       var mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), ac = '#ffc542';
       if (CH) { CH.destroy(); CH = null; }
       CH = new Chart($('cyCh').getContext('2d'), { type: 'scatter', data: { datasets: [
         { type: 'line', label: 'Techo de la banda', data: tp, borderColor: '#ff6b8b', backgroundColor: 'rgba(255,107,139,.08)', borderWidth: 2, pointRadius: 0, fill: 'end', order: 3 },
-        { type: 'line', label: 'Futuros de dólar (A3)', data: fu, borderColor: '#5cc8ff', borderWidth: 2, pointRadius: 3, order: 2 },
+        { type: 'line', label: 'Futuros de dólar (A3)', data: fu, borderColor: '#5cc8ff', backgroundColor: '#5cc8ff', borderWidth: 2, pointRadius: 3.5, pointHoverRadius: 6, order: 2 },
         { type: 'line', label: 'REM', data: re, borderColor: mu, borderDash: [5, 4], borderWidth: 1.6, pointRadius: 2, order: 2 },
         { label: 'Dólar breakeven (' + NM[ST.b] + ')', data: ROWS.map(function (r) { return { x: r.o.mat, y: r.be, k: r.o.k }; }), backgroundColor: ac, borderColor: ac, pointRadius: 5, pointHoverRadius: 7, order: 1 }] },
-        plugins: [{ id: 'cyLab', afterDatasetsDraw: function (ch) { // el ticker arriba de cada punto de breakeven
-          var m = ch.getDatasetMeta(3); if (!m || m.hidden) return; var c = ch.ctx; c.save(); c.font = '600 10.5px Inter, system-ui,-apple-system,sans-serif'; c.fillStyle = tx; c.textAlign = 'center'; c.textBaseline = 'bottom';
-          m.data.forEach(function (p, i) { var r = ch.data.datasets[3].data[i]; if (r && r.k) c.fillText(r.k, p.x, p.y - 8); }); c.restore(); } }],
-        options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { labels: { color: tx, usePointStyle: true, boxWidth: 12 } }, tooltip: { callbacks: { title: function () { return ''; }, label: function (c) { return (c.raw.k ? c.raw.k + ' · breakeven' : c.dataset.label) + ': $ ' + nf(c.parsed.y, 0) + ' · ' + fr(Math.round(c.parsed.x)); } } } },
+        plugins: [{ id: 'cyLab', afterDatasetsDraw: function (ch) { // el ticker de cada Lecap (arriba) y de cada futuro (abajo), corridos si se pisan
+          var c = ch.ctx, A = ch.chartArea, box = []; c.save(); c.textAlign = 'center'; c.textBaseline = 'middle';
+          var hit = function (b) { return box.some(function (o) { return b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0; }); };
+          [[3, -1, tx, '600 10.5px'], [1, 1, '#5cc8ff', '600 10px']].forEach(function (g) {
+            var m = ch.getDatasetMeta(g[0]); if (!m || m.hidden) return; c.font = g[3] + ' Inter, system-ui,-apple-system,sans-serif';
+            m.data.map(function (p, i) { return { p: p, r: ch.data.datasets[g[0]].data[i] }; }).filter(function (o) { return o.r && o.r.k; }).sort(function (a, b) { return a.p.x - b.p.x; }).forEach(function (o) {
+              var w = c.measureText(o.r.k).width + 4, h = 12, j, y, b;
+              for (j = 0; j < 5; j++) { y = o.p.y + g[1] * (12 + j * 12); b = { x0: o.p.x - w / 2, x1: o.p.x + w / 2, y0: y - h / 2, y1: y + h / 2 }; if (!hit(b) && b.y0 >= A.top && b.y1 <= A.bottom) break; }
+              if (j === 5) return; box.push(b); c.fillStyle = g[2];
+              if (j) { c.globalAlpha = .45; c.strokeStyle = g[2]; c.lineWidth = 1; c.beginPath(); c.moveTo(o.p.x, o.p.y + g[1] * 5); c.lineTo(o.p.x, y - g[1] * 6); c.stroke(); c.globalAlpha = 1; }
+              c.fillText(o.r.k, o.p.x, y); }); });
+          c.restore(); } }],
+        options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { labels: { color: tx, usePointStyle: true, boxWidth: 12 } }, tooltip: { callbacks: { title: function () { return ''; }, label: function (c) { return (c.raw.k ? c.raw.k + (c.datasetIndex === 3 ? ' · breakeven' : ' · futuro') : c.dataset.label) + ': $ ' + nf(c.parsed.y, 0) + ' · ' + fr(Math.round(c.parsed.x)); } } } },
           scales: { x: { type: 'linear', min: s0, max: x1, ticks: { color: tx, maxRotation: 0, autoSkip: true, callback: function (v) { var s = bxDayStr(Math.round(v)); return s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(2, 4); } }, grid: { display: false } }, y: { title: { display: true, text: '$ por dólar', color: tx }, ticks: { color: tx, callback: function (v) { return nf(v, 0); } }, grid: { color: bd } } } } });
     } catch (e) { console.error('carry', e); var s = $('cySub'); if (s) s.textContent = 'Error: ' + e.message; }
   }
