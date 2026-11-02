@@ -14296,6 +14296,7 @@ window.RATG = (function () {
 /* ---------- «Cómo se lee»: las explicaciones de cada tarjeta vienen plegadas; se abren con un clic (y siguen abiertas al redibujar) ---------- */
 (function () {
   var SEL = '.note, .hl, .nt, .qmn, #accPn2', OPEN = {}, T = 0;
+  var DROP = /^(Cómo se lee\.?\s*)?(Scatter Plot de TIR|Último dato: \d|Fuente: histórico guardado cada noche|Cuántos dólares terminás teniendo|El tamaño del punto es la beta|Arranca con el REM y apagada|Flujos del prospecto para 100 VN|Bonos en pesos armados con futuros de dólar)/;
   var st = document.createElement('style'); st.textContent = '.xfo{display:none!important}.xfs ul{margin:2px 0 4px;padding-left:20px}.xfs li{margin:3px 0}.xfs p{margin:0}.xfh{display:none!important}.xf{display:flex;align-items:center;gap:8px;width:100%;margin:14px 0 0;padding:11px 0 2px;background:none;border:0;border-top:1px solid var(--bd);color:var(--mu);font:600 13.5px Inter,system-ui,-apple-system,sans-serif;cursor:pointer;text-align:left}.xf:hover{color:var(--tx)}.xf:before{content:"▸";color:var(--fc,var(--ac));transition:transform .15s}.xf.on:before{transform:rotate(90deg)}.xf.on{color:var(--tx)}'; document.head.appendChild(st);
   var isT = function (e) { return e && e.nodeType === 1 && !e.classList.contains('xf') && e.matches(SEL) && !e.closest('.pdfold,.vddet,details,table,#sideNav') && !/color:\s*var\(--tx\)/.test(e.getAttribute('style') || '') && !e.classList.contains('xfo') && !isR(e); };
   var isR = function (e) { if (e.classList.contains('xfs')) return false; var t = (e.textContent || '').trim(); return /^(Cargando|Calculando|No se pud|Faltan|Sin datos|Esperando|Todavía no)/.test(t) || (t.length < 220 && / · /.test(t) && /\d/.test(t)); }; // datos del momento (TIR · precio · …) y avisos: no son explicación
@@ -14325,6 +14326,7 @@ window.RATG = (function () {
         if (isT(p)) return; // lo toma el primero del grupo
         var g = [e], n = e.nextElementSibling; while (isT(n)) { g.push(n); n = n.nextElementSibling; }
         if (!g.some(function (x) { return (x.textContent || '').trim().length > 40; })) return; // avisos cortos («Cargando…») quedan a la vista
+        if (DROP.test(g.map(function (x) { return x.textContent; }).join(' ').replace(/\s+/g, ' ').trim())) { g.forEach(function (x) { x.classList.add('xfo'); x.setAttribute('data-xf', '1'); }); return; } // explicaciones obvias: no suman
         try { g = fmt(g); } catch (x) { } e = g[0]; p = e.previousElementSibling;
         var b = p && p.classList && p.classList.contains('xf') ? p : null;
         if (!b) { b = document.createElement('button'); b.type = 'button'; b.className = 'xf'; b.setAttribute('data-html2canvas-ignore', 'true'); b.textContent = 'Cómo se lee'; e.parentNode.insertBefore(b, e);
