@@ -13640,7 +13640,7 @@ window.RATG = (function () {
     var out = [], any = [], f0 = L + 1; bonds.forEach(function (b) { b.s.c.forEach(function (v, q) { if (v > 0) { any[q] = 1; if (q < f0) f0 = q; } }); }); // desde cuándo hay precios de ONs
     for (var i = L; i >= Math.max(20, L - 780); i--) {
       if (i < f0 && (L - i) % 5) continue; // antes de que haya ONs, una fecha por semana (solo las series de FRED)
-      var d = ds[i], s = typeof bxSettle === 'function' ? bxSettle(dn(d)) : dn(d), ud0 = lastU(d), W = 0, S = 0, n = 0, av = 0;
+      var d = ds[i], s = typeof bxSettle === 'function' ? bxSettle(dn(d)) : dn(d), ud0 = lastU(d), W = 0, S = 0, n = 0, av = 0, X = [];
       for (var q0 = i - 19; q0 <= i; q0++) if (any[q0]) av++; var need = Math.min(8, Math.ceil(av * 0.6));
       if (!ud0 || i < f0) { out.push({ d: d, idx: null, n: 0 }); continue; }
       bonds.forEach(function (b) {
@@ -13650,9 +13650,15 @@ window.RATG = (function () {
         var y; try { y = solve(function (r) { return bxPv(f, s, r) - p; }, -0.5, 3); } catch (e) { y = null; } if (y == null || y < 0 || y > 0.25) return;
         var pv = 0, t = 0; f.forEach(function (x) { var v = x[1] / Math.pow(1 + y, (x[0] - s) / 365); pv += v; t += v * (x[0] - s) / 365; }); var dur = pv > 0 ? t / pv : null; if (!dur) return;
         var u = ust(U, ud0, dur); if (u == null) return; var sp = (y * 100 - u) * 100; if (sp < -100 || sp > 2500) return;
-        W += amt; S += sp * amt; n++;
+        X.push([sp, amt]);
       });
-      out.push({ d: d, idx: n >= 5 && W > 0 ? S / W : null, n: n });
+      if (X.length >= 5) { // sin outliers: afuera las ONs a más de 2,5 desvíos robustos (MAD) de la mediana del día, y ninguna pesa más del 10%
+        var med = function (a) { var b = a.slice().sort(function (x, y) { return x - y; }), h = b.length >> 1; return b.length % 2 ? b[h] : (b[h - 1] + b[h]) / 2; };
+        var m0 = med(X.map(function (x) { return x[0]; })), md = 1.4826 * med(X.map(function (x) { return Math.abs(x[0] - m0); })) || 1;
+        var K = X.filter(function (x) { return Math.abs(x[0] - m0) <= 2.5 * md; }), WT = K.reduce(function (z, x) { return z + x[1]; }, 0);
+        K.forEach(function (x) { var w = Math.min(x[1], 0.1 * WT); W += w; S += x[0] * w; n++; });
+      }
+      out.push({ d: d, idx: n >= 5 && W > 0 ? S / W : null, n: n, out: X.length - n });
     }
     out.reverse();
     var fv = function (id, d) { var m = F && F.s && F.s[id]; if (!m) return null; for (var q = 0; q < 8; q++) { var x = new Date(Date.parse(d) - q * 864e5).toISOString().slice(0, 10); if (m[x] != null) return m[x]; } return null; };
@@ -13676,7 +13682,7 @@ window.RATG = (function () {
     var ch = function (k) { var p0 = R.filter(function (r) { return r[k] != null; })[0], p = p0 ? p0[k] : null, q = z[k]; return p != null && q != null ? (q - p > 0 ? '+' : '') + nf(q - p) + ' pb en el período' : ''; };
     $('onsIxK').innerHTML = [['Índice ONs', nf(z.idx) + ' pb', z.n + ' ONs · ' + ch('idx')], ['Latam Corporate', nf(z.BAMLEMRLCRPILAOAS) + ' pb', ch('BAMLEMRLCRPILAOAS')], ['EM HY Corporate', nf(z.BAMLEMHBHYCRPIOAS) + ' pb', ch('BAMLEMHBHYCRPIOAS')], ['Diferencial vs Latam', nf(z.dif) + ' pb', pct != null ? 'percentil ' + nf(pct * 100) + '% del período' + (sd ? ' · z ' + nf((z.dif - m) / sd, 2) : '') : ''],
       ['Lectura', z.dif == null ? '—' : z.dif < 100 ? 'Cara contra la región' : z.dif > 200 ? 'Barata contra la región' : 'En rango', z.dif == null ? '' : z.dif < 100 ? 'no buscar ONs largas nuevas' : 'hay premio por riesgo argentino']].map(function (k) { return '<div><small>' + k[0] + '</small><b>' + k[1] + '</b><span>' + k[2] + '</span></div>'; }).join('');
-    $('onsIxN').innerHTML = (hasF ? '' : 'Las series de FRED todavía no se bajaron: se cargan con la acción «ONs: spreads internacionales». ') + 'Índice: spread contra el Treasury de igual duración de las ONs hard dollar de los emisores relevantes (YPF, Vista, Pan American, Pampa, Telecom, Pluspetrol, Tecpetrol, TGS, IRSA, Arcor y otros corporativos grandes), con más de un año al vencimiento y operadas en la mayoría de las últimas 20 ruedas, ponderado por el monto operado (precio en cable, o MEP si no hay). El histórico de precios de ONs viene de BYMA desde noviembre de 2024; las series de FRED traen los últimos 3 años. Por debajo de 100 pb contra el Latam Corporate, Argentina está cara contra la región: no buscar ONs largas nuevas. No es señal de venta: las largas en cartera se evalúan según la ON y el cliente. Como el Latam Corporate incluye grado de inversión, un diferencial de 80–100 pb es la brecha esperable por calificación.';
+    $('onsIxN').innerHTML = (hasF ? '' : 'Las series de FRED todavía no se bajaron: se cargan con la acción «ONs: spreads internacionales». ') + 'Índice: spread contra el Treasury de igual duración de las ONs hard dollar de los emisores relevantes (YPF, Vista, Pan American, Pampa, Telecom, Pluspetrol, Tecpetrol, TGS, IRSA, Arcor y otros corporativos grandes), con más de un año al vencimiento y operadas en la mayoría de las últimas 20 ruedas, ponderado por el monto operado (precio en cable, o MEP si no hay), sin outliers: cada día quedan afuera las ONs a más de 2,5 desvíos robustos de la mediana (defaulteadas, precios sueltos) y ninguna pesa más del 10% del índice. El histórico de precios de ONs viene de BYMA desde noviembre de 2024; las series de FRED traen los últimos 3 años. Por debajo de 100 pb contra el Latam Corporate, Argentina está cara contra la región: no buscar ONs largas nuevas. No es señal de venta: las largas en cartera se evalúan según la ON y el cliente. Como el Latam Corporate incluye grado de inversión, un diferencial de 80–100 pb es la brecha esperable por calificación.';
   }
   function go() {
     if (!$('onsIx')) return; if (DATA) return paint(); if (BUSY) return; BUSY = true;
