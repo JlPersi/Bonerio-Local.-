@@ -202,7 +202,8 @@ window.BLBND = (function () {
     '#bkBox table{width:100%;border-collapse:collapse}#bkBox th{font-size:10px;font-weight:600;color:var(--mu,#a1a1aa);padding:5px 8px;text-align:right;border-top:1px solid var(--bd,#27272a);border-bottom:1px solid var(--bd,#27272a)}#bkBox td{padding:3px 8px;text-align:right;white-space:nowrap}' +
     '#bkBox tr>*:nth-child(2){background:rgba(34,197,94,.08)}#bkBox tr>*:nth-child(3){background:rgba(244,63,94,.08)}#bkBox td:nth-child(2){color:var(--ok,#22c55e)}#bkBox td:nth-child(3){color:var(--bad,#f43f5e)}#bkBox td:first-child,#bkBox td:last-child{color:var(--mu,#a1a1aa)}' +
     '#bkBox tbody tr:first-child td{font-weight:700}#bkBox tbody tr:first-child td:first-child,#bkBox tbody tr:first-child td:last-child{color:var(--tx,#fafafa)}' +
-    '#bkBox .ft{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;padding:7px 12px 8px;border-top:1px solid var(--bd,#27272a);font-size:11px;color:var(--mu,#a1a1aa)}#bkBox .ft span{display:flex;justify-content:space-between;gap:6px}#bkBox .ft b{color:var(--tx,#fafafa);font-weight:600}';
+    '#bkBox .ft{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;padding:7px 12px 8px;border-top:1px solid var(--bd,#27272a);font-size:11px;color:var(--mu,#a1a1aa)}#bkBox .ft span{display:flex;justify-content:space-between;gap:6px}#bkBox .ft b{color:var(--tx,#fafafa);font-weight:600}' +
+    '#bkBox .sp{display:flex;gap:5px;align-items:center;padding:0 12px 9px;font-size:10.5px;color:var(--mu,#a1a1aa)}#bkBox .sp span{padding:2px 8px;border:1px solid var(--bd,#27272a);border-radius:999px}#bkBox .sp span.on{color:var(--tx,#fafafa);border-color:var(--ac,#f5b335)}#bkBox .sp small{margin-left:auto;font-size:10px}';
   document.head.appendChild(st);
   var hide = function () { if (el) el.style.display = 'none'; BX.ch = null; BX.k = ''; };
   var get = function (k, ch) {
@@ -217,22 +218,33 @@ window.BLBND = (function () {
   var OLD = /cierre|hace \d|anterior|\b(del|al) \d{1,2}\/\d{1,2}/i; // la serie de una fecha anterior (el círculo del cierre de ayer): sin puntas
   var keyOf = function (ch, a) { var ds = ch.data.datasets[a.datasetIndex], r = ds && ds.data[a.index], k = r && (r.k || r.t || r.bono || r.tk || (r.e && r.e.k)); if (!ds || ds.$nobk || OLD.test(ds.label || '')) return ''; return typeof k === 'string' && /^[A-Z0-9]{3,8}$/.test(k) ? k : ''; };
   var UV = null, UVt = 0, uni = function (k) { if (!UV || Date.now() - UVt > 10000) { UV = {}; UVt = Date.now(); try { (window.PFQ && window.PFQ.universe ? window.PFQ.universe() : []).forEach(function (r) { UV[r.k] = r; }); } catch (e) { } } return UV[k]; }; // TIR y duración del bono, las de la página
+  var SP = 'auto'; try { SP = localStorage.getItem('bkSp') || 'auto'; } catch (e) { } // en qué especie ver las puntas de un bono en dólares: auto (la de la página, MEP o cable), P (pesos), D o C
+  var BOP = /^BP[A-D]\d$/, isUsd = function (k) { if (BOP.test(k)) return true; var u = uni(k); return !!u && u.grp === 'usd'; }; // BOPREAL: en pesos es BPOA7, en dólares BPA7D / BPA7C
+  var pgE = function () { try { return typeof especie !== 'undefined' && especie === 'C' ? 'C' : 'D'; } catch (e) { return 'D'; } };
+  var spOf = function (k) { return !isUsd(k) ? 'P' : SP === 'auto' ? pgE() : SP; };
+  var symFor = function (k) { var e = spOf(k); return e === 'P' ? (BOP.test(k) ? 'BPO' + k.slice(2) : k) : k + e; };
+  document.addEventListener('keydown', function (e) { // con la caja abierta: P, D o C cambian la especie (A vuelve a la de la página)
+    if (!BX.ch || !BX.k || e.ctrlKey || e.metaKey || e.altKey || !isUsd(BX.k)) return; var t = e.target; if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+    var m = { p: 'P', d: 'D', c: 'C', a: 'auto' }[String(e.key).toLowerCase()]; if (!m) return;
+    SP = m; try { localStorage.setItem('bkSp', m); } catch (x) { } BX.h = ''; try { BX.ch.draw(); } catch (x) { } e.preventDefault();
+  });
   var html = function (k, d) {
     var dc = function (v) { return v >= 1000 ? 0 : v >= 10 ? 2 : 3; }, rw = '', q = function (v) { return v >= 1e6 ? nf(v / 1e6, v >= 1e8 ? 0 : 1) + ' M' : nf(v, 0); }; // cantidades grandes en millones
     for (var i = 0; i < 5; i++) { var bi = d.BI[i], of = d.OF[i]; if (!bi && !of) break; rw += '<tr><td>' + (bi ? q(bi[1]) : '') + '</td><td>' + (bi ? nf(bi[0], dc(bi[0])) : '—') + '</td><td>' + (of ? nf(of[0], dc(of[0])) : '—') + '</td><td>' + (of ? q(of[1]) : '') + '</td></tr>'; }
     var b0 = d.BI[0], o0 = d.OF[0], sp = b0 && o0 && b0[0] > 0 ? (o0[0] / b0[0] - 1) * 100 : null;
     var la = d.LA && d.LA[0] > 0 ? d.LA[0] : null, cl = d.CL > 0 ? d.CL : null, pv = la || (b0 && o0 ? (b0[0] + o0[0]) / 2 : cl), ch = la && cl ? (la / cl - 1) * 100 : null;
     var hr = ''; try { if (d.LA && d.LA[2]) { var t = new Date(typeof d.LA[2] === 'string' && /^\d+$/.test(d.LA[2]) ? +d.LA[2] : d.LA[2]); if (!isNaN(t)) hr = t.toLocaleTimeString('es-AR', { hour12: false, timeZone: 'America/Argentina/Buenos_Aires' }); } } catch (e) { }
-    var u = uni(k), it = function (l, v) { return v ? '<span>' + l + ' <b>' + v + '</b></span>' : ''; };
+    var e0 = spOf(k), u = !isUsd(k) || e0 === pgE() ? uni(k) : null, it = function (l, v) { return v ? '<span>' + l + ' <b>' + v + '</b></span>' : ''; }; // la TIR es la de la página: solo si la caja muestra su misma especie
     var ft = it(u && u.tl ? u.tl.replace(/^TIR.*/, 'TIR') : 'TIR', u && u.tir != null && isFinite(u.tir) ? nf(u.tir * 100, 2) + '%' : '') + it('Dur. mod.', u && u.md > 0 ? nf(u.md, 2) : '') + it('Spread', sp != null ? nf(sp, 2) + '%' : '') + it('Cierre ant.', cl ? nf(cl, dc(cl)) : '');
     return '<div class="h"><b>' + (d.s || k) + '</b><span>Primary' + (hr ? ' · ' + hr : '') + '</span></div>' +
       '<div class="px"><b>' + (pv ? nf(pv, dc(pv)) : '—') + '</b>' + (ch != null ? '<em class="' + (ch > 0 ? 'up' : ch < 0 ? 'dn' : 'mu') + '">' + (ch > 0 ? '+' : '') + nf(ch, 2) + '%</em>' : !la ? '<em class="mu">sin operaciones hoy</em>' : '') + '</div>' +
-      '<table><thead><tr><th>Cant. C</th><th>Compra</th><th>Venta</th><th>Cant. V</th></tr></thead><tbody>' + rw + '</tbody></table>' + (ft ? '<div class="ft">' + ft + '</div>' : '');
+      '<table><thead><tr><th>Cant. C</th><th>Compra</th><th>Venta</th><th>Cant. V</th></tr></thead><tbody>' + rw + '</tbody></table>' + (ft ? '<div class="ft">' + ft + '</div>' : '') +
+      (isUsd(k) ? '<div class="sp">' + [['P', 'Pesos'], ['D', 'MEP'], ['C', 'Cable']].map(function (x) { return '<span' + (x[0] === e0 ? ' class="on"' : '') + '>' + x[1] + '</span>'; }).join('') + '<small>teclas P · D · C</small></div>' : '');
   };
   var want = function (ch) { // el punto marcado tiene puntas para mostrar: {k, d}
     var tp = ch.tooltip, a = tp && tp.getActiveElements ? tp.getActiveElements() : [];
     if (!a || a.length !== 1 || (typeof mktOpen === 'function' && !mktOpen())) return null;
-    var k = keyOf(ch, a[0]); if (!k) return null; var d = get(k, ch); return d ? { k: k, d: d, tp: tp } : null;
+    var k = keyOf(ch, a[0]); if (!k) return null; var d = get(symFor(k), ch); return d ? { k: k, d: d, tp: tp } : null;
   };
   Chart.register({ id: 'bkBox', beforeTooltipDraw: function (ch) { if (want(ch)) return false; }, // con la caja de puntas no hace falta el cuadrito del tooltip
   afterDraw: function (ch) {
@@ -2271,9 +2283,16 @@ window.fetchLive = async function() {
       let n = 0;
       let changed = false;
       
+      // la especie en dólares que no operó hoy (las C de los Bonares casi no operan) queda con un precio viejo: se usa la de pesos al tipo de cambio implícito de las que sí operaron
+      const M = {}; arr.forEach(function (r) { if (r && r.symbol) M[r.symbol] = r; });
+      const op = function (r) { return r && r.c > 0 && ((r.q_op || 0) > 0 || (r.v || 0) > 0); };
+      const fxs = []; arr.forEach(function (r) { if (!r || !r.symbol || !r.symbol.endsWith(especie)) return; const a = M[r.symbol.slice(0, -1)]; if (op(r) && op(a)) fxs.push(a.c / r.c); });
+      fxs.sort(function (x, y) { return x - y; }); const FXI = fxs.length >= 3 ? fxs[Math.floor(fxs.length / 2)] : null; window.FX_IMPL = window.FX_IMPL || {}; window.FX_IMPL[especie] = FXI;
       for (let i = 0; i < arr.length; i++) {
        let row = arr[i];
        if (!row.symbol || !row.symbol.endsWith(especie)) continue;
+       const ars = M[row.symbol.slice(0, -1)];
+       if (FXI && !op(row) && op(ars)) row = Object.assign({}, row, { c: ars.c / FXI, impl: 1 });
        const b = B.find(function(x) { return x.k === row.symbol.slice(0, -1); });
        const bq = BOP.find(function(x) { return x.k === row.symbol.slice(0, -1); }); if (bq && row.c > 0) bq.px[especie] = row.c;
        
