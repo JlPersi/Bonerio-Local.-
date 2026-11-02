@@ -5,7 +5,7 @@
                  con precio, punta compradora y vendedora de Primary en tiempo real. Si Primary falla, devuelve la de data912 tal cual.
    - /caucion    caución de BYMA (datos abiertos) por plazo: { ts, ARS, USD, EXT }, cada fila [días, compra, venta, última, cierre, vwap, monto].
    - /stream     websocket: al conectarse manda { s: {ep: filas} } y después { u: {ticker: [último, var %, compra, cant., venta, cant.]} } con cada cambio.
-   - /book/<ticker>  caja de puntas de Primary (hasta 5 niveles, 24 hs): { t, BI: [[precio, cantidad], ...], OF: [...], LA: [precio, cantidad] }.
+   - /book/<ticker>  caja de puntas de Primary (hasta 5 niveles, 24 hs; con ?s=ci, contado inmediato): { t, BI: [[precio, cantidad], ...], OF: [...], LA: [precio, cantidad] }.
    Sin el Durable Object (FEED), cada respuesta se guarda 15 segundos: muchos visitantes a la vez = una sola consulta a Primary. */
 
 const D912 = 'https://data912.com/live/';
@@ -171,14 +171,14 @@ export default {
     }
     const bk = /^\/book\/([A-Z0-9]{2,10})$/.exec(u.pathname);
     if (bk) { // caja de puntas a pedido (al pasar el mouse por un bono): se guarda 2 segundos
-      const k = u.pathname, m = MEM[k], hb = Object.assign({}, h, { 'Cache-Control': 'no-store' });
+      const ci = u.searchParams.get('s') === 'ci', k = u.pathname + (ci ? '?ci' : ''), m = MEM[k], hb = Object.assign({}, h, { 'Cache-Control': 'no-store' });
       if (m && Date.now() - m.t < 2000) return new Response(m.b, { headers: hb });
       try {
-        const q = base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(sym(bk[1])) + '&entries=BI,OF,LA&depth=5';
+        const q = base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(ci ? 'MERV - XMEV - ' + bk[1] + ' - CI' : sym(bk[1])) + '&entries=BI,OF,LA,CL&depth=5'; // ?s=ci: contado inmediato (la ficha, con su switch CI / 24 hs)
         let r = await fetch(q, { headers: { 'X-Auth-Token': await token(env) } });
         if (r.status === 401 || r.status === 403) r = await fetch(q, { headers: { 'X-Auth-Token': await token(env, true) } });
         const j = await r.json(), md = (j && j.marketData) || {}, lv = (a) => (Array.isArray(a) ? a : a ? [a] : []).filter((x) => x && x.price > 0).slice(0, 5).map((x) => [x.price, x.size]);
-        const body = JSON.stringify({ t: Date.now(), BI: lv(md.BI), OF: lv(md.OF), LA: md.LA && md.LA.price > 0 ? [md.LA.price, md.LA.size] : null });
+        const body = JSON.stringify({ t: Date.now(), BI: lv(md.BI), OF: lv(md.OF), LA: md.LA && md.LA.price > 0 ? [md.LA.price, md.LA.size, md.LA.date || null] : null, CL: md.CL && md.CL.price > 0 ? md.CL.price : null });
         MEM[k] = { t: Date.now(), b: body };
         return new Response(body, { headers: hb });
       } catch (e) { LASTERR = String(e.message || e); return new Response(JSON.stringify({ error: LASTERR }), { status: 502, headers: hb }); }

@@ -10357,6 +10357,30 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       .then(function (o) { IB = o && typeof o === 'object' ? o : {}; IBt = Date.now(); IBask = false; cb(); });
   }
   window.BNIB = function (cb) { if (!IB || Date.now() - IBt > 120000) ibLoad(cb); return IB; }; // también lo usa el panel Ticker del botón flotante
+  /* liquidación de la ficha: 24 hs (lo de siempre, data912) o contado inmediato (CI: precio y puntas de Primary, TIR liquidando hoy).
+     Sirve cuando un bono corta cupón: en CI todavía cotiza con el cupón y en 24 hs ya sin él */
+  var CIM = false; try { CIM = localStorage.getItem('bnCI') === '1'; } catch (e) { }
+  var CIQ = {}, CIA = {}, CIR = null;
+  function ciGet(sym, cb) {
+    var c = CIQ[sym]; if ((c && Date.now() - c.t0 < 15000) || CIA[sym]) return; CIA[sym] = 1;
+    fetch((window.BL_LIVE || 'https://bonerio-vivo.persijuanluis.workers.dev').replace(/\/+$/, '') + '/book/' + sym + '?s=ci', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      CIA[sym] = 0; var o = CIQ[sym], f = function (a, i) { return a && a[0] ? a[0][i] : null; };
+      var n = d && !d.error ? { t0: Date.now(), bid: f(d.BI, 0), qb: f(d.BI, 1), ask: f(d.OF, 0), qa: f(d.OF, 1), c: d.LA ? d.LA[0] : null, cl: d.CL || null } : { t0: Date.now(), none: 1 };
+      if (!(n.c > 0) && !(n.bid > 0) && !(n.ask > 0)) n.none = 1; CIQ[sym] = n;
+      if (!o || o.c !== n.c || o.bid !== n.bid || o.ask !== n.ask || o.none !== n.none) cb();
+    }).catch(function () { CIA[sym] = 0; CIQ[sym] = { t0: Date.now(), none: 1 }; });
+  }
+  function ciPx(sym) { var c = CIQ[sym]; if (!c || c.none) return null; if (c.c > 0) return c.c; if (c.bid > 0 && c.ask > 0) return (c.bid + c.ask) / 2; return null; }
+  function tirSym(r) { return r.grp === 'usd' ? r.k + (typeof especie !== 'undefined' ? especie : 'D') : symFor(r.k, ''); }
+  function ciRow(r) { // la misma fila con el precio de CI y liquidando hoy (incluye el pago de hoy: en CI todavía se cobra)
+    var P = ciPx(tirSym(r)), Bk = r.grp === 'usd' && typeof B !== 'undefined' && typeof bxFullFlows === 'function' ? B.filter(function (b) { return b.k === r.k; })[0] : null, ok = function (f) { var y0 = f && f.length ? tirAt(f, r.s, r.P) : null; return y0 != null && Math.abs(y0 - r.tir) < 0.0005; }; // solo con flujos que reproducen la tasa de la ficha
+    if (!(P > 0) || r.tir == null) return null; var fl = [r.fla, Bk ? bxFullFlows(Bk) : null, r.krFl || r.fl].filter(ok)[0]; if (!fl) return null;
+    var s = window.settleDate('CI'), sF = s - 0.01, y = tirAt(fl, sF, P); if (y == null) return null;
+    var o = Object.assign({}, r), du = durAt(fl, sF, y), nf0 = fl.filter(function (x) { return x[0] > sF; });
+    o.P = o.krP = P; o.s = sF; o.krFl = fl; o.tir = o.krY = y; o.tem = Math.pow(1 + y, 30 / 365) - 1; o.tna = r.grp !== 'usd' && nf0.length === 1 ? (nf0[0][1] / P - 1) * 365 / Math.max(1, nf0[0][0] - s) : o.tem * 365 / 30;
+    o.md = du && du.md; o.mdS = null; o.conv = cvxAt(fl, sF, y); o.d = r.mat - s; o.ci = 1;
+    var pg = fl.filter(function (x) { return x[0] > sF && x[0] <= r.s; }); o.ciPay = pg.length ? [pg[0][0], pg.reduce(function (z, x) { return z + x[1]; }, 0)] : null; CIR = o; return o;
+  }
   var K = '', SP = '', RNG = '3m', FRQ = 'd', CH = {}, RAW = null, RAWask = false, CALC = { k: '', p: null, y: null, vn: 10000 };
   try { var st0 = JSON.parse(localStorage.getItem('bnSt1') || '{}'); if (st0.r) RNG = st0.r; if (st0.f) FRQ = st0.f; if (st0.vn > 0) CALC.vn = st0.vn; } catch (e) { }
   var saveSt = function () { try { localStorage.setItem('bnSt1', JSON.stringify({ r: RNG, f: FRQ, vn: CALC.vn })); } catch (e) { } };
@@ -10473,12 +10497,14 @@ window.addEventListener('load', function(){ window.loadCloses(); });
       root.innerHTML = '<div data-norf class="card bnEmpty"><h2>Buscá un bono</h2><p>Escribí el ticker en el buscador de arriba (o tocá «/» en el teclado) y se abre su ficha: precio, puntas, gráfico, rendimiento, curva, flujos y calculadora.</p><div class="pl">' + POP.filter(function (k) { return MAP[k]; }).map(function (k) { return '<button type="button" data-open="' + k + '">' + k + '</button>'; }).join('') + '</div></div>';
       return;
     }
-    var r = MAP[K], T = tech(r), usd = r.grp === 'usd', u = usd || r.usdOn ? 'US$ ' : '$ ', md = r.md, flB = r.krFl || r.fl, yB = r.krY != null ? r.krY : r.tir, du = durAt(flB, r.s, yB), cvx = r.conv != null ? r.conv : cvxAt(flB, r.s, yB); // Macaulay y convexidad con los flujos de la base de la TIR (en los CER, reales)
+    var r = MAP[K]; CIR = null; if (CIM) { var rc = ciRow(r); if (rc) r = rc; else ciGet(tirSym(r), render); }
+    var T = tech(r), usd = r.grp === 'usd', u = usd || r.usdOn ? 'US$ ' : '$ ', md = r.md, flB = r.krFl || r.fl, yB = r.krY != null ? r.krY : r.tir, du = durAt(flB, r.s, yB), cvx = r.conv != null ? r.conv : cvxAt(flB, r.s, yB); // Macaulay y convexidad con los flujos de la base de la TIR (en los CER, reales)
     root.setAttribute('data-f', r.grp);
-    var nx = T.rows[0], tlS = r.tl.replace(/ \(.*\)$/, '').replace(/ con la .*$/, '');
+    if (r.ciPay && T.vt != null) { T = Object.assign({}, T); T.vt += r.ciPay[1]; T.par = r.P / T.vt; } // en CI el pago de hoy todavía es del que compra: valor técnico con ese pago
+    var nx = r.ciPay ? { t: r.ciPay[0], total: r.ciPay[1] } : T.rows[0], tlS = r.tl.replace(/ \(.*\)$/, '').replace(/ con la .*$/, '');
     root.innerHTML =
       '<div data-norf class="card bnHero" id="bnCHe"><div class="bnTop"><div class="bnId"><span class="eyebrow">' + FAM[r.grp][0] + ' · ' + esc(r.tipo) + '</span><h2>' + esc(K) + favBtn(K) + '</h2><div class="bnPx" id="bnPx"></div><button type="button" class="bnLink" data-html2canvas-ignore="true" onclick="var e=document.getElementById(\'bnCp\');if(e){e.scrollIntoView({behavior:\'smooth\',block:\'center\'});e.focus({preventScroll:true});e.select();}">Probar con otro precio ↓</button><p>' + esc(r.feat.filter(function (x) { return x !== r.tipo; }).slice(0, 3).join(' · ')) + '</p></div>' +
-        '<div><div class="bnTb">' + dlb('bnCHe', 'Ficha') + '</div>' + (usd ? '<div class="bnSp"><div class="seg">' + [['', 'Pesos'], ['D', 'MEP'], ['C', 'Cable']].map(function (x) { return '<button type="button" data-sp="' + x[0] + '" class="' + (SP === x[0] ? 'on' : '') + '">' + x[1] + ' · ' + symFor(K, x[0]) + '</button>'; }).join('') + '</div></div>' : '') + '</div></div>' +
+        '<div><div class="bnTb">' + dlb('bnCHe', 'Ficha') + '</div>' + (false ? '' : '<div class="bnSp" title="Contado inmediato (se liquida hoy) o 24 hs (mañana). Cuando un bono corta cupón, en CI todavía cotiza con el cupón y en 24 hs ya sin él."><div class="seg">' + [['1', 'CI'], ['0', '24 hs']].map(function (x) { return '<button type="button" data-ci="' + x[0] + '" class="' + ((CIM ? '1' : '0') === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div></div>') + (usd ? '<div class="bnSp"><div class="seg">' + [['', 'Pesos'], ['D', 'MEP'], ['C', 'Cable']].map(function (x) { return '<button type="button" data-sp="' + x[0] + '" class="' + (SP === x[0] ? 'on' : '') + '">' + x[1] + ' · ' + symFor(K, x[0]) + '</button>'; }).join('') + '</div></div>' : '') + '</div></div>' +
         '<div class="bnK">' +
           '<div><small>' + esc(tlS) + '</small><b>' + pc(r.tir) + '</b><span>' + (r.tem != null ? 'TEM ' + pc(r.tem) : '&nbsp;') + '</span></div>' +
           '<div><small>TNA</small><b>' + pc(r.tna) + '</b><span>' + (usd ? 'capitalizable cada 30 días' : 'la que usa el mercado') + '</span></div>' +
@@ -10491,7 +10517,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
           [['in', 'Hoy'], ['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['1a', '1A'], ['max', 'Todo']].map(function (x) { return '<button type="button" data-r="' + x[0] + '" class="' + (RNG === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div><div class="pl" id="bnFrq" data-html2canvas-ignore="true">' +
           [['d', 'Diario'], ['w', 'Semanal'], ['m', 'Mensual']].map(function (x) { return '<button type="button" data-q="' + x[0] + '" class="' + (FRQ === x[0] ? 'on' : '') + '"' + (RNG === 'in' ? ' disabled' : '') + '>' + x[1] + '</button>'; }).join('') + '</div>' + (window.BLBND ? window.BLBND.ui(true) : '') + dlb('bnCPr', 'Precio') + '</div></div>' +
           '<div class="bnCh"><canvas id="bnChC"></canvas><div class="bnE" id="bnChE"></div></div><p class="bnNt" id="bnChN"></p></div>' +
-        '<div data-norf class="card" id="bnCPu"><div class="bnH"><div><p class="qh">Puntas</p><p class="qs" id="bnPuS">' + esc(symOf()) + ' · data912, cada 30 segundos</p></div>' + dlb('bnCPu', 'Puntas') + '</div><div id="bnBk"></div></div></div>' +
+        '<div data-norf class="card" id="bnCPu"><div class="bnH"><div><p class="qh">Puntas</p><p class="qs" id="bnPuS">' + esc(symOf()) + (CIM ? ' · contado inmediato (Primary)' : ' · data912, cada 30 segundos') + '</p></div>' + dlb('bnCPu', 'Puntas') + '</div><div id="bnBk"></div></div></div>' +
       '<div class="bnG2"><div class="card" data-norf id="bnCRe"><div class="bnH"><div><p class="qh">Rendimiento y riesgo</p><p class="qs">Al precio de ' + (usd ? K + especie + ' en dólares' + (r.cierre ? ' (cierre del ' + r.cierre.slice(8, 10) + '/' + r.cierre.slice(5, 7) + ', sin precio en vivo)' : '') : 'hoy') + ', liquidando el ' + dmy(r.s) + '. Por 100 VN' + (usd ? ' originales' : '') + '.</p></div>' + dlb('bnCRe', 'Rendimiento') + '</div><div class="kv">' +
           kv(r.tl, pc(r.tir)) + kv('TNA', pc(r.tna)) + kv('TEM', pc(r.tem)) +
           kv('Duración de Macaulay', du ? fm(du.mac, 2) + '<i>años</i>' : '—') + kv(r.mdS != null ? 'Duración efectiva' : 'Duración modificada', fm(md, 2) + (r.mdS != null ? '<i>de margen ' + fm(r.mdS, 2) + '</i>' : '')) + kv('Convexidad', fm(cvx, 2)) +
@@ -10515,13 +10541,14 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   /* precio y puntas (se refrescan solos cada 30 s) */
   function drawLive() {
     var px = document.getElementById('bnPx'), bk = document.getElementById('bnBk'); if (!px || !MAP[K]) return;
-    var r = MAP[K], sym = symOf(), Q = qOf(), pv = prevClose(sym), unit = SP || r.usdOn ? 'US$ ' : '$ ', h = hist(sym, K), dd = function (x) { return x[0].slice(8, 10) + '/' + x[0].slice(5, 7); };
+    var r = MAP[K], sym = symOf(), Q = qOf(), CQ = null; if (CIM) { ciGet(sym, render); ciGet(tirSym(r), render); var cq = CIQ[sym]; if (cq && !cq.none) { CQ = cq; Q = { c: ciPx(sym), bid: cq.bid, ask: cq.ask, qb: cq.qb, qa: cq.qa, pct: cq.cl > 0 && ciPx(sym) > 0 ? (ciPx(sym) / cq.cl - 1) * 100 : null }; } }
+    var pv = prevClose(sym), unit = SP || r.usdOn ? 'US$ ' : '$ ', h = hist(sym, K), dd = function (x) { return x[0].slice(8, 10) + '/' + x[0].slice(5, 7); };
     var live = Q.c > 0 && ruedaHoy() && !(pv && Math.abs(Q.c - pv[1]) < 1e-6 && Q.pct && Math.abs(Q.pct) > 0.005), pre = Q.c > 0 && !live, pp = null; // antes de las 10:30 (o sin rueda hoy: precio igual al último cierre pero con variación) data912 sigue mostrando la rueda anterior: su variación es contra el cierre previo a esa rueda
     if (pre && pv) for (var i = h.length - 1; i >= 0; i--) if (h[i][0] < pv[0]) { pp = h[i]; break; }
     var ref = live ? pv : pre ? pp : null, last = Q.c > 0 ? Q.c : h.length ? h[h.length - 1][1] : r.grp !== 'usd' ? r.P : SP === '' ? r.pars : SP === especie ? r.P : null;
     var ch = Q.c > 0 ? (Q.pct != null ? Q.pct : ref ? (Q.c / ref[1] - 1) * 100 : null) : h.length > 1 ? (h[h.length - 1][1] / h[h.length - 2][1] - 1) * 100 : null;
     px.innerHTML = '<b>' + unit + fm(last, 2) + '</b>' + (ch != null ? '<span class="' + (ch > 0 ? 'up' : ch < 0 ? 'dn' : 'mu') + '">' + (ch > 0 ? '▲ +' : ch < 0 ? '▼ ' : '') + fm(ch, 2) + '%</span>' : '') +
-      '<small>' + (live ? 'Último operado hoy' : pre ? (pv ? 'Cierre del ' + dd(pv) : 'Último operado') + ' · todavía no abrió la rueda de hoy' : h.length ? 'Cierre del ' + dd(h[h.length - 1]) : r.corp ? 'Último precio conocido' : 'Sin precio') + (ref ? ' · cierre anterior ' + unit + fm(ref[1], 2) + (pre ? ' (' + dd(ref) + ')' : '') : '') + '</small>';
+      '<small>' + (CQ ? 'Contado inmediato (Primary)' + (CIR && CIR.k === K && CIR.ciPay ? ', con el pago del ' + new Date(CIR.ciPay[0] * 864e5).toISOString().slice(0, 10).split('-').reverse().slice(0, 2).join('/') + ' (' + unit + fm(CIR.ciPay[1], 2) + ' c/100 VN) que en 24 hs ya no se cobra' : '') + ' · ' : CIM && CIQ[sym] && CIQ[sym].none ? 'Sin precio de contado inmediato: se muestra 24 hs · ' : '') + (live ? 'Último operado hoy' : pre ? (pv ? 'Cierre del ' + dd(pv) : 'Último operado') + ' · todavía no abrió la rueda de hoy' : h.length ? 'Cierre del ' + dd(h[h.length - 1]) : r.corp ? 'Último precio conocido' : 'Sin precio') + (ref ? ' · cierre anterior ' + unit + fm(ref[1], 2) + (pre ? ' (' + dd(ref) + ')' : '') : '') + '</small>';
     var spr = Q.bid && Q.ask ? (Q.ask / Q.bid - 1) * 100 : null, monto = Q.v && Q.c ? Q.v * Q.c / 100 : null, qq = function (v) { return v ? 'por ' + big(v) + ' VN' : '&nbsp;'; };
     bk.innerHTML = (Q.bid || Q.ask ? '<div class="bnBk"><div class="bi"><small>Compra</small><b>' + fm(Q.bid, 2) + '</b><span>' + qq(Q.qb) + '</span></div><div class="as"><small>Venta</small><b>' + fm(Q.ask, 2) + '</b><span>' + qq(Q.qa) + '</span></div></div>'
       : '<p class="bnNt" style="margin:0 0 12px">' + (Object.keys(window.PXQ || {}).length ? 'No hay puntas de ' + esc(sym) + ' en este momento.' : 'Sin precios en vivo: el mercado está cerrado o data912 no responde. Abajo, el último cierre.') + '</p>') +
@@ -10690,6 +10717,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     var b = e.target.closest('button'); if (!b || !root.contains(b)) return;
     if (b.hasAttribute('data-open')) { open(b.getAttribute('data-open')); return; }
     if (b.hasAttribute('data-bb') && window.BLBND) { window.BLBND.toggle(b.getAttribute('data-bb'), root); drawChart(); return; }
+    if (b.hasAttribute('data-ci')) { CIM = b.getAttribute('data-ci') === '1'; try { localStorage.setItem('bnCI', CIM ? '1' : '0'); } catch (x) { } render(); return; }
     if (b.hasAttribute('data-sp')) { SP = b.getAttribute('data-sp'); [].forEach.call(root.querySelectorAll('[data-sp]'), function (x) { x.classList.toggle('on', x === b); }); var qs = document.getElementById('bnPuS'); if (qs) qs.textContent = symOf() + ' · data912, cada 30 segundos'; drawLive(); drawChart(); return; }
     if (b.hasAttribute('data-r')) { RNG = b.getAttribute('data-r'); saveSt(); [].forEach.call(root.querySelectorAll('[data-r]'), function (x) { x.classList.toggle('on', x === b); }); [].forEach.call(root.querySelectorAll('[data-q]'), function (x) { x.disabled = RNG === 'in'; }); drawChart(); return; }
     if (b.hasAttribute('data-q')) { FRQ = b.getAttribute('data-q'); saveSt(); [].forEach.call(root.querySelectorAll('[data-q]'), function (x) { x.classList.toggle('on', x === b); }); drawChart(); return; }
@@ -10989,7 +11017,7 @@ window.RATG = (function () {
       var p = lvOk ? L.c : cl ? cl[0] : null, ch = lvOk && L.pct != null ? L.pct : null;
       var e = { k: k, sym: sym, em: EM[k] || '', t: o.t, mat: o.mat, iss: o.iss, r: o.r, res: o.res, p: p, ch: ch, v: lvOk ? L.v * L.c / 100 : cl ? cl[2] : 0, v20: cl ? cl[3] : null, n20: cl && cl[4] != null ? cl[4] : null, live: !!lvOk, d: dn(o.mat) - s, s: s, bid: L && L.bid, ask: L && L.ask };
       if (!(p > 0)) return;
-      var fl = o.fl.map(function (f) { return [dn(f[0]), f[1], f[2]]; }).filter(function (f) { return f[0] > s; }); e.fl = fl; if (!fl.length) return; // ya vencido o pagado entero: fuera de la tabla
+      var fl = o.fl.map(function (f) { return [dn(f[0]), f[1], f[2]]; }).filter(function (f) { return f[0] > s; }); e.fl = fl; var sCI = window.settleDate ? window.settleDate('CI') - 0.01 : s; e.fla = o.fl.map(function (f) { return [dn(f[0]), f[1], f[2]]; }).filter(function (f) { return f[0] > sCI; }); /* todos: la ficha en contado inmediato puede cobrar uno que en 24 hs ya no */ if (!fl.length) return; // ya vencido o pagado entero: fuera de la tabla
       if (usd && fl.length) {
         var u = p > 0 && p < 5 ? 100 : 1; if (u > 1) p = e.p = p * u; // alguna cotiza por 1 VN
         e.tir = tirAt(fl, s, p);
@@ -11002,6 +11030,7 @@ window.RATG = (function () {
       } else if (fl.length) { // en pesos: TIR con el precio de ahora; TAMAR y BADLAR con lo publicado y la última tasa para adelante; dollar linked con el último A3500 (tipo de cambio constante)
         var fx = ixLast(IXS.fx), pf = o.t === 'tamar' || o.t === 'badlar' ? pesoFl(o, fl) : fl, pp = o.t === 'dl' ? (fx > 0 ? p / fx : null) : p;
         if (o.t === 'cer') { var k1 = cer10(s), k0 = cer10(dn(o.iss)); pp = k1 > 0 && k0 > 0 ? p / (k1 / k0) : null; } // CER: el precio sin el ajuste acumulado desde la emisión, contra los flujos sin ajustar (TIR real)
+        if (pf !== fl && pf) { try { e.fla = pesoFl(dynO(J.on[k], sCI), e.fla).filter(function (f) { return f[0] <= s; }).concat(pf); } catch (x) { } } // los pagos entre CI y 24 hs, más los de siempre
         if (pf && pp > 0) { e.fl = fl = pf; e.tir = tirAt(fl, s, pp); e.fm = p / pp; }
         if (e.tir != null && (e.tir > 3 || e.tir < -0.5)) e.odd = true; var du2 = e.tir != null ? bxDur(fl, s, e.tir) : null; e.md = du2 ? du2.md : null; e.mac = du2 ? du2.mac : null;
         if (fl.length && e.fm > 0) { var nx2 = fl[0], lc2 = dn(o.lc || o.iss); e.ai = nx2[2] > 0 && nx2[0] > lc2 ? nx2[2] * Math.max(0, s - lc2) / (nx2[0] - lc2) * e.fm : 0; e.vt = o.res * e.fm + e.ai; e.par = e.vt > 0 ? p / e.vt : null; } // en pesos: corridos y valor técnico (CER y dollar linked, con el índice de hoy)
@@ -11332,7 +11361,7 @@ window.RATG = (function () {
         var pfl = ix ? e.fl.map(function (f, i) { return [f[0], f[1] * FQ[i][0], f[2] * FQ[i][0]]; }) : e.fl; // CER y dollar linked: los flujos en pesos con el índice de cada pago; la TIR va con los de la base (krFl)
         var cfl = e.fl.map(function (f, i) { var m = ix ? FQ[i][0] : fm, am = Math.max(0, f[1] - f[2]), x = { t: f[0], renta: f[2] * m, amort: am * m, total: f[1] * m, res: Math.max(0, res - am), ix: FQ[i][1] }; res = x.res; return x; });
         return { k: e.k, grp: 'on', corp: 1, usdOn: usd, ty: e.t, al: e.sym, tipo: (usd ? 'hard dollar' : e.t === 'ars' || e.t === 'fija' ? 'tasa fija en pesos' : e.t === 'dl' ? 'dollar linked' : e.t.toUpperCase()) + (e.em ? ' · ' + e.em : ''), feat: [], tl: usd ? 'TIR en dólares' : e.t === 'cer' ? 'TIR real (sobre CER)' : e.t === 'dl' ? 'TIR en dólares (A3500 constante)' : 'TIR',
-          P: e.p, fl: pfl, krFl: ix ? e.fl : null, krP: ix ? e.p / fm : null, krY: ix ? e.tir : null, s: e.s, mat: dn(o.mat), d: e.d, tir: e.tir, tem: tem, tna: tem * 365 / 30, md: e.md, conv: e.cvx, odd: !!e.odd, cfl: cfl, res: o.res, vt: e.vt, ai: e.ai, iss: o.iss ? dn(o.iss) : null, cpn: o.r != null ? o.r / 100 : null,
+          P: e.p, fl: pfl, fla: e.fla, krFl: ix ? e.fl : null, krP: ix ? e.p / fm : null, krY: ix ? e.tir : null, s: e.s, mat: dn(o.mat), d: e.d, tir: e.tir, tem: tem, tna: tem * 365 / 30, md: e.md, conv: e.cvx, odd: !!e.odd, cfl: cfl, res: o.res, vt: e.vt, ai: e.ai, iss: o.iss ? dn(o.iss) : null, cpn: o.r != null ? o.r / 100 : null,
           q: function () { var L = LV[e.sym] || {}, u = L.c > 0 && L.c < 5 ? 100 : 1; return { c: L.c > 0 ? L.c * u : null, pct: L.pct, bid: L.bid > 0 ? L.bid * u : null, ask: L.ask > 0 ? L.ask * u : null, v: L.v, nop: L.n }; } };
       });
     },
@@ -11543,7 +11572,7 @@ window.RATG = (function () {
       var p = lvOk ? L.c : cl ? cl[0] : null; if (p > 0 && fxp !== 1) p = p / fxp; var ch = lvOk && L.pct != null ? L.pct : null;
       var e = { k: k, o: o, sym: sym, em: EM[k] || '', t: o.t, mat: o.mat, iss: o.iss, r: o.r, res: o.res, p: p, ch: ch, v: lvOk ? L.v * L.c / 100 : cl ? cl[2] : 0, v20: cl ? cl[3] : null, n20: cl && cl[4] != null ? cl[4] : null, live: !!lvOk, d: dn(o.mat) - s, s: s, bid: L && L.bid, ask: L && L.ask };
       if (!(p > 0)) return;
-      var fl = o.fl.map(function (f) { return [dn(f[0]), f[1], f[2]]; }).filter(function (f) { return f[0] > s; }); e.fl = fl; if (!fl.length) return; // ya vencido o pagado entero: fuera de la tabla
+      var fl = o.fl.map(function (f) { return [dn(f[0]), f[1], f[2]]; }).filter(function (f) { return f[0] > s; }); e.fl = fl; var sCI = window.settleDate ? window.settleDate('CI') - 0.01 : s; e.fla = o.fl.map(function (f) { return [dn(f[0]), f[1], f[2]]; }).filter(function (f) { return f[0] > sCI; }); /* todos: la ficha en contado inmediato puede cobrar uno que en 24 hs ya no */ if (!fl.length) return; // ya vencido o pagado entero: fuera de la tabla
       if (usd && fl.length) {
         var u = p > 0 && p < 5 ? 100 : 1; if (u > 1) p = e.p = p * u; // alguna cotiza por 1 VN
         e.tir = tirAt(fl, s, p);
@@ -11556,6 +11585,7 @@ window.RATG = (function () {
       } else if (fl.length) { // en pesos: TIR con el precio de ahora; TAMAR y BADLAR con lo publicado y la última tasa para adelante; dollar linked con el último A3500 (tipo de cambio constante)
         var fx = ixLast(IXS.fx), pf = o.t === 'tamar' || o.t === 'badlar' ? pesoFl(o, fl) : fl, pp = o.t === 'dl' ? (fx > 0 ? p / fx : null) : p;
         if (o.t === 'cer') { var k1 = cer10(s), k0 = cer10(dn(o.iss)); pp = k1 > 0 && k0 > 0 ? p / (k1 / k0) : null; } // CER: el precio sin el ajuste acumulado desde la emisión, contra los flujos sin ajustar (TIR real)
+        if (pf !== fl && pf) { try { e.fla = pesoFl(dynO(J.on[k], sCI), e.fla).filter(function (f) { return f[0] <= s; }).concat(pf); } catch (x) { } } // los pagos entre CI y 24 hs, más los de siempre
         if (pf && pp > 0) { e.fl = fl = pf; e.tir = tirAt(fl, s, pp); e.fm = p / pp; } // fm: pasa los flujos a pesos (CER de hoy o A3500 de hoy constantes)
         if (e.tir != null && (e.tir > 3 || e.tir < -0.5)) e.odd = true; var du2 = e.tir != null ? bxDur(fl, s, e.tir) : null; e.md = du2 ? du2.md : null; e.mac = du2 ? du2.mac : null;
         if (fl.length && e.fm > 0) { var nx2 = fl[0], lc2 = dn(o.lc || o.iss); e.ai = nx2[2] > 0 && nx2[0] > lc2 ? nx2[2] * Math.max(0, s - lc2) / (nx2[0] - lc2) * e.fm : 0; e.vt = o.res * e.fm + e.ai; e.par = e.vt > 0 ? p / e.vt : null; } // en pesos: corridos y valor técnico (CER y dollar linked, con el índice de hoy)
@@ -11892,7 +11922,7 @@ window.RATG = (function () {
         var pfl = ix ? e.fl.map(function (f, i) { return [f[0], f[1] * FQ[i][0], f[2] * FQ[i][0]]; }) : e.fl; // CER y dollar linked: los flujos en pesos con el índice de cada pago; la TIR va con los de la base (krFl)
         var cfl = e.fl.map(function (f, i) { var m = ix ? FQ[i][0] : fm, am = Math.max(0, f[1] - f[2]), x = { t: f[0], renta: f[2] * m, amort: am * m, total: f[1] * m, res: Math.max(0, res - am), ix: FQ[i][1] }; res = x.res; return x; });
         return { k: e.k, grp: 'pv', corp: 1, usdOn: usd, ty: e.t, al: e.sym, tipo: (usd ? 'hard dollar' : e.t === 'ars' || e.t === 'fija' ? 'tasa fija en pesos' : e.t === 'dl' ? 'dollar linked' : e.t.toUpperCase()) + (e.em ? ' · ' + e.em : ''), feat: [], tl: usd ? 'TIR en dólares' : e.t === 'cer' ? 'TIR real (sobre CER)' : e.t === 'dl' ? 'TIR en dólares (A3500 constante)' : 'TIR',
-          xo: !!o.x, P: e.p, fl: pfl, krFl: ix ? e.fl : null, krP: ix ? e.p / fm : null, krY: ix ? e.tir : null, s: e.s, mat: dn(o.mat), d: e.d, tir: e.tir, tem: tem, tna: tem * 365 / 30, md: e.md, conv: e.cvx, odd: !!e.odd, cfl: cfl, res: o.res, vt: e.vt, ai: e.ai, iss: o.iss ? dn(o.iss) : null, cpn: o.r != null ? o.r / 100 : null,
+          xo: !!o.x, P: e.p, fl: pfl, fla: e.fla, krFl: ix ? e.fl : null, krP: ix ? e.p / fm : null, krY: ix ? e.tir : null, s: e.s, mat: dn(o.mat), d: e.d, tir: e.tir, tem: tem, tna: tem * 365 / 30, md: e.md, conv: e.cvx, odd: !!e.odd, cfl: cfl, res: o.res, vt: e.vt, ai: e.ai, iss: o.iss ? dn(o.iss) : null, cpn: o.r != null ? o.r / 100 : null,
           q: function () { var L = LV[e.sym] || {}, u = L.c > 0 && L.c < 5 ? 100 : 1; return { c: L.c > 0 ? L.c * u : null, pct: L.pct, bid: L.bid > 0 ? L.bid * u : null, ask: L.ask > 0 ? L.ask * u : null, v: L.v, nop: L.n }; } };
       });
     },
