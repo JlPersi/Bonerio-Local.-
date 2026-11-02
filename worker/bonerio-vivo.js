@@ -10,6 +10,7 @@
 
 const D912 = 'https://data912.com/live/';
 const EPS = ['arg_bonds', 'arg_notes', 'arg_corp', 'arg_stocks', 'arg_cedears'];
+const SEPS = EPS.filter((e) => e !== 'arg_cedears'); // lo que va por la conexión permanente: los CEDEARs no los usa la página y son la mayoría de los mensajes de Primary (cada mensaje que recibe el Durable Object cuenta para el límite diario)
 const BYMA = 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/cauciones';
 const TTL = 15;
 const sym = (s) => 'MERV - XMEV - ' + s + ' - 24hs'; // precios de 24 hs, como data912
@@ -87,7 +88,7 @@ export class Feed {
   async lists() { // la lista de tickers sale de data912 (y lo que Primary no tiene: volumen, operaciones)
     const nu = [];
     await Promise.all(EPS.map(async (ep) => { try { const r = await (await fetch((this.env.D912 || D912) + ep)).json(); if (!Array.isArray(r) || !r.length) return;
-      this.rows[ep] = r; r.forEach((x) => { const k = sym(x.symbol); if (!this.idx[k]) nu.push(k); this.idx[k] = x.symbol; }); } catch (e) {} }));
+      this.rows[ep] = r; if (SEPS.includes(ep)) r.forEach((x) => { const k = sym(x.symbol); if (!this.idx[k]) nu.push(k); this.idx[k] = x.symbol; }); } catch (e) {} }));
     this.lists_t = Date.now(); this.by = {}; EPS.forEach((ep) => (this.rows[ep] || []).forEach((x) => (this.by[x.symbol] = x)));
     if (this.ws && nu.length) this.sub(nu);
   }
@@ -111,6 +112,7 @@ export class Feed {
     let m; try { m = JSON.parse(data); } catch (x) { return; }
     if (m.type !== 'Md' || !m.instrumentId) return;
     const k = m.instrumentId.symbol; this.md[k] = Object.assign(this.md[k] || {}, m.marketData || {}); this.lt = Date.now();
+    const dd = new Date().toISOString().slice(0, 10); if (this.nd !== dd) { this.nd = dd; this.nm = 0; } this.nm++; // mensajes de hoy (UTC), para ver el consumo en /diag
     if (!this.cl.size) return;
     this.dirty.add(k); if (!this.tm) this.tm = setTimeout(() => this.flush(), 250);
   }
@@ -133,11 +135,12 @@ export class Feed {
       if (req.headers.get('Upgrade') !== 'websocket') return new Response('websocket', { status: 426 });
       const [c, s] = Object.values(new WebSocketPair()); s.accept(); this.cl.add(s);
       const bye = () => { this.cl.delete(s); this.seen = Date.now(); }; s.addEventListener('close', bye); s.addEventListener('error', bye);
-      const snap = {}; EPS.forEach((ep) => (snap[ep] = this.merged(ep))); s.send(JSON.stringify({ s: snap }));
+      const snap = {}; SEPS.forEach((ep) => (snap[ep] = this.merged(ep))); s.send(JSON.stringify({ s: snap }));
       return new Response(null, { status: 101, webSocket: c });
     }
+    if (u.pathname === '/stats') return new Response(JSON.stringify({ dia: this.nd || null, mensajes: this.nm || 0, visitantes: this.cl.size, simbolos: Object.keys(this.idx).length }));
     const ep = u.pathname.replace(/^\/live\//, '');
-    if (!this.ok() || !this.rows[ep]) return new Response('', { status: 204 });
+    if (!this.ok() || !this.rows[ep] || !SEPS.includes(ep)) return new Response('', { status: 204 });
     return new Response(JSON.stringify(this.merged(ep)));
   }
 }
@@ -205,6 +208,7 @@ export default {
       const d = { usuario: !!env.ROFEX_USER, clave: !!env.ROFEX_PASS, url: base(env), ultimoError: LASTERR };
       try { await token(env, true); d.login = 'ok'; } catch (e) { d.login = String(e.message || e); return new Response(JSON.stringify(d, null, 1), { headers: h }); }
       try { const md = await snapshot(env, [sym('AL30'), sym('GD30')], 5000); d.websocket = 'ok'; d.precios = md; } catch (e) { d.websocket = String(e.message || e); }
+      if (env.FEED) try { d.stream = await (await env.FEED.get(env.FEED.idFromName('main')).fetch(new Request(u.origin + '/stats'))).json(); } catch (e) { d.stream = String(e.message || e); } // mensajes de Primary recibidos hoy por la conexión permanente
       return new Response(JSON.stringify(d, null, 1), { headers: h });
     }
     const bk = /^\/book\/((?:DLR|CAUC)(?:\/|%2F)[A-Z]{3}\d{2}|CAU-(?:ARS|USD|EXT)(?:-\d+)?|[A-Z0-9]{2,10})$/i.exec(u.pathname); // también la caución: CAU-<moneda>[-<días>] // un bono o acción (MERV - XMEV - <t> - 24hs) o un futuro de A3 (DLR/NOV26)
