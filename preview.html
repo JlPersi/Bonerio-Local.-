@@ -959,6 +959,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('expd')">Devaluación implícita</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('expf')">Forwards</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('lic')">Licitaciones</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('deuda')">Deuda en circulación</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cons')">Consultame</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('dash')">Dashboard</button>
     </div>
@@ -1135,7 +1136,8 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="trd" class="tab-content"></div>
 <div id="cal" class="tab-content"></div>
 <div id="alert" class="tab-content"></div>
-<div id="lic" class="tab-content"><div id="outW"></div><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
+<div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
+<div id="deuda" class="tab-content"><div id="outW"></div></div>
 
 <div id="curva" class="tab-content">
   <div class="card">
@@ -9367,7 +9369,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   DESC.expi = 'La inflación que descuentan los bonos CER contra la tasa fija, bono por bono y en el tiempo, contra el REM.'; DESC.expd = 'La devaluación que descuentan los dólar linked contra la tasa fija, bono por bono y en el tiempo, contra el REM.'; DESC.expf = 'La tasa de cada tramo entre vencimientos de cada familia y las forwards entre pares en el tiempo.'; DESC.thist = 'La tasa de cada bono día por día y su precio relativo contra la curva.';
   var CAR = P('<path d="m9 6 6 6-6 6"/>').replace('<svg ', '<svg class="sn-car" '), has = function (id) { return id === 'home' || TB.some(function (t) { return t[0] === id; }); };
   var GR = [{ h: 'Mi cuenta' }, ['home', 'Inicio'], ['dash', 'Dashboard'], ['res', 'Resumen'], ['port', 'Portfolio'], ['trd', 'Trade ideas'], ['fav', 'Favoritos'], ['cal', 'Calendario de cobros'], { h: 'Renta fija' }, { g: 'usd', t: 'Bonos en dólares', ic: 'hd', it: [['curva', 'Globales y Bonares'], ['tabla', 'Tabla de retornos'], ['desglose', 'Flujos y total return', 'usd']] },
-    { g: 'ars', t: 'Bonos en pesos', ic: 'pesos', it: [['pesos', 'Curva Pesos'], ['desglose', 'Flujos y total return', 'ars'], ['lic', 'Licitaciones']] },
+    { g: 'ars', t: 'Bonos en pesos', ic: 'pesos', it: [['pesos', 'Curva Pesos'], ['desglose', 'Flujos y total return', 'ars'], ['lic', 'Licitaciones'], ['deuda', 'Deuda en circulación']] },
     { g: 'ons', t: 'Obligaciones negociables', ic: 'ons', it: [['ons', 'Curva y tabla'], ['ons', 'Por calificación', 'onsRt'], ['onsf', 'Flujos y total return']] },
     { g: 'pvs', t: 'Bonos provinciales', ic: 'pvs', it: [['pvs', 'Curva y tabla'], ['pvs', 'Por calificación', 'pvsRt'], ['pvsf', 'Flujos y total return']] },
     { h: 'Acciones' }, ['acc', 'Acciones'], { h: 'Dólar y tasas' }, ['dol', 'Dólar'], ['brc', 'Brecha y canje'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['carry', 'Carry trade'],
@@ -14037,7 +14039,7 @@ window.RATG = (function () {
     '<div data-pane="cur"><div id="resVd"></div><p class="note" style="margin-top:12px">Es la misma tarjeta de Variación diaria, con el período de arriba: elegí el grupo (hard dollar, Lecaps, CER, TAMAR, duales, dólar linked, ONs, provinciales o acciones). Las ONs y provinciales usan los cierres guardados (con la historia de BYMA desde nov-24).</p></div>' +
     '<div data-pane="gl"><div class="card sx" id="resGlC"><div class="sxh"><div style="min-width:0"><p class="qh">Ganadores y perdedores</p><p class="qs keep">Lo que más subió y más bajó de precio en el período. Elegí la familia: bonos soberanos, ONs, provinciales o acciones del panel líder.</p></div>' + RDL('resGlC', 'Ganadores_y_perdedores') + '</div><div class="seg rsf" id="resGF"></div><div class="bars" id="resGL"></div>' +
     '<p class="note">Precio: retorno total entre los dos cierres, sumando los cupones y amortizaciones que el bono pagó en el período (si no, el que pagó parece que bajó). El resumen es del día terminado: mientras opera la rueda muestra el último cierre (lo de hoy, en Variación diaria). Tasa: TIR en hard dollar (con los flujos completos de cada bono, en MEP o cable según el selector de arriba) y TEA en Lecaps y Boncaps; verde, la tasa bajó (subió el precio). Solo entran las especies que operaron en el período. ONs y provinciales: cierres guardados en dólares (la historia de BYMA desde nov-24). Largo de cada barra: el movimiento contra el mayor de su lista.</p></div></div>' +
-    '<div data-pane="vol"><div class="card sx" id="resVolC"><div class="sxh"><div style="min-width:0"><p class="qh">Volumen operado</p><p class="qs keep">Monto operado en el período: lo más y lo menos operado, el volumen inusual y el reparto por familia. Elegí la familia.</p></div>' + RDL('resVolC', 'Volumen_operado') + '</div><div class="seg rsf" id="resVF"></div><div class="bars" id="resVol"></div>' +
+    '<div data-pane="vol"><div class="card sx" id="resVolC"><div class="sxh"><div style="min-width:0"><p class="qh">Volumen operado</p><p class="qs keep">Monto operado en el período: lo más operado, el volumen inusual y el reparto por familia. Elegí la familia.</p></div>' + RDL('resVolC', 'Volumen_operado') + '</div><div class="seg rsf" id="resVF"></div><div class="bars" id="resVol"></div>' +
     '<p class="note">Monto en pesos, sumando las tres monedas de cada bono (las especies en dólares, al MEP o CCL de AL30 de cada día). Inusual: el promedio diario del período contra el de las 60 ruedas anteriores (solo especies con más de $50 M diarios de promedio). Acciones: precio por cantidad operada. ONs y provinciales: monto en dólares pasado a pesos al MEP o CCL de cada día.</p></div></div>';
   [['resGF', 'gf'], ['resVF', 'vf']].forEach(function (z) { var el = root.querySelector('#' + z[0]); el.innerHTML = GF.map(function (g) { return '<button data-f="' + g[0] + '">' + g[1] + '</button>'; }).join(''); el.onclick = function (e) { var b = e.target.closest('button[data-f]'); if (!b) return; ST[z[1]] = b.getAttribute('data-f'); save(); paint(); }; });
 
@@ -14240,7 +14242,6 @@ window.RATG = (function () {
     vh += bars('Volumen inusual (veces su promedio)', unu.slice(0, 10), function (r) { return r.unu; }, function (x) { return nf(x, 1) + '×'; }, function (r) { return r.unu >= 1 ? UP : DN; }, function (r) { return (vs ? vs(r) : '') + '<small' + col(r.ret) + '>' + pc(r.ret, 1) + '</small>'; });
     if (vf === 'all') { var famV = {}; allV.forEach(function (r) { famV[r.fam] = (famV[r.fam] || 0) + r.vol; }); var tv = Object.keys(famV).reduce(function (z, k) { return z + famV[k]; }, 0);
       vh += bars('Por familia', Object.keys(famV).sort(function (x, y) { return famV[y] - famV[x]; }).map(function (k) { return { k: FAM[k], v: famV[k] }; }), function (r) { return r.v; }, function (x) { return mny(x); }, VC, function (r) { return '<small>' + nf(r.v / tv * 100, 0) + '%</small>'; }); }
-    vh += bars('Menos operados', byV.slice(-10).reverse(), function (r) { return r.vol; }, function (x) { return mny(x); }, VC, vs);
     $o('resVol').innerHTML = vh;
     [].forEach.call(root.querySelectorAll('#resVF button'), function (x) { x.classList.toggle('on', x.getAttribute('data-f') === vf); });
 
@@ -14395,7 +14396,7 @@ window.RATG = (function () {
       S.slice().sort(function (a, b) { return b.x - a.x; }).map(function (r) { return '<tr><td class="l"><b>' + r.t + '</b></td><td class="l">' + CL[r.c][0] + '</td><td>' + ds(r.v) + '</td><td>' + nf(r.x, 0) + '</td><td>' + nf(r.x / k / tot * 100, 1) + '%</td><td class="l" style="color:var(--mu)">' + (r.s === 'lic' ? 'Licitación ' : r.s === 'cv' ? 'Canje ' : r.s === 'col' ? 'Colocaciones ' : 'Finanzas ') + ds(dn(r.f)) + (r.s === 'trimA' ? ' − amort.' : '') + '</td></tr>'; }).join('') + '</tbody>';
   }
   function build() {
-    W.innerHTML = '<div class="card" style="margin:0 0 22px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><h3 style="margin:0">Deuda del Tesoro en circulación por bono</h3>' +
+    W.innerHTML = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><h3 style="margin:0">Deuda del Tesoro en circulación por bono</h3>' +
       '<span class="seg" id="outSeg"><button data-v="ars">Pesos</button><button data-v="usd">Dólares</button></span></div><p class="qs" id="outTot" style="margin:8px 0 12px"></p>' +
       '<div style="position:relative;height:380px"><canvas id="outCh"></canvas></div><div id="outLg" style="margin:10px 0 0;font-size:13px;color:var(--mu)"></div>' +
       '<div class="sc" style="max-height:420px;overflow:auto;margin-top:16px"><table class="rt" id="outT"></table></div>' +
@@ -14403,7 +14404,7 @@ window.RATG = (function () {
     $('outSeg').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; ST.m = b.getAttribute('data-v'); draw(); });
   }
   function go() { if (!$('outT')) build(); if (J) { draw(); return; } fetch('data/outstanding.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { J = j; if (J) draw(); else W.innerHTML = ''; }).catch(function () { W.innerHTML = ''; }); }
-  var _sw = window.switchTab; window.switchTab = function (id) { var r = _sw.apply(this, arguments); if (id === 'lic') setTimeout(go, 0); return r; };
+  var _sw = window.switchTab; window.switchTab = function (id) { var r = _sw.apply(this, arguments); if (id === 'deuda') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; setTimeout(go, 0); } return r; };
 })();
 
 /* ---------- Bonerío PRO: secciones gratis y el resto con candado (popup para suscribirse) ----------
