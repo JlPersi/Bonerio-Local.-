@@ -50,9 +50,10 @@ def main():
             sys.exit("el texto todavía tiene COMPLETAR: no sale a todos")
         mails = usuarios()
         tanda = int(os.environ.get("TANDA") or 0)  # el plan gratis de Resend manda 100 por día: de a 90, una tanda por día (0 = todos juntos)
+        tam = int(os.environ.get("TAM") or 90)
         if tanda > 0:
-            print(len(mails), "usuarios en total; tanda", tanda, "de", -(-len(mails) // 90))
-            mails = mails[(tanda - 1) * 90:tanda * 90]
+            print(len(mails), "usuarios en total; tanda", tanda, "de", -(-len(mails) // tam), "(de a", tam, ")")
+            mails = mails[(tanda - 1) * tam:tanda * tam]
     else:
         if not prueba:
             sys.exit("falta la dirección de prueba")
