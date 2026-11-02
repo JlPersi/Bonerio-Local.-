@@ -253,14 +253,15 @@ window.BLBND = (function () {
   var want = function (ch) { // el punto marcado tiene puntas para mostrar: {k, d}
     var tp = ch.tooltip, a = tp && tp.getActiveElements ? tp.getActiveElements() : [];
     if (!a || a.length !== 1 || (typeof mktOpen === 'function' && !mktOpen())) return null;
-    var k = keyOf(ch, a[0]); if (!k) return null; var d = get(symFor(k), ch); if (d) { var r = ch.data.datasets[a[0].datasetIndex].data[a[0].index]; BX.y = r && typeof r.y === 'number' ? r.y : null; } return d ? { k: k, d: d, tp: tp } : null;
+    var k = keyOf(ch, a[0]); if (!k) return null; var sy = symFor(k), d = get(sy, ch), r = ch.data.datasets[a[0].datasetIndex].data[a[0].index]; BX.y = r && typeof r.y === 'number' ? r.y : null;
+    return d ? { k: k, d: d, tp: tp } : BK[sy] && BK[sy].p ? { k: k, d: null, tp: tp } : null; // mientras llegan las puntas, la caja ya aparece (vacía), sin el cuadrito de antes
   };
   Chart.register({ id: 'bkBox', beforeTooltipDraw: function (ch) { if (want(ch)) return false; }, // con la caja de puntas no hace falta el cuadrito del tooltip
   afterDraw: function (ch) {
     var w = want(ch); if (!w) { if (BX.ch === ch) hide(); return; }
     var tp = w.tp, k = w.k, d = w.d;
     if (!el) { el = document.createElement('div'); el.id = 'bkBox'; document.body.appendChild(el); }
-    var h = html(k, d); if (h !== BX.h) { el.innerHTML = h; BX.h = h; }
+    var h = d ? html(k, d) : '<div class="h"><b>' + k + '</b><span>Primary</span></div><div class="px"><b>…</b><em class="mu">cargando puntas</em></div><table><thead><tr><th>Cant. C</th><th>Compra</th><th>Venta</th><th>Cant. V</th></tr></thead><tbody><tr><td></td><td>—</td><td>—</td><td></td></tr></tbody></table>'; if (h !== BX.h) { el.innerHTML = h; BX.h = h; }
     BX.ch = ch; BX.k = k; el.style.display = 'block';
     var z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1; // la página va con html{zoom:.9}: las cuentas en px de pantalla y al final se pasan a px de CSS
     var r = ch.canvas.getBoundingClientRect(), W = el.offsetWidth * z, H = el.offsetHeight * z, vw = window.innerWidth, vh = window.innerHeight;
@@ -269,7 +270,10 @@ window.BLBND = (function () {
     if (x + W > vw - 6) x = cx - W - 16; // no entra a la derecha: a la izquierda
     y = Math.min(y, vh - H - 6);
     el.style.left = Math.max(6, Math.min(x, vw - W - 6)) / z + 'px'; el.style.top = Math.max(6, y) / z + 'px';
-  }, afterEvent: function (ch, args) { if (args.event.type === 'mouseout' && BX.ch === ch) hide(); }, afterDestroy: function (ch) { setTimeout(function () { if (BX.ch === ch) hide(); }, 120); } });
+  }, afterEvent: function (ch, args) { var e = args.event; if (e.type === 'mouseout' && BX.ch === ch) hide();
+    if (e.type === 'mousemove' && okTab(ch) && !(typeof mktOpen === 'function' && !mktOpen())) try { // se piden antes las puntas de los puntos que están cerca del mouse: la caja sale ni bien se pasa por encima
+      ch.getElementsAtEventForMode(e, 'nearest', { intersect: false }, false).slice(0, 3).forEach(function (a) { var k = keyOf(ch, a); if (k) get(symFor(k), ch); });
+    } catch (x) { } }, afterDestroy: function (ch) { setTimeout(function () { if (BX.ch === ch) hide(); }, 120); } });
   setInterval(function () { if (BX.ch && BX.k) get(symFor(BX.k), BX.ch); else if (DM.el) { get(DM.k, null); showDom(); } }, 3000); // mientras está abierta, las puntas se refrescan solas
   window.addEventListener('scroll', function () { if (BX.ch || BX.dom) { BX.dom = null; hide(); } }, true);
   /* tarjetas y tablas de Mercado de dinero y Futuros: la caja al pasar el mouse por una caución, una Lecap o un futuro */
@@ -12603,9 +12607,9 @@ window.RATG = (function () {
 
     '<div class="card sx" id="accF" style="margin-top:24px"><div id="accFb1"><div class="sxh"><div style="min-width:0;flex:1"><div class="wsH"><input type="search" id="accTk" list="accTkL" placeholder="Ticker o empresa" autocomplete="off"><datalist id="accTkL"></datalist><div class="wsT" id="accWt"></div></div><p class="qs" id="accFs" style="margin-top:6px"></p></div><div class="sxb">' + dlb('accFb1', 'Bonerio_accion_grafico') + '</div></div>' +
     '<div class="kp" id="accFk"></div>' +
-    '<div class="wsB"><label style="flex-direction:row;align-items:center;gap:8px;margin:0">Moneda<span class="seg" id="accMon2"><button data-v="ars">Pesos</button><button data-v="ccl">Dólar CCL</button></span></label><span class="seg" id="accRg">' + RG.map(function (r) { return '<button data-v="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</span>' +
+    '<div class="wsB"><label style="flex-direction:row;align-items:center;gap:8px;margin:0">Moneda<span class="seg" id="accFm"><button data-v="ars">Pesos</button><button data-v="adr" title="El ADR en Nueva York, en dólares">ADR</button></span></label><span class="seg" id="accRg">' + RG.map(function (r) { return '<button data-v="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</span>' +
     '<span class="seg" id="accFq"><button data-v="d">Diario</button><button data-v="w">Semanal</button></span><span class="seg" id="accTy"><button data-v="velas">Velas</button><button data-v="linea">Línea</button></span>' +
-    '<label class="btnL"><input type="checkbox" id="accLg"> Escala log</label><label style="flex-direction:row;align-items:center;gap:8px;margin:0" title="Contra qué índice se mide la beta">Beta<span class="seg" id="accBx2"><button data-v="sin">Sin la acción</button><button data-v="con">Con la acción</button></span></label><span class="sp"></span><button class="btnA" id="accAdd" type="button">+ Agregar gráfico</button>' +
+    '<label style="flex-direction:row;align-items:center;gap:8px;margin:0" title="Contra qué índice se mide la beta">Beta<span class="seg" id="accBx2"><button data-v="sin">Sin la acción</button><button data-v="con">Con la acción</button></span></label><span class="sp"></span><button class="btnA" id="accAdd" type="button">+ Agregar gráfico</button>' +
     '<div class="pk" id="accPk" hidden><input type="search" id="accPq" placeholder="Buscar indicadores o una acción para comparar (RSI, MACD, P/E, YPF…)"><div class="pkG"><div class="pkC" id="accPc"></div><div class="pkI" id="accPi"></div></div></div></div>' +
     '<div class="chips" id="accCh"></div>' +
     '<div class="wsG" id="accG"><div id="accTv"></div><div id="accLgs"></div></div><div class="kp" id="accFk2"></div><p class="note" id="accFn" style="margin-top:8px"></p></div>' +
@@ -12674,7 +12678,7 @@ window.RATG = (function () {
     '<div class="kp" id="accCk"></div><div class="tw"><table id="accCtab"></table></div><p class="note" id="accCn" style="margin-top:8px"></p></div>';
 
   /* ---------- controles ---------- */
-  var SEGS = [['accPn', 'pn', function () { table(); }], ['accBx', 'bx', reBeta], ['accRdu', 'rdu', radar], ['accEp', 'ep', erp], ['accRdc', 'rdc', radar], ['accBx2', 'bx', reBeta], ['accMon', 'mon', function () { SX = {}; drawAll(); }], ['accMon2', 'mon', function () { SX = {}; drawAll(); }], ['accMon3', 'mon', function () { SX = {}; drawAll(); }], ['accMon4', 'mon', function () { SX = {}; drawAll(); }], ['accMon5', 'mon', function () { SX = {}; drawAll(); }], ['accPd', 'pd', function () { pair(); }], // la moneda también en la ficha, sectores y riesgo-retorno
+  var SEGS = [['accPn', 'pn', function () { table(); }], ['accBx', 'bx', reBeta], ['accRdu', 'rdu', radar], ['accEp', 'ep', erp], ['accRdc', 'rdc', radar], ['accBx2', 'bx', reBeta], ['accMon', 'mon', function () { SX = {}; drawAll(); }], ['accFm', 'fm', function () { chart(); }], ['accMon3', 'mon', function () { SX = {}; drawAll(); }], ['accMon4', 'mon', function () { SX = {}; drawAll(); }], ['accMon5', 'mon', function () { SX = {}; drawAll(); }], ['accPd', 'pd', function () { pair(); }], // la moneda también en la ficha, sectores y riesgo-retorno
     ['accRg', 'rg', function () { chart(); }], ['accFq', 'fq', function () { chart(); }], ['accTy', 'ty', function () { chart(); }],
     ['accSp', 'sp', function () { sectors(); }], ['accSper', 'sper', function () { ratioSec(); }], ['accRr', 'rr', function () { scatter(); }], ['accPr', 'pr', function () { pair(); }], ['accBp', 'bp', function () { flow(); }], ['accPw', 'pw', function () { pair(); }], ['accVp', 'vp', function () { valua(); }], ['accRgw', 'rgw', function () { rrg(); }], ['accCou', 'cou', function () { corrH(); }], ['accCow', 'cow', function () { corrH(); }]];
   ST.rgw = ST.rgw || '8'; ST.cou = ST.cou || 'lider'; ST.cow = ST.cow || '120';
@@ -12685,7 +12689,6 @@ window.RATG = (function () {
   SEGS.forEach(function (x) { $(x[0]).onclick = function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; ST[x[1]] = b.getAttribute('data-v'); save(); segOn(); x[2](); }; });
   $('accQ').value = ST.q; $('accQ').oninput = function () { ST.q = this.value; save(); table(); };
   $('accSf').value = ST.sf || ''; $('accSf').onchange = function () { ST.sf = this.value; save(); table(); };
-  $('accLg').checked = !!ST.lg; $('accLg').onchange = function () { ST.lg = this.checked ? 1 : 0; save(); chart(); };
   $('accTk').onchange = function () { var t = tkOf(this.value); if (t) pick(t); else this.value = ''; };
   var opts = SEC.map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('') + '<option value="lider">Panel líder (índice ponderado)</option>';
   $('accSa').innerHTML = opts; $('accSb').innerHTML = opts; $('accSa').value = ST.sA; $('accSb').value = ST.sB;
@@ -12903,18 +12906,24 @@ window.RATG = (function () {
     var ad = ADRS.filter(function (z) { return z[0] === t; })[0], s = secOf(t);
     $('accWt').innerHTML = logo(t, 30) + '<b>' + t + '</b><span class="px">' + u + nf(px, ST.mon === 'ccl' ? 3 : 2) + '</span><span' + cl(ch) + ' style="font-weight:700">' + pc(ch, 2) + '</span><span class="chip"><i class="sd" style="background:' + SC[s] + ';margin:0"></i>' + SN[s] + '</span><span class="chip">' + (x.panel === 'lider' ? 'Panel líder' : 'Panel general') + '</span>' + (ad ? '<span class="chip">ADR ' + ad[1] + ' · ' + (ADRK[t] || ad[2]) + ':1</span>' : '');
     var pa0 = L.c > 0 ? L.c : (m.ars || {}).precio, A = ad ? LA[ad[1]] || {} : {}, kk = ad ? ADRK[t] || ad[2] : null, imp = ad && pa0 > 0 && A.c > 0 ? pa0 * kk / A.c : null;
-    $('accWt').innerHTML += (ST.mon === 'ars' && A.c > 0 && kk ? '<span class="chip" title="Precio del ADR dividido por las acciones que representa (' + kk + ')">US$ ' + nf(A.c / kk, 3) + ' por ADR</span>' : ST.mon === 'ars' && CCN && pa0 ? '<span class="chip">US$ ' + nf(pa0 / CCN, 3) + ' al CCL</span>' : '') + (A.c > 0 ? '<span class="chip">ADR US$ ' + nf(A.c, 2) + (A.pct != null ? ' <span' + cl(A.pct) + '>' + sg(A.pct, 2) + '%</span>' : '') + '</span><span class="chip">CCL implícito $ ' + nf(imp, 2) + (CCN && imp ? ' (' + sg((imp / CCN - 1) * 100, 1) + '% vs AL30)' : '') + '</span>' : '');
+    $('accWt').innerHTML += (ST.mon === 'ars' && !(A.c > 0) && CCN && pa0 ? '<span class="chip">US$ ' + nf(pa0 / CCN, 3) + ' al CCL</span>' : '') + (A.c > 0 ? '<span class="chip">ADR US$ ' + nf(A.c, 2) + (A.pct != null ? ' <span' + cl(A.pct) + '>' + sg(A.pct, 2) + '%</span>' : '') + '</span><span class="chip">CCL implícito $ ' + nf(imp, 2) + (CCN && imp ? ' (' + sg((imp / CCN - 1) * 100, 1) + '% vs AL30)' : '') + '</span>' : '');
     $('accFs').textContent = (L.c > 0 && ST.mon === 'ars' ? 'Precio en vivo (' + (window.BLS && window.BLS.ok ? 'Primary' : 'data912') + ')' : 'Último cierre ' + fr(a.fecha)) + ' · ' + (ST.mon === 'ccl' ? 'en dólares CCL' : 'en pesos') + (R.cierre_balance ? ' · balance al ' + fr(R.cierre_balance) : '');
   }
+  var adrOf = function (t) { return ADRS.filter(function (x) { return x[0] === t; })[0] || null; }, AH = {}, AHP = {};
+  var adrH = function (s) { // la historia del ADR en Nueva York (cierres diarios en dólares, data912)
+    return AHP[s] || (AHP[s] = fetch('https://data912.com/historical/usa_stocks/' + s).then(function (r) { return r.json(); }).then(function (j) { AH[s] = (j.dates || []).map(function (d, i) { var c = j.prices[i]; return [d, null, null, null, c, null]; }).filter(function (x) { return x[4] > 0; }); }).catch(function () { AHP[s] = null; AH[s] = []; }));
+  };
+  var adrRows = function (t) { var ad = adrOf(t), r = ad && AH[ad[1]] ? AH[ad[1]].slice() : [], L = ad && LA[ad[1]], d = today(); if (L && L.c > 0 && r.length && r[r.length - 1][0] < d && typeof mktStarted === 'function' && mktStarted()) r.push([d, null, null, null, L.c, null]); return r; };
   function chart() {
     if (!IX) return; var t = ST.sel; head();
     var need = [t]; ST.ov.forEach(function (k) { if (k.indexOf('cmp:') === 0) need.push(k.slice(4)); });
     if (ST.ov.indexOf('csec') >= 0) IX.forEach(function (x) { if (secOf(x.t) === secOf(t)) need.push(x.t); });
-    Promise.all([lw()].concat(need.map(file))).then(function () { draw(t); }, function () { $('accFn').textContent = 'No se pudo cargar la librería del gráfico (TradingView Lightweight Charts). Probá recargar la página.'; });
+    var ad = adrOf(t), fb = $('accFm') && $('accFm').querySelector('[data-v="adr"]'); if (fb) { fb.disabled = !ad; fb.title = ad ? 'El ADR ' + ad[1] + ' en Nueva York, en dólares (1 ADR = ' + (ADRK[t] || ad[2]) + ' acciones)' : t + ' no tiene ADR'; fb.style.opacity = ad ? '' : '.4'; }
+    Promise.all([lw(), ST.fm === 'adr' && ad ? adrH(ad[1]) : null].concat(need.map(file))).then(function () { draw(t); }, function () { $('accFn').textContent = 'No se pudo cargar la librería del gráfico (TradingView Lightweight Charts). Probá recargar la página.'; });
   }
   function draw(t) {
-    if (t !== ST.sel) return; var LC = window.LightweightCharts, mon = ST.mon, dec = mon === 'ccl' ? 3 : 2, wk = ST.fq === 'w', ann = wk ? 52 : 252;
-    var b = rows(t, mon); if (wk) b = weekly(b); if (b.length < 2) { $('accFn').textContent = 'Sin datos para ' + t + '.'; return; }
+    if (t !== ST.sel) return; var adr = ST.fm === 'adr' && !!adrOf(t), LC = window.LightweightCharts, mon = adr ? 'ccl' : 'ars', dec = 2, wk = ST.fq === 'w', ann = wk ? 52 : 252; // ADR: el gráfico en dólares de Nueva York; lo que se compara, en dólares CCL
+    var b = adr ? adrRows(t) : rows(t, mon); if (wk) b = weekly(b); if (b.length < 2) { $('accFn').textContent = 'Sin datos para ' + t + '.'; return; }
     var N = b.length, D = CUR = b.map(function (x) { return x[0]; }), C = b.map(function (x) { return x[4]; }), V = b.map(function (x) { return x[5] || 0; });
     var tx = css('--tx') || '#e5e7eb', mu = css('--mu') || '#a1a1aa', bd = css('--bd') || '#27272a', UP = '#34d399', DN = '#ff6b8b';
     var I = IDX ? ffill(D, IDX.m[mon]) : D.map(function () { return null; }), IB = IDX ? ffill(D, IM(mon, t)) : I; // IB: el índice para la beta
@@ -12929,9 +12938,9 @@ window.RATG = (function () {
     var k0 = 0, from = rgFrom(ST.rg, D[N - 1]); if (from) { while (k0 < N - 1 && D[k0] < from) k0++; }
     var P0 = C[k0], tp = function (v) { return v == null ? null : pctMode ? (v / P0 - 1) * 100 : v; }, rb = function (a) { var z = a[k0]; for (var i = k0; z == null && i < N; i++) z = a[i]; return a.map(function (v) { return v == null || !z ? null : (v / z - 1) * 100; }); };
     var B = b.map(function (x, i) { var c = x[4], o = x[1] || (i ? b[i - 1][4] : c), h = Math.max(x[2] || c, o, c), l = Math.min(x[3] || c, o, c); return { time: x[0], open: o, high: h, low: l, close: c }; });
-    var main = ST.ty === 'linea' || pctMode ? TV.addSeries(LC.LineSeries, { color: tx, lineWidth: 2, priceFormat: pctMode ? fmtP(1, '%') : fmtP(dec), priceLineColor: mu }) : TV.addSeries(LC.CandlestickSeries, { upColor: UP, downColor: DN, borderVisible: false, wickUpColor: UP, wickDownColor: DN, priceFormat: fmtP(dec), priceLineColor: mu });
-    main.setData(ST.ty === 'linea' || pctMode ? B.map(function (x) { return { time: x.time, value: tp(x.close) }; }) : B);
-    main.priceScale().applyOptions({ mode: ST.lg && !pctMode ? LC.PriceScaleMode.Logarithmic : LC.PriceScaleMode.Normal, scaleMargins: { top: 0.1, bottom: ST.pa.indexOf('vol') >= 0 ? 0.2 : 0.06 } });
+    var main = ST.ty === 'linea' || pctMode || adr ? TV.addSeries(LC.LineSeries, { color: tx, lineWidth: 2, priceFormat: pctMode ? fmtP(1, '%') : fmtP(dec), priceLineColor: mu }) : TV.addSeries(LC.CandlestickSeries, { upColor: UP, downColor: DN, borderVisible: false, wickUpColor: UP, wickDownColor: DN, priceFormat: fmtP(dec), priceLineColor: mu });
+    main.setData(ST.ty === 'linea' || pctMode || adr ? B.map(function (x) { return { time: x.time, value: tp(x.close) }; }) : B);
+    main.priceScale().applyOptions({ mode: LC.PriceScaleMode.Normal, scaleMargins: { top: 0.1, bottom: ST.pa.indexOf('vol') >= 0 ? 0.2 : 0.06 } });
     var put = function (arr) { return D.map(function (d, i) { return arr[i] == null || !isFinite(arr[i]) ? { time: d } : { time: d, value: arr[i] }; }); };
     var line = function (pane, arr, color, o) { if (!pane) arr = arr.map(tp); var s = TV.addSeries(LC.LineSeries, Object.assign({ color: color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }, o || {}), pane); s.setData(put(arr)); return s; };
     var LG = [[{ n: t, a: C, c: tx, f: function (v) { return (mon === 'ccl' ? 'US$ ' : '$ ') + nf(v, dec); } }]], hist = {};
@@ -12998,7 +13007,7 @@ window.RATG = (function () {
     PANES = pks;
     // indicadores del rango elegido
     // siempre con las ruedas diarias: con velas semanales el rango, la volatilidad y la beta tienen que dar lo mismo
-    var qb = wk ? rows(t, mon) : b, qN = qb.length, qD = qb.map(function (x) { return x[0]; }), qC = qb.map(function (x) { return x[4]; }), qI = wk ? (IDX ? ffill(qD, IDX.m[mon]) : qD.map(function () { return null; })) : I, qk = 0;
+    var qb = wk ? (adr ? adrRows(t) : rows(t, mon)) : b, qN = qb.length, qD = qb.map(function (x) { return x[0]; }), qC = qb.map(function (x) { return x[4]; }), qI = wk ? (IDX ? ffill(qD, IDX.m[mon]) : qD.map(function () { return null; })) : I, qk = 0;
     if (from) while (qk < qN - 1 && qD[qk] < from) qk++;
     var qlr = qC.map(function (c, i) { return i ? Math.log(c / qC[i - 1]) : null; }), qIB = wk ? (IDX ? ffill(qD, IM(mon, t)) : qI) : IB, qir = qIB.map(function (v, i) { return i && v && qIB[i - 1] ? Math.log(v / qIB[i - 1]) : null; });
     var a = (mt(t)[mon] || {}), cr = qC.slice(qk), lrr = qlr.slice(qk + 1).filter(function (x) { return x != null; }), vr = sd(lrr), rr2 = cr[cr.length - 1] / cr[0] - 1, R = (RT.t[t] || {}).ultimo || {};
