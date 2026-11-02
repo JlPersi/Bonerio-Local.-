@@ -12301,6 +12301,11 @@ window.RATG = (function () {
   var SSN = { ban: 'Bancos', pet: 'Petróleo y gas', gas: 'Gas', gen: 'Generación', ele: 'Electricidad', mat: 'Materiales', ind: 'Industria', agr: 'Agro y alimentos', inm: 'Inmobiliario', tel: 'Telecom', con: 'Consumo', otr: 'Holdings y otros' }; // nombres cortos para la tabla
   var SOF = {}, SN = {}, SC = {}; SEC.forEach(function (s) { SN[s[0]] = s[1]; SC[s[0]] = s[2]; s[3].split(' ').forEach(function (t) { SOF[t] = s[0]; }); });
   var secOf = function (t) { return SOF[t] || 'otr'; };
+  var fold = function (x) { return String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); };
+  function tkOf(v) { // ticker a partir de lo que se escribió: el ticker, o parte del nombre de la empresa («galicia», «macro»)
+    var t = String(v || '').trim().toUpperCase().split(/\s|·|—/)[0]; if (!IX) return null; if (IX.some(function (x) { return x.t === t; })) return t;
+    var q = fold(v).trim(); if (q.length < 2) return null; var hit = IX.filter(function (x) { return fold((typeof ISS !== 'undefined' && ISS[x.t]) || '').indexOf(q) > -1; }); return hit.length ? hit[0].t : null;
+  }
   /* ADRs: [ticker local, ADR, acciones locales por ADR] (si el precio dice otra cosa, se deduce: ver adrs()) */
   var ADRS = [['GGAL', 'GGAL', 10], ['YPFD', 'YPF', 1], ['PAMP', 'PAM', 25], ['BMA', 'BMA', 10], ['BBAR', 'BBAR', 3], ['SUPV', 'SUPV', 5], ['CEPU', 'CEPU', 10], ['EDN', 'EDN', 20],
     ['TGSU2', 'TGS', 5], ['TECO2', 'TEO', 5], ['LOMA', 'LOMA', 5], ['CRES', 'CRESY', 10], ['IRSA', 'IRS', 10]], ADRK = {};
@@ -12344,7 +12349,7 @@ window.RATG = (function () {
 
   var S = '#acc ';
   // subpestañas: qué tarjetas muestra cada una y qué hay que redibujar al entrar (los gráficos ocultos no saben su tamaño)
-  var SUBS = [['panel', 'Panel', ['accT', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV', 'accVe', 'accE', 'accH']], ['pares', 'Pares', ['accP', 'accRd']], ['mer', 'Sectores y flujo', ['accS', 'accB', 'accR']], ['bal', 'Balances', ['accCal']], ['opc', 'Opciones', ['accO']]];
+  var SUBS = [['panel', 'Panel', ['accT', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV', 'accVe', 'accE', 'accH']], ['pares', 'Pares', ['accP', 'accRd']], ['mer', 'Sectores y flujo', ['accS', 'accRot', 'accB', 'accR', 'accCo']], ['bal', 'Balances', ['accCal']], ['opc', 'Opciones', ['accO']]];
   root.innerHTML = '<style>' +
     '#acc{--fc:#4ade80;--fr:74,222,128}[data-theme="light"] #acc{--fc:#15803d;--fr:21,128,61}' +
     '#acc .card:not(.card .card){background:linear-gradient(180deg,rgba(var(--fr),.10) 0,rgba(var(--fr),.035) 180px,rgba(var(--fr),0) 420px),var(--card);border-color:rgba(var(--fr),.22)}#acc .card:not(.card .card)>.sxh .qh{color:var(--fc);font-size:24px;font-weight:700}#acc .card canvas{background:transparent!important}' +
@@ -12382,7 +12387,7 @@ window.RATG = (function () {
     '<label>Buscar<input type="search" id="accQ" placeholder="GGAL, YPF, bancos…"></label></div>' +
     '<div class="kp" id="accK"></div><div class="tw"><table id="accTab"></table></div><p class="note" id="accTn" style="margin-top:8px"></p></div>' +
 
-    '<div class="card sx" id="accF" style="margin-top:24px"><div id="accFb1"><div class="sxh"><div style="min-width:0;flex:1"><div class="wsH"><input type="search" id="accTk" list="accTkL" placeholder="Ticker" autocomplete="off"><datalist id="accTkL"></datalist><div class="wsT" id="accWt"></div></div><p class="qs" id="accFs" style="margin-top:6px"></p></div><div class="sxb">' + dlb('accFb1', 'Bonerio_accion_grafico') + '</div></div>' +
+    '<div class="card sx" id="accF" style="margin-top:24px"><div id="accFb1"><div class="sxh"><div style="min-width:0;flex:1"><div class="wsH"><input type="search" id="accTk" list="accTkL" placeholder="Ticker o empresa" autocomplete="off"><datalist id="accTkL"></datalist><div class="wsT" id="accWt"></div></div><p class="qs" id="accFs" style="margin-top:6px"></p></div><div class="sxb">' + dlb('accFb1', 'Bonerio_accion_grafico') + '</div></div>' +
     '<div class="kp" id="accFk"></div>' +
     '<div class="wsB"><label style="flex-direction:row;align-items:center;gap:8px;margin:0">Moneda<span class="seg" id="accMon2"><button data-v="ars">Pesos</button><button data-v="ccl">Dólar CCL</button></span></label><span class="seg" id="accRg">' + RG.map(function (r) { return '<button data-v="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</span>' +
     '<span class="seg" id="accFq"><button data-v="d">Diario</button><button data-v="w">Semanal</button></span><span class="seg" id="accTy"><button data-v="velas">Velas</button><button data-v="linea">Línea</button></span>' +
@@ -12405,8 +12410,9 @@ window.RATG = (function () {
 
     '<div class="card sx" id="accP"><div class="sxh"><div style="min-width:0"><p class="qh">Ratio entre acciones</p><p class="qs">Cuántas acciones de B compra una de A, con su media móvil y bandas de desvío: para operar el par (comprar la barata, vender la cara).</p></div><div class="sxb">' + dlb('accP', 'Bonerio_ratio_acciones') + '</div></div>' +
     '<div class="ctl"><label>Acción A<input type="search" id="accPa" list="accTkL" autocomplete="off" style="width:110px;font-weight:700;text-transform:uppercase"></label><button class="btnL" id="accPx" type="button" title="Invertir" style="background:none;border:1px solid var(--bd);border-radius:9px;padding:8px 10px;color:var(--tx)">⇄</button><label>Acción B<input type="search" id="accPb" list="accTkL" autocomplete="off" style="width:110px;font-weight:700;text-transform:uppercase"></label>' +
-    '<label>Pares<select id="accPp" style="min-width:140px"><option value="">Elegir…</option></select></label><label>Período<span class="seg" id="accPr">' + RG.map(function (r) { return '<button data-v="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</span></label>' +
+    '<label>Pares<select id="accPp" style="min-width:140px"><option value="">Elegir…</option></select></label><label>Período<span class="seg" id="accPr"><button data-v="hoy" title="El ratio de hoy minuto a minuto, en vivo">Hoy</button>' + RG.map(function (r) { return '<button data-v="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</span></label>' +
     '<label>Media y bandas<span class="seg" id="accPw"><button data-v="20">20 ruedas</button><button data-v="60">60</button><button data-v="120">120</button><button data-v="252">252</button></span></label>' +
+    '<label title="Bandas alrededor de la media móvil (1, 2 o 3 desvíos) y la media y los desvíos de todo el período elegido (líneas azules)">Bandas<span class="seg" id="accPbx"><button data-b="1">1σ</button><button data-b="2">2σ</button><button data-b="3">3σ</button><button data-b="hm">Media hist.</button><button data-b="hs">Desvíos hist.</button></span></label>' +
     '<label title="Los precios de abajo del gráfico. El ratio es el mismo en las dos monedas: el dólar se cancela">Precios en<span class="seg" id="accMon5"><button data-v="ars">Pesos</button><button data-v="ccl">Dólar CCL</button></span></label>' +
     '<label title="Ajusta los precios anteriores a cada dividendo (en efectivo o en acciones), como si se reinvirtiera">Dividendos<span class="seg" id="accPd"><button data-v="0">Sin ajustar</button><button data-v="1">Ajustados</button></span></label></div>' +
     '<div class="kp" id="accPk2"></div><div class="wsG" id="accPg" style="height:clamp(360px,36vw,500px)"><div id="accPtv" style="position:absolute;inset:0"></div><div class="lg" id="accPl" style="top:6px"></div></div><div class="note" id="accPn2"></div></div>' +
@@ -12425,6 +12431,12 @@ window.RATG = (function () {
     '<div class="card sx" id="accR" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Riesgo contra retorno</p><p class="qs">Volatilidad anualizada y retorno de cada acción, por sector.</p></div><div class="sxb">' + dlb('accR', 'Bonerio_acciones_riesgo') + '</div></div>' +
     '<div class="ctl"><label>Moneda<span class="seg" id="accMon4"><button data-v="ars">Pesos</button><button data-v="ccl">Dólar CCL</button></span></label><label>Ventana<span class="seg" id="accRr"><button data-v="3m">3 meses (vol. 60 ruedas)</button><button data-v="1a">1 año (vol. 252 ruedas)</button></span></label></div>' +
     '<div class="cw"><canvas id="accRrc"></canvas></div><p class="note" style="margin-top:8px">El tamaño del punto es la beta contra el panel líder. Tocá un punto para verla en el gráfico.</p></div>' +
+    '<div class="card sx" id="accRot" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Rotación sectorial (RRG)</p><p class="qs">Cada sector contra el panel líder: fuerza relativa (X) y su impulso (Y). Los sectores giran en sentido horario: mejorando, liderando, debilitándose y rezagados.</p></div><div class="sxb">' + dlb('accRot', 'Bonerio_rrg_sectores') + '</div></div>' +
+    '<div class="ctl"><label>Estela<span class="seg" id="accRgw"><button data-v="4">4 semanas</button><button data-v="8">8 semanas</button><button data-v="13">3 meses</button></span></label></div>' +
+    '<div class="cw" style="height:460px"><canvas id="accRgc"></canvas></div><ul class="note" id="accRgn" style="margin:10px 0 0;padding-left:18px;line-height:1.6"><li><b>Fuerza relativa (X)</b>: el ratio sector / panel líder contra su promedio de 50 ruedas (100 = en su promedio).</li><li><b>Impulso (Y)</b>: cuánto cambió esa fuerza en las últimas 10 ruedas (más de 100 = acelerando).</li><li>Cada punto de la estela es una semana; el punto grande es hoy. Tocá la leyenda para ocultar sectores.</li></ul></div>' +
+    '<div class="card sx" id="accCo" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Mapa de correlaciones</p><p class="qs">Cuánto se mueven juntas, con los retornos diarios: 1 = igual, 0 = nada que ver, negativo = al revés. Sirve para diversificar y para buscar pares.</p></div><div class="sxb">' + dlb('accCo', 'Bonerio_correlaciones') + '</div></div>' +
+    '<div class="ctl"><label>Universo<span class="seg" id="accCou"><button data-v="lider">Panel líder</button><button data-v="sec">Sectores</button></span></label><label>Ventana<span class="seg" id="accCow"><button data-v="60">60 ruedas</button><button data-v="120">120 ruedas</button><button data-v="250">1 año</button></span></label></div>' +
+    '<div class="tw" style="max-height:none;margin-top:10px" id="accCot"></div><p class="note" id="accCon" style="margin-top:8px"></p></div>' +
 
     '<div class="card sx" id="accV" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Valuación contra rentabilidad</p><p class="qs" id="accVs">Como la curva soberana: cada acción según su rentabilidad (X) y su múltiplo (Y), con el precio en vivo. Debajo de la recta, barata contra sus pares.</p></div><div class="sxb">' + dlb('accV', 'Bonerio_acciones_valuacion') + '</div></div>' +
     '<div class="ctl"><label>Panel<span class="seg" id="accVp"><button data-v="lider">Líder</button><button data-v="general">General</button><button data-v="all">Todas</button></span></label><label>Grupo<select id="accVg"><option value="ban">Bancos</option><option value="nof">No financieras</option><option value="all">Todas</option>' + SEC.filter(function (s) { return s[0] !== 'ban'; }).map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('') + '</select></label>' +
@@ -12450,14 +12462,17 @@ window.RATG = (function () {
   /* ---------- controles ---------- */
   var SEGS = [['accPn', 'pn', function () { table(); }], ['accBx', 'bx', reBeta], ['accRdu', 'rdu', radar], ['accEp', 'ep', erp], ['accRdc', 'rdc', radar], ['accBx2', 'bx', reBeta], ['accMon', 'mon', function () { SX = {}; drawAll(); }], ['accMon2', 'mon', function () { SX = {}; drawAll(); }], ['accMon3', 'mon', function () { SX = {}; drawAll(); }], ['accMon4', 'mon', function () { SX = {}; drawAll(); }], ['accMon5', 'mon', function () { SX = {}; drawAll(); }], ['accPd', 'pd', function () { pair(); }], // la moneda también en la ficha, sectores y riesgo-retorno
     ['accRg', 'rg', function () { chart(); }], ['accFq', 'fq', function () { chart(); }], ['accTy', 'ty', function () { chart(); }],
-    ['accSp', 'sp', function () { sectors(); }], ['accSper', 'sper', function () { ratioSec(); }], ['accRr', 'rr', function () { scatter(); }], ['accPr', 'pr', function () { pair(); }], ['accBp', 'bp', function () { flow(); }], ['accPw', 'pw', function () { pair(); }], ['accVp', 'vp', function () { valua(); }]];
-  if (!ST.vp) ST.vp = 'all'; if (!ST.pd) ST.pd = '0';
+    ['accSp', 'sp', function () { sectors(); }], ['accSper', 'sper', function () { ratioSec(); }], ['accRr', 'rr', function () { scatter(); }], ['accPr', 'pr', function () { pair(); }], ['accBp', 'bp', function () { flow(); }], ['accPw', 'pw', function () { pair(); }], ['accVp', 'vp', function () { valua(); }], ['accRgw', 'rgw', function () { rrg(); }], ['accCou', 'cou', function () { corrH(); }], ['accCow', 'cow', function () { corrH(); }]];
+  ST.rgw = ST.rgw || '8'; ST.cou = ST.cou || 'lider'; ST.cow = ST.cow || '120';
+  if (!ST.vp) ST.vp = 'all'; if (!ST.pd) ST.pd = '0'; if (!Array.isArray(ST.pbx)) ST.pbx = ['2'];
+  var pbxOn = function () { [].forEach.call($('accPbx').querySelectorAll('button'), function (b) { b.classList.toggle('on', ST.pbx.indexOf(b.getAttribute('data-b')) >= 0); }); };
+  $('accPbx').onclick = function (e) { var b = e.target.closest('button[data-b]'); if (!b) return; var k = b.getAttribute('data-b'), i = ST.pbx.indexOf(k); if (i >= 0) ST.pbx.splice(i, 1); else ST.pbx.push(k); save(); pbxOn(); pair(); }; pbxOn();
   function segOn() { SEGS.forEach(function (x) { [].forEach.call($(x[0]).querySelectorAll('button'), function (b) { b.classList.toggle('on', b.getAttribute('data-v') === ST[x[1]]); }); }); }
   SEGS.forEach(function (x) { $(x[0]).onclick = function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; ST[x[1]] = b.getAttribute('data-v'); save(); segOn(); x[2](); }; });
   $('accQ').value = ST.q; $('accQ').oninput = function () { ST.q = this.value; save(); table(); };
   $('accSf').value = ST.sf || ''; $('accSf').onchange = function () { ST.sf = this.value; save(); table(); };
   $('accLg').checked = !!ST.lg; $('accLg').onchange = function () { ST.lg = this.checked ? 1 : 0; save(); chart(); };
-  $('accTk').onchange = function () { var t = this.value.trim().toUpperCase(); if (IX && IX.some(function (x) { return x.t === t; })) pick(t); else this.value = ''; };
+  $('accTk').onchange = function () { var t = tkOf(this.value); if (t) pick(t); else this.value = ''; };
   var opts = SEC.map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('') + '<option value="lider">Panel líder (índice ponderado)</option>';
   $('accSa').innerHTML = opts; $('accSb').innerHTML = opts; $('accSa').value = ST.sA; $('accSb').value = ST.sB;
   $('accSa').onchange = function () { ST.sA = this.value; save(); ratioSec(); }; $('accSb').onchange = function () { ST.sB = this.value; save(); ratioSec(); };
@@ -12475,7 +12490,7 @@ window.RATG = (function () {
       var v = r[3]; // CCL de AL30 / AL30C por fecha
       if (v && v.t) { var ser = function (tk) { var o = v.t[tk], out = {}, acc = 0; if (!o) return out; o.i.forEach(function (i, k) { acc += i; if (o.c[k] > 0) out[v.dates[acc]] = o.c[k]; }); return out; }; var a = ser('AL30'), c = ser('AL30C'); Object.keys(a).forEach(function (d) { if (c[d]) CCL[d] = a[d] / c[d]; }); G30 = ser('GD30D'); }
       var ck = Object.keys(CCL).sort(); CCN = ck.length ? CCL[ck[ck.length - 1]] : null; // CCL del último cierre
-      $('accTkL').innerHTML = IX.slice().sort(function (a, b) { return a.t.localeCompare(b.t); }).map(function (x) { return '<option value="' + x.t + '">' + SN[secOf(x.t)] + '</option>'; }).join('');
+      $('accTkL').innerHTML = IX.slice().sort(function (a, b) { return a.t.localeCompare(b.t); }).map(function (x) { return '<option value="' + x.t + '" label="' + ((ISS[x.t] ? ISS[x.t] + ' · ' : '') + SN[secOf(x.t)]).replace(/"/g, '') + '">' + (ISS[x.t] ? ISS[x.t] + ' · ' : '') + SN[secOf(x.t)] + '</option>'; }).join('');
       if (!IX.some(function (x) { return x.t === ST.sel; })) ST.sel = 'GGAL';
     });
     return ldP;
@@ -12509,7 +12524,9 @@ window.RATG = (function () {
     return out;
   }
   function live() {
-    if (Date.now() - lvT < 25000) return Promise.resolve(); lvT = Date.now();
+    var B = window.BLS; if (Date.now() - lvT < 25000) { // con el stream de Primary, las acciones se toman de ahí en cada tic (sin red); el ADR sigue cada 25 s
+      if (B && B.ok && B.rows.arg_stocks && !(typeof mktStarted === 'function' && !mktStarted())) B.rows.arg_stocks.forEach(function (r) { if (r && r.symbol) LV[r.symbol] = { c: r.c, pct: r.pct_change, v: r.v, q: r.q_op, b: r.px_bid, a: r.px_ask }; });
+      return Promise.resolve(); } lvT = Date.now();
     var g = function (u, into) { return fetch(u, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (rs) { (rs || []).forEach(function (r) { if (r && r.symbol) into[r.symbol] = { c: r.c, pct: r.pct_change, v: r.v, q: r.q_op, b: r.px_bid, a: r.px_ask }; }); }).catch(function () { }); };
     if (typeof mktStarted === 'function' && !mktStarted()) { LV = {}; return g('https://data912.com/live/usa_adrs', LA); } // antes de la rueda (o sin rueda) data912 repite la anterior: se usa el último cierre
     return Promise.all([g('https://data912.com/live/arg_stocks', LV), g('https://data912.com/live/usa_adrs', LA)]);
@@ -12638,7 +12655,7 @@ window.RATG = (function () {
     if (!SUBS.some(function (x) { return x[0] === g; })) g = 'panel'; ST.sub = g; save(); var first = true;
     SUBS.forEach(function (x) { x[2].forEach(function (id) { var e = $(id); if (!e) return; e.style.display = x[0] === g ? '' : 'none'; if (x[0] === g) { e.style.marginTop = first ? '0' : '24px'; first = false; } }); });
     [].forEach.call($('accNav').querySelectorAll('button'), function (b) { b.classList.toggle('on', b.getAttribute('data-g') === g); });
-    if (draw && IX) ({ panel: function () { table(); adrs(); }, ficha: chart, val: function () { valua(); secMult(); erp(); hold(); }, pares: function () { radar(); pair(); }, mer: function () { SX = {}; sectors(); flow(); scatter(); }, bal: cal, opc: covered })[g]();
+    if (draw && IX) ({ panel: function () { table(); adrs(); }, ficha: chart, val: function () { valua(); secMult(); erp(); hold(); }, pares: function () { radar(); pair(); }, mer: function () { SX = {}; sectors(); flow(); scatter(); rrg(); corrH(); }, bal: cal, opc: covered })[g]();
   }
   $('accNav').onclick = function (e) { var b = e.target.closest('button[data-g]'); if (b) sub(b.getAttribute('data-g'), 1); };
   function pick(t, scroll) { ST.sel = t; save(); sub('ficha'); $('accTk').value = ''; [].forEach.call($('accTab').querySelectorAll('tr[data-t]'), function (r) { r.classList.toggle('sel', r.getAttribute('data-t') === t); }); chart(); if (scroll) setTimeout(function () { $('accF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60); }
@@ -13083,6 +13100,62 @@ window.RATG = (function () {
     var ts = IX.filter(function (x) { return secOf(x.t) === sk; }).map(function (x) { return x.t; });
     return SX[key] = Promise.all(ts.map(file)).then(function () { var m = secLine(ts, ST.mon); return Object.keys(m).sort().map(function (d) { return [d, m[d]]; }); });
   }
+  /* ---------- RRG sectorial y mapa de correlaciones ---------- */
+  var RGQ = { id: 'rgq', beforeDraw: function (c) { var a = c.chartArea, x = c.scales.x, y = c.scales.y; if (!a || !x || !y) return; var x0 = Math.min(Math.max(x.getPixelForValue(100), a.left), a.right), y0 = Math.min(Math.max(y.getPixelForValue(100), a.top), a.bottom), g = c.ctx;
+    [[x0, a.top, a.right - x0, y0 - a.top, 'rgba(74,222,128,.07)', 'Liderando', a.right - 8, a.top + 16, 'right'], [a.left, a.top, x0 - a.left, y0 - a.top, 'rgba(96,165,250,.07)', 'Mejorando', a.left + 8, a.top + 16, 'left'], [a.left, y0, x0 - a.left, a.bottom - y0, 'rgba(248,113,113,.07)', 'Rezagados', a.left + 8, a.bottom - 8, 'left'], [x0, y0, a.right - x0, a.bottom - y0, 'rgba(250,204,21,.07)', 'Debilitándose', a.right - 8, a.bottom - 8, 'right']].forEach(function (q) { g.save(); g.fillStyle = q[4]; g.fillRect(q[0], q[1], q[2], q[3]); g.fillStyle = css('--mu'); g.font = '600 12px Inter,sans-serif'; g.textAlign = q[8]; g.fillText(q[5], q[6], q[7]); g.restore(); }); } };
+  function rrg() {
+    if (!IX || !$('accRgc')) return; var secs = SEC.filter(function (s) { return IX.some(function (x) { return secOf(x.t) === s[0]; }); }), W = +ST.rgw;
+    Promise.all([secIdx('lider')].concat(secs.map(function (s) { return secIdx(s[0]); }))).then(function (r) {
+      var L = {}; r[0].forEach(function (x) { L[x[0]] = x[1]; }); var sets = [], csv = [];
+      secs.forEach(function (s, i) {
+        var c = r[i + 1].filter(function (x) { return L[x[0]] > 0 && x[1] > 0; }); if (c.length < 80) return;
+        var rs = c.map(function (x) { return x[1] / L[x[0]]; }), R = [], n = rs.length;
+        for (var k = 0; k < n; k++) { if (k < 49) { R.push(null); continue; } var m = 0; for (var q = k - 49; q <= k; q++) m += rs[q]; R.push(100 * rs[k] / (m / 50)); }
+        var pts = []; for (k = n - 1; k >= 0 && pts.length <= W; k -= 5) { if (R[k] == null || R[k - 10] == null) break; pts.unshift({ x: R[k], y: 100 * R[k] / R[k - 10], d: c[k][0] }); }
+        if (!pts.length) return; var lp = pts[pts.length - 1]; csv.push([s[1], lp.x.toFixed(2), lp.y.toFixed(2)]);
+        sets.push({ type: 'scatter', label: s[1], data: pts, showLine: true, borderColor: s[2], backgroundColor: s[2], borderWidth: 1.4, tension: 0.35, pointRadius: pts.map(function (p, j) { return j === pts.length - 1 ? 6 : 2; }), pointHoverRadius: 7 });
+      });
+      var o = base(); o.plugins.legend.display = true; o.interaction = { mode: 'nearest', intersect: true };
+      var qd = function (p) { return p.x >= 100 ? (p.y >= 100 ? 'liderando' : 'debilitándose') : (p.y >= 100 ? 'mejorando' : 'rezagado'); };
+      o.plugins.tooltip.mode = 'nearest'; o.plugins.tooltip.intersect = true; o.plugins.tooltip.filter = function (q, i) { return i === 0; }; // un solo sector: el punto que tocás
+      o.plugins.tooltip.callbacks = { title: function (q) { return q[0] ? q[0].dataset.label : ''; }, label: function (q) { var p = q.raw, A = q.dataset.data, j = q.dataIndex, pv = j > 0 ? A[j - 1] : null, qq = qd(p);
+        return ['Semana del ' + fr(p.d) + ': ' + qq.charAt(0).toUpperCase() + qq.slice(1), 'Fuerza relativa ' + nf(p.x, 1) + (p.x >= 100 ? ' (le gana al panel)' : ' (pierde contra el panel)'), 'Impulso ' + nf(p.y, 1) + (p.y >= 100 ? ' (la fuerza viene subiendo)' : ' (la fuerza viene bajando)')].concat(pv ? ['Contra la semana anterior: fuerza ' + (p.x - pv.x >= 0 ? '+' : '') + nf(p.x - pv.x, 1) + ', impulso ' + (p.y - pv.y >= 0 ? '+' : '') + nf(p.y - pv.y, 1)] : []); } };
+      o.scales.x = { type: 'linear', title: { display: true, text: 'Fuerza relativa', color: css('--mu') }, grid: { color: css('--bd') }, ticks: { color: css('--mu') } };
+      o.scales.y = { type: 'linear', title: { display: true, text: 'Impulso', color: css('--mu') }, grid: { color: css('--bd') }, ticks: { color: css('--mu') } };
+      var all = []; sets.forEach(function (d) { all = all.concat(d.data); }); if (all.length) { var ex = Math.max.apply(null, all.map(function (p) { return Math.abs(p.x - 100); })) * 1.12 + 0.3, ey = Math.max.apply(null, all.map(function (p) { return Math.abs(p.y - 100); })) * 1.12 + 0.3; ex = Math.ceil(ex); ey = Math.ceil(ey); o.scales.x.min = 100 - ex; o.scales.x.max = 100 + ex; o.scales.y.min = 100 - ey; o.scales.y.max = 100 + ey; }
+      mk('accRgc', { type: 'scatter', data: { datasets: sets }, options: o, plugins: [RGQ] });
+      var el = $('accRot'); if (el) el.$csv = [['Sector', 'Fuerza relativa', 'Impulso']].concat(csv);
+    });
+  }
+  var COC = {};
+  function corrH() {
+    var box = $('accCot'); if (!IX || !box) return; var N = +ST.cow, sec = ST.cou === 'sec', key = ST.cou + N;
+    var paint = function (names, cols, M) {
+      var cell = function (v, i, k) { if (i === k) return '<td style="background:var(--bd);color:var(--mu)">1</td>'; if (v == null) return '<td>–</td>'; var a = Math.min(1, Math.abs(v)), bg = v >= 0 ? 'rgba(74,222,128,' + (a * 0.85).toFixed(2) + ')' : 'rgba(248,113,113,' + (a * 0.85).toFixed(2) + ')'; return '<td title="' + esc(names[i] + ' / ' + names[k]) + ': ' + nf(v, 2) + '" style="background:' + bg + ';color:' + (a > 0.55 ? '#0b0b0c' : 'var(--tx)') + '">' + nf(v, 2) + '</td>'; };
+      box.innerHTML = '<table style="font-size:12px;border-collapse:collapse"><thead><tr><th></th>' + cols.map(function (c) { return '<th style="writing-mode:vertical-rl;transform:rotate(180deg);padding:6px 3px;text-align:left;font-weight:600">' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        names.map(function (nm, i) { return '<tr><td style="text-align:left;white-space:nowrap;padding-right:8px;font-weight:600">' + esc(nm) + '</td>' + M[i].map(function (v, k) { return cell(v, i, k); }).join('') + '</tr>'; }).join('') + '</tbody></table>';
+      box.querySelectorAll('tbody td:not(:first-child)').forEach(function (td) { td.style.padding = '5px 4px'; td.style.minWidth = '38px'; td.style.textAlign = 'center'; });
+      var pr = []; for (var i = 0; i < names.length; i++) for (var k = i + 1; k < names.length; k++) if (M[i][k] != null) pr.push([names[i] + ' / ' + names[k], M[i][k]]); pr.sort(function (a, b) { return b[1] - a[1]; });
+      var av = pr.length ? pr.reduce(function (z, x) { return z + x[1]; }, 0) / pr.length : null;
+      $('accCon').textContent = pr.length ? 'Correlación promedio ' + nf(av, 2) + '. Las que más se mueven juntas: ' + pr.slice(0, 3).map(function (x) { return x[0] + ' (' + nf(x[1], 2) + ')'; }).join(', ') + '. Las que menos: ' + pr.slice(-3).reverse().map(function (x) { return x[0] + ' (' + nf(x[1], 2) + ')'; }).join(', ') + '.' : '';
+      var el = $('accCo'); if (el) el.$csv = [[''].concat(names)].concat(names.map(function (nm, i) { return [nm].concat(M[i].map(function (v, k) { return i === k ? 1 : v == null ? '' : v.toFixed(3); })); }));
+    };
+    var build = function (series) { // series: [[nombre, {fecha: precio}]]
+      var R = series.map(function (s) { var d = Object.keys(s[1]).sort(), o = {}; for (var i = 1; i < d.length; i++) { var a = s[1][d[i - 1]], b = s[1][d[i]]; if (a > 0 && b > 0) o[d[i]] = Math.log(b / a); } return o; });
+      var M = series.map(function () { return []; });
+      for (var i = 0; i < series.length; i++) for (var k = 0; k < series.length; k++) { if (k < i) { M[i][k] = M[k][i]; continue; } if (k === i) { M[i][k] = 1; continue; }
+        var D = Object.keys(R[i]).filter(function (d) { return R[k][d] != null; }).sort().slice(-N); if (D.length < Math.min(40, N * 0.6)) { M[i][k] = null; continue; }
+        var x = D.map(function (d) { return R[i][d]; }), y = D.map(function (d) { return R[k][d]; }), mx = mean(x), my = mean(y), sx = 0, sy = 0, sxy = 0; for (var q = 0; q < D.length; q++) { sx += (x[q] - mx) * (x[q] - mx); sy += (y[q] - my) * (y[q] - my); sxy += (x[q] - mx) * (y[q] - my); }
+        M[i][k] = sx > 0 && sy > 0 ? sxy / Math.sqrt(sx * sy) : null; }
+      return M;
+    };
+    if (COC[key]) return paint(COC[key][0], COC[key][1], COC[key][2]);
+    box.innerHTML = '<p class="note">Calculando…</p>';
+    if (sec) { var secs = SEC.filter(function (s) { return IX.some(function (x) { return secOf(x.t) === s[0]; }); });
+      Promise.all(secs.map(function (s) { return secIdx(s[0]); })).then(function (r) { var ser = secs.map(function (s, i) { var m = {}; r[i].forEach(function (x) { m[x[0]] = x[1]; }); return [s[1], m]; }); var M = build(ser), nm = ser.map(function (x) { return x[0]; }); COC[key] = [nm, nm.map(function (x) { return x.split(' ')[0]; }), M]; paint.apply(null, COC[key]); }); }
+    else { var ts = IX.filter(function (x) { return x.panel === 'lider'; }).map(function (x) { return x.t; });
+      Promise.all(ts.map(file)).then(function () { var ser = ts.map(function (t) { var m = {}; rows(t, 'ars').forEach(function (x) { if (x[4] > 0) m[x[0]] = x[4]; }); return [t, m]; }); var M = build(ser); COC[key] = [ts, ts, M]; paint(ts, ts, M); }); }
+  }
   function ratioSec() {
     if (!IX) return; var A = ST.sA, B2 = ST.sB, nA = A === 'lider' ? 'Panel líder' : SN[A], nB = B2 === 'lider' ? 'Panel líder' : SN[B2];
     Promise.all([secIdx(A), secIdx(B2)]).then(function (r) {
@@ -13295,7 +13368,7 @@ window.RATG = (function () {
 
   /* ---------- ratio entre dos acciones ---------- */
   $('accPa').value = ST.pA; $('accPb').value = ST.pB;
-  ['accPa', 'accPb'].forEach(function (id) { $(id).onchange = function () { var t = this.value.trim().toUpperCase(); if (IX && IX.some(function (x) { return x.t === t; })) { ST[id === 'accPa' ? 'pA' : 'pB'] = t; save(); pair(); } else this.value = ST[id === 'accPa' ? 'pA' : 'pB']; }; });
+  ['accPa', 'accPb'].forEach(function (id) { $(id).onchange = function () { var t = tkOf(this.value); if (t) { this.value = t; ST[id === 'accPa' ? 'pA' : 'pB'] = t; save(); pair(); } else this.value = ST[id === 'accPa' ? 'pA' : 'pB']; }; });
   $('accPx').onclick = function () { var a = ST.pA; ST.pA = ST.pB; ST.pB = a; $('accPa').value = ST.pA; $('accPb').value = ST.pB; save(); pair(); };
   // imágenes HD: los gráficos de Lightweight Charts (Ficha y Pares) van como foto propia del gráfico, no leídos canvas por canvas
   // (la foto se saca antes de que la captura cambie el zoom de la página, que hace que el gráfico se redibuje con otro tamaño)
@@ -13404,10 +13477,50 @@ window.RATG = (function () {
     ev.forEach(function (e) { var k = 0; while (k < r.length && r[k][0] < e[0]) k++; if (k === 0 || k >= r.length) return; var g = e[1] === 'a' ? 1 / e[2] : 1 - e[2] / r[k - 1][4]; if (!(g > 0.75 && g < 1)) return; /* más de 25% en un pago es casi seguro un dato mal ajustado de Yahoo: se saltea */ for (var i = 0; i < k; i++) f[i] *= g; });
     return r.map(function (x, i) { return f[i] === 1 ? x : [x[0], x[1], x[2], x[3], x[4] * f[i], x[5]]; });
   }
+  /* ---------- ratio en vivo: cada precio nuevo mueve el último punto, y el intradiario de hoy se graba minuto a minuto en este navegador ---------- */
+  var PLV = null, IQK = 'accIntra1', IQ = { d: '', s: {} }, iqT = 0;
+  try { var iq0 = JSON.parse(localStorage.getItem(IQK) || 'null'); if (iq0 && iq0.d === today()) IQ = iq0; } catch (e) {}
+  var hm0 = function () { var f = {}; try { new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()).forEach(function (x) { f[x.type] = x.value; }); } catch (e) {} return (+f.hour % 24) * 60 + (+f.minute); };
+  var pxNow = function (t) { var B = window.BLS, r = B && B.ok && B.by && B.by[t]; if (r && r.c > 0) return r.c; var l = LV[t]; return l && l.c > 0 ? l.c : null; };
+  function recI() { // un punto por minuto y por acción (el último precio de ese minuto)
+    if (!IX || (typeof mktOpen === 'function' && !mktOpen())) return; var d = today(), m = hm0(); if (IQ.d !== d) IQ = { d: d, s: {} }; var ch = false;
+    IX.forEach(function (x) { var c = pxNow(x.t); if (!(c > 0)) return; var a = IQ.s[x.t] || (IQ.s[x.t] = []), l = a[a.length - 1]; if (l && l[1] === c) return; if (l && l[0] === m) l[1] = c; else a.push([m, c]); ch = true; });
+    if (ch && Date.now() - iqT > 15000) { iqT = Date.now(); try { localStorage.setItem(IQK, JSON.stringify(IQ)); } catch (e) {} }
+  }
+  var tsOf = function (d, m) { return Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10), Math.floor(m / 60), m % 60) / 1000; };
+  function pairLive() {
+    recI(); if (!PT || !PLV || !isAct() || ST.sub !== 'pares') return; var a = pxNow(PLV.A), b = pxNow(PLV.B); if (!(a > 0 && b > 0)) return;
+    var v = a / b, d = today();
+    try { if (PLV.hoy) { var m = hm0(); if (m >= 600 && m <= 1050) PLV.s.update({ time: tsOf(d, m), value: v }); if (PLV.lg) PLV.lg(v); } else if (d >= PLV.last) PLV.s.update({ time: d, value: v }); } catch (e) {}
+  }
+  setInterval(pairLive, 30000); setTimeout(pairLive, 4000);
+  function pairHoy(A, Bt) { // el ratio de hoy, minuto a minuto
+    Promise.all([lw(), file(A), file(Bt)]).then(function () {
+      var LC = window.LightweightCharts, d = today(), ra = rows(A, 'ars').filter(function (x) { return x[0] < d; }), rb = rows(Bt, 'ars').filter(function (x) { return x[0] < d; });
+      var c0 = ra.length && rb.length ? ra[ra.length - 1][4] / rb[rb.length - 1][4] : null, sa = (IQ.d === d && IQ.s[A]) || [], sb = (IQ.d === d && IQ.s[Bt]) || [], ms = {}, i = 0, k = 0, va = null, vb = null, pts = [];
+      sa.concat(sb).forEach(function (x) { ms[x[0]] = 1; });
+      Object.keys(ms).map(Number).sort(function (x, y) { return x - y; }).forEach(function (m) { while (i < sa.length && sa[i][0] <= m) va = sa[i++][1]; while (k < sb.length && sb[k][0] <= m) vb = sb[k++][1]; if (va > 0 && vb > 0) pts.push({ time: tsOf(d, m), value: va / vb }); });
+      var a = pxNow(A), b = pxNow(Bt), m = hm0(); if (a > 0 && b > 0 && m >= 600 && m <= 1050 && (!pts.length || pts[pts.length - 1].time < tsOf(d, m))) pts.push({ time: tsOf(d, m), value: a / b });
+      var mt2 = css('--mu') || '#a1a1aa', bd = css('--bd') || '#27272a', fc = css('--fc') || '#4ade80', last = pts.length ? pts[pts.length - 1].value : (a > 0 && b > 0 ? a / b : null), dec = last && last < 1 ? 4 : last && last < 10 ? 3 : 2;
+      if (PT) { PT.remove(); PT = null; }
+      PT = LC.createChart($('accPtv'), { autoSize: true, layout: { background: { type: 'solid', color: 'transparent' }, textColor: mt2, fontFamily: "Inter, system-ui, -apple-system, sans-serif", fontSize: innerWidth < 700 ? 11 : 13 }, grid: { vertLines: { visible: false }, horzLines: { color: bd } }, rightPriceScale: { borderVisible: false },
+        timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false, rightOffset: 3 }, localization: { locale: 'es-AR', timeFormatter: function (t) { var x = new Date(t * 1000); return ('0' + x.getUTCHours()).slice(-2) + ':' + ('0' + x.getUTCMinutes()).slice(-2); } }, handleScroll: { mouseWheel: false, vertTouchDrag: false }, handleScale: { mouseWheel: false } });
+      var sr = PT.addSeries(LC.LineSeries, { color: fc, lineWidth: 2, priceLineVisible: true, priceLineColor: fc, lastValueVisible: true, priceFormat: fmtP(dec) }); sr.setData(pts);
+      if (c0) sr.createPriceLine({ price: c0, color: mt2, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'cierre anterior' });
+      PT.timeScale().fitContent(); $('accPtv').ondblclick = function () { if (PT) PT.timeScale().fitContent(); }; $('accPtv').onwheel = null;
+      var lg = function (v) { $('accPl').innerHTML = '<b>' + A + ' / ' + Bt + '</b> hoy <i style="color:' + fc + '">Ratio ' + nf(v, dec) + '</i>' + (c0 ? '<i' + cl(v / c0 - 1) + '>' + pc(v / c0 - 1) + ' vs cierre anterior (' + nf(c0, dec) + ')</i>' : '') + '<br><i>' + A + ' $ ' + nf(pxNow(A), 2) + '</i><i>' + Bt + ' $ ' + nf(pxNow(Bt), 2) + '</i>'; };
+      if (last) lg(last); else $('accPl').innerHTML = '<b>' + A + ' / ' + Bt + '</b> hoy';
+      PLV = { A: A, B: Bt, hoy: true, s: sr, lg: lg };
+      var vs = pts.map(function (p) { return p.value; });
+      $('accPk2').innerHTML = '<div><small>Ratio ' + A + ' / ' + Bt + '</small><b>' + nf(last, dec) + '</b><span>' + (c0 ? pc(last / c0 - 1) + ' en el día' : '') + '</span></div>' + (vs.length ? '<div><small>Rango del día</small><b>' + nf(Math.min.apply(null, vs), dec) + ' – ' + nf(Math.max.apply(null, vs), dec) + '</b><span>' + vs.length + ' minutos con dato</span></div>' : '');
+      $('accPn2').innerHTML = '<p><b>Cómo se lee</b></p><ul><li><b>Hoy</b>: el ratio ' + A + ' / ' + Bt + ' minuto a minuto, con cada operación en vivo. La línea punteada es el ratio al cierre anterior.</li><li>El intradiario se arma con los precios que recibe la página desde que la abrís y se guarda en este navegador durante el día: si la abrís a las 14, arranca a las 14.</li>' + (pts.length ? '' : '<li>Todavía no hay datos de hoy' + (typeof mktOpen === 'function' && !mktOpen() ? ': el mercado está cerrado.' : '.') + '</li>') + '<li>Doble clic para volver a ver el día entero.</li></ul>';
+    }, function () { $('accPn2').textContent = 'No se pudo cargar la librería del gráfico.'; });
+  }
   function pair() {
     if (!IX) return; var A = ST.pA, Bt = ST.pB, has = function (t) { return IX.some(function (x) { return x.t === t; }); };
     if ($('accPp').options.length < 2) $('accPp').innerHTML = '<option value="">Elegir…</option>' + PRS.filter(function (q) { q = q.split('/'); return has(q[0]) && has(q[1]); }).map(function (q) { return '<option>' + q + '</option>'; }).join('');
     $('accPp').value = PRS.indexOf(A + '/' + Bt) >= 0 ? A + '/' + Bt : '';
+    if (ST.pr === 'hoy') { pairHoy(A, Bt); return; } PLV = null;
     Promise.all([lw(), file(A), file(Bt), divs()]).then(function (rs) {
       var LC = window.LightweightCharts, mb = {}, dv = rs[3], nd = 0; dadj(Bt, rows(Bt, 'ars'), dv).forEach(function (x) { mb[x[0]] = x[4]; });
       if (ST.pd === '1') nd = ((dv[A] || []).length + (dv[Bt] || []).length);
@@ -13415,7 +13528,8 @@ window.RATG = (function () {
       if (P.length < 30) { $('accPn2').textContent = 'No hay suficientes ruedas en común entre ' + A + ' y ' + Bt + '.'; return; }
       var N = P.length, D = P.map(function (x) { return x[0]; }), Rr = P.map(function (x) { return x[1]; }), w = +ST.pw, lr = Rr.map(function (v) { return Math.log(v); });
       var m = sma(lr, w), sdv = rstd(lr, w), mu = m.map(function (x) { return x == null ? null : Math.exp(x); }), up = m.map(function (x, i) { return x == null || sdv[i] == null ? null : Math.exp(x + 2 * sdv[i]); }), dn = m.map(function (x, i) { return x == null || sdv[i] == null ? null : Math.exp(x - 2 * sdv[i]); });
-      var z = lr.map(function (x, i) { return m[i] == null || !sdv[i] ? null : (x - m[i]) / sdv[i]; });
+      var z = lr.map(function (x, i) { return m[i] == null || !sdv[i] ? null : (x - m[i]) / sdv[i]; }), KM = Math.max.apply(null, [1, 2, 3].filter(function (k) { return (ST.pbx || ['2']).indexOf(String(k)) >= 0; }).concat([0])) || 2;
+      up = m.map(function (x, i) { return x == null || sdv[i] == null ? null : Math.exp(x + KM * sdv[i]); }); dn = m.map(function (x, i) { return x == null || sdv[i] == null ? null : Math.exp(x - KM * sdv[i]); });
       var k0 = 0, from = rgFrom(ST.pr, D[N - 1]); if (from) while (k0 < N - 1 && D[k0] < from) k0++;
       var tx = css('--tx') || '#e5e7eb', mt2 = css('--mu') || '#a1a1aa', bd = css('--bd') || '#27272a', fc = css('--fc') || '#4ade80', UP = '#34d399', DN = '#ff6b8b';
       if (PT) { PT.remove(); PT = null; }
@@ -13424,7 +13538,11 @@ window.RATG = (function () {
         crosshair: { mode: LC.CrosshairMode.Magnet, vertLine: { color: mt2, style: 3, labelBackgroundColor: bd }, horzLine: { color: mt2, style: 3, labelBackgroundColor: bd } }, localization: { locale: 'es-AR' }, handleScroll: { mouseWheel: false, vertTouchDrag: false }, handleScale: { mouseWheel: false } });
       var put = function (a) { return D.map(function (d, i) { return a[i] == null || !isFinite(a[i]) ? { time: d } : { time: d, value: a[i] }; }); }, dec = Rr[N - 1] < 1 ? 4 : Rr[N - 1] < 10 ? 3 : 2;
       var ln2 = function (a, c, o, pane) { var x = PT.addSeries(LC.LineSeries, Object.assign({ color: c, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, priceFormat: fmtP(dec) }, o || {}), pane || 0); x.setData(put(a)); return x; };
-      ln2(up, mt2, { lineStyle: 2 }); ln2(dn, mt2, { lineStyle: 2 }); ln2(mu, '#ffc542', { lineWidth: 1.4 }); ln2(Rr, fc, { lineWidth: 2, lastValueVisible: true, crosshairMarkerVisible: true, priceLineVisible: true, priceLineColor: fc });
+      var SG = ST.pbx || ['2'], KS = [1, 2, 3].filter(function (k) { return SG.indexOf(String(k)) >= 0; }), HB = '#60a5fa', hl = lr.slice(k0).filter(function (v) { return isFinite(v); }), hm = hl.reduce(function (a, b) { return a + b; }, 0) / Math.max(1, hl.length), hs = Math.sqrt(hl.reduce(function (a, b) { return a + (b - hm) * (b - hm); }, 0) / Math.max(1, hl.length - 1));
+      KS.forEach(function (k) { [1, -1].forEach(function (sn) { ln2(m.map(function (x, i) { return x == null || sdv[i] == null ? null : Math.exp(x + sn * k * sdv[i]); }), mt2, { lineStyle: k === 1 ? 1 : 2, lineWidth: k === 3 ? 1 : 1 }); }); });
+      if (SG.indexOf('hm') >= 0) ln2(D.map(function () { return Math.exp(hm); }), HB, { lineWidth: 1.4, lineStyle: 0 });
+      if (SG.indexOf('hs') >= 0) (KS.length ? KS : [1, 2]).forEach(function (k) { [1, -1].forEach(function (sn) { ln2(D.map(function () { return Math.exp(hm + sn * k * hs); }), HB, { lineStyle: 3 }); }); });
+      ln2(mu, '#ffc542', { lineWidth: 1.4 }); PLV = { A: A, B: Bt, last: D[N - 1], s: null }; PLV.s = ln2(Rr, fc, { lineWidth: 2, lastValueVisible: true, crosshairMarkerVisible: true, priceLineVisible: true, priceLineColor: fc });
       var zs = PT.addSeries(LC.BaselineSeries, { baseValue: { type: 'price', price: 0 }, topLineColor: DN, bottomLineColor: UP, topFillColor1: 'rgba(255,107,139,.25)', topFillColor2: 'rgba(255,107,139,.02)', bottomFillColor1: 'rgba(52,211,153,.02)', bottomFillColor2: 'rgba(52,211,153,.25)', lineWidth: 1.5, priceFormat: fmtP(2), priceLineVisible: false }, 1);
       zs.setData(put(z));
       // el mismo z con el múltiplo relativo de las dos (P/VL en bancos, EV/EBITDA o P/E en el resto): ¿el par está caro por precio o por fundamentos?
@@ -13432,23 +13550,23 @@ window.RATG = (function () {
       (bb2 ? ['pvl'] : ['ev', 'pe', 'pvl']).some(function (k) { var a2 = fser(k, A, D), b2 = fser(k, Bt, D); if (a2.ks.length && b2.ks.length) { fk = k; fA = a2.a; fB = b2.a; return true; } return false; });
       var zf = D.map(function () { return null; }), zfl = null;
       if (fk) { var lf = D.map(function (d, i) { return fA[i] > 0 && fB[i] > 0 ? Math.log(fA[i] / fB[i]) : null; }), mf = sma(lf, w), sf = rstd(lf, w); zf = lf.map(function (x, i) { return x == null || mf[i] == null || !sf[i] ? null : (x - mf[i]) / sf[i]; }); zfl = zf[N - 1];
-        PT.addSeries(LC.LineSeries, { color: '#c9a0ff', lineWidth: 1.4, lineStyle: 2, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false, priceFormat: fmtP(2) }, 1).setData(put(zf)); } [2, -2].forEach(function (v) { zs.createPriceLine({ price: v, color: mt2, lineWidth: 1, lineStyle: 2, axisLabelVisible: false }); });
+        PT.addSeries(LC.LineSeries, { color: '#c9a0ff', lineWidth: 1.4, lineStyle: 2, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false, priceFormat: fmtP(2) }, 1).setData(put(zf)); } (KS.length ? KS : [2]).forEach(function (k) { [k, -k].forEach(function (v) { zs.createPriceLine({ price: v, color: mt2, lineWidth: 1, lineStyle: 2, axisLabelVisible: false }); }); });
       PT.panes().forEach(function (pn, i) { pn.setStretchFactor(i ? 1 : 3); });
       var fit = function () { if (PT) PT.timeScale().setVisibleLogicalRange({ from: from ? k0 : 0, to: N + 2 }); }; fit(); requestAnimationFrame(fit); $('accPtv').ondblclick = fit;
       $('accPtv').onwheel = function (e) { if (!(e.ctrlKey || e.metaKey) || !PT) return; e.preventDefault(); var ts = PT.timeScale(), r = ts.getVisibleLogicalRange(); if (!r) return; var c = ts.coordinateToLogical(e.offsetX); if (c == null) c = (r.from + r.to) / 2; var f = e.deltaY > 0 ? 1.15 : 1 / 1.15, a = c - (c - r.from) * f, z = c + (r.to - c) * f; if (z - a < 10) return; ts.setVisibleLogicalRange({ from: Math.max(a, -5), to: Math.min(z, N + 20) }); };
       var usd = ST.mon === 'ccl', px = function (v, d) { if (!usd) return '$ ' + nf(v, 2); var f = fxd(d); return f ? 'US$ ' + nf(v / f, 2) : '—'; };
-      var lg = function (i) { if (i == null || i < 0 || i >= N) i = N - 1; $('accPl').innerHTML = '<b>' + A + ' / ' + Bt + '</b>' + fr(D[i]) + ' <i style="color:' + fc + '">Ratio ' + nf(Rr[i], dec) + '</i><i style="color:#ffc542">Media ' + nf(mu[i], dec) + '</i><i>Bandas ' + nf(dn[i], dec) + ' – ' + nf(up[i], dec) + '</i><i' + cl(z[i] == null ? null : -z[i]) + '>z ' + sg(z[i], 2) + '</i>' + (fk ? '<i style="color:#c9a0ff">z ' + VXN[fk] + ' ' + sg(zf[i], 2) + '</i>' : '') + '<br><i>' + A + ' ' + px(P[i][2], D[i]) + '</i><i>' + Bt + ' ' + px(P[i][3], D[i]) + '</i>' + (usd ? '<i>CCL</i>' : ''); };
+      var lg = function (i) { if (i == null || i < 0 || i >= N) i = N - 1; $('accPl').innerHTML = '<b>' + A + ' / ' + Bt + '</b>' + fr(D[i]) + ' <i style="color:' + fc + '">Ratio ' + nf(Rr[i], dec) + '</i><i style="color:#ffc542">Media ' + nf(mu[i], dec) + '</i><i>Bandas ±' + KM + 'σ ' + nf(dn[i], dec) + ' – ' + nf(up[i], dec) + '</i>' + ((ST.pbx || []).indexOf('hm') >= 0 || (ST.pbx || []).indexOf('hs') >= 0 ? '<i style="color:#60a5fa">Media hist. ' + nf(Math.exp(hm), dec) + ' · σ ' + nf(hs * 100, 1) + '%</i>' : '') + '<i' + cl(z[i] == null ? null : -z[i]) + '>z ' + sg(z[i], 2) + '</i>' + (fk ? '<i style="color:#c9a0ff">z ' + VXN[fk] + ' ' + sg(zf[i], 2) + '</i>' : '') + '<br><i>' + A + ' ' + px(P[i][2], D[i]) + '</i><i>' + Bt + ' ' + px(P[i][3], D[i]) + '</i>' + (usd ? '<i>CCL</i>' : ''); };
       lg(); PT.subscribeCrosshairMove(function (pr) { lg(pr && pr.point && pr.logical != null ? Math.round(pr.logical) : null); });
       // indicadores
       var rg = Rr.slice(k0), last = Rr[N - 1], pct = rg.filter(function (v) { return v <= last; }).length / rg.length, X = [], Y = [];
       for (var i = Math.max(1, k0); i < N; i++) { X.push(Math.log(P[i][3] / P[i - 1][3])); Y.push(Math.log(P[i][2] / P[i - 1][2])); } var co = reg(X, Y), zl = z[N - 1];
       $('accPk2').innerHTML = '<div><small>Ratio ' + A + ' / ' + Bt + '</small><b>' + nf(last, dec) + '</b><span>en el período ' + pc(last / Rr[k0] - 1) + '</span></div>' +
-        '<div><small>Contra la media de ' + w + '</small><b' + cl(zl == null ? null : -zl) + '>z ' + sg(zl, 2) + '</b><span>media ' + nf(mu[N - 1], dec) + ' · bandas ±2σ</span></div>' +
+        '<div><small>Contra la media de ' + w + '</small><b' + cl(zl == null ? null : -zl) + '>z ' + sg(zl, 2) + '</b><span>media ' + nf(mu[N - 1], dec) + ' · bandas ±' + KM + 'σ</span></div>' +
         '<div><small>Percentil en el período (' + String(ST.pr).toUpperCase() + ')</small><b>' + nf(pct * 100, 0) + '%</b><span>en las últimas ' + w + ' ruedas: ' + nf(Rr.slice(-w).filter(function (v) { return v <= last; }).length / Math.min(w, N) * 100, 0) + '% · mín ' + nf(Math.min.apply(null, rg), dec) + ' · máx ' + nf(Math.max.apply(null, rg), dec) + '</span></div>' +
         '<div><small>Correlación diaria</small><b>' + nf(co ? co[1] : null, 2) + '</b><span>beta de ' + A + ' contra ' + Bt + ': ' + nf(co ? co[0] : null, 2) + '</span></div>' +
         '<div><small>Lectura</small><b style="font-size:15px;white-space:normal">' + (zl == null ? '—' : zl > 2 ? A + ' cara contra ' + Bt : zl < -2 ? A + ' barata contra ' + Bt : zl > 1 ? A + ' algo cara' : zl < -1 ? A + ' algo barata' : 'en su media') + '</b><span>' + (fk ? 'en precio ' + sg(zl, 1) + 'σ; en ' + VXN[fk] + ' relativo ' + sg(zfl, 1) + 'σ (línea violeta)' : 'sin balances de las dos para comparar múltiplos') + '</span></div>';
       $('accPn2').innerHTML = '<p><b>Cómo se lee</b></p><ul><li><b>Ratio</b>: precio de ' + A + ' / precio de ' + Bt + ', en pesos y ajustado por splits' + (ST.pd === '1' ? (nd ? ' y por dividendos (en efectivo y en acciones, ' + nd + ' en total entre las dos)' : '; no hay dividendos cargados para estas dos') : '') + '. Da lo mismo en pesos que en dólares: el tipo de cambio se cancela.</li>' +
-        '<li><b>Media y bandas</b>: media y desvío en logaritmos de las últimas ' + w + ' ruedas; las bandas están a ±2 desvíos.</li>' +
+        '<li><b>Media y bandas</b>: media y desvío en logaritmos de las últimas ' + w + ' ruedas; las bandas grises, a 1, 2 o 3 desvíos según lo que elijas en Bandas. En azul, la media y los desvíos de todo el período elegido (histórico): muestran si el ratio está lejos de su nivel de largo plazo aunque la media móvil ya lo haya «alcanzado».</li>' +
         '<li><b>z-score</b>: cuántos desvíos está el ratio de su media. Abajo de −2, ' + A + ' históricamente barata contra ' + Bt + '; arriba de +2, cara.' + (fk ? ' La línea violeta es el mismo z con el ' + VXN[fk] + ' relativo: si los dos coinciden, la diferencia es de precio y no de fundamentos.' : '') + '</li>' +
         '<li><b>Dividendos ajustados</b>: los precios anteriores a cada dividendo se bajan en lo que se pagó, como si se reinvirtiera, para que el corte del dividendo no parezca una caída.</li>' +
         '<li>Ctrl + rueda para el zoom y doble clic para volver.</li></ul>';
