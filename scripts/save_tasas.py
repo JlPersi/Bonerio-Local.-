@@ -336,17 +336,25 @@ if U and P and not os.environ.get("SIN_VIVO"):
                 viv[key].append([s, mat(s), top(d.get("BI")), top(d.get("OF")), px(d.get("LA")), px(d.get("SE")) or px(d.get("CL")),
                                  (d.get("OI") or {}).get("size") if isinstance(d.get("OI"), dict) else None, num(d.get("TV")),
                                  px(d.get("OP")), px(d.get("HI")), px(d.get("LO"))])
-        cau = sorted((s for s in by if re.fullmatch(r"MERV - XMEV - PESOS - \d+D", s)), key=lambda s: int(s.rsplit("-", 1)[1].strip()[:-1]))
+        def mon(s):  # la moneda de una caución de Primary: pesos, dólar MEP (USD) o dólar cable (EXT)
+            n, c = s.split(" - ")[2].upper(), str(by[s].get("currency") or "").upper()
+            return "ARS" if n == "PESOS" or c == "ARS" else "EXT" if c == "EXT" or "EXT" in n or "CABLE" in n else "USD"
+        cau = sorted((s for s in by if re.fullmatch(r"MERV - XMEV - [^-]+ - \d+D", s) and int(s.rsplit("-", 1)[1].strip()[:-1]) <= 35), key=lambda s: int(s.rsplit("-", 1)[1].strip()[:-1]))
+        pb = {"ARS": [], "USD": [], "EXT": []}  # la misma forma que la foto de BYMA: [días, compra, venta, última, cierre, vwap, monto]
         for s in cau:
-            dias = int(s.rsplit("-", 1)[1].strip()[:-1])
-            if dias > 35:
-                break
+            dias, m = int(s.rsplit("-", 1)[1].strip()[:-1]), mon(s)
             d = md(s)
             if d is None:
                 continue
-            row = [dias, top(d.get("BI")), top(d.get("OF")), px(d.get("LA")) or px(d.get("CL")), num(d.get("NV")) or num(d.get("TV"))]
-            if any(v for v in row[1:]):
-                viv["cau"].append(row)
+            la = px(d.get("LA")) if isinstance(d.get("LA"), dict) and de_hoy(d["LA"].get("date")) else None
+            if m == "ARS":
+                row = [dias, top(d.get("BI")), top(d.get("OF")), px(d.get("LA")) or px(d.get("CL")), num(d.get("NV")) or num(d.get("TV"))]
+                if any(v for v in row[1:]):
+                    viv["cau"].append(row)
+            row = [dias, top(d.get("BI")), top(d.get("OF")), la, px(d.get("CL")), None, num(d.get("NV")) or num(d.get("TV"))]
+            if any(v for v in row[1:5]):
+                pb[m].append(row)
+        print("caución Primary:", {m: len(v) for m, v in pb.items()})
         print("vivo: %d futuros de dólar, %d de caución, %d plazos de caución" % (len(viv["fut"]), len(viv["cfut"]), len(viv["cau"])))
         # intradiario de los futuros: las operaciones de hoy y de las ruedas anteriores que falten, cada 5 minutos
         habiles = [today - dt.timedelta(days=i) for i in range(8) if (today - dt.timedelta(days=i)).weekday() < 5][:5]
@@ -379,9 +387,27 @@ if U and P and not os.environ.get("SIN_VIVO"):
                 nh += 1
         print("intradiario de futuros: %d ruedas" % nh)
         old = db.get("vivo") or {}
-        for k in ("bcau", "bts"):  # la foto de BYMA se toma aparte
+        for k in ("bcau", "bts", "bsrc"):  # la foto de BYMA se toma aparte
             if k in old:
                 viv[k] = old[k]
+        hay = lambda rows: any(r[3] for r in rows or [])
+        if any(hay(pb[m]) for m in pb):  # la caución sale de Primary; BYMA solo completa la moneda que Primary no tenga con operaciones de hoy
+            byv = (viv.get("bcau") or {}) if str(viv.get("bts") or "")[:10] == today.isoformat() else {}
+            src = {m: "Primary" if hay(pb[m]) or not hay(byv.get(m)) else "BYMA" for m in pb}
+            viv["bcau"] = {m: pb[m] if src[m] == "Primary" else byv.get(m, []) for m in pb}
+            viv["bsrc"], viv["bts"] = src, dt.datetime.now(TZ).strftime("%Y-%m-%dT%H:%M")
+            if RUEDA:  # el intradiario: el plazo más corto de cada moneda con operaciones (pisa el punto de BYMA de este mismo minuto)
+                day = IN.setdefault(today.isoformat(), {})
+                for m in pb:
+                    r = next((r for r in viv["bcau"][m] if r[3] or r[5]), None)
+                    if r:
+                        day.setdefault("cd", {})[m] = r[0]
+                        pts = day.setdefault("cau", {}).setdefault(m, [])
+                        if pts and pts[-1][0] == MIN:
+                            pts.pop()
+                        pt = [MIN, r[3] or r[5], r[6]]
+                        if not pts or pts[-1][1:] != pt[1:]:
+                            pts.append(pt)
         same = lambda a, b: {k: v for k, v in (a or {}).items() if k not in ("ts", "bts")} == {k: v for k, v in (b or {}).items() if k not in ("ts", "bts")}
         if (viv["fut"] or viv["cau"]) and not same(viv, old):  # fuera de la rueda la foto no cambia: no se vuelve a guardar
             db["vivo"] = viv

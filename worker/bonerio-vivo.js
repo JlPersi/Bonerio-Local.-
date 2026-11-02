@@ -3,7 +3,7 @@
    Rutas (todas GET, con CORS para la página):
    - /live/<ep>  (arg_bonds, arg_notes, arg_corp, arg_stocks, arg_cedears): la misma lista y el mismo formato que data912.com/live/<ep>,
                  con precio, punta compradora y vendedora de Primary en tiempo real. Si Primary falla, devuelve la de data912 tal cual.
-   - /caucion    caución de BYMA (datos abiertos) por plazo: { ts, ARS, USD, EXT }, cada fila [días, compra, venta, última, cierre, vwap, monto].
+   - /caucion    caución por plazo, de Primary (y BYMA donde Primary no tenga): { ts, src, ARS, USD, EXT }, cada fila [días, compra, venta, última, cierre, vwap, monto].
    - /stream     websocket: al conectarse manda { s: {ep: filas} } y después { u: {ticker: [último, var %, compra, cant., venta, cant.]} } con cada cambio.
    - /book/<ticker>  caja de puntas de Primary (hasta 5 niveles, 24 hs; con ?s=ci, contado inmediato): { t, BI: [[precio, cantidad], ...], OF: [...], LA: [precio, cantidad] }.
    Sin el Durable Object (FEED), cada respuesta se guarda 15 segundos: muchos visitantes a la vez = una sola consulta a Primary. */
@@ -142,7 +142,41 @@ export class Feed {
   }
 }
 
-async function caucion() {
+// caución por Primary: los símbolos 'MERV - XMEV - <moneda> - <n>D' (la lista de instrumentos se guarda 6 horas) y una foto por websocket
+let CSY = null, CSYT = 0;
+async function cauSyms(env) {
+  if (CSY && Date.now() - CSYT < 6 * 3600e3) return CSY;
+  let r = await fetch(base(env) + '/rest/instruments/details', { headers: { 'X-Auth-Token': await token(env) } });
+  if (r.status === 401 || r.status === 403) r = await fetch(base(env) + '/rest/instruments/details', { headers: { 'X-Auth-Token': await token(env, true) } });
+  const j = await r.json(), out = {};
+  (j.instruments || []).forEach((i) => {
+    const s = (i.instrumentId || {}).symbol || '', m = /^MERV - XMEV - (.+) - (\d+)D$/.exec(s); if (!m || +m[2] > 35) return;
+    const c = String(i.currency || '').toUpperCase(), n = m[1].toUpperCase();
+    out[s] = [n === 'PESOS' || c === 'ARS' ? 'ARS' : c === 'EXT' || /EXT|CABLE/.test(n) ? 'EXT' : 'USD', +m[2]];
+  });
+  CSY = out; CSYT = Date.now(); return out;
+}
+async function cauPrimary(env) {
+  const S = await cauSyms(env), syms = Object.keys(S); if (!syms.length) return null;
+  const md = await snapshot(env, syms, 4000), out = { ARS: [], USD: [], EXT: [] };
+  syms.forEach((s) => { const d = md[s]; if (!d) return; const lv = (a) => px(Array.isArray(a) ? a[0] : a);
+    const row = [S[s][1], lv(d.BI), lv(d.OF), d.LA && deHoy(d.LA.date) ? px(d.LA) : null, px(d.CL), null, null];
+    if (row.slice(1).some((v) => v != null)) out[S[s][0]].push(row); });
+  ['ARS', 'USD', 'EXT'].forEach((m) => out[m].sort((a, b) => a[0] - b[0]));
+  return out;
+}
+async function caucion(env) {
+  let P = null; // primero Primary; BYMA (datos abiertos) completa la moneda que Primary no tenga con operaciones de hoy
+  if (env && env.ROFEX_USER) try { P = await cauPrimary(env); } catch (e) { LASTERR = String(e.message || e); }
+  let B = null; try { B = await cauByma(); } catch (e) { }
+  const live = (rows) => (rows || []).some((r) => r[3] != null);
+  const out = { ts: new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 16), src: {}, ARS: [], USD: [], EXT: [] };
+  ['ARS', 'USD', 'EXT'].forEach((m) => { const p = P && P[m], b = B && B[m]; const usp = live(p) || (p && p.length && !live(b));
+    out[m] = (usp ? p : b) || []; out.src[m] = usp ? 'Primary' : 'BYMA'; });
+  return out;
+}
+
+async function cauByma() {
   const r = await fetch(BYMA, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', Origin: 'https://open.bymadata.com.ar', Referer: 'https://open.bymadata.com.ar/' },
     body: JSON.stringify({ excludeZeroPxAndQty: false, T2: true, T1: true, T0: true }) });
   let l = await r.json(); l = Array.isArray(l) ? l : l.data || [];
@@ -192,7 +226,7 @@ export default {
     const m = MEM[u.pathname]; // en memoria (en workers.dev la caché de Cloudflare no guarda nada)
     if (m && Date.now() - m.t < TTL * 1000) return new Response(m.b, { headers: h });
     try {
-      const body = JSON.stringify(u.pathname === '/caucion' ? await caucion() : await live(env, ep));
+      const body = JSON.stringify(u.pathname === '/caucion' ? await caucion(env) : await live(env, ep));
       MEM[u.pathname] = { t: Date.now(), b: body };
       return new Response(body, { headers: h });
     } catch (e) {
