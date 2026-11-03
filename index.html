@@ -12649,7 +12649,7 @@ window.RATG = (function () {
 
   var S = '#acc ';
   // subpestañas: qué tarjetas muestra cada una y qué hay que redibujar al entrar (los gráficos ocultos no saben su tamaño)
-  var SUBS = [['panel', 'Panel', ['accT', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV', 'accVe', 'accE', 'accH']], ['pares', 'Pares', ['accP', 'accRd']], ['mer', 'Sectores y flujo', ['accS', 'accRot', 'accB', 'accR', 'accCo']], ['bal', 'Balances', ['accCal']], ['opc', 'Opciones', ['accO']]];
+  var SUBS = [['panel', 'Panel', ['accT', 'accMV', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV', 'accVe', 'accE', 'accH']], ['pares', 'Pares', ['accP', 'accRd']], ['mer', 'Sectores y flujo', ['accS', 'accRot', 'accB', 'accR', 'accCo']], ['bal', 'Balances', ['accCal']], ['opc', 'Opciones', ['accO']]];
   root.innerHTML = '<style>' +
     '#acc{--fc:#4ade80;--fr:74,222,128}[data-theme="light"] #acc{--fc:#15803d;--fr:21,128,61}' +
     '#acc .card:not(.card .card){background:linear-gradient(180deg,rgba(var(--fr),.10) 0,rgba(var(--fr),.035) 180px,rgba(var(--fr),0) 420px),var(--card);border-color:rgba(var(--fr),.22)}#acc .card:not(.card .card)>.sxh .qh{color:var(--fc);font-size:24px;font-weight:700}#acc .card canvas{background:transparent!important}' +
@@ -14882,6 +14882,55 @@ window.RATG = (function () {
   });
   window.addEventListener('load', function () { setTimeout(check, 800); });
   setInterval(marks, 5000); // el menú lateral se arma después
+})();
+</script>
+<script>
+/* MSCI Merval: la canasta del ETF gForce MSCI Merval FCIA ETF (Galicia Asset Management) con los precios en vivo de las 19 acciones.
+   Cartera: nominales al 02/11/2026 (Conformación de Cartera Diaria del fondo). Valor teórico de la cuotaparte = $ 5.000 (valor inicial)
+   × valor de la canasta a precios de hoy / valor a los precios del 02/11. Para actualizar la cartera: cambiar CART y F0. */
+(function () {
+  var F0 = '2026-11-02', CART = [['YPFD', 352536, 7245], ['PAMP', 512709, 4632.5], ['GGAL', 425463, 5205], ['BMA', 214896, 9750], ['TGSU2', 182928, 7635], ['CEPU', 513153, 1708],
+    ['BBAR', 112887, 6220], ['TXAR', 891663, 706.5], ['BYMA', 2809743, 206.25], ['LOMA', 130869, 2997.5], ['CRES', 223998, 1631], ['ALUA', 405261, 814], ['VALO', 605172, 516.5],
+    ['SUPV', 143412, 2022], ['EDN', 216672, 1256], ['TRAN', 111777, 2145], ['ECOG', 91353, 2081], ['METR', 62382, 2357], ['TGNO4', 46176, 2650]];
+  var V0 = CART.reduce(function (a, x) { return a + x[1] * x[2]; }, 0), LV = {}, T = 0, busy = 0;
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); };
+  var pc = function (v, d) { return v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v * 100), d == null ? 2 : d) + '%'; };
+  var col = function (v) { return 'color:var(' + (v > 0 ? '--ok' : v < 0 ? '--bad' : '--mu') + ')'; };
+  function html() {
+    var t = document.getElementById('accT'); if (!t || document.getElementById('accMV')) return !!document.getElementById('accMV');
+    var st = document.createElement('style'); st.textContent = '#accMV .mvk{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:14px 0}#accMV .mvk>div{border:1px solid var(--bd);border-radius:12px;padding:12px 14px;background:var(--bg)}#accMV .mvk small{display:block;color:var(--mu);font-size:11px;letter-spacing:.06em;text-transform:uppercase}#accMV .mvk b{display:block;font-size:22px;margin-top:4px;color:var(--tx)}#accMV .mvk span{font-size:12px;color:var(--mu)}#accMV table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}#accMV th{color:var(--mu);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;text-align:right;padding:6px 8px;border-bottom:1px solid var(--bd)}#accMV td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--bd)}#accMV th:first-child,#accMV td:first-child{text-align:left}#accMV .bar{position:relative;height:10px;min-width:120px}#accMV .bar i{position:absolute;top:0;height:10px;border-radius:3px}#accMV .bar:before{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;border-left:1px solid var(--bd)}';
+    document.head.appendChild(st);
+    var d = document.createElement('div'); d.className = 'card sx'; d.id = 'accMV'; d.style.marginTop = '24px';
+    d.innerHTML = '<div class="sxh"><div style="min-width:0"><p class="qh">MSCI Merval: la canasta del ETF</p><p class="qs">Las 19 acciones del gForce MSCI Merval FCIA ETF (Galicia), con sus nominales al ' + F0.split('-').reverse().join('/') + ' y los precios en vivo. El valor teórico de la cuotaparte arranca en $ 5.000 y se mueve con la canasta: si el ETF cotiza arriba, está caro contra sus acciones; si cotiza abajo, barato.</p></div></div>' +
+      '<div class="mvk" id="mvK"></div><div class="tw" style="max-height:none;margin-top:0"><table id="mvTab"></table></div><p class="qs" id="mvFt" style="margin-top:8px"></p>';
+    t.parentNode.insertBefore(d, t.nextSibling); return true;
+  }
+  function draw() {
+    if (!html()) return; var rows = [], V = 0, Vp = 0, n = 0, upd = '';
+    CART.forEach(function (x) { var r = LV[x[0]], P = r && r.c > 0 ? r.c : x[2], ch = r && isFinite(r.pct_change) ? r.pct_change / 100 : 0, Pp = P / (1 + ch); if (r && r.c > 0) n++; V += x[1] * P; Vp += x[1] * Pp; rows.push({ t: x[0], P: P, ch: ch, vp: x[1] * Pp, v: x[1] * P }); });
+    rows.forEach(function (r) { r.w = r.v / V; r.ap = (r.v - r.vp) / Vp; });
+    var hoy = typeof mktStarted !== 'function' || mktStarted(), lb = hoy ? 'hoy' : 'en la última rueda', dv = V / Vp - 1, cp = 5000 * V / V0, mx = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.ap); }).concat([1e-6]));
+    var up = rows.filter(function (r) { return r.ch > 0; }).length, dn = rows.filter(function (r) { return r.ch < 0; }).length;
+    var best = rows.slice().sort(function (a, b) { return b.ap - a.ap; });
+    document.getElementById('mvK').innerHTML =
+      '<div><small>Valor teórico de la cuotaparte</small><b>$ ' + nf(cp, 2) + '</b><span style="' + col(dv) + '">' + pc(dv) + ' ' + lb + '</span> <span>· ' + pc(cp / 5000 - 1) + ' desde el ' + F0.split('-').reverse().join('/') + '</span></div>' +
+      '<div><small>Canasta ' + (hoy ? 'hoy' : '· última rueda') + '</small><b style="' + col(dv) + '">' + pc(dv) + '</b><span>' + up + ' suben · ' + dn + ' bajan · ' + (19 - up - dn) + ' sin cambio</span></div>' +
+      '<div><small>La que más sumó</small><b>' + best[0].t + '</b><span style="' + col(best[0].ap) + '">' + pc(best[0].ap) + ' de aporte (' + pc(best[0].ch, 1) + ')</span></div>' +
+      '<div><small>La que más restó</small><b>' + best[18].t + '</b><span style="' + col(best[18].ap) + '">' + pc(best[18].ap) + ' de aporte (' + pc(best[18].ch, 1) + ')</span></div>';
+    var h = '<thead><tr><th>Acción</th><th>Peso</th><th>Precio</th><th>' + (hoy ? 'Var. día' : 'Var. última rueda') + '</th><th>Aporte</th><th style="text-align:center">Aporte a la canasta</th></tr></thead><tbody>';
+    rows.sort(function (a, b) { return b.w - a.w; }).forEach(function (r) {
+      var w = Math.abs(r.ap) / mx * 50, c = r.ap >= 0 ? 'var(--ok)' : 'var(--bad)';
+      h += '<tr><td><b>' + r.t + '</b></td><td>' + nf(r.w * 100, 1) + '%</td><td>$ ' + nf(r.P, 2) + '</td><td style="' + col(r.ch) + '">' + pc(r.ch) + '</td><td style="' + col(r.ap) + '">' + pc(r.ap) + '</td><td><div class="bar"><i style="background:' + c + ';' + (r.ap >= 0 ? 'left:50%' : 'right:50%') + ';width:' + w + '%"></i></div></td></tr>';
+    });
+    document.getElementById('mvTab').innerHTML = h + '</tbody>';
+    document.getElementById('mvFt').textContent = 'Precios de ' + n + ' de 19 acciones en vivo (24 hs). Peso: lo que vale cada acción dentro de la canasta a precios de hoy. Aporte: cuánto de la variación de la canasta explica cada una. Cartera: Conformación de Cartera Diaria del fondo, Galicia Asset Management.';
+  }
+  function load() {
+    if (busy) return; busy = 1;
+    fetch('https://data912.com/live/arg_stocks', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (a) { (a || []).forEach(function (r) { if (r && r.symbol) LV[r.symbol] = r; }); }).catch(function () {}).then(function () { busy = 0; T = Date.now(); try { draw(); } catch (e) {} });
+  }
+  var act = function () { var a = document.getElementById('acc'); return a && a.classList.contains('active'); };
+  setInterval(function () { if (act() && Date.now() - T > 20000) load(); else if (act() && !document.getElementById('accMV')) { try { draw(); } catch (e) {} } }, 3000);
 })();
 </script>
 <script>
