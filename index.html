@@ -14892,7 +14892,7 @@ window.RATG = (function () {
   var F0 = '2026-11-02', CART = [['YPFD', 352536, 7245], ['PAMP', 512709, 4632.5], ['GGAL', 425463, 5205], ['BMA', 214896, 9750], ['TGSU2', 182928, 7635], ['CEPU', 513153, 1708],
     ['BBAR', 112887, 6220], ['TXAR', 891663, 706.5], ['BYMA', 2809743, 206.25], ['LOMA', 130869, 2997.5], ['CRES', 223998, 1631], ['ALUA', 405261, 814], ['VALO', 605172, 516.5],
     ['SUPV', 143412, 2022], ['EDN', 216672, 1256], ['TRAN', 111777, 2145], ['ECOG', 91353, 2081], ['METR', 62382, 2357], ['TGNO4', 46176, 2650]];
-  var V0 = CART.reduce(function (a, x) { return a + x[1] * x[2]; }, 0), LV = {}, T = 0, busy = 0;
+  var V0 = CART.reduce(function (a, x) { return a + x[1] * x[2]; }, 0), LV = {}, T = 0, busy = 0, IB = null, IBt = 0, CH = null;
   var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); };
   var pc = function (v, d) { return v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v * 100), d == null ? 2 : d) + '%'; };
   var col = function (v) { return 'color:var(' + (v > 0 ? '--ok' : v < 0 ? '--bad' : '--mu') + ')'; };
@@ -14902,7 +14902,7 @@ window.RATG = (function () {
     document.head.appendChild(st);
     var d = document.createElement('div'); d.className = 'card sx'; d.id = 'accMV'; d.style.marginTop = '24px';
     d.innerHTML = '<div class="sxh"><div style="min-width:0"><p class="qh">MSCI Merval: la canasta del ETF</p><p class="qs">Las 19 acciones del gForce MSCI Merval FCIA ETF (Galicia), con sus nominales al ' + F0.split('-').reverse().join('/') + ' y los precios en vivo. El valor teórico de la cuotaparte arranca en $ 5.000 y se mueve con la canasta: si el ETF cotiza arriba, está caro contra sus acciones; si cotiza abajo, barato.</p></div></div>' +
-      '<div class="mvk" id="mvK"></div><div class="tw" style="max-height:none;margin-top:0"><table id="mvTab"></table></div><p class="qs" id="mvFt" style="margin-top:8px"></p>';
+      '<div class="mvk" id="mvK"></div><h5 id="mvChT" style="margin:4px 0 6px">Canasta durante la rueda</h5><div style="position:relative;height:260px;margin-bottom:16px"><canvas id="mvCh"></canvas><p class="qs" id="mvChE" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center"></p></div><div class="tw" style="max-height:none;margin-top:0"><table id="mvTab"></table></div><p class="qs" id="mvFt" style="margin-top:8px"></p>';
     t.parentNode.insertBefore(d, t.nextSibling); return true;
   }
   function draw() {
@@ -14923,9 +14923,33 @@ window.RATG = (function () {
       h += '<tr><td><b>' + r.t + '</b></td><td>' + nf(r.w * 100, 1) + '%</td><td>$ ' + nf(r.P, 2) + '</td><td style="' + col(r.ch) + '">' + pc(r.ch) + '</td><td style="' + col(r.ap) + '">' + pc(r.ap) + '</td><td><div class="bar"><i style="background:' + c + ';' + (r.ap >= 0 ? 'left:50%' : 'right:50%') + ';width:' + w + '%"></i></div></td></tr>';
     });
     document.getElementById('mvTab').innerHTML = h + '</tbody>';
+    try { intra(rows, hoy); } catch (e) {}
     document.getElementById('mvFt').textContent = 'Precios de ' + n + ' de 19 acciones en vivo (24 hs). Peso: lo que vale cada acción dentro de la canasta a precios de hoy. Aporte: cuánto de la variación de la canasta explica cada una. Cartera: Conformación de Cartera Diaria del fondo, Galicia Asset Management.';
   }
+  function intra(rows, hoy) { // la canasta minuto a minuto: data/intra_bonos.json (lo guarda la corrida de la rueda) + el precio de ahora
+    var e = document.getElementById('mvChE'), cv = document.getElementById('mvCh'); if (!cv || typeof Chart === 'undefined') return;
+    var ds = IB ? Object.keys(IB).sort() : [], d = ds.length ? ds[ds.length - 1] : null, D = d ? IB[d] : null, pv = {}, Vp = 0;
+    rows.forEach(function (r) { pv[r.t] = r.P / (1 + r.ch); });
+    CART.forEach(function (x) { Vp += x[1] * pv[x[0]]; });
+    var mins = {}; if (D) CART.forEach(function (x) { (D[x[0]] || []).forEach(function (p) { if (p[0] >= 630 && p[0] <= 1020) mins[p[0]] = 1; }); });
+    var M = Object.keys(mins).map(Number).sort(function (a, b) { return a - b; }), last = {}, ix = {}, X = [], Y = [];
+    M.forEach(function (m) { var V = 0; CART.forEach(function (x) { var a = D[x[0]] || [], i = ix[x[0]] || 0; while (i < a.length && a[i][0] <= m) { last[x[0]] = a[i][1]; i++; } ix[x[0]] = i; V += x[1] * (last[x[0]] || pv[x[0]]); }); X.push(m); Y.push((V / Vp - 1) * 100); });
+    var now = new Date(), nm = +new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', hour12: false }).format(now) % 24 * 60 + now.getMinutes();
+    if (hoy && d === (typeof bxDayStr === 'function' ? bxDayStr(bxToday()) : d) && nm > (X[X.length - 1] || 0) && nm <= 1020) { var V = 0; rows.forEach(function (r) { V += r.v; }); X.push(nm); Y.push((V / Vp - 1) * 100); }
+    var t = document.getElementById('mvChT'); if (t) t.textContent = 'Canasta durante la rueda' + (d ? ' del ' + d.split('-').reverse().join('/') : '') + ' · variación contra el cierre anterior (%)';
+    if (X.length < 2) { if (CH) { CH.destroy(); CH = null; } e.style.display = 'flex'; e.textContent = 'El intradiario de la canasta se empieza a guardar desde esta rueda: la línea aparece a medida que operan las acciones.'; return; }
+    e.style.display = 'none';
+    var lab = X.map(function (m) { return Math.floor(m / 60) + ':' + ('0' + m % 60).slice(-2); }), up = Y[Y.length - 1] >= 0, c = up ? '#34d399' : '#ff6b8b';
+    if (CH && CH.data.labels.length === lab.length && CH._c === c) return;
+    if (CH) CH.destroy();
+    CH = new Chart(cv.getContext('2d'), { type: 'line', data: { labels: lab, datasets: [{ label: 'Canasta MSCI Merval', data: Y, borderColor: c, backgroundColor: c, borderWidth: 2, pointRadius: 0, tension: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (q) { return 'Canasta: ' + (q.parsed.y > 0 ? '+' : '') + q.parsed.y.toFixed(2).replace('.', ',') + '% · cuotaparte $ ' + nf(5000 * Vp * (1 + q.parsed.y / 100) / V0, 2); } } } },
+        scales: { x: { ticks: { maxTicksLimit: 8, maxRotation: 0 } }, y: { ticks: { callback: function (v) { return (v > 0 ? '+' : '') + nf(v, 1) + '%'; } } } } } });
+    CH._c = c;
+  }
+  function ibLoad() { if (Date.now() - IBt < 120000) return; IBt = Date.now(); fetch('data/intra_bonos.json?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (o) { IB = o; try { draw(); } catch (e) {} }).catch(function () {}); }
   function load() {
+    ibLoad();
     if (busy) return; busy = 1;
     fetch('https://data912.com/live/arg_stocks', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (a) { (a || []).forEach(function (r) { if (r && r.symbol) LV[r.symbol] = r; }); }).catch(function () {}).then(function () { busy = 0; T = Date.now(); try { draw(); } catch (e) {} });
   }
