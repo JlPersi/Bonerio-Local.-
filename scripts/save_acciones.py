@@ -24,6 +24,9 @@ DIR = os.path.join(HERE, "..", "data", "acciones")
 LIDER = {"ALUA", "BBAR", "BMA", "BYMA", "CEPU", "CRES", "ECOG", "EDN", "GGAL", "LOMA", "METR", "PAMP",
          "SUPV", "TGNO4", "TGSU2", "TRAN", "TXAR", "VALO", "YPFD"}
 SALTO = 0.35
+# Papeles nuevos sin histórico en data912: arrancan con el cierre del día en que aparecen en /live/arg_stocks
+# (MERV: ETF del MSCI Merval de Galicia, cotiza desde el 03/11/2026).
+NUEVOS = {"MERV"}
 
 
 def get(path):
@@ -184,7 +187,7 @@ def daily():
     upd = {}
     for t, r in L.items():
         old = load(t)
-        if not old and t in LIDER:  # del panel líder sin histórico en data912 (ECOG): arranca con el cierre de hoy
+        if not old and (t in LIDER or t in NUEVOS):  # del panel líder sin histórico en data912 (ECOG): arranca con el cierre de hoy
             old = {"r": []}
         if not old:  # solo tickers con histórico: /live/arg_stocks también trae las especies en dólares (GGALD, BMA.D...) y otros papeles
             continue
