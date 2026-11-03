@@ -5045,7 +5045,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var fSel = function () { return ST.fam === 'all' ? null : ST.fam.split(','); }, fHas = function (f) { var L = fSel(); return L ? L.indexOf(f) >= 0 : f !== 'acc'; };
   var DA = null, DAL = false; // acciones (data/volumen_acciones.json): se cargan solo si se elige la familia y no entran en Todas, que es la renta fija
   var PERIODS = [[1, 'Última rueda'], [5, '5 ruedas'], [10, '10 ruedas (≈ 2 semanas)'], [20, '20 ruedas (≈ 1 mes)'], [60, '60 ruedas (≈ 3 meses)'], [120, '120 ruedas (≈ 6 meses)'], [250, '250 ruedas (≈ 1 año)'], [0, 'Todo el historial']];
-  var ST = { w: 20, fam: 'all', cur: 'all', view: 'bono', met: 'e', top: 30, sel: '', live: false, mi: 3, ref: 20, al30: false }, SORT = { k: 'tot', d: -1 };
+  var ST = { w: 20, fam: 'all', cur: 'all', view: 'bono', met: 'e', top: 30, sel: '', live: false, lp: 'ahora', mi: 3, ref: 20, al30: false }, SORT = { k: 'tot', d: -1 }, PROY = null;
   var MINS = [0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1]; // % del monto del período: los bonos que pesan menos no se dibujan en Volumen contra precio (por defecto 0,05%)
   try { var mi0 = localStorage.getItem('vlMin'); if (mi0 != null && MINS[+mi0] != null) ST.mi = +mi0; } catch (e) { }
   var D = null, T = {}, DATES = [], n = 0, MEP = null, CCL = null, loading = false, err = null, CHS = null, CHD = null, CHP = null, CHR = null, LIVEN = 0, DN = null, LAST = null;
@@ -5104,20 +5104,29 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   } };
   function liveOpen() { return typeof mktOpen === 'function' ? mktOpen() : true; } // antes del cierre (17 hs) la rueda de hoy está incompleta
   function todayBA() { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }); } catch (e) { return new Date().toISOString().slice(0, 10); } }
+  function frac() { // qué parte del monto de la rueda anterior ya se había operado a esta misma hora (data/intra_bonos.json, todos los bonos)
+    var ib = window.BNIB ? window.BNIB(function () { if (isAct() && ST.live) render(); }) : null; if (!ib) return null;
+    var td = todayBA(), ds = Object.keys(ib).filter(function (d) { return d < td; }).sort().pop(); if (!ds) return null;
+    var z = new Date(Date.now() - 3 * 3600e3), M = z.getUTCHours() * 60 + z.getUTCMinutes(), a = 0, b = 0, f0 = 1e4, D0 = ib[ds];
+    for (var t in D0) { var r = D0[t], c = 0, v = 0, cf = 0, vf = 0; for (var i = 0; i < r.length; i++) { if (r[i].length < 3) continue; if (r[i][0] < f0) f0 = r[i][0]; cf = r[i][1]; vf = r[i][2]; if (r[i][0] <= M) { c = r[i][1]; v = r[i][2]; } } a += v * c; b += vf * cf; }
+    return f0 <= 640 && b > 0 ? { f: a / b, ds: ds, M: M } : null; // solo si esa rueda se guardó desde el arranque
+  }
   function build() {
-    var live = ST.live && D.dates[D.dates.length - 1] < todayBA() && mktStarted(), q = window.PXQ || {}, k, t, o; // sin rueda hoy (o antes de que empiece), data912 repite la anterior
+    var live = ST.live && D.dates[D.dates.length - 1] < todayBA() && mktStarted(), pj = null;
+    PROY = null; if (live && ST.lp === 'proy' && liveOpen()) { pj = frac(); if (pj && pj.f >= 0.03 && pj.f < 1) PROY = pj; else PROY = { f: null, ds: pj && pj.ds }; }
+    var sk = PROY && PROY.f ? 1 / PROY.f : 1, q = window.PXQ || {}, k, t, o; // sin rueda hoy (o antes de que empiece), data912 repite la anterior
     DATES = D.dates.slice(); if (live) DATES.push(todayBA()); n = DATES.length; T = {}; LIVEN = 0;
     for (t in D.t) {
       o = D.t[t]; var V = new Float64Array(n), E = new Float64Array(n), C = new Float64Array(n).fill(NaN), acc = 0;
       for (k = 0; k < o.i.length; k++) { acc += o.i[k]; V[acc] = o.v[k] || 0; E[acc] = o.e[k] || 0; if (o.c[k] > 0) C[acc] = o.c[k]; }
-      if (live) { var lq = q[t]; if (lq && lq.v > 0 && lq.c > 0) { V[n - 1] = lq.v; E[n - 1] = lq.v * lq.c / 100; C[n - 1] = lq.c; LIVEN++; } }
+      if (live) { var lq = q[t]; if (lq && lq.v > 0 && lq.c > 0) { V[n - 1] = lq.v * sk; E[n - 1] = lq.v * lq.c / 100 * sk; C[n - 1] = lq.c; LIVEN++; } }
       T[t] = { s: (window.PVSQ && window.PVSQ.spec && window.PVSQ.spec(t)) || o.s, V: V, E: E, C: C }; // las especies en dólares de los provinciales se guardaron como pesos
     }
     var al = live && DA && window.ACCQ && window.ACCQ.lv ? window.ACCQ.lv() : {};
     if (DA) for (t in DA.t) { // acciones: volumen en acciones, monto = cierre × acciones
       o = DA.t[t]; var V2 = new Float64Array(n), E2 = new Float64Array(n), C2 = new Float64Array(n).fill(NaN), a2 = 0;
       for (k = 0; k < o.i.length; k++) { a2 += o.i[k]; V2[a2] = o.v[k] || 0; E2[a2] = o.e[k] || 0; if (o.c[k] > 0) C2[a2] = o.c[k]; }
-      if (live) { var la = al[t]; if (la && la.v > 0 && la.c > 0) { V2[n - 1] = la.v; E2[n - 1] = la.v * la.c; C2[n - 1] = la.c; } }
+      if (live) { var la = al[t]; if (la && la.v > 0 && la.c > 0) { V2[n - 1] = la.v * sk; E2[n - 1] = la.v * la.c * sk; C2[n - 1] = la.c; } }
       T[t] = { s: 'P', V: V2, E: E2, C: C2, acc: 1 };
     }
     DN = typeof bxDayNum === 'function' ? DATES.map(function (d) { return bxDayNum(d); }) : null;
@@ -5249,7 +5258,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<label title="Todo en pesos: el monto de las especies MEP y Cable se pasa a pesos con el dólar implícito del AL30 y otros bonos">Moneda<select id="vlC"><option value="all">Todo en pesos</option><option value="P">Solo especie en pesos</option><option value="D">Solo MEP (US$)</option><option value="C">Solo Cable (US$)</option></select></label>' +
       '<label>Medida<select id="vlM"><option value="e">Monto operado</option><option value="v">Nominal (VN)</option></select></label>' +
       '<label title="Por bono suma las especies de un mismo bono (por ejemplo AL30, AL30D y AL30C); por especie las muestra separadas">Agrupar<select id="vlV"><option value="bono">Por bono</option><option value="esp">Por especie</option></select></label>' +
-      '<label class="ck"><input type="checkbox" id="vlL"> Incluir la rueda de hoy</label></div>' +
+      '<label class="ck"><input type="checkbox" id="vlL"> Incluir la rueda de hoy</label><label id="vlLPw" style="display:none" title="La rueda en curso está incompleta: «Proyectada al cierre» la lleva a día completo con el ritmo de la rueda anterior a esta misma hora (qué parte de su volumen ya se había operado)">Hoy<select id="vlLP"><option value="ahora">Lo operado hasta ahora</option><option value="proy">Proyectada al cierre (misma hora de ayer)</option></select></label></div>' +
       '<div id="vlFC" data-html2canvas-ignore="true" style="display:none;flex-wrap:wrap;gap:6px;margin:8px 0 16px"></div>' +
       '<div class="rs" id="vlS1"><div style="' + HD + '"><h4 id="vlT1" style="margin:0">Dónde estuvo el volumen</h4>' + dl('vlS1', 'Soberanos_Volumen_Familias', 'Descargar el resumen, el gráfico y la tabla en HD') + '</div><p class="note" id="vlCap1" style="margin:0"></p><div class="rchips" id="vlChips"></div><div class="rg" style="margin-top:18px"><div style="position:relative;height:340px"><canvas id="vlCh1"></canvas></div><div class="sc"><table class="rt nf" id="vlFam"></table></div></div></div>' +
       '<div class="rs" id="vlS4"><div style="' + HD + ';flex-wrap:wrap"><h4 style="margin:0">Hacia dónde fue la plata</h4><span style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><label class="ck" style="flex-direction:row;align-items:center;gap:8px;font-size:12px;color:var(--mu)" title="AL30 se opera sobre todo para comprar y vender dólar MEP y CCL: por defecto va aparte, en la línea del dólar"><input type="checkbox" id="vlA" style="width:auto"> Incluir AL30</label><label style="flex-direction:row;align-items:center;gap:8px;font-size:12px;color:var(--mu)">Comparar contra<select id="vlR" style="width:auto" title="Las ruedas anteriores al período elegido"><option value="1">la rueda anterior</option><option value="5">las 5 ruedas anteriores</option><option value="10">las 10 ruedas anteriores</option><option value="20">las 20 ruedas anteriores</option><option value="60">las 60 ruedas anteriores</option></select></label>' + dl('vlS4', 'Soberanos_Volumen_Flujo', 'Descargar el flujo en HD') + '</span></div>' +
@@ -5264,7 +5273,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<div class="rs"><div class="hl" style="margin:0"><p><b>Qué mide cada cosa</b></p><ul><li><b>Monto</b>: lo operado en pesos en cada rueda. Si un bono tiene varias especies (AL30 en pesos, AL30D en MEP y AL30C en Cable), se suman pasando los dólares a pesos con el dólar implícito de los bonos (la mediana de AL30, GD30 y otros pares). Con <b>Moneda</b> podés ver solo una especie y con <b>Medida</b>, el valor nominal en vez del monto.</li><li><b>Volumen relativo</b>: el promedio diario del período dividido por el de las 60 ruedas anteriores. 1× es lo normal, 2× el doble y 0,5× la mitad. Si el bono operó en menos de 10 de esas 60 ruedas no tiene un volumen habitual, así que no se calcula (y no aparece en el gráfico).</li><li><b>Variación de precio</b>: el precio de cierre es sucio (incluye los intereses corridos) y cae el día que se corta un cupón, así que se le suma lo que el bono pagó en el período. En Lecaps y bonos que devengan, el devengamiento forma parte de la variación.</li><li><b>Símbolos</b>: ‡ el bono pagó un cupón variable (TAMAR o dual) de monto desconocido, así que su variación no es comparable y no se clasifica. † bono sin cronograma de pagos cargado (por ejemplo, Bopreal): su variación no descuenta cobros.</li><li><b>Rueda de hoy</b>: si la incluís, cuenta con lo operado hasta el momento (se actualiza cada minuto), así que el monto y el volumen relativo de hoy quedan bajos hasta el cierre.</li><li><b>Ojo</b>: que el volumen y el precio se muevan juntos muestra coincidencia, no causa. Un volumen alto puede ser el motivo de un movimiento o su consecuencia.</li></ul></div></div></div>';
     var on = function (id, ev, fn) { document.getElementById(id)[ev] = fn; };
     on('vlW', 'onchange', function () { ST.w = +this.value; render(); }); on('vlF', 'onchange', function () { if (this.value === '*') { FMU = true; if (ST.fam === 'all') ST.fam = 'bonar,glob,bop'; } else { FMU = false; ST.fam = this.value; } fChips(); render(); }); on('vlC', 'onchange', function () { ST.cur = this.value; render(); });
-    on('vlM', 'onchange', function () { ST.met = this.value; render(); }); on('vlV', 'onchange', function () { ST.view = this.value; ST.sel = ''; render(); }); on('vlL', 'onchange', function () { ST.live = this.checked; render(); }); on('vlTop', 'onchange', function () { ST.top = +this.value; render(); }); on('vlR', 'onchange', function () { ST.ref = +this.value; render(); }); on('vlA', 'onchange', function () { ST.al30 = this.checked; render(); });
+    on('vlM', 'onchange', function () { ST.met = this.value; render(); }); on('vlV', 'onchange', function () { ST.view = this.value; ST.sel = ''; render(); }); on('vlL', 'onchange', function () { ST.live = this.checked; render(); }); on('vlLP', 'onchange', function () { ST.lp = this.value; render(); }); on('vlTop', 'onchange', function () { ST.top = +this.value; render(); }); on('vlR', 'onchange', function () { ST.ref = +this.value; render(); }); on('vlA', 'onchange', function () { ST.al30 = this.checked; render(); });
     on('vlMin', 'oninput', function () { ST.mi = +this.value; try { localStorage.setItem('vlMin', String(ST.mi)); } catch (e) { } if (LAST) scatter(LAST.rows); });
     on('vlLqB', 'onclick', function (e) { var th = e.target.closest('th[data-lq]'); if (!th) return; var k = th.getAttribute('data-lq'); if (LQ.s === k) LQ.d = -LQ.d; else { LQ.s = k; LQ.d = k === 't' || k === 'sp' || k === 'lv' ? 1 : -1; } liq(); });
     on('vlTab', 'onclick', function (e) {
@@ -5461,7 +5470,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var g = B2.filter(function (x) { return x.net > 0.02 * big; }).sort(function (a, b) { return b.net - a.net; }).slice(0, 8), l = B2.filter(function (x) { return x.net < -0.02 * big; }).sort(function (a, b) { return a.net - b.net; }).slice(0, 8).reverse(), bars = g.concat(l);
     var exP = []; if (A30V > 0) exP.push(mon(A30V / nn) + ' de AL30 (va en la línea del dólar; se suma con «Incluir AL30»)'); if (SHV > 0) exP.push(mon(SHV / nn) + ' de bonos a menos de 30 días del vencimiento (operan como efectivo: su precio casi no se mueve)'); if (OTV + NAV > 0) exP.push(mon((OTV + NAV) / nn) + ' de otros (bonos viejos y especies sin vencimiento cargado)');
     if (exP.length) txt += ' No entran' + (nn > 1 ? ', por rueda,' : '') + ' ' + yjo(exP) + ': por eso este total es menor que el de arriba.';
-    sm.textContent = txt + (ST.live && LIVEN ? (liveOpen() ? ' Incluye la rueda de hoy, en curso.' : ' Incluye la rueda de hoy.') : '');
+    var hh = function (m) { return Math.floor(m / 60) + ':' + ('0' + m % 60).slice(-2); };
+    sm.textContent = txt + (ST.live && LIVEN ? (liveOpen() ? (PROY && PROY.f ? ' Incluye la rueda de hoy proyectada al cierre: a las ' + hh(PROY.M) + ' la rueda del ' + PROY.ds.slice(8, 10) + '/' + PROY.ds.slice(5, 7) + ' llevaba el ' + nf(PROY.f * 100, 0) + '% de su monto, así que lo de hoy se multiplica por ' + nf(1 / PROY.f, 1) + '.' : PROY ? ' Incluye la rueda de hoy, en curso (todavía muy temprano para proyectarla: va lo operado hasta ahora).' : ' Incluye la rueda de hoy, en curso.') : ' Incluye la rueda de hoy.') : '');
     var cv4 = document.getElementById('vlCh4'), pre = function (x) { return nr > 0 && x.ref > 0 ? x.rnet / nr * nn : null; }, hasPre = bars.some(function (x) { return pre(x) != null; }); // el neto de antes de cada bono, llevado a las ruedas del período
     cv4.parentElement.style.height = hasPre ? '480px' : '440px';
     if (!bars.length) return;
@@ -5599,7 +5609,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (!D) { sub.textContent = 'Cargando la serie de volumen…'; load(); return; }
       if (ST.fam === 'acc' && !DA) { sub.textContent = 'Cargando el volumen de las acciones…'; loadAcc(); return; }
       build();
-      document.getElementById('vlW').value = ST.w; document.getElementById('vlF').value = FMU ? '*' : ST.fam; document.getElementById('vlC').value = ST.cur; document.getElementById('vlM').value = ST.met; document.getElementById('vlV').value = ST.view; document.getElementById('vlTop').value = ST.top; document.getElementById('vlMin').value = ST.mi; document.getElementById('vlR').value = ST.ref; document.getElementById('vlA').checked = ST.al30; document.getElementById('vlL').checked = ST.live;
+      document.getElementById('vlW').value = ST.w; document.getElementById('vlF').value = FMU ? '*' : ST.fam; document.getElementById('vlC').value = ST.cur; document.getElementById('vlM').value = ST.met; document.getElementById('vlV').value = ST.view; document.getElementById('vlTop').value = ST.top; document.getElementById('vlMin').value = ST.mi; document.getElementById('vlR').value = ST.ref; document.getElementById('vlA').checked = ST.al30; document.getElementById('vlL').checked = ST.live; document.getElementById('vlLP').value = ST.lp; document.getElementById('vlLPw').style.display = ST.live && liveOpen() ? '' : 'none';
       var list = entities(), M = metrics(list), rows = M.rows;
       LAST = { rows: rows, M: M };
       var lastD = D.dates[D.dates.length - 1], f = function (s) { return s.split('-').reverse().join('/'); };
