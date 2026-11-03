@@ -164,13 +164,14 @@ async function mervIns(env, again) {
   L.forEach((i) => {
     const s = (i.instrumentId || {}).symbol || '', n = nm(s), u = nm(i.underlying), cfi = String(i.cficode || '').toUpperCase();
     if (/ - CI$/.test(s) || / - 48hs$/i.test(s)) return; // de BYMA, solo 24 hs
-    const ms = /MSCI MERVAL|GFORCE/.test(u), isE = ms && cfi[0] !== 'O' && cfi[0] !== 'F', etf = (n === 'MERV' && /^MERV - XMEV - /.test(s)) || (isE && !/[DC]$/.test(n)); // el ETF en pesos (MERVD/MERVC, en dólares, quedan como etfx)
+    const ms = /MSCI MERVAL|GFORCE/.test(u), isE = ms && cfi[0] !== 'O' && cfi[0] !== 'F' && cfi[0] !== 'M', etf = (n === 'MERV' && /^MERV - XMEV - /.test(s)) || (isE && !/[DC]$/.test(n)); // el ETF en pesos (MERVD/MERVC, en dólares, quedan como etfx)
     const rel = etf || ms || /(^|[^A-Z])MERV([^A-Z]|$)/.test(u) || /^(MERV|MVL)\//.test(s) || /^(I\.)?MERV[ /]/.test(n) || (/^MERV - XMEV - /.test(s) && /^(MER|MVL)[CV]\d/.test(n));
     if (!rel || seen[s]) return; seen[s] = 1;
-    const k = etf ? 'etf' : isE ? 'etfx' : cfi[0] === 'O' ? (cfi[1] === 'P' ? 'put' : 'call') : cfi[0] === 'F' ? 'fut' : /C\d|CALL/.test(n) ? 'call' : /V\d|PUT/.test(n) ? 'put' : 'otro';
+    const k = cfi[0] === 'M' ? 'idx' : etf ? 'etf' : isE ? 'etfx' : cfi[0] === 'O' ? (cfi[1] === 'P' ? 'put' : 'call') : cfi[0] === 'F' ? 'fut' : /C\d|CALL/.test(n) ? 'call' : /V\d|PUT/.test(n) ? 'put' : 'otro';
     out.push({ s: s, n: n, k: k, cfi: cfi, u: i.underlying || null, mat: i.maturityDate || null, K: i.strikePrice || null, mult: i.contractMultiplier || 1, ccy: i.currency || null, tick: i.minPriceIncrement || null, seg: (i.segment || {}).marketSegmentId || null });
   });
-  if (!out.length && !again && Date.now() - INST > 15 * 60e3) { INS = null; return mervIns(env, true); } // instrumentos nuevos: la lista guardada puede ser vieja
+  if (!out.length && !again && Date.now() - INST > 15 * 60e3) { INS = null; return mervIns(env, true); }
+  if (out.length && !out.some((x) => x.k === 'etf')) out.push({ s: 'MERV - XMEV - MERV - 24hs', n: 'MERV', k: 'etf', cfi: null, u: null, mat: null, K: null, mult: 1, ccy: 'ARS', tick: null, seg: 'MERV' }); // el ETF no figura en la lista: se pide igual por su ticker // instrumentos nuevos: la lista guardada puede ser vieja
   MVI = out; MVIT = Date.now(); return out;
 }
 async function buscar(env, q) { // diagnóstico: qué tiene Primary con ese texto (símbolo, subyacente, descripción), sin datos de la cuenta
