@@ -164,9 +164,10 @@ async function mervIns(env, again) {
   L.forEach((i) => {
     const s = (i.instrumentId || {}).symbol || '', n = nm(s), u = nm(i.underlying), cfi = String(i.cficode || '').toUpperCase();
     if (/ - CI$/.test(s) || / - 48hs$/i.test(s)) return; // de BYMA, solo 24 hs
-    const etf = n === 'MERV' && /^MERV - XMEV - /.test(s), rel = etf || /(^|[^A-Z])MERV([^A-Z]|$)/.test(u) || /^MERV\//.test(s) || /^(I\.)?MERV[ /]/.test(n) || (/^MERV - XMEV - /.test(s) && /^MER[CV]\d/.test(n));
+    const ms = /MSCI MERVAL|GFORCE/.test(u), isE = ms && cfi[0] !== 'O' && cfi[0] !== 'F', etf = (n === 'MERV' && /^MERV - XMEV - /.test(s)) || (isE && !/[DC]$/.test(n)); // el ETF en pesos (MERVD/MERVC, en dólares, quedan como etfx)
+    const rel = etf || ms || /(^|[^A-Z])MERV([^A-Z]|$)/.test(u) || /^(MERV|MVL)\//.test(s) || /^(I\.)?MERV[ /]/.test(n) || (/^MERV - XMEV - /.test(s) && /^(MER|MVL)[CV]\d/.test(n));
     if (!rel || seen[s]) return; seen[s] = 1;
-    const k = etf ? 'etf' : cfi[0] === 'O' ? (cfi[1] === 'P' ? 'put' : 'call') : cfi[0] === 'F' ? 'fut' : /C\d|CALL/.test(n) ? 'call' : /V\d|PUT/.test(n) ? 'put' : 'otro';
+    const k = etf ? 'etf' : isE ? 'etfx' : cfi[0] === 'O' ? (cfi[1] === 'P' ? 'put' : 'call') : cfi[0] === 'F' ? 'fut' : /C\d|CALL/.test(n) ? 'call' : /V\d|PUT/.test(n) ? 'put' : 'otro';
     out.push({ s: s, n: n, k: k, cfi: cfi, u: i.underlying || null, mat: i.maturityDate || null, K: i.strikePrice || null, mult: i.contractMultiplier || 1, ccy: i.currency || null, tick: i.minPriceIncrement || null, seg: (i.segment || {}).marketSegmentId || null });
   });
   if (!out.length && !again && Date.now() - INST > 15 * 60e3) { INS = null; return mervIns(env, true); } // instrumentos nuevos: la lista guardada puede ser vieja
@@ -174,7 +175,7 @@ async function mervIns(env, again) {
 }
 async function buscar(env, q) { // diagnóstico: qué tiene Primary con ese texto (símbolo, subyacente, descripción), sin datos de la cuenta
   const L = await instruments(env), Q = String(q || 'MERV').toUpperCase(), hits = [];
-  L.forEach((i) => { const s = (i.instrumentId || {}).symbol || '', t = [nm(s), i.underlying, i.securityDescription, i.description].join(' ').toUpperCase(); if (t.indexOf(Q) >= 0 && hits.length < 150) hits.push({ s: s, u: i.underlying || null, cfi: i.cficode || null, mat: i.maturityDate || null, K: i.strikePrice || null, seg: (i.segment || {}).marketSegmentId || null, d: i.securityDescription || i.description || null }); });
+  L.forEach((i) => { const s = (i.instrumentId || {}).symbol || '', t = [nm(s), i.underlying].join(' ').toUpperCase(); if (t.indexOf(Q) >= 0 && hits.length < 300) hits.push({ s: s, u: i.underlying || null, cfi: i.cficode || null, mat: i.maturityDate || null, K: i.strikePrice || null, seg: (i.segment || {}).marketSegmentId || null, d: i.securityDescription || i.description || null }); });
   return { total: L.length, err: INSERR || null, q: Q, n: hits.length, hits: hits };
 }
 async function merv(env) {
