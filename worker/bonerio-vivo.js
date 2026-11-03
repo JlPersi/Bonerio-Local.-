@@ -5,6 +5,7 @@
                  con precio, punta compradora y vendedora de Primary en tiempo real. Si Primary falla, devuelve la de data912 tal cual.
    - /caucion    caución por plazo, de Primary (y BYMA donde Primary no tenga): { ts, src, ARS, USD, EXT }, cada fila [días, compra, venta, última, cierre, vwap, monto].
    - /stream     websocket: al conectarse manda { s: {ep: filas} } y después { u: {ticker: [último, var %, compra, cant., venta, cant.]} } con cada cambio.
+   - /merv/buscar?q=MERV  diagnóstico: los instrumentos de Primary que contienen ese texto (símbolo, subyacente, cfi, vencimiento).
    - /merv       el ETF del MSCI Merval (MERV), sus futuros y sus opciones, con puntas, último, cierre, ajuste e interés abierto: { ts, ins: [...] }.
    - /book/<ticker>  caja de puntas de Primary (hasta 5 niveles, 24 hs; con ?s=ci, contado inmediato): { t, BI: [[precio, cantidad], ...], OF: [...], LA: [precio, cantidad] }.
    Sin el Durable Object (FEED), cada respuesta se guarda 15 segundos: muchos visitantes a la vez = una sola consulta a Primary. */
@@ -147,18 +148,18 @@ export class Feed {
 }
 
 // caución por Primary: los símbolos 'MERV - XMEV - <moneda> - <n>D' (la lista de instrumentos se guarda 6 horas) y una foto por websocket
-let CSY = null, CSYT = 0, INS = null, INST = 0;
+let CSY = null, CSYT = 0, INS = null, INST = 0, INSERR = '';
 async function instruments(env) { // la lista de instrumentos de Primary (se guarda 6 horas)
   if (INS && Date.now() - INST < 6 * 3600e3) return INS;
   let r = await fetch(base(env) + '/rest/instruments/details', { headers: { 'X-Auth-Token': await token(env) } });
   if (r.status === 401 || r.status === 403) r = await fetch(base(env) + '/rest/instruments/details', { headers: { 'X-Auth-Token': await token(env, true) } });
-  const j = await r.json(); INS = j.instruments || []; INST = Date.now(); return INS;
+  const j = await r.json(); INS = j.instruments || []; INST = INS.length ? Date.now() : 0; INSERR = INS.length ? '' : String(j.description || j.message || j.status || 'lista vacía'); return INS; // vacía: no se guarda
 }
 // el ETF del MSCI Merval (MERV), sus futuros y sus opciones: se buscan en la lista de Primary por el subyacente y el código CFI, no por el nombre
 const nm = (x) => String(x || '').toUpperCase().replace(/^MERV - XMEV - /, '').replace(/ - (24HS|CI|48HS)$/, '').trim();
 let MVI = null, MVIT = 0;
-async function mervIns(env) {
-  if (MVI && Date.now() - MVIT < 3600e3) return MVI;
+async function mervIns(env, again) {
+  if (MVI && MVI.length && Date.now() - MVIT < 3600e3) return MVI;
   const L = await instruments(env), out = [], seen = {};
   L.forEach((i) => {
     const s = (i.instrumentId || {}).symbol || '', n = nm(s), u = nm(i.underlying), cfi = String(i.cficode || '').toUpperCase();
@@ -168,7 +169,13 @@ async function mervIns(env) {
     const k = etf ? 'etf' : cfi[0] === 'O' ? (cfi[1] === 'P' ? 'put' : 'call') : cfi[0] === 'F' ? 'fut' : /C\d|CALL/.test(n) ? 'call' : /V\d|PUT/.test(n) ? 'put' : 'otro';
     out.push({ s: s, n: n, k: k, cfi: cfi, u: i.underlying || null, mat: i.maturityDate || null, K: i.strikePrice || null, mult: i.contractMultiplier || 1, ccy: i.currency || null, tick: i.minPriceIncrement || null, seg: (i.segment || {}).marketSegmentId || null });
   });
+  if (!out.length && !again && Date.now() - INST > 15 * 60e3) { INS = null; return mervIns(env, true); } // instrumentos nuevos: la lista guardada puede ser vieja
   MVI = out; MVIT = Date.now(); return out;
+}
+async function buscar(env, q) { // diagnóstico: qué tiene Primary con ese texto (símbolo, subyacente, descripción), sin datos de la cuenta
+  const L = await instruments(env), Q = String(q || 'MERV').toUpperCase(), hits = [];
+  L.forEach((i) => { const s = (i.instrumentId || {}).symbol || '', t = [nm(s), i.underlying, i.securityDescription, i.description].join(' ').toUpperCase(); if (t.indexOf(Q) >= 0 && hits.length < 150) hits.push({ s: s, u: i.underlying || null, cfi: i.cficode || null, mat: i.maturityDate || null, K: i.strikePrice || null, seg: (i.segment || {}).marketSegmentId || null, d: i.securityDescription || i.description || null }); });
+  return { total: L.length, err: INSERR || null, q: Q, n: hits.length, hits: hits };
 }
 async function merv(env) {
   const L = await mervIns(env), md = L.length ? await snapshot(env, L.map((x) => x.s), 4000, ['BI', 'OF', 'LA', 'CL', 'SE', 'OI', 'EV', 'NV']) : {};
@@ -261,6 +268,7 @@ export default {
         return new Response(body, { headers: hb });
       } catch (e) { LASTERR = String(e.message || e); return new Response(JSON.stringify({ error: LASTERR }), { status: 502, headers: hb }); }
     }
+    if (u.pathname === '/merv/buscar') { const hb = Object.assign({}, h, { 'Cache-Control': 'no-store' }); try { return new Response(JSON.stringify(await buscar(env, u.searchParams.get('q'))), { headers: hb }); } catch (e) { return new Response(JSON.stringify({ error: String(e.message || e) }), { status: 502, headers: hb }); } }
     if (u.pathname === '/merv') { // ETF MERV, futuros y opciones (se guarda 10 segundos)
       const m = MEM['/merv'], hb = Object.assign({}, h, { 'Cache-Control': 'no-store' });
       if (m && Date.now() - m.t < 10000) return new Response(m.b, { headers: hb });
