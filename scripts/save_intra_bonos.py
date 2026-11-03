@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Intradiario de los bonos y letras (data912, el mismo precio en vivo de la página): data/intra_bonos.json.
+"""Intradiario de los bonos y letras, y de las acciones del MSCI Merval (data912, el mismo precio en vivo de la página): data/intra_bonos.json.
 {fecha: {especie: [[minuto del día (hora Argentina), último operado, volumen nominal acumulado del día], ...]}}: un punto por especie
 cada vez que cambia el último operado o el volumen (el volumen sirve para comparar el monto de hoy con el de la rueda anterior a la misma hora), con la foto que saca la corrida de la rueda de tasas.yml (cada pocos minutos, de 10:30 a 17:05). Quedan las dos últimas ruedas,
 así fuera del horario la ficha de cada bono muestra la anterior.
@@ -13,7 +13,9 @@ from zoneinfo import ZoneInfo
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "data", "intra_bonos.json")
 ACUM = os.environ.get("INTRA_ACUM", "/tmp/intra_bonos.json")
-URLS = ["https://data912.com/live/arg_bonds", "https://data912.com/live/arg_notes"]
+URLS = ["https://data912.com/live/arg_bonds", "https://data912.com/live/arg_notes", "https://data912.com/live/arg_stocks"]
+# de las acciones, solo las de la canasta del MSCI Merval (la tarjeta de Acciones arma con esto la línea intradiaria del índice)
+ACC = {"YPFD", "PAMP", "GGAL", "BMA", "TGSU2", "CEPU", "BBAR", "TXAR", "BYMA", "LOMA", "CRES", "ALUA", "VALO", "SUPV", "EDN", "TRAN", "ECOG", "METR", "TGNO4", "MERV"}
 TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 RUEDAS = 2
 
@@ -45,6 +47,8 @@ def precios():
         req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"})
         for r in json.load(urllib.request.urlopen(req, timeout=30)) or []:
             s, c, v = (r or {}).get("symbol"), (r or {}).get("c"), (r or {}).get("v")
+            if u.endswith("arg_stocks") and s not in ACC:
+                continue
             if s and isinstance(c, (int, float)) and c > 0:
                 out[s] = (round(float(c), 4), round(float(v)) if isinstance(v, (int, float)) and v > 0 else 0)
     return out
