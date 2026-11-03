@@ -5516,7 +5516,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     sn.innerHTML = (!pts.length ? 'No hay bonos con volumen y precio comparables en este período y con estos filtros.' : (hid ? 'Se ocultan ' + hid + (hid === 1 ? ' bono que pesa' : ' bonos que pesan') + ' menos de ' + nf(pc, pc < 0.1 ? 2 : pc < 1 ? 1 : 0) + '% del monto del período (entre todos, ' + nf(hidSh, hidSh < 0.1 ? 2 : 1) + '%).<span class="xp"> Con tan poca operatoria su variación y su volumen relativo no son representativos. Para verlos, mové el control "Bonos chicos" a la izquierda.</span>' : '') + (rec ? (hid ? ' ' : '') + 'Con "Todo el historial", volumen relativo y variación de las últimas 20 ruedas contra el promedio de todo el historial.<span class="xp"> No hay un período previo contra el cual comparar.</span>' : ''));
     if (!pts.length) return;
     var mx = Math.max.apply(null, pts.map(function (e) { return e.tot; })), lab = {};
-    pts.slice().sort(function (a, b) { return b.tot - a.tot; }).slice(0, 22).forEach(function (e) { lab[e.key] = 1; }); if (ST.sel) lab[ST.sel] = 1;
+    pts.forEach(function (e) { lab[e.key] = 1; }); // todos con su nombre (el rotulador evita que se pisen) if (ST.sel) lab[ST.sel] = 1;
     var tx = css('--tx'), bd = css('--bd'), sets = FORD.map(function (f) {
       var p = pts.filter(function (e) { return e.fam === f; }); if (!p.length) return null;
       return { type: 'scatter', label: FAMS[f][0], data: p.map(function (e) { var o = { x: e.dPxS * 100, y: e.rel, name: e.key, bono: e.key, tot: e.tot, z: e.z }; if (lab[e.key]) o.k = e.key; return o; }), backgroundColor: FAMS[f][1] + 'cc', borderColor: FAMS[f][1], borderWidth: function (c) { return c.raw && c.raw.name === ST.sel ? 3 : 1; },
