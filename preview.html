@@ -2084,9 +2084,11 @@ window.switchTab = function(tabId) {
  }
 };
 
-window.onBondSelect = function() {
+window.onBondSelect = function(live) { // live: refresco de precios; si el usuario ya movió precio o TIR de este bono, se respetan
     const b = B.find(function(x) { return x.k === $('bondSelect').value; });
     if (!b) return;
+    if (live === true && window.__simK === b.k) { window.updateChart(); return; }
+    window.__simK = null;
     $('simPriceNum').value = b.p.toFixed(2);
     $('simPriceSlider').value = b.p.toFixed(2);
     
@@ -2105,6 +2107,7 @@ window.onBondSelect = function() {
 window.updateSimPrice = function(source) {
     let newP = parseFloat(source === 'num' ? $('simPriceNum').value : $('simPriceSlider').value);
     if (isNaN(newP) || newP <= 0) return;
+    window.__simK = $('bondSelect').value;
     
     if (source === 'num') $('simPriceSlider').value = newP;
     else $('simPriceNum').value = newP.toFixed(2);
@@ -2127,6 +2130,7 @@ window.updateSimPrice = function(source) {
 window.updateSimTir = function(source) {
     let newTirPct = parseFloat(source === 'num' ? $('simTirNum').value : $('simTirSlider').value);
     if (isNaN(newTirPct) || newTirPct <= 0) return;
+    window.__simK = $('bondSelect').value;
 
     if (source === 'num') $('simTirSlider').value = newTirPct;
     else $('simTirNum').value = newTirPct.toFixed(2);
@@ -2482,7 +2486,7 @@ window.fetchLive = async function() {
       window.__liveOk = true; window.__liveFail = 0; window.__liveHm = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false }); window.paintStatus();
       
       draw(); 
-      window.onBondSelect(); 
+      window.onBondSelect(true); 
       if ($('curva') && $('curva').classList.contains('active')) { window.updateCurveChart(); window.updateSpreadChart(); }
       
       for (let i = 0; i < B.length; i++) { B[i].flash = null; }
@@ -2492,7 +2496,7 @@ window.fetchLive = async function() {
       if (window.__liveOk && window.__liveFail < 3 && $('statusTxt').textContent.indexOf('Cambiando') === -1) return; // un corte suelto no cambia el estado: se reintenta en 30 s
       $('dot').className = 'dot bad'; 
       $('statusTxt').textContent = 'Sin conexión en vivo (' + (especie === 'D' ? 'MEP' : 'Cable') + ') · mostrando última foto';
-      window.onBondSelect(); 
+      window.onBondSelect(true); 
   });
 }
 
