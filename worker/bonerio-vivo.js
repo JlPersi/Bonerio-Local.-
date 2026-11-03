@@ -1,8 +1,9 @@
 /* Bonerío en vivo: Cloudflare Worker entre la página y Primary (cuenta de Bull).
    La clave queda acá como secret (ROFEX_USER, ROFEX_PASS); la página nunca la ve.
    Rutas (todas GET, con CORS para la página):
-   - /live/<ep>  (arg_bonds, arg_notes, arg_corp, arg_stocks, arg_cedears): la misma lista y el mismo formato que data912.com/live/<ep>,
-                 con precio, punta compradora y vendedora de Primary en tiempo real. Si Primary falla, devuelve la de data912 tal cual.
+   - /live/<ep>  (arg_bonds, arg_notes, arg_corp, arg_stocks, arg_cedears): el mismo formato que data912.com/live/<ep>, con precio, puntas
+                 y volumen de Primary en tiempo real. La lista es la de data912 más lo que Primary tiene y data912 todavía no (papeles nuevos,
+                 que así aparecen el mismo día). Si Primary falla, devuelve la de data912 tal cual; si falla data912, la de Primary sola.
    - /caucion    caución por plazo, de Primary (y BYMA donde Primary no tenga): { ts, src, ARS, USD, EXT }, cada fila [días, compra, venta, última, cierre, vwap, monto].
    - /stream     websocket: al conectarse manda { s: {ep: filas} } y después { u: {ticker: [último, var %, compra, cant., venta, cant.]} } con cada cambio.
    - /merv/buscar?q=MERV  diagnóstico: los instrumentos de Primary que contienen ese texto (símbolo, subyacente, cfi, vencimiento).
@@ -53,7 +54,7 @@ async function snapshot(env, syms, ms, ents) {
     });
     ws.addEventListener('close', () => { clearTimeout(end); done(); });
     for (let i = 0; i < syms.length; i += 100) {
-      ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ents || ['BI', 'OF', 'LA', 'CL'], products: syms.slice(i, i + 100).map((s) => ({ symbol: s, marketId: 'ROFX' })) }));
+      ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ents || ['BI', 'OF', 'LA', 'CL', 'EV'], products: syms.slice(i, i + 100).map((s) => ({ symbol: s, marketId: 'ROFX' })) }));
     }
   });
   try { ws.close(1000, 'ok'); } catch (x) {}
@@ -64,20 +65,46 @@ const hoyBA = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10)
 const deHoy = (ms) => ms && new Date(ms - 3 * 3600e3).toISOString().slice(0, 10) === hoyBA();
 const px = (o) => (o && o.price > 0 ? o.price : null);
 
+// la lista de papeles de Primary (24 hs) por tipo, según el código CFI: E acciones (ED: CEDEAR), C fondos y ETF, D deuda (S + fecha: letras; obligaciones negociables)
+let PEX = null, PEXT = 0;
+async function pextra(env) {
+  if (PEX && Date.now() - PEXT < 3600e3) return PEX;
+  const L = await instruments(env), out = {}; EPS.forEach((e) => (out[e] = []));
+  L.forEach((i) => {
+    const m = /^MERV - XMEV - ([A-Z0-9.]+) - 24hs$/.exec((i.instrumentId || {}).symbol || ''); if (!m) return;
+    const c = String(i.cficode || '').toUpperCase(), d = String(i.securityDescription || i.description || '').toUpperCase(), t = m[1];
+    const ep = c[0] === 'E' || c[0] === 'C' ? (c[1] === 'D' && c[0] === 'E' || /CEDEAR/.test(d) ? 'arg_cedears' : 'arg_stocks') : c[0] === 'D' ? (/^S\d{2}[A-Z]\d$/.test(t) ? 'arg_notes' : /OBLIGACI|(^|[^A-Z])O\.? ?N\.?([^A-Z]|$)/.test(d) ? 'arg_corp' : 'arg_bonds') : null;
+    if (ep) out[ep].push(t);
+  });
+  if (L.length) { PEX = out; PEXT = Date.now(); }
+  return out;
+}
+// suma a la lista de data912 lo que Primary tiene y data912 todavía no (con el nombre de Primary: BPOA7 es el BPA7 de data912)
+function addP(rows, P) {
+  if (!P || !P.length) return rows;
+  const have = new Set(rows.map((x) => x.symbol)), add = P.filter((t) => !have.has(t) && !have.has(t.replace(/^BPO/, 'BP'))).map((t) => ({ symbol: t, src: 'primary' }));
+  return add.length ? rows.concat(add) : rows;
+}
+
 async function live(env, ep) {
-  const rows = await (await fetch(D912 + ep, { cf: { cacheTtl: 10 } })).json(); // la lista de tickers (y lo que Primary no tenga) sale de data912
-  if (!Array.isArray(rows) || !env.ROFEX_USER) return rows;
+  let rows = null; try { rows = await (await fetch(D912 + ep, { cf: { cacheTtl: 10 } })).json(); } catch (e) { } // data912: la lista base y el volumen donde Primary no lo mande
+  if (!env.ROFEX_USER) return rows;
+  if (!Array.isArray(rows)) rows = [];
+  try { rows = addP(rows, (await pextra(env))[ep]); } catch (e) { LASTERR = String(e.message || e); }
+  if (!rows.length) throw new Error('sin lista: fallaron data912 y Primary');
   let md = {};
   try { md = await snapshot(env, rows.map((r) => sym(r.symbol)), 3500); } catch (e) { LASTERR = String(e.message || e); return rows; }
   if (!Object.keys(md).length) LASTERR = 'Primary no mandó precios en 3,5 s';
   return rows.map((r) => patch(r, md[sym(r.symbol)]));
 }
 
-// la fila de data912 con lo que mandó Primary: último de hoy, variación contra el cierre anterior y las puntas
+// la fila de data912 con lo que mandó Primary: último de hoy, variación contra el cierre anterior, las puntas y el monto operado hoy
+const num = (v) => { v = v && typeof v === 'object' ? v.size || v.price : v; return +v > 0 ? +v : 0; };
 function patch(r, m) {
   if (!m) return r;
   const bi = (m.BI || [])[0], of = (m.OF || [])[0], la = deHoy(m.LA && m.LA.date) ? px(m.LA) : null, cl = px(m.CL), o = Object.assign({}, r, { src: 'primary' });
-  if (la) { o.c = la; if (cl) o.pct_change = (la / cl - 1) * 100; }
+  if (la) { o.c = la; if (cl) o.pct_change = (la / cl - 1) * 100; } else if (!(r.c > 0) && cl) { o.c = cl; o.pct_change = 0; } // papel que data912 no tiene: sin operaciones hoy, el cierre anterior
+  const ev = la ? num(m.EV) : 0; if (ev && (!(r.v > 0) || ev / r.v < 5)) o.v = Math.max(r.v || 0, ev); // monto de Primary (más al día que data912); si difiere demasiado, queda el de data912
   if (bi) { o.px_bid = bi.price; o.q_bid = bi.size; }
   if (of) { o.px_ask = of.price; o.q_ask = of.size; }
   return o;
@@ -89,14 +116,16 @@ function patch(r, m) {
 export class Feed {
   constructor(ctx, env) { this.ctx = ctx; this.env = env; this.rows = {}; this.idx = {}; this.md = {}; this.ws = null; this.cl = new Set(); this.dirty = new Set(); this.seen = Date.now(); this.lt = 0; this.lists_t = 0; }
   ok() { return !!(this.ws && this.lt && Date.now() - this.lt < 15 * 60e3); }
-  async lists() { // la lista de tickers sale de data912 (y lo que Primary no tiene: volumen, operaciones)
-    const nu = [];
-    await Promise.all(EPS.map(async (ep) => { try { const r = await (await fetch((this.env.D912 || D912) + ep)).json(); if (!Array.isArray(r) || !r.length) return;
-      this.rows[ep] = r; if (SEPS.includes(ep)) r.forEach((x) => { const k = sym(x.symbol); if (!this.idx[k]) nu.push(k); this.idx[k] = x.symbol; }); } catch (e) {} }));
+  async lists() { // la lista de data912 más los papeles que Primary tiene y data912 todavía no; si data912 falla, queda la anterior (o la de Primary sola)
+    const nu = []; let P = null; try { P = await pextra(this.env); } catch (e) { LASTERR = String(e.message || e); }
+    await Promise.all(EPS.map(async (ep) => { let r = null; try { r = await (await fetch((this.env.D912 || D912) + ep)).json(); } catch (e) {}
+      if (!Array.isArray(r) || !r.length) r = this.rows[ep] || [];
+      r = addP(r, P && P[ep]); if (!r.length) return;
+      this.rows[ep] = r; if (SEPS.includes(ep)) r.forEach((x) => { const k = sym(x.symbol); if (!this.idx[k]) nu.push(k); this.idx[k] = x.symbol; }); }));
     this.lists_t = Date.now(); this.by = {}; EPS.forEach((ep) => (this.rows[ep] || []).forEach((x) => (this.by[x.symbol] = x)));
     if (this.ws && nu.length) this.sub(nu);
   }
-  sub(list) { for (let i = 0; i < list.length; i += 100) this.ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ['BI', 'OF', 'LA', 'CL'], products: list.slice(i, i + 100).map((s) => ({ symbol: s, marketId: 'ROFX' })) })); }
+  sub(list) { for (let i = 0; i < list.length; i += 100) this.ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ['BI', 'OF', 'LA', 'CL', 'EV'], products: list.slice(i, i + 100).map((s) => ({ symbol: s, marketId: 'ROFX' })) })); }
   async connect() {
     let ws;
     for (const force of [false, true]) { const r = await fetch(base(this.env) + '/', { headers: { Upgrade: 'websocket', 'X-Auth-Token': await token(this.env, force) } }); if (r.webSocket) { ws = r.webSocket; break; } }
@@ -152,7 +181,7 @@ export class Feed {
 // caución por Primary: los símbolos 'MERV - XMEV - <moneda> - <n>D' (la lista de instrumentos se guarda 6 horas) y una foto por websocket
 let CSY = null, CSYT = 0, INS = null, INST = 0, INSERR = '';
 async function instruments(env) { // la lista de instrumentos de Primary (se guarda 6 horas)
-  if (INS && Date.now() - INST < 6 * 3600e3) return INS;
+  if (INS && Date.now() - INST < 3 * 3600e3) return INS;
   let r = await fetch(base(env) + '/rest/instruments/details', { headers: { 'X-Auth-Token': await token(env) } });
   if (r.status === 401 || r.status === 403) r = await fetch(base(env) + '/rest/instruments/details', { headers: { 'X-Auth-Token': await token(env, true) } });
   const j = await r.json(); INS = j.instruments || []; INST = INS.length ? Date.now() : 0; INSERR = INS.length ? '' : String(j.description || j.message || j.status || 'lista vacía'); return INS; // vacía: no se guarda
@@ -247,6 +276,7 @@ export default {
       const d = { usuario: !!env.ROFEX_USER, clave: !!env.ROFEX_PASS, url: base(env), ultimoError: LASTERR };
       try { await token(env, true); d.login = 'ok'; } catch (e) { d.login = String(e.message || e); return new Response(JSON.stringify(d, null, 1), { headers: h }); }
       try { const md = await snapshot(env, [sym('AL30'), sym('GD30')], 5000); d.websocket = 'ok'; d.precios = md; } catch (e) { d.websocket = String(e.message || e); }
+      try { const P = await pextra(env); d.nuevos = {}; await Promise.all(EPS.map(async (ep) => { let r = []; try { r = await (await fetch(D912 + ep)).json(); } catch (e) { } const a = addP(Array.isArray(r) ? r : [], P[ep]); d.nuevos[ep] = { data912: Array.isArray(r) ? r.length : 0, dePrimary: a.length - (Array.isArray(r) ? r.length : 0), ej: a.filter((x) => x.src === 'primary').slice(0, 25).map((x) => x.symbol) }; })); } catch (e) { d.nuevos = String(e.message || e); } // papeles que suma Primary
       if (env.FEED) try { d.stream = await (await env.FEED.get(env.FEED.idFromName('main')).fetch(new Request(u.origin + '/stats'))).json(); } catch (e) { d.stream = String(e.message || e); } // mensajes de Primary recibidos hoy por la conexión permanente
       return new Response(JSON.stringify(d, null, 1), { headers: h });
     }
