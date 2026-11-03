@@ -193,8 +193,8 @@
   function mode(k) { view(k === 'up' ? 'up' : 'in'); }
   // vistas de la tarjeta: in (mail y contraseña), up (crear cuenta), link (link al mail), forgot (pedir link para cambiar la contraseña), reset (elegir la nueva)
   var V = 'in', VW = {
-    in: ['Entrá a la terminal', 'Con tu cuenta de Google o con tu mail. Es gratis.', 'Ingresar', 'Prefiero que me manden un link al mail', 'sw g em pw fg'],
-    up: ['Creá tu cuenta', 'Gratis. Con Google o con tu mail y una contraseña.', 'Crear cuenta', 'Prefiero que me manden un link al mail', 'sw g em pw'],
+    in: ['Entrá a la terminal', 'Con tu cuenta de Google o con tu mail. La cuenta es gratis; las herramientas PRO van con suscripción.', 'Ingresar', 'Prefiero que me manden un link al mail', 'sw g em pw fg'],
+    up: ['Creá tu cuenta', 'Gratis, con Google o con tu mail y una contraseña. Las herramientas PRO van con suscripción.', 'Crear cuenta', 'Prefiero que me manden un link al mail', 'sw g em pw'],
     link: ['Entrá con un link', 'Te mandamos un link al mail: lo abrís y entrás, sin contraseña.', 'Mandame el link para entrar', 'Prefiero usar contraseña', 'sw g em'],
     forgot: ['Recuperá tu contraseña', 'Te mandamos un link para elegir una contraseña nueva. Sirve también si tu cuenta es de Google o de link y querés sumarle una.', 'Mandame el link', 'Volver a ingresar', 'em'],
     reset: ['Elegí tu contraseña nueva', 'Es la que vas a usar desde ahora para entrar con tu mail.', 'Guardar y entrar', 'Ahora no, entrar igual', 'pw']
