@@ -30,6 +30,7 @@ async function token(env, force) {
 }
 
 // foto de muchos símbolos en una sola conexión: se suscribe por websocket, junta el primer mensaje de cada uno y cierra
+let SNAPERR = null;
 async function snapshot(env, syms, ms, ents) {
   let ws;
   for (const force of [false, true]) {
@@ -44,6 +45,7 @@ async function snapshot(env, syms, ms, ents) {
     const end = setTimeout(done, ms);
     ws.addEventListener('message', (e) => {
       let m; try { m = JSON.parse(e.data); } catch (x) { return; }
+      if (m.status === 'ERROR' || m.type === 'error') { SNAPERR = String(m.description || m.message || JSON.stringify(m)).slice(0, 300); return; }
       if (m.type !== 'Md' || !m.instrumentId) return;
       out[m.instrumentId.symbol] = m.marketData || {};
       want.delete(m.instrumentId.symbol);
@@ -180,9 +182,15 @@ async function buscar(env, q) { // diagnóstico: qué tiene Primary con ese text
   return { total: L.length, err: INSERR || null, q: Q, n: hits.length, hits: hits };
 }
 async function merv(env) {
-  const L = await mervIns(env), md = L.length ? await snapshot(env, L.map((x) => x.s), 4000, ['BI', 'OF', 'LA', 'CL', 'SE', 'OI', 'EV', 'NV']) : {};
+  const L = await mervIns(env), md = {}, E = ['BI', 'OF', 'LA', 'CL', 'SE', 'OI']; let err = null; SNAPERR = null;
+  // por websocket solo los que figuran en la lista de Primary (un símbolo inexistente puede tirar toda la suscripción)
+  try { Object.assign(md, await snapshot(env, L.filter((x) => x.cfi).map((x) => x.s), 4000, E)); } catch (e) { err = String(e.message || e); }
+  if (SNAPERR) err = SNAPERR;
+  // lo que no llegó por websocket, uno por uno por REST (primero el ETF y el índice, después las opciones)
+  const rest = L.filter((x) => !md[x.s] || !Object.keys(md[x.s]).length).sort((a, b) => (a.k === 'etf' || a.k === 'idx' ? 0 : 1) - (b.k === 'etf' || b.k === 'idx' ? 0 : 1)).slice(0, 40);
+  if (rest.length) { const tk = await token(env); await Promise.all(rest.map(async (x) => { try { const r = await fetch(base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(x.s) + '&entries=' + E.join(',') + '&depth=1', { headers: { 'X-Auth-Token': tk } }); const j = await r.json(); if (j && j.marketData) md[x.s] = j.marketData; else if (j && j.status === 'ERROR' && !err) err = x.n + ': ' + String(j.description || '').slice(0, 200); } catch (e) { } })); }
   const p = (o) => (o && o.price > 0 ? o.price : null), lv = (a) => { a = Array.isArray(a) ? a[0] : a; return a && a.price > 0 ? [a.price, a.size] : null; };
-  return { ts: Date.now(), ins: L.map((x) => { const m = md[x.s] || {}; return Object.assign({}, x, { BI: lv(m.BI), OF: lv(m.OF), LA: m.LA && m.LA.price > 0 ? [m.LA.price, m.LA.size, m.LA.date || null] : null, CL: p(m.CL), SE: p(m.SE), OI: m.OI && (m.OI.size || m.OI.price) || null, EV: m.EV || null, NV: m.NV || null }); }) };
+  return { ts: Date.now(), err: err, ws: L.length - rest.length, ins: L.map((x) => { const m = md[x.s] || {}; return Object.assign({}, x, { BI: lv(m.BI), OF: lv(m.OF), LA: m.LA && m.LA.price > 0 ? [m.LA.price, m.LA.size, m.LA.date || null] : null, CL: p(m.CL), SE: p(m.SE), OI: m.OI && (m.OI.size || m.OI.price) || null, EV: m.EV || null, NV: m.NV || null }); }) };
 }
 async function cauSyms(env) {
   if (CSY && Date.now() - CSYT < 6 * 3600e3) return CSY;
