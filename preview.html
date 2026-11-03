@@ -3355,7 +3355,7 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
   var MIRT = '<label>Mostrar tasa<select class="psMir" data-for="psMet"><option value="tem">TEM</option><option value="tea">TEA</option></select></label>';
   var RSTB = '<button class="act psRst" title="Vuelve la curva y las opciones de esta tarjeta a sus valores por defecto" data-html2canvas-ignore="true">Restablecer</button>';
   var CURVES = [['auto', 'Automática (mejor ajuste)'], ['log', 'Logarítmica'], ['sqrt', 'Raíz cuadrada'], ['lin', 'Lineal'], ['quad', 'Cuadrática'], ['ns', 'Nelson-Siegel']];
-  var CURVEOPT = CURVES.map(function (c) { return '<option value="' + c[0] + '">' + c[1] + '</option>'; }).join('');
+  var CURVEOPT = CURVES.map(function (c) { return '<option value="' + c[0] + '"' + (c[0] === 'log' ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('');
   var NO = 0, card = function (t, sub, body) { NO++; return '<div class="card"><p class="qh"><span class="no">' + NO + '</span>' + t + '</p><p class="qs">' + sub + '</p>' + body + '</div>'; };
   root.innerHTML =
     '<div class="card ctl" style="display:none">' +
@@ -3451,9 +3451,9 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
     window.__psClr = function (n) { (n ? [n] : [2, 3, 4, 5]).forEach(clr); };
   })();
   var rst = document.createElement('button'); rst.className = 'act'; rst.textContent = 'Restablecer escenario'; rst.title = 'Vuelve inflación, TAMAR, devaluación, las proyecciones por mes de cada tarjeta y las opciones a sus valores por defecto'; rst.setAttribute('data-html2canvas-ignore', 'true');
-  rst.onclick = function () { window.__psClr(); setDefaults(); document.getElementById('psMet').value = 'tem'; document.getElementById('psRem').value = '1'; [2, 3, 4, 5].forEach(fillCard); [1, 2, 3, 4, 5].forEach(function (n) { var k = document.getElementById('psK' + n); if (k) k.value = 'auto'; }); window.renderPesos(); };
+  rst.onclick = function () { window.__psClr(); setDefaults(); document.getElementById('psMet').value = 'tem'; document.getElementById('psRem').value = '1'; [2, 3, 4, 5].forEach(fillCard); [1, 2, 3, 4, 5].forEach(function (n) { var k = document.getElementById('psK' + n); if (k) k.value = 'log'; }); window.renderPesos(); };
   root.querySelector('.card.ctl').appendChild(rst);
-  root.querySelectorAll('.psRst').forEach(function (b) { b.onclick = function () { var n = +b.getAttribute('data-n'); fillCard(n); if (n) window.__psClr(n); var k = document.getElementById('psK' + n); if (k) k.value = 'auto'; window.renderPesos(); }; });
+  root.querySelectorAll('.psRst').forEach(function (b) { b.onclick = function () { var n = +b.getAttribute('data-n'); fillCard(n); if (n) window.__psClr(n); var k = document.getElementById('psK' + n); if (k) k.value = 'log'; window.renderPesos(); }; });
 
   /* defaults del escenario a partir de los datos */
   function setDefaults() {
@@ -4290,7 +4290,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var ORDER = ['usd', 'fija', 'cer', 'tamar', 'dl', 'dual', 'on', 'pv', 'acc'];
   var CORP = function (g) { return g === 'on' || g === 'pv'; }; // ONs y provinciales: se suman solo si se eligen
   var GR = '#34d399', RD = '#ff6b8b', NE = '#a1a1aa';
-  var ST = { n: 1, vm: 'acum', grp: 'usd', sort: 'dpct', dir: -1, mU: window.USD_MODEL || 'log', mP: 'auto', cap: 0, dual: '0', ax: 'md', axU: 'md', sh: 'hide', b0: 0, e1: 0 }, PCT = {}, DATA = null, CH = null, timer = null;
+  var ST = { n: 1, vm: 'acum', grp: 'usd', sort: 'dpct', dir: -1, mU: window.USD_MODEL || 'log', mP: 'log', cap: 0, dual: '0', ax: 'md', axU: 'md', sh: 'hide', b0: 0, e1: 0 }, PCT = {}, DATA = null, CH = null, timer = null;
   var HOST = null, OWN = null; // HOST: la pestaña Resumen, que muestra esta misma tarjeta con su período (b0/e1: fechas elegidas, en días)
   var dstr = function (t) { return bxDayStr(t).split('-').reverse().slice(0, 2).join('/'); };
   var dfull = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
@@ -11141,6 +11141,7 @@ window.RATG = (function () {
   var spG = function () { var b = document.getElementById('bccl'); return b && b.classList.contains('on') ? 'C' : 'D'; }; // especie: la del selector MEP / Cable de arriba
   var KEY = 'onsSt1', ST = { tp: 'usd', liq: 'op', ax: 'md', vw: 'tir', q: '', sort: 'v', dir: -1 };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
+  if (!ST.axV) { if (ST.ax === 'mdd') ST.ax = 'md'; ST.axV = 1; } // una vez: el eje pasa a duración modificada en años
   var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
   if (!Array.isArray(ST.em)) ST.em = ST.em ? [ST.em] : []; // varias empresas a la vez (antes era una sola)
   var EPAL = ['#f0abfc', '#5cc8ff', '#ffc542', '#818cf8', '#fb923c', '#c9a0ff', '#2dd4bf', '#f87171'], EMS = {};
@@ -11693,6 +11694,7 @@ window.RATG = (function () {
   var spG = function () { var b = document.getElementById('bccl'); return b && b.classList.contains('on') ? 'C' : 'D'; }; // especie: la del selector MEP / Cable de arriba
   var KEY = 'pvsSt1', ST = { tp: 'usd', liq: 'op', ax: 'md', vw: 'tir', q: '', sort: 'v', dir: -1 };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
+  if (!ST.axV) { if (ST.ax === 'mdd') ST.ax = 'md'; ST.axV = 1; } // una vez: el eje pasa a duración modificada en años
   var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
   if (!Array.isArray(ST.em)) ST.em = ST.em ? [ST.em] : []; // varias provincias a la vez (antes era una sola)
   var EPAL = ['#f0abfc', '#5cc8ff', '#ffc542', '#818cf8', '#fb923c', '#c9a0ff', '#2dd4bf', '#f87171'], EMS = {};
