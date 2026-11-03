@@ -353,7 +353,7 @@
       w.addEventListener('click', function (e) { if (e.target === w || (e.target.closest && e.target.closest('.x'))) { w.remove(); clearInterval(LV.rt); } }); }
     w.innerHTML = '<div class="bx"><div class="hd"><h3>Conectados ahora</h3><button class="x" title="Cerrar">×</button></div><div data-b><p class="mu">Cargando…</p></div></div>';
     var load = function () {
-      sb.from('presencia').select('email,nombre,pestana,dispositivo,desde,visto').gte('visto', new Date(Date.now() - 864e5).toISOString()).order('visto', { ascending: false }).limit(300).then(function (r) {
+      sb.from('presencia').select('email,nombre,pestana,dispositivo,desde,visto').gte('visto', new Date(Date.now() - 864e5).toISOString()).order('visto', { ascending: false }).limit(5000).then(function (r) {
         var b = w.querySelector('[data-b]'); if (!b) return; if (r.error) { b.innerHTML = '<p class="mu">No se pudo leer: ' + esc(r.error.message) + '</p>'; return; }
         var now = Date.now(), on = [], day = [];
         (r.data || []).forEach(function (x) { var age = now - new Date(x.visto).getTime(); if (age < 150000) on.push(x); else if (age < 864e5) day.push(x); });
