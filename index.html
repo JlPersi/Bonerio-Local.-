@@ -12649,7 +12649,7 @@ window.RATG = (function () {
 
   var S = '#acc ';
   // subpestañas: qué tarjetas muestra cada una y qué hay que redibujar al entrar (los gráficos ocultos no saben su tamaño)
-  var SUBS = [['panel', 'Panel', ['accT', 'accMV', 'accA']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV', 'accVe', 'accE', 'accH']], ['pares', 'Pares', ['accP', 'accRd']], ['mer', 'Sectores y flujo', ['accS', 'accRot', 'accB', 'accR', 'accCo']], ['bal', 'Balances', ['accCal']], ['opc', 'Opciones', ['accO']]];
+  var SUBS = [['panel', 'Panel', ['accT', 'accA']], ['etf', 'ETF MERV', ['accX', 'accMV']], ['ficha', 'Ficha', ['accF']], ['val', 'Valuación', ['accV', 'accVe', 'accE', 'accH']], ['pares', 'Pares', ['accP', 'accRd']], ['mer', 'Sectores y flujo', ['accS', 'accRot', 'accB', 'accR', 'accCo']], ['bal', 'Balances', ['accCal']], ['opc', 'Opciones', ['accO']]];
   root.innerHTML = '<style>' +
     '#acc{--fc:#4ade80;--fr:74,222,128}[data-theme="light"] #acc{--fc:#15803d;--fr:21,128,61}' +
     '#acc .card:not(.card .card){background:linear-gradient(180deg,rgba(var(--fr),.10) 0,rgba(var(--fr),.035) 180px,rgba(var(--fr),0) 420px),var(--card);border-color:rgba(var(--fr),.22)}#acc .card:not(.card .card)>.sxh .qh{color:var(--fc);font-size:24px;font-weight:700}#acc .card canvas{background:transparent!important}' +
@@ -12954,7 +12954,7 @@ window.RATG = (function () {
     if (!SUBS.some(function (x) { return x[0] === g; })) g = 'panel'; ST.sub = g; save(); var first = true;
     SUBS.forEach(function (x) { x[2].forEach(function (id) { var e = $(id); if (!e) return; e.style.display = x[0] === g ? '' : 'none'; if (x[0] === g) { e.style.marginTop = first ? '0' : '24px'; first = false; } }); });
     [].forEach.call($('accNav').querySelectorAll('button'), function (b) { b.classList.toggle('on', b.getAttribute('data-g') === g); });
-    if (draw && IX) ({ panel: function () { table(); adrs(); }, ficha: chart, val: function () { valua(); secMult(); erp(); hold(); }, pares: function () { radar(); pair(); }, mer: function () { SX = {}; sectors(); flow(); scatter(); rrg(); corrH(); }, bal: cal, opc: covered })[g]();
+    if (draw && IX) ({ panel: function () { table(); adrs(); }, etf: function () { if (window.MVX) window.MVX(); }, ficha: chart, val: function () { valua(); secMult(); erp(); hold(); }, pares: function () { radar(); pair(); }, mer: function () { SX = {}; sectors(); flow(); scatter(); rrg(); corrH(); }, bal: cal, opc: covered })[g]();
   }
   $('accNav').onclick = function (e) { var b = e.target.closest('button[data-g]'); if (b) sub(b.getAttribute('data-g'), 1); };
   function pick(t, scroll) { ST.sel = t; save(); sub('ficha'); $('accTk').value = ''; [].forEach.call($('accTab').querySelectorAll('tr[data-t]'), function (r) { r.classList.toggle('sel', r.getAttribute('data-t') === t); }); chart(); if (scroll) setTimeout(function () { $('accF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60); }
@@ -14900,7 +14900,7 @@ window.RATG = (function () {
     var t = document.getElementById('accT'); if (!t || document.getElementById('accMV')) return !!document.getElementById('accMV');
     var st = document.createElement('style'); st.textContent = '#accMV .mvk{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:14px 0}#accMV .mvk>div{border:1px solid var(--bd);border-radius:12px;padding:12px 14px;background:var(--bg)}#accMV .mvk small{display:block;color:var(--mu);font-size:11px;letter-spacing:.06em;text-transform:uppercase}#accMV .mvk b{display:block;font-size:22px;margin-top:4px;color:var(--tx)}#accMV .mvk span{font-size:12px;color:var(--mu)}#accMV table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}#accMV th{color:var(--mu);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;text-align:right;padding:6px 8px;border-bottom:1px solid var(--bd)}#accMV td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--bd)}#accMV th:first-child,#accMV td:first-child{text-align:left}#accMV .bar{position:relative;height:10px;min-width:120px}#accMV .bar i{position:absolute;top:0;height:10px;border-radius:3px}#accMV .bar:before{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;border-left:1px solid var(--bd)}';
     document.head.appendChild(st);
-    var d = document.createElement('div'); d.className = 'card sx'; d.id = 'accMV'; d.style.marginTop = '24px';
+    var d = document.createElement('div'); d.className = 'card sx'; d.id = 'accMV'; d.style.marginTop = '24px'; var on = document.querySelector('#accNav button.on'); d.style.display = on && on.getAttribute('data-g') === 'etf' ? '' : 'none';
     d.innerHTML = '<div class="sxh"><div style="min-width:0"><p class="qh">MSCI Merval: la canasta del ETF</p><p class="qs">Las 19 acciones del gForce MSCI Merval FCIA ETF (Galicia), con sus nominales al ' + F0.split('-').reverse().join('/') + ' y los precios en vivo. El valor teórico de la cuotaparte arranca en $ 5.000 y se mueve con la canasta: si el ETF cotiza arriba, está caro contra sus acciones; si cotiza abajo, barato.</p></div></div>' +
       '<div class="mvk" id="mvK"></div><h5 id="mvChT" style="margin:4px 0 6px">Canasta durante la rueda</h5><div style="position:relative;height:260px;margin-bottom:16px"><canvas id="mvCh"></canvas><p class="qs" id="mvChE" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center"></p></div><div class="tw" style="max-height:none;margin-top:0"><table id="mvTab"></table></div><p class="qs" id="mvFt" style="margin-top:8px"></p>';
     t.parentNode.insertBefore(d, t.nextSibling); return true;
@@ -14909,7 +14909,7 @@ window.RATG = (function () {
     if (!html()) return; var rows = [], V = 0, Vp = 0, n = 0, upd = '';
     CART.forEach(function (x) { var r = LV[x[0]], P = r && r.c > 0 ? r.c : x[2], ch = r && isFinite(r.pct_change) ? r.pct_change / 100 : 0, Pp = P / (1 + ch); if (r && r.c > 0) n++; V += x[1] * P; Vp += x[1] * Pp; rows.push({ t: x[0], P: P, ch: ch, vp: x[1] * Pp, v: x[1] * P }); });
     rows.forEach(function (r) { r.w = r.v / V; r.ap = (r.v - r.vp) / Vp; });
-    var hoy = typeof mktStarted !== 'function' || mktStarted(), lb = hoy ? 'hoy' : 'en la última rueda', dv = V / Vp - 1, cp = 5000 * V / V0, mx = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.ap); }).concat([1e-6]));
+    var hoy = typeof mktStarted !== 'function' || mktStarted(), lb = hoy ? 'hoy' : 'en la última rueda', dv = V / Vp - 1, cp = 5000 * V / V0, _mk = window.MVK = { cp: cp, dv: dv, n: n }, mx = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.ap); }).concat([1e-6]));
     var up = rows.filter(function (r) { return r.ch > 0; }).length, dn = rows.filter(function (r) { return r.ch < 0; }).length;
     var best = rows.slice().sort(function (a, b) { return b.ap - a.ap; });
     document.getElementById('mvK').innerHTML =
@@ -14955,6 +14955,171 @@ window.RATG = (function () {
   }
   var act = function () { var a = document.getElementById('acc'); return a && a.classList.contains('active'); };
   setInterval(function () { if (act() && Date.now() - T > 20000) load(); else if (act() && !document.getElementById('accMV')) { try { draw(); } catch (e) {} } }, 3000);
+})();
+</script>
+<script>
+/* ETF MERV profesional: el ETF, sus futuros y sus opciones con datos de Primary (ruta /merv del Worker). Prima contra la canasta (window.MVK), base y tasa implícita,
+   cash and carry y reverse, cadena de opciones con Black-Scholes (Black-76 si el subyacente es un futuro), volatilidad implícita, sonrisa, paridad put-call y calculadora. */
+(function () {
+  var D = null, T = 0, busy = 0, ERR = '', CAU = null, CT = 0, CHS = null, CHC = null, EXP = '', X = null;
+  var $ = function (i) { return document.getElementById(i); };
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d == null ? 2 : d, maximumFractionDigits: d == null ? 2 : d }); };
+  var pc = function (v, d) { return v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v * 100), d == null ? 2 : d) + '%'; };
+  var col = function (v) { return 'color:var(' + (v > 0 ? '--ok' : v < 0 ? '--bad' : '--mu') + ')'; };
+  var fd = function (d) { return d ? ('0' + d.getUTCDate()).slice(-2) + '/' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '/' + String(d.getUTCFullYear()).slice(-2) : '—'; };
+  var MES = { EN: 1, FE: 2, MR: 3, MZ: 3, AB: 4, MY: 5, JN: 6, JU: 6, JL: 7, AG: 8, SE: 9, OC: 10, NO: 11, NV: 11, DI: 12 };
+  function Nc(x) { var t = 1 / (1 + .2316419 * Math.abs(x)), p = .3989423 * Math.exp(-x * x / 2) * t * (.3193815 + t * (-.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return x > 0 ? 1 - p : p; }
+  function Nd(x) { return Math.exp(-x * x / 2) / 2.5066283; }
+  function bs(ty, S, K, t, r, v, fut) { // fut: el subyacente es un futuro (Black-76: el futuro no se financia, rinde r)
+    if (!(S > 0 && K > 0 && t > 0 && v > 0)) return null;
+    var q = fut ? r : 0, sq = v * Math.sqrt(t), d1 = (Math.log(S / K) + (r - q + v * v / 2) * t) / sq, d2 = d1 - sq, eq = Math.exp(-q * t), er = Math.exp(-r * t), c = ty === 'call', s = c ? 1 : -1;
+    return { p: s * (S * eq * Nc(s * d1) - K * er * Nc(s * d2)), d: c ? eq * Nc(d1) : eq * (Nc(d1) - 1), g: eq * Nd(d1) / (S * sq), v: S * eq * Nd(d1) * Math.sqrt(t) / 100,
+      th: (-S * eq * Nd(d1) * v / (2 * Math.sqrt(t)) - s * (r * K * er * Nc(s * d2) - q * S * eq * Nc(s * d1))) / 365, rho: s * K * t * er * Nc(s * d2) / 100, pi: Nc(s * d2) };
+  }
+  function iv(ty, P, S, K, t, r, fut) { // volatilidad implícita por bisección
+    if (!(P > 0)) return null; var lo = .01, hi = 4, a = bs(ty, S, K, t, r, lo, fut), b = bs(ty, S, K, t, r, hi, fut);
+    if (!a || P <= a.p || P >= b.p) return null;
+    for (var i = 0; i < 60; i++) { var m = (lo + hi) / 2; if (bs(ty, S, K, t, r, m, fut).p > P) hi = m; else lo = m; }
+    return (lo + hi) / 2;
+  }
+  var rc = function (tna, t) { return t > 0 ? Math.log(1 + tna * t) / t : tna; }; // TNA simple → tasa continua al plazo
+  function dt(x) { var m = /^(\d{4})-?(\d{2})-?(\d{2})/.exec(String(x || '')); return m ? new Date(Date.UTC(+m[1], m[2] - 1, +m[3], 20)) : null; }
+  function third(y, mo) { var d = new Date(Date.UTC(y, mo - 1, 1, 20)); d.setUTCDate(1 + (5 - d.getUTCDay() + 7) % 7 + 14); return d; } // tercer viernes (vencimiento de BYMA)
+  function prep() {
+    var e = null, F = [], O = [];
+    ((D && D.ins) || []).forEach(function (x) {
+      var o = { s: x.s, n: x.n, k: x.k, u: String(x.u || '').toUpperCase(), b: x.BI ? x.BI[0] : null, bq: x.BI ? x.BI[1] : null, a: x.OF ? x.OF[0] : null, aq: x.OF ? x.OF[1] : null, l: x.LA ? x.LA[0] : null, c: x.CL, se: x.SE, oi: x.OI, vol: x.NV, K: x.K > 0 ? +x.K : null, mult: x.mult || 1 };
+      if (o.b && o.a && o.b > o.a) o.a = null; // punta cruzada: no la usamos
+      var mid = o.b && o.a ? (o.b + o.a) / 2 : null; o.m = mid || o.l || o.se || o.c; o.p = o.l || mid || o.se || o.c;
+      var d = dt(x.mat);
+      if (o.k === 'call' || o.k === 'put') { var m = /[CV](\d+(?:[.,]\d+)?)([A-Z]{2})$/.exec(o.n); if (m) { if (!o.K) o.K = +m[1].replace(',', '.'); var mo = MES[m[2]]; if (!d && mo) { var y = new Date().getUTCFullYear(); d = third(y, mo); if (d < Date.now() - 864e5) d = third(y + 1, mo); } } }
+      o.mat = d; o.dd = d ? Math.max(0, (d - Date.now()) / 864e5) : null;
+      if (o.k === 'etf') e = o; else if (o.k === 'fut' && o.dd != null) F.push(o); else if ((o.k === 'call' || o.k === 'put') && o.K && o.dd != null) O.push(o);
+    });
+    F.sort(function (a, b) { return a.dd - b.dd; });
+    var nav = window.MVK && window.MVK.cp > 0 ? window.MVK.cp : null, S = e && e.p ? e.p : nav;
+    return { e: e, F: F, O: O, nav: nav, S: S, Sb: e && e.b ? e.b : S, Sa: e && e.a ? e.a : S };
+  }
+  function tasa() { // TNA de referencia: la que escribió el usuario o la caución en pesos más corta con precio
+    var u = parseFloat(String(($('mxR') || {}).value || '').replace(',', '.')); if (isFinite(u) && u > 0) return { r: u / 100, src: 'manual' };
+    var rows = (CAU && CAU.ARS) || []; for (var i = 0; i < rows.length; i++) { var r = rows[i], v = r[3] || (r[1] && r[2] ? (r[1] + r[2]) / 2 : r[1] || r[2] || r[4]); if (v > 0) return { r: v / 100, src: 'caución ' + r[0] + (r[0] === 1 ? ' día' : ' días') }; }
+    return { r: .30, src: 'supuesta (sin caución)' };
+  }
+  var esc = function (v) { var k = v > 0 ? Math.pow(10, Math.round(Math.log(v) / Math.LN10)) : 1; return Math.abs(v / k - 1) < .35 ? k : 1; }; // futuro u opción cotizados por 10, 100… cuotapartes
+  function html() {
+    var mv = $('accMV'); if (!mv || $('accX')) return !!$('accX');
+    var st = document.createElement('style'), P = '#accX ';
+    st.textContent = P + '.mvk{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:14px 0}' + P + '.mvk>div{border:1px solid var(--bd);border-radius:12px;padding:12px 14px;background:var(--bg)}' + P + '.mvk small{display:block;color:var(--mu);font-size:11px;letter-spacing:.06em;text-transform:uppercase}' + P + '.mvk b{display:block;font-size:21px;margin-top:4px;color:var(--tx)}' + P + '.mvk span{font-size:12px;color:var(--mu)}' +
+      P + 'table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}' + P + 'th{color:var(--mu);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;text-align:right;padding:6px 7px;border-bottom:1px solid var(--bd);white-space:nowrap;position:sticky;top:0;background:var(--card)}' + P + 'td{text-align:right;padding:5px 7px;border-bottom:1px solid var(--bd);white-space:nowrap}' + P + 'th:first-child,' + P + 'td:first-child{text-align:left}' +
+      P + 'td.k{text-align:center;font-weight:700;background:rgba(127,127,127,.08)}' + P + 'tr.itm td.c,' + P + 'tr.itp td.p{background:rgba(var(--fr),.07)}' + P + 'tr.atm td{border-top:1px solid var(--fc);border-bottom:1px solid var(--fc)}' + P + 'h5{margin:22px 0 6px;font-size:15px}' + P + '.sig{font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--bd);color:var(--mu)}' + P + '.sig.ok{color:var(--ok);border-color:var(--ok)}' + P + '.sig.bad{color:var(--bad);border-color:var(--bad)}' +
+      P + '.g2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}@media (max-width:900px){' + P + '.g2{grid-template-columns:1fr}}' + P + '.ctl input{width:110px}' + P + '.qg{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:8px;margin-top:12px}' + P + '.qg div{border:1px solid var(--bd);border-radius:10px;padding:8px 10px}' + P + '.qg small{display:block;color:var(--mu);font-size:10.5px;text-transform:uppercase}' + P + '.qg b{font-size:16px}';
+    document.head.appendChild(st);
+    var d = document.createElement('div'); d.className = 'card sx'; d.id = 'accX';
+    var on = document.querySelector('#accNav button.on'); d.style.display = on && on.getAttribute('data-g') === 'etf' ? '' : 'none';
+    var inp = function (id, lb, ph) { return '<label>' + lb + '<input id="' + id + '" type="text" inputmode="decimal" placeholder="' + ph + '"></label>'; };
+    d.innerHTML = '<div class="sxh"><div style="min-width:0"><p class="qh">ETF MERV: panel profesional</p><p class="qs">El gForce MSCI Merval ETF de Galicia, sus futuros y sus opciones con puntas en vivo de Primary. Prima contra la canasta, tasa implícita de los futuros, cash and carry, volatilidad implícita, sonrisa, paridad put-call y valuación Black-Scholes.</p></div></div>' +
+      '<div class="ctl">' + inp('mxR', 'Tasa de referencia (TNA %)', 'caución') + inp('mxV', 'Volatilidad para el teórico (%)', 'la implícita ATM') + '<label>Vencimiento de opciones<select id="mxE"></select></label><span class="qs" id="mxSt" style="margin:0 0 6px"></span></div>' +
+      '<div class="mvk" id="mxK"></div>' +
+      '<h5>Futuros: base, tasa implícita y cash and carry</h5><p class="qs">Tasa implícita = (futuro / ETF − 1) × 365 / días. Cash and carry: comprás el ETF a la venta y vendés el futuro a la compra; conviene si esa tasa le gana a la de referencia. Reverse: vendés el ETF a la compra, colocás la plata a la tasa de referencia y comprás el futuro a la venta; conviene si la tasa implícita queda debajo.</p><div class="tw" style="max-height:none"><table id="mxF"></table></div>' +
+      '<h5 id="mxOT">Cadena de opciones</h5><p class="qs">VI: volatilidad implícita de la prima de mercado (punto medio o último). Teórico: Black-Scholes con la volatilidad y la tasa de arriba. Verde: la punta que conviene contra el teórico. Sombreado: opciones dentro del dinero.</p><div class="tw" style="max-height:560px"><table id="mxO"></table></div>' +
+      '<div class="g2"><div><h5>Sonrisa de volatilidad</h5><div style="position:relative;height:300px"><canvas id="mxS"></canvas><p class="qs" id="mxSE" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center"></p></div></div>' +
+      '<div><h5>Paridad put-call</h5><p class="qs" style="margin-top:0">C − P = S − K·e<sup>−rt</sup>. Conversión: comprás subyacente y put, vendés call (fijás K al vencimiento). Reversión: al revés. Ganancia en $ por unidad, a precios de punta y sin comisiones.</p><div class="tw" style="max-height:300px"><table id="mxP"></table></div></div></div>' +
+      '<h5>Calculadora Black-Scholes</h5><div class="ctl"><label>Tipo<select id="mxCt"><option value="call">Call</option><option value="put">Put</option></select></label>' + inp('mxCs', 'Subyacente', '') + inp('mxCk', 'Strike', '') + inp('mxCd', 'Días', '') + inp('mxCr', 'Tasa TNA %', '') + inp('mxCv', 'Volatilidad %', '') + '</div><div class="qg" id="mxCo"></div>' +
+      '<div style="position:relative;height:280px;margin-top:12px"><canvas id="mxC"></canvas></div><p class="qs" id="mxFt" style="margin-top:8px"></p>';
+    mv.parentNode.insertBefore(d, mv);
+    d.addEventListener('input', function (e) { if (/^mxC/.test(e.target.id)) calc(); else { if (e.target.id === 'mxE') EXP = e.target.value; draw(); } });
+    d.addEventListener('change', function (e) { if (e.target.id === 'mxE') { EXP = e.target.value; X = null; draw(); } if (e.target.id === 'mxCt') calc(); });
+    d.addEventListener('click', function (e) { var r = e.target.closest('tr[data-k]'); if (!r || !X) return; $('mxCs').value = nf(X.Se, 2); $('mxCk').value = r.getAttribute('data-k'); $('mxCd').value = Math.max(1, Math.round(X.dd)); $('mxCr').value = nf(X.r * 100, 2); $('mxCv').value = nf(X.sig * 100, 1); calc(); $('mxCt').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+    return true;
+  }
+  function kpis(A, R) {
+    var e = A.e, pr = e && e.p && A.nav ? e.p / A.nav - 1 : null, ch = e && e.p && e.c ? e.p / e.c - 1 : null;
+    var sp = e && e.b && e.a ? e.a / e.b - 1 : null, F1 = A.F[0];
+    $('mxK').innerHTML =
+      '<div><small>ETF MERV · último</small><b>' + (e && e.p ? '$ ' + nf(e.p) : '—') + '</b><span style="' + col(ch) + '">' + pc(ch) + '</span> <span>' + (e && e.vol ? '· ' + nf(e.vol, 0) + ' cuotapartes' : '') + '</span></div>' +
+      '<div><small>Puntas</small><b>' + (e && (e.b || e.a) ? nf(e.b) + ' / ' + nf(e.a) : '—') + '</b><span>' + (e && e.bq ? nf(e.bq, 0) + ' × ' + nf(e.aq, 0) : '') + (sp != null ? ' · spread ' + pc(sp) : '') + '</span></div>' +
+      '<div><small>Valor de la canasta (iNAV)</small><b>' + (A.nav ? '$ ' + nf(A.nav) : '—') + '</b><span>las 19 acciones a precios de ahora</span></div>' +
+      '<div><small>Prima / descuento</small><b style="' + col(pr) + '">' + pc(pr) + '</b><span>' + (pr == null ? 'falta el precio del ETF' : pr > .005 ? 'caro contra sus acciones' : pr < -.005 ? 'barato contra sus acciones' : 'en línea con la canasta') + '</span></div>' +
+      '<div><small>Tasa de referencia</small><b>' + nf(R.r * 100) + '% TNA</b><span>' + R.src + '</span></div>' +
+      '<div><small>Futuro más corto</small><b>' + (F1 && F1.p ? nf(F1.p) : '—') + '</b><span>' + (F1 && F1.ti != null ? 'tasa implícita ' + nf(F1.ti * 100) + '% TNA' : F1 ? F1.n : 'sin futuros con precio') + '</span></div>';
+  }
+  function futs(A, R) {
+    var h = '<thead><tr><th>Contrato</th><th>Vence</th><th>Días</th><th>Compra</th><th>Venta</th><th>Último</th><th>Ajuste</th><th>Int. abierto</th><th>Base</th><th>Tasa impl.</th><th>Teórico</th><th>C&amp;C</th><th>Reverse</th><th>Señal</th></tr></thead><tbody>';
+    if (!A.F.length) h += '<tr><td colspan="14" style="text-align:center;color:var(--mu);padding:18px">Primary todavía no devuelve futuros del ETF MERV con precio.</td></tr>';
+    A.F.forEach(function (f) {
+      var k = A.S ? esc((f.p || f.m) / A.S) : 1, t = Math.max(f.dd, .5) / 365, S = A.S ? A.S * k : null, Sb = A.Sb * k, Sa = A.Sa * k;
+      f.ti = S && f.p ? (f.p / S - 1) / t : null; var th = S ? S * (1 + R.r * t) : null, cc = f.b && Sa ? (f.b / Sa - 1) / t : null, rv = f.a && Sb ? (f.a / Sb - 1) / t : null;
+      var sg = cc != null && cc > R.r + .01 ? '<span class="sig ok">C&amp;C: ' + nf((cc - R.r) * 100, 1) + ' pp sobre la tasa</span>' : rv != null && rv < R.r - .01 ? '<span class="sig ok">Reverse: ' + nf((R.r - rv) * 100, 1) + ' pp</span>' : cc != null || rv != null ? '<span class="sig">Arbitrado</span>' : '<span class="sig">Sin puntas</span>';
+      h += '<tr><td><b>' + f.n + '</b>' + (k !== 1 ? ' <span class="qs">×' + k + '</span>' : '') + '</td><td>' + fd(f.mat) + '</td><td>' + nf(f.dd, 0) + '</td><td>' + nf(f.b) + '</td><td>' + nf(f.a) + '</td><td>' + nf(f.l) + '</td><td>' + nf(f.se || f.c) + '</td><td>' + nf(f.oi, 0) + '</td>' +
+        '<td style="' + col(f.p - S) + '">' + (S && f.p ? nf(f.p - S) + ' (' + pc(f.p / S - 1) + ')' : '—') + '</td><td><b>' + (f.ti != null ? nf(f.ti * 100) + '%' : '—') + '</b></td><td>' + nf(th) + '</td><td>' + (cc != null ? nf(cc * 100) + '%' : '—') + '</td><td>' + (rv != null ? nf(rv * 100) + '%' : '—') + '</td><td>' + sg + '</td></tr>';
+    });
+    $('mxF').innerHTML = h + '</tbody>';
+  }
+  function chain(A, R) {
+    var G = {}; A.O.forEach(function (o) { var k = o.mat.toISOString().slice(0, 10); (G[k] = G[k] || []).push(o); });
+    var ks = Object.keys(G).sort(), sel = $('mxE');
+    if (sel.getAttribute('data-k') !== ks.join()) { sel.innerHTML = ks.map(function (k) { return '<option value="' + k + '">' + fd(dt(k)) + ' · ' + G[k].length + ' series</option>'; }).join('') || '<option value="">Sin opciones</option>'; sel.setAttribute('data-k', ks.join()); }
+    if (ks.indexOf(EXP) < 0) EXP = ks[0] || ''; sel.value = EXP;
+    var L = G[EXP] || [], o0 = L[0];
+    if (!o0 || !A.S) { X = null; $('mxO').innerHTML = '<tbody><tr><td style="text-align:center;color:var(--mu);padding:18px">' + (A.S ? 'Primary todavía no devuelve opciones del ETF MERV.' : 'Falta el precio del ETF para valuar las opciones.') + '</td></tr></tbody>'; $('mxP').innerHTML = ''; smile(null); return; }
+    var fu = A.F.filter(function (f) { return o0.u && (o0.u.indexOf(f.n) >= 0 || o0.u === f.s.toUpperCase()); })[0], fut = !!(fu && fu.p), dd = o0.dd, t = Math.max(dd, .5) / 365, r = rc(R.r, t);
+    var med = L.map(function (o) { return o.K; }).sort(function (a, b) { return a - b; })[L.length >> 1], U = fut ? fu.p : A.S, k = esc(med / U), Se = U * k, Sb = (fut ? fu.b || fu.p : A.Sb) * k, Sa = (fut ? fu.a || fu.p : A.Sa) * k, DF = Math.exp(-r * t);
+    var C = {}, P = {}; L.forEach(function (o) { (o.k === 'call' ? C : P)[o.K] = o; o.iv = iv(o.k, o.m, Se, o.K, t, r, fut); });
+    var K = Object.keys(Object.assign({}, C, P)).map(Number).sort(function (a, b) { return a - b; }), atm = K.reduce(function (a, x) { return Math.abs(x - Se) < Math.abs(a - Se) ? x : a; }, K[0]);
+    var ivA = [C[atm] && C[atm].iv, P[atm] && P[atm].iv].filter(Boolean), uv = parseFloat(String($('mxV').value || '').replace(',', '.'));
+    var sig = isFinite(uv) && uv > 0 ? uv / 100 : ivA.length ? ivA.reduce(function (a, b) { return a + b; }, 0) / ivA.length : .45;
+    X = { Se: Se, dd: dd, r: R.r, sig: sig, fut: fut };
+    $('mxOT').textContent = 'Cadena de opciones · vence ' + fd(o0.mat) + ' (' + nf(dd, 0) + ' días) · subyacente ' + (fut ? 'futuro ' + fu.n : 'ETF') + ' $ ' + nf(Se) + ' · σ ' + nf(sig * 100, 1) + '%' + (isFinite(uv) && uv > 0 ? ' (manual)' : ' (implícita ATM)');
+    var cell = function (o, ty) { if (!o) return ['', '', '', '', '', ''].map(function () { return '<td class="' + ty[0] + '">—</td>'; }); var g = bs(ty, Se, o.K, t, r, sig, fut) || {}, cb = o.b && g.p && o.b > g.p, ca = o.a && g.p && o.a < g.p;
+      return ['<td class="' + ty[0] + '"' + (cb ? ' style="color:var(--ok);font-weight:700"' : '') + '>' + nf(o.b) + '</td>', '<td class="' + ty[0] + '"' + (ca ? ' style="color:var(--ok);font-weight:700"' : '') + '>' + nf(o.a) + '</td>', '<td class="' + ty[0] + '">' + nf(o.l) + '</td>', '<td class="' + ty[0] + '">' + (o.iv ? nf(o.iv * 100, 1) + '%' : '—') + '</td>', '<td class="' + ty[0] + '">' + nf(g.p) + '</td>', '<td class="' + ty[0] + '">' + nf(g.d, 2) + '</td>']; };
+    var h = '<thead><tr><th colspan="6" style="text-align:center">Calls</th><th></th><th colspan="6" style="text-align:center">Puts</th></tr><tr><th>Compra</th><th>Venta</th><th>Último</th><th>VI</th><th>Teórico</th><th>Delta</th><th style="text-align:center">Strike</th><th>Delta</th><th>Teórico</th><th>VI</th><th>Último</th><th>Compra</th><th>Venta</th></tr></thead><tbody>';
+    K.forEach(function (x) { var c = cell(C[x], 'call'), p = cell(P[x], 'put').reverse(); p = [p[0], p[1], p[2], p[3], p[5], p[4]];
+      h += '<tr data-k="' + x + '" style="cursor:pointer" class="' + (x < Se ? 'itm' : 'itp') + (x === atm ? ' atm' : '') + '">' + c.join('') + '<td class="k">' + nf(x, x % 1 ? 2 : 0) + '</td>' + p.join('') + '</tr>'; });
+    $('mxO').innerHTML = h + '</tbody>';
+    var q = '<thead><tr><th>Strike</th><th>C − P</th><th>Subyacente sintético</th><th>vs real</th><th>Conversión</th><th>Reversión</th></tr></thead><tbody>', nq = 0;
+    K.forEach(function (x) { var c = C[x], p = P[x]; if (!c || !p || !c.m || !p.m) return; nq++;
+      var syn = fut ? (c.m - p.m) / DF + x : c.m - p.m + x * DF, cv = c.b && p.a ? (fut ? (c.b - p.a) - (Sa - x) * DF : x * DF - (Sa + p.a - c.b)) : null, rv = c.a && p.b ? (fut ? (Sb - x) * DF - (c.a - p.b) : (Sb + p.b - c.a) - x * DF) : null;
+      var ce = function (v) { return v == null ? '<td>—</td>' : '<td style="' + col(v) + (v > 0 ? ';font-weight:700' : '') + '">' + nf(v) + '</td>'; };
+      q += '<tr><td><b>' + nf(x, x % 1 ? 2 : 0) + '</b></td><td>' + nf(c.m - p.m) + '</td><td>' + nf(syn) + '</td><td style="' + col(syn / Se - 1) + '">' + pc(syn / Se - 1) + '</td>' + ce(cv) + ce(rv) + '</tr>'; });
+    $('mxP').innerHTML = nq ? q + '</tbody>' : '<tbody><tr><td style="text-align:center;color:var(--mu);padding:18px">Hace falta call y put del mismo strike con precio.</td></tr></tbody>';
+    smile({ K: K, C: C, P: P, Se: Se, sig: sig });
+    if (!$('mxCs').value) { $('mxCs').value = nf(Se); $('mxCk').value = nf(atm, atm % 1 ? 2 : 0); $('mxCd').value = Math.max(1, Math.round(dd)); $('mxCr').value = nf(R.r * 100); $('mxCv').value = nf(sig * 100, 1); calc(); }
+  }
+  function smile(Z) {
+    var cv = $('mxS'), e = $('mxSE'); if (!cv || typeof Chart === 'undefined') return;
+    var pts = function (M) { return Z ? Z.K.filter(function (x) { return M[x] && M[x].iv; }).map(function (x) { return { x: x, y: M[x].iv * 100 }; }) : []; }, c = pts(Z ? Z.C : {}), p = pts(Z ? Z.P : {});
+    if (c.length + p.length < 2) { if (CHS) { CHS.destroy(); CHS = null; } e.style.display = 'flex'; e.textContent = 'La sonrisa aparece cuando hay al menos dos opciones con precio.'; return; }
+    e.style.display = 'none'; if (CHS) CHS.destroy();
+    var ys = c.concat(p).map(function (q) { return q.y; }), lo = Math.min.apply(null, ys), hi = Math.max.apply(null, ys);
+    CHS = new Chart(cv.getContext('2d'), { type: 'scatter', data: { datasets: [{ label: 'VI calls', data: c, showLine: true, borderColor: '#34d399', backgroundColor: '#34d399', pointRadius: 4, borderWidth: 2 }, { label: 'VI puts', data: p, showLine: true, borderColor: '#ff6b8b', backgroundColor: '#ff6b8b', pointRadius: 4, borderWidth: 2 },
+      { label: 'Subyacente', data: [{ x: Z.Se, y: lo - 2 }, { x: Z.Se, y: hi + 2 }], showLine: true, borderColor: '#94a3b8', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { tooltip: { callbacks: { label: function (q) { return q.dataset.label + ': strike ' + nf(q.parsed.x) + ' · ' + nf(q.parsed.y, 1) + '%'; } } } },
+        scales: { x: { type: 'linear', title: { display: true, text: 'Strike' }, ticks: { callback: function (v) { return nf(v, 0); } } }, y: { title: { display: true, text: 'Volatilidad implícita (%)' } } } } });
+  }
+  function calc() {
+    var g = function (i) { return parseFloat(String($(i).value || '').replace(/\./g, '').replace(',', '.')); }, ty = $('mxCt').value, S = g('mxCs'), K = g('mxCk'), d = g('mxCd'), tn = g('mxCr') / 100, v = g('mxCv') / 100, t = d / 365, r = rc(tn, t), fut = X && X.fut;
+    var o = bs(ty, S, K, t, r, v, fut), q = function (l, x) { return '<div><small>' + l + '</small><b>' + x + '</b></div>'; };
+    $('mxCo').innerHTML = o ? q('Prima', '$ ' + nf(o.p)) + q('Delta', nf(o.d, 3)) + q('Gamma', nf(o.g, 5)) + q('Vega (1 pp)', nf(o.v, 2)) + q('Theta (día)', nf(o.th, 2)) + q('Rho (1 pp)', nf(o.rho, 2)) + q('Prob. de ejercicio', nf(o.pi * 100, 1) + '%') + q('Equilibrio', nf(ty === 'call' ? K + o.p : K - o.p)) : '<p class="qs">Completá subyacente, strike, días, tasa y volatilidad.</p>';
+    var cv = $('mxC'); if (!cv || typeof Chart === 'undefined') return; if (CHC) { CHC.destroy(); CHC = null; } if (!o) return;
+    var xs = [], a = [], b = []; for (var i = 0; i <= 40; i++) { var s = S * (.7 + .6 * i / 40), w = bs(ty, s, K, t, r, v, fut); xs.push(nf(s, 0)); a.push(w ? +(w.p - o.p).toFixed(2) : null); b.push(+((ty === 'call' ? Math.max(s - K, 0) : Math.max(K - s, 0)) - o.p).toFixed(2)); }
+    CHC = new Chart(cv.getContext('2d'), { type: 'line', data: { labels: xs, datasets: [{ label: 'Resultado hoy (teórico)', data: a, borderColor: '#60a5fa', borderWidth: 2 }, { label: 'Resultado al vencimiento', data: b, borderColor: '#f59e0b', borderDash: [6, 4], borderWidth: 2, fill: false }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { title: { display: true, text: (ty === 'call' ? 'Call' : 'Put') + ' comprada: resultado por unidad según el subyacente' }, tooltip: { callbacks: { label: function (q) { return q.dataset.label + ': $ ' + nf(q.parsed.y); } } } }, scales: { x: { ticks: { maxTicksLimit: 9, maxRotation: 0 } } } } });
+  }
+  function draw() {
+    if (!html()) return; var A = prep(), R = tasa();
+    futs(A, R); kpis(A, R); chain(A, R);
+    $('mxSt').textContent = ERR ? ERR : D ? 'Primary · ' + new Date(D.ts).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' · ' + ((D.ins || []).length) + ' instrumentos' : 'Cargando de Primary…';
+    $('mxFt').textContent = 'Datos de Primary (ETF en BYMA 24 hs, futuros y opciones). Teóricos sin dividendos ni comisiones; las opciones de BYMA son americanas y el teórico es europeo. Tocá un strike de la cadena para llevarlo a la calculadora.';
+  }
+  function load() {
+    if (busy || !window.BL_LIVE) return; busy = 1; var B = window.BL_LIVE.replace(/\/+$/, '');
+    if (Date.now() - CT > 60000) { CT = Date.now(); fetch(B + '/caucion', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (o) { if (o) CAU = o; }).catch(function () {}); }
+    fetch(B + '/merv', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); }).then(function (o) { if (o && o.ins) { D = o; ERR = ''; } else ERR = (o && o.error) || 'Sin datos'; })
+      .catch(function (e) { ERR = 'No pude leer Primary (' + (e.message || e) + ')'; }).then(function () { busy = 0; T = Date.now(); try { draw(); } catch (e) { } });
+  }
+  window.MVX = function () { try { draw(); } catch (e) { } if (Date.now() - T > 15000) load(); };
+  var act = function () { var a = $('acc'), x = $('accX'); return a && a.classList.contains('active') && (!x || x.style.display !== 'none'); };
+  setInterval(function () { if (!$('accX') && $('accMV')) { try { draw(); } catch (e) { } } if (act() && $('accX') && Date.now() - T > 15000) load(); }, 3000);
 })();
 </script>
 <script>

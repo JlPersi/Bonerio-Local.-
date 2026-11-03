@@ -5,6 +5,7 @@
                  con precio, punta compradora y vendedora de Primary en tiempo real. Si Primary falla, devuelve la de data912 tal cual.
    - /caucion    caución por plazo, de Primary (y BYMA donde Primary no tenga): { ts, src, ARS, USD, EXT }, cada fila [días, compra, venta, última, cierre, vwap, monto].
    - /stream     websocket: al conectarse manda { s: {ep: filas} } y después { u: {ticker: [último, var %, compra, cant., venta, cant.]} } con cada cambio.
+   - /merv       el ETF del MSCI Merval (MERV), sus futuros y sus opciones, con puntas, último, cierre, ajuste e interés abierto: { ts, ins: [...] }.
    - /book/<ticker>  caja de puntas de Primary (hasta 5 niveles, 24 hs; con ?s=ci, contado inmediato): { t, BI: [[precio, cantidad], ...], OF: [...], LA: [precio, cantidad] }.
    Sin el Durable Object (FEED), cada respuesta se guarda 15 segundos: muchos visitantes a la vez = una sola consulta a Primary. */
 
@@ -28,7 +29,7 @@ async function token(env, force) {
 }
 
 // foto de muchos símbolos en una sola conexión: se suscribe por websocket, junta el primer mensaje de cada uno y cierra
-async function snapshot(env, syms, ms) {
+async function snapshot(env, syms, ms, ents) {
   let ws;
   for (const force of [false, true]) {
     const r = await fetch(base(env) + '/', { headers: { Upgrade: 'websocket', 'X-Auth-Token': await token(env, force) } });
@@ -49,7 +50,7 @@ async function snapshot(env, syms, ms) {
     });
     ws.addEventListener('close', () => { clearTimeout(end); done(); });
     for (let i = 0; i < syms.length; i += 100) {
-      ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ['BI', 'OF', 'LA', 'CL'], products: syms.slice(i, i + 100).map((s) => ({ symbol: s, marketId: 'ROFX' })) }));
+      ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ents || ['BI', 'OF', 'LA', 'CL'], products: syms.slice(i, i + 100).map((s) => ({ symbol: s, marketId: 'ROFX' })) }));
     }
   });
   try { ws.close(1000, 'ok'); } catch (x) {}
@@ -153,6 +154,27 @@ async function instruments(env) { // la lista de instrumentos de Primary (se gua
   if (r.status === 401 || r.status === 403) r = await fetch(base(env) + '/rest/instruments/details', { headers: { 'X-Auth-Token': await token(env, true) } });
   const j = await r.json(); INS = j.instruments || []; INST = Date.now(); return INS;
 }
+// el ETF del MSCI Merval (MERV), sus futuros y sus opciones: se buscan en la lista de Primary por el subyacente y el código CFI, no por el nombre
+const nm = (x) => String(x || '').toUpperCase().replace(/^MERV - XMEV - /, '').replace(/ - (24HS|CI|48HS)$/, '').trim();
+let MVI = null, MVIT = 0;
+async function mervIns(env) {
+  if (MVI && Date.now() - MVIT < 3600e3) return MVI;
+  const L = await instruments(env), out = [], seen = {};
+  L.forEach((i) => {
+    const s = (i.instrumentId || {}).symbol || '', n = nm(s), u = nm(i.underlying), cfi = String(i.cficode || '').toUpperCase();
+    if (/ - CI$/.test(s) || / - 48hs$/i.test(s)) return; // de BYMA, solo 24 hs
+    const etf = n === 'MERV' && /^MERV - XMEV - /.test(s), rel = etf || /(^|[^A-Z])MERV([^A-Z]|$)/.test(u) || /^MERV\//.test(s) || /^(I\.)?MERV[ /]/.test(n) || (/^MERV - XMEV - /.test(s) && /^MER[CV]\d/.test(n));
+    if (!rel || seen[s]) return; seen[s] = 1;
+    const k = etf ? 'etf' : cfi[0] === 'O' ? (cfi[1] === 'P' ? 'put' : 'call') : cfi[0] === 'F' ? 'fut' : /C\d|CALL/.test(n) ? 'call' : /V\d|PUT/.test(n) ? 'put' : 'otro';
+    out.push({ s: s, n: n, k: k, cfi: cfi, u: i.underlying || null, mat: i.maturityDate || null, K: i.strikePrice || null, mult: i.contractMultiplier || 1, ccy: i.currency || null, tick: i.minPriceIncrement || null, seg: (i.segment || {}).marketSegmentId || null });
+  });
+  MVI = out; MVIT = Date.now(); return out;
+}
+async function merv(env) {
+  const L = await mervIns(env), md = L.length ? await snapshot(env, L.map((x) => x.s), 4000, ['BI', 'OF', 'LA', 'CL', 'SE', 'OI', 'EV', 'NV']) : {};
+  const p = (o) => (o && o.price > 0 ? o.price : null), lv = (a) => { a = Array.isArray(a) ? a[0] : a; return a && a.price > 0 ? [a.price, a.size] : null; };
+  return { ts: Date.now(), ins: L.map((x) => { const m = md[x.s] || {}; return Object.assign({}, x, { BI: lv(m.BI), OF: lv(m.OF), LA: m.LA && m.LA.price > 0 ? [m.LA.price, m.LA.size, m.LA.date || null] : null, CL: p(m.CL), SE: p(m.SE), OI: m.OI && (m.OI.size || m.OI.price) || null, EV: m.EV || null, NV: m.NV || null }); }) };
+}
 async function cauSyms(env) {
   if (CSY && Date.now() - CSYT < 6 * 3600e3) return CSY;
   const L = await instruments(env), out = {};
@@ -238,6 +260,12 @@ export default {
         MEM[k] = { t: Date.now(), b: body };
         return new Response(body, { headers: hb });
       } catch (e) { LASTERR = String(e.message || e); return new Response(JSON.stringify({ error: LASTERR }), { status: 502, headers: hb }); }
+    }
+    if (u.pathname === '/merv') { // ETF MERV, futuros y opciones (se guarda 10 segundos)
+      const m = MEM['/merv'], hb = Object.assign({}, h, { 'Cache-Control': 'no-store' });
+      if (m && Date.now() - m.t < 10000) return new Response(m.b, { headers: hb });
+      try { const body = JSON.stringify(await merv(env)); MEM['/merv'] = { t: Date.now(), b: body }; return new Response(body, { headers: hb }); }
+      catch (e) { LASTERR = String(e.message || e); return new Response(JSON.stringify({ error: LASTERR }), { status: 502, headers: hb }); }
     }
     const ep = u.pathname.replace(/^\/live\//, ''), feed = env.FEED && env.ROFEX_USER ? env.FEED.get(env.FEED.idFromName('main')) : null;
     if (u.pathname === '/stream') return feed ? feed.fetch(req) : new Response('sin Feed', { status: 503 }); // precios empujados al instante
