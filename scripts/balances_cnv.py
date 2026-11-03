@@ -75,6 +75,8 @@ EMPRESAS = {
 SPLITS = {"YPFD": [{"fecha": "2026-08-03", "factor": 10}]}  # YPF pasó de VN $10 a VN $1
 # BYMA: capitalización ×5 en 2024 (la historia de precios ya viene ajustada: "ajustado") y ×2 el 26/05/2025 (sin ajustar)
 SPLITS["BYMA"] = [{"fecha": "2024-06-01", "factor": 5, "ajustado": True}, {"fecha": "2025-05-26", "factor": 2}]
+# Ecogas: 10:1 del 18/08/2025; la historia de Yahoo recién cambia de unidad el 19/08 (el 18 todavía cierra a 25.025)
+SPLITS["ECOG"] = [{"fecha": "2025-08-19", "factor": 10, "vn": True}]  # el balance ya informa las acciones en la unidad nueva
 # unidad fija para las que escala_de lee mal: empresas chicas que presentan en pesos (el activo no llega a $100.000 M y se tomaría como miles)
 # y Fiplasto, que pasó de pesos a millones en 2025. Lista de (desde cierre, escala); vale la última que empiece antes del cierre.
 ESCALA = {t: [("2000-01-01", 1)] for t in ("AGRO", "CADO", "CARC", "DOME", "GAMI", "GARO", "HSAT", "LONG", "POLL", "ROSE", "SEMI")}
