@@ -4370,6 +4370,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<div class="vdc sxc"><label>Grupo<select id="vdG"></select></label><label>Comparar contra<select id="vdN"><option value="1">Ayer (cierre anterior)</option><option value="5">5 ruedas atrás</option><option value="10">10 ruedas atrás</option><option value="20">20 ruedas atrás</option><option value="21">21 ruedas atrás (un mes)</option></select></label>' +
       '<label id="vdKL">Curva<select id="vdK"></select></label><label id="vdAxL">Eje X<select id="vdAx">' + xaxOpts('mdd') + '</select></label><label id="vdXL">Plazo máximo<select id="vdX"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000">1.000 días</option><option value="1500">1.500 días</option><option value="0" selected>Todos</option></select></label><label id="vdDL">Duales<select id="vdD"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' +
       '<label id="vdShL" title="Con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb (S16O6, a 3 días, 149 pb): su cambio de tasa no se compara con el del resto">Menos de 30 días<select id="vdSh"><option value="hide">Ocultar en el gráfico</option><option value="gray">Mostrar en gris</option></select></label>' +
+      '<label id="vdTopL" style="display:none" title="Con muchas ONs el gráfico se llena: se destacan las que más movieron la tasa y el resto va tenue, sin la marca de antes">Destacar<select id="vdTop"><option value="12">Las 12 que más se movieron</option><option value="25">Las 25 que más se movieron</option><option value="0">Todas por igual</option></select></label>' +
       '</div>' +
       '<div class="vdchips" id="vdChips" style="margin-bottom:16px"></div>' +
       '<div id="vdCurveCard"><div class="vdleg" id="vdLeg"></div><div class="chart-wrap" style="height:560px;margin-top:0"><canvas id="vdChart"></canvas></div>' +
@@ -4386,6 +4387,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     document.getElementById('vdX').onchange = function () { ST.cap = +this.value; render(); };
     document.getElementById('vdD').onchange = function () { ST.dual = this.value; render(); };
     document.getElementById('vdSh').onchange = function () { ST.sh = this.value; render(); };
+    document.getElementById('vdTop').onchange = function () { ST.top = this.value; render(); };
     document.getElementById('vdTable').onclick = function (e) { var th = e.target.closest ? e.target.closest('th[data-s]') : null; if (!th) return; var s = th.getAttribute('data-s'); if (ST.sort === s) ST.dir = -ST.dir; else { ST.sort = s; ST.dir = s === 'k' ? 1 : -1; } render(); };
     var det = document.getElementById('vdDet'); try { det.open = localStorage.getItem('vdDet') === '1'; } catch (e) { } det.addEventListener('toggle', function () { try { localStorage.setItem('vdDet', det.open ? '1' : '0'); } catch (e) { } });
   }
@@ -4474,14 +4476,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         ayer.push({ x: r.x0, y: r.y0, k: kn, dv: d / 100, y0: r.y1 });
       });
     });
-    if (CORP(grp) && hoy.length > 25) { var top = hoy.slice().sort(function (a, b) { return Math.abs(b.dv) - Math.abs(a.dv); }).slice(0, 20); hoy.forEach(function (p) { if (top.indexOf(p) < 0) p.nl = 1; }); } // con muchas ONs, rótulo solo para las 20 que más se movieron
-    sets.push({ type: 'scatter', role: 'ayer', label: AY(1), data: ayer, ghostPts: true, noLabel: true, unitPb: true, unit: ' pb', backgroundColor: 'rgba(0,0,0,0)', borderColor: rgba(tx.charAt(0) === '#' ? tx : '#e4e4e7', 0.55), borderWidth: 1.5, pointRadius: 5, hoverRadius: 6, pointStyle: hs, order: 3 });
-    sets.push({ type: 'scatter', role: 'hoy', tip: true, label: 'Hoy', data: hoy, backgroundColor: hc, borderColor: hc, pointRadius: 7, hoverRadius: 9, pointStyle: hs, order: 1 });
+    if (CORP(grp) && hoy.length > 25) { var TN = +(ST.top == null ? 12 : ST.top), top = hoy.filter(function (p) { return !p.sh; }).sort(function (a, b) { return Math.abs(b.dv) - Math.abs(a.dv); }).slice(0, TN > 0 ? TN : 20); hoy.forEach(function (p, i) { if (top.indexOf(p) < 0) { p.nl = 1; if (TN > 0) { p.dim = 1; ayer[i].dim = 1; hc[i] = rgba(hc[i], 0.28); } } }); } // con muchas ONs: se destacan las que más se movieron (rótulo, marca de antes y línea); el resto, tenue
+    sets.push({ type: 'scatter', role: 'ayer', label: AY(1), data: ayer, ghostPts: true, noLabel: true, unitPb: true, unit: ' pb', backgroundColor: 'rgba(0,0,0,0)', borderColor: rgba(tx.charAt(0) === '#' ? tx : '#e4e4e7', 0.55), borderWidth: 1.5, pointRadius: function (c) { return c.raw && c.raw.dim ? 0 : 5; }, hoverRadius: function (c) { return c.raw && c.raw.dim ? 0 : 6; }, pointStyle: hs, order: 3 });
+    sets.push({ type: 'scatter', role: 'hoy', tip: true, label: 'Hoy', data: hoy, backgroundColor: hc, borderColor: hc, pointRadius: function (c) { return c.raw && c.raw.dim ? 4.5 : 7; }, hoverRadius: 9, pointStyle: hs, order: 1 });
     var yl = isUsd ? 'TIR (%)' : (good[0].yl === 'TEA' ? 'TEA (%)' : good[0].yl + ' (%)');
     var LINK = { id: 'vdLink', beforeDatasetsDraw: function (ch) {
       var ia = -1, ih = -1; ch.data.datasets.forEach(function (d, i) { if (d.role === 'ayer') ia = i; if (d.role === 'hoy') ih = i; }); if (ia < 0 || ih < 0) return;
       var ma = ch.getDatasetMeta(ia).data, mh = ch.getDatasetMeta(ih).data, ctx = ch.ctx; ctx.save(); ctx.setLineDash([2, 3]); ctx.lineWidth = 1.3; ctx.strokeStyle = rgba(tx.charAt(0) === '#' ? tx : '#e4e4e7', 0.7);
-      var dh = ch.data.datasets[ih].data; mh.forEach(function (el, j) { var a = ma[j]; if (!a || (dh[j] && dh[j].sh) || Math.hypot(el.x - a.x, el.y - a.y) < 8) return; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(el.x, el.y); ctx.stroke(); }); ctx.restore(); } };
+      var dh = ch.data.datasets[ih].data; mh.forEach(function (el, j) { var a = ma[j]; if (!a || (dh[j] && (dh[j].sh || dh[j].dim)) || Math.hypot(el.x - a.x, el.y - a.y) < 8) return; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(el.x, el.y); ctx.stroke(); }); ctx.restore(); } };
     var logTicks = function (a) { var set = [10, 20, 30, 60, 90, 180, 365, 540, 730, 1000, 1500, 2000, 3000, 5000, 7000, 10000]; a.ticks = set.filter(function (v) { return v >= a.min && v <= a.max; }).map(function (v) { return { value: v }; }); };
     CH = new Chart(document.getElementById('vdChart').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [X.LABELS, LINK], options: {
       responsive: true, maintainAspectRatio: false, animation: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2), layout: { padding: { right: 28, top: 6 } }, interaction: { mode: 'nearest', intersect: true },
@@ -4564,6 +4566,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function volChart(rows, A, Bv, lab1, lab0, foot) {
     var tx = css('--tx'), bd = css('--bd'), mu = css('--mu'), ac = css('--ac');
     if (!rows.length) return;
+    if (rows.length > 40) { // con muchas ONs no se lee: las 40 de más monto (en cualquiera de las dos ruedas), en su orden
+      var ix = rows.map(function (r, i) { return i; }).sort(function (a, b) { return Math.max(A[b] || 0, Bv[b] || 0) - Math.max(A[a] || 0, Bv[a] || 0); }).slice(0, 40).sort(function (a, b) { return a - b; }), f0 = foot;
+      rows = ix.map(function (i) { return rows[i]; }); A = ix.map(function (i) { return A[i]; }); Bv = ix.map(function (i) { return Bv[i]; }); foot = function (i) { return f0(ix[i]); }; lab1 += ' · las 40 de más monto';
+    }
     CV = new Chart(document.getElementById('vdVolCh').getContext('2d'), { type: 'bar', data: { labels: rows.map(function (r) { return r.k + (r.star ? ' *' : ''); }), datasets: [
         { label: lab1, data: A.map(function (v) { return v / 1e6; }), backgroundColor: rgba(ac, 0.85), borderColor: ac, borderWidth: 1, borderRadius: 3 },
         { label: lab0, data: Bv.map(function (v) { return v / 1e6; }), backgroundColor: rgba(mu, 0.45), borderColor: rgba(mu, 0.8), borderWidth: 1, borderRadius: 3 }] },
@@ -4591,7 +4597,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var kk = document.getElementById('vdK'), usdG = ST.grp === 'usd' || CORP(ST.grp), want = usdG ? 'u' : 'p';
       if (kk.getAttribute('data-for') !== want) { kk.setAttribute('data-for', want); kk.innerHTML = (usdG ? window.USD_CURVES : [['auto', 'Automática (mejor ajuste)'], ['log', 'Logarítmica'], ['sqrt', 'Raíz cuadrada'], ['lin', 'Lineal'], ['quad', 'Cuadrática'], ['ns', 'Nelson-Siegel']]).map(function (c) { return '<option value="' + c[0] + '">' + c[1] + '</option>'; }).join(''); }
       kk.value = usdG ? ST.mU : ST.mP;
-      document.getElementById('vdAx').value = usdG ? ST.axU : ST.ax; document.getElementById('vdDL').style.display = isD ? '' : 'none'; document.getElementById('vdShL').style.display = !usdG ? '' : 'none'; document.getElementById('vdSh').value = ST.sh;
+      document.getElementById('vdAx').value = usdG ? ST.axU : ST.ax; document.getElementById('vdDL').style.display = isD ? '' : 'none'; document.getElementById('vdShL').style.display = !usdG ? '' : 'none'; document.getElementById('vdSh').value = ST.sh; document.getElementById('vdTopL').style.display = CORP(ST.grp) ? '' : 'none'; document.getElementById('vdTop').value = ST.top == null ? '12' : ST.top;
       var rows = ST.grp === 'all' ? DATA : DATA.filter(function (r) { return r.grp === ST.grp || (isD && ST.dual === '2' && r.grp === 'dual' && (ST.grp === 'tamar' || r.dualCer)); });
       rows.forEach(function (r) { r.star = r.grp === 'dual' && ST.grp !== 'dual' && ST.grp !== 'all'; });
       if (ST.cap > 0) rows = rows.filter(function (r) { return r.days <= ST.cap; });
