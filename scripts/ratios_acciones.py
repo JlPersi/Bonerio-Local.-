@@ -286,6 +286,10 @@ def main():
             f = cer(d) / cer(c["cierre"]) * esc  # balance reexpresado a moneda del día del precio
             k = 1  # splits posteriores al cierre del balance (los precios no vienen ajustados)
             for sp in splits:  # "ajustado": la historia de precios ya viene dividida, así que cuenta para cualquier fecha
+                if sp.get("vn"):  # "vn": las acciones del balance ya vienen en la unidad nueva (la CNV informa el capital a VN $1): antes del split había factor veces menos
+                    if d < sp["fecha"]:
+                        k /= sp["factor"]
+                    continue
                 # cuenta si las acciones del balance siguen en unidades de antes del split: balances cerrados antes, o posteriores
                 # que todavía informan la cantidad vieja (YPF sep-26 informó 392 M después del split 10:1 de ago-26)
                 pre = [a["acc0"] for a in calc if a.get("acc0") and a["cierre"] < sp["fecha"]]
