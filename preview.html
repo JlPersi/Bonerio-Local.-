@@ -169,6 +169,54 @@ Chart.register({ id: 'zoomFix', beforeEvent: function (ch, args) {
   };
 })(Chart.defaults.plugins.tooltip);
 Chart.defaults.font.family = "Inter, system-ui, -apple-system, sans-serif"; // todos los gráficos con la letra de la página
+/* Estilo común de todos los gráficos: ejes y grilla suaves, leyendas con puntitos, barras redondeadas, líneas largas sin puntos y un degradé debajo cuando hay una sola línea. Respeta lo que cada gráfico define a propósito. */
+(function () {
+  var V = {}, VK = '', TX = { '#f4f4f5': 1, '#141414': 1, '#a1a1aa': 1, '#5f5f68': 1 }, BD = { '#232326': 1, '#e4e4e0': 1 };
+  var vars = function () { var k = document.documentElement.getAttribute('data-theme') || ''; if (k === VK && V.tx) return V; VK = k; var s = getComputedStyle(document.documentElement), g = function (n) { return s.getPropertyValue(n).trim(); };
+    V = { tx: g('--tx'), mu: g('--mu'), bd: g('--bd'), card: g('--card'), light: k === 'light' }; V.grid = V.light ? 'rgba(20,20,20,.07)' : 'rgba(255,255,255,.06)'; return V; };
+  var isTx = function (c) { return c == null || (typeof c === 'string' && TX[c.toLowerCase()]); };
+  var isGrid = function (c) { return c == null || (typeof c === 'string' && (BD[c.toLowerCase()] || /^rgba\((255,255,255,\.06|20,20,20,\.07)\)$/.test(c.replace(/\s/g, '')))); };
+  var rgbOf = function (c) { if (typeof c !== 'string') return '161,161,170'; var m = c.match(/^#([0-9a-f]{6})/i); if (m) return [0, 2, 4].map(function (i) { return parseInt(m[1].substr(i, 2), 16); }).join(',');
+    m = c.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i); return m ? m[1] + ',' + m[2] + ',' + m[3] : '161,161,170'; };
+  var grad = function (c) { var ch = c.chart, a = ch.chartArea, d = c.dataset; if (!a) return 'transparent'; var r = rgbOf(d.borderColor), g = ch.ctx.createLinearGradient(0, a.top, 0, a.bottom);
+    g.addColorStop(0, 'rgba(' + r + ',.20)'); g.addColorStop(1, 'rgba(' + r + ',0)'); return g; };
+  var T = Chart.defaults.plugins.tooltip;
+  T.backgroundColor = function () { return vars().light ? 'rgba(255,255,255,.97)' : 'rgba(24,24,26,.96)'; };
+  T.titleColor = function () { return vars().tx; }; T.bodyColor = function () { return vars().tx; }; T.footerColor = function () { return vars().mu; };
+  T.borderColor = function () { return vars().bd; }; T.borderWidth = 1; T.padding = 10; T.cornerRadius = 8; T.caretSize = 5;
+  T.titleFont = { weight: '600', size: 12 }; T.bodyFont = { size: 12 }; T.footerFont = { size: 11, weight: '400' };
+  Chart.register({ id: 'estiloComun', beforeUpdate: function (ch) {
+    try {
+      var v = vars(), o = ch.config.options || {}, ty = ch.config.type, ds = ch.config.data.datasets || [], pl = o.plugins = o.plugins || {};
+      var L = pl.legend = pl.legend || {}, lb = L.labels = L.labels || {};
+      if (lb.usePointStyle == null) { lb.usePointStyle = true; if (lb.boxWidth == null || lb.boxWidth > 9) lb.boxWidth = 8; if (lb.boxHeight == null) lb.boxHeight = 8; }
+      if (lb.padding == null) lb.padding = 14; if (!lb.font) lb.font = { size: 12 }; if (isTx(lb.color)) lb.color = v.mu;
+      var ti = pl.title; if (ti && ti.display) { if (!ti.font) ti.font = { size: 13, weight: '600' }; if (!ti.padding) ti.padding = { top: 2, bottom: 8 }; if (isTx(ti.color)) ti.color = v.tx; }
+      var su = pl.subtitle; if (su && su.display && isTx(su.color)) su.color = v.mu;
+      var sc = o.scales || {}, hz = o.indexAxis !== 'y';
+      Object.keys(sc).forEach(function (id) { var s = sc[id]; if (!s || s.display === false || (s.type && !/^(linear|category|time|timeseries|logarithmic)$/.test(s.type))) return;
+        var ax = s.axis || id.charAt(0); s.border = s.border || {}; if (s.border.display == null) s.border.display = false;
+        var tk = s.ticks = s.ticks || {}; if (isTx(tk.color)) tk.color = v.mu; if (!tk.font) tk.font = { size: 11.5 };
+        var gr = s.grid = s.grid || {}; if (gr.drawTicks == null) gr.drawTicks = false; if (tk.padding == null) tk.padding = 6;
+        if ((ax === 'x') === hz && ty !== 'scatter' && gr.display == null && !gr.color) gr.display = false; else if (isGrid(gr.color)) gr.color = v.grid;
+        var at = s.title; if (at && at.display) { if (isTx(at.color)) at.color = v.mu; if (!at.font) at.font = { size: 11 }; } });
+      var lines = ds.filter(function (d) { return (d.type || ty) === 'line' && !d.hidden; });
+      ds.forEach(function (d) { var t = d.type || ty, n = (d.data || []).length;
+        if (t === 'bar') { if (d.borderRadius == null && !d.stack && !(sc.y && sc.y.stacked) && !(sc.x && sc.x.stacked)) d.borderRadius = 4; if (d.maxBarThickness == null) d.maxBarThickness = 64; }
+        if (t === 'line') { if (d.borderCapStyle == null) { d.borderCapStyle = 'round'; d.borderJoinStyle = 'round'; }
+          if (n > 40 && d.pointRadius == null) { d.pointRadius = 0; if (d.pointHoverRadius == null) d.pointHoverRadius = 3.5; }
+          if (n > 40 && d.tension == null && d.cubicInterpolationMode == null && !d.stepped) d.cubicInterpolationMode = 'monotone';
+          var one = lines.length === 1 && lines[0] === d && n > 20 && sc.x !== undefined && typeof d.borderColor === 'string';
+          if (one && d.fill == null && (d.backgroundColor == null || d.backgroundColor === d.borderColor)) { d._ezF = 1; d._ezB = d.backgroundColor; d.fill = 'start'; d.backgroundColor = grad; if (d.pointBackgroundColor == null) { d.pointBackgroundColor = d.borderColor; d._ezP = 1; } }
+          else if (d._ezF && !one) { d._ezF = 0; d.fill = false; d.backgroundColor = d._ezB; if (d._ezP) { d._ezP = 0; d.pointBackgroundColor = undefined; } }
+          else if (d._ezP) d.pointBackgroundColor = d.borderColor; } });
+    } catch (e) {}
+  }, afterDatasetsDraw: function (ch) { // línea vertical suave donde está el mouse, en los gráficos de líneas con tooltip por fecha
+    try { if (ch.config.type !== 'line' || !ch.tooltip || !ch.options.interaction || ch.options.interaction.intersect !== false) return;
+      var ae = ch.tooltip.getActiveElements(); if (!ae.length) return; var a = ch.chartArea, x = ae[0].element.x, c = ch.ctx;
+      c.save(); c.strokeStyle = vars().light ? 'rgba(20,20,20,.25)' : 'rgba(255,255,255,.22)'; c.lineWidth = 1; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(x, a.top); c.lineTo(x, a.bottom); c.stroke(); c.restore(); } catch (e) {}
+  } });
+})();
 try { document.fonts.ready.then(function () { Object.values(Chart.instances || {}).forEach(function (c) { try { c.update('none'); } catch (e) {} }); }); } catch (e) {}
 /* Bandas para cualquier gráfico de precio (ficha del bono y botón flotante): media del período, 1/2/3 desvíos, media móvil de 20 y la media de toda la historia. La elección se guarda en el navegador */
 window.BLBND = (function () {
