@@ -1501,6 +1501,7 @@ function logDays() {
 function logPrices(rows) {
   var t = bxToday();
   if (t <= PX.last || !bxIsBiz(t)) return;
+  if (typeof mktStarted === 'function' && !mktStarted()) return; // antes de la apertura el precio en vivo es el cierre de ayer: no es la rueda de hoy
   var ds = bxDayStr(t);
   rows.forEach(function (r) {
     if (!r || !r.symbol || !(r.c > 0)) return;
@@ -8276,7 +8277,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var H = Hh.filter(function (h) { return h.val > 0; }), tot = H.reduce(function (a, h) { return a + h.val; }, 0);
     document.getElementById('pfMineSub').textContent = Hh.length ? 'Cargá los nominales (valor nominal, no pesos) de cada bono. Valuado a precio de hoy' + (mep ? ' · MEP $ ' + fm(mep, 2) : '') + '. Var. día: contra el cierre anterior, en la moneda de cada bono y con los cupones cobrados. Quedan guardados en este navegador.' : 'Todavía no sumaste bonos. Tocá el + al lado de cada bono en la lista de arriba.';
     var DV = window.vardAll ? window.vardAll(function () { if (!dvT) dvT = setTimeout(function () { dvT = 0; render(); }, 300); }) : {}, dR = 0, dB = 0; // variación del día contra el cierre anterior (la misma de Variación diaria, con cupones y amortizaciones)
-    var dvF = function (r) { if (!VD || r.pccy === 'USD' || !(r.P > 0)) return null; var C = closes(r.k); if (!C) return null; var j = C.length - 1; if (VD.dates[j] === bxDayStr(bxToday())) j--; j = prevIdx(C, j); return j < 0 ? null : r.P / C[j] - 1; }; // los que no están en Variación diaria (provinciales en pesos, Badlar): contra el último cierre de data/volumen.json
+    var dvF = function (r) { if (!VD || r.pccy === 'USD' || !(r.P > 0)) return null; var C = closes(r.k); if (!C) return null; var j = C.length - 1; if (VD.dates[j] === bxDayStr(bxToday())) j--; j = prevIdx(C, j); if (j >= 0 && typeof mktStarted === 'function' && !mktStarted() && Math.abs(r.P / C[j] - 1) < 1e-9) j = prevIdx(C, j - 1); return j < 0 ? null : r.P / C[j] - 1; }; // antes de la apertura el precio es el cierre de ayer: se compara con la rueda anterior // los que no están en Variación diaria (provinciales en pesos, Badlar): contra el último cierre de data/volumen.json
     Hh.forEach(function (r) { var q = DV[r.k]; r.dv = q ? q.dpct / 100 : dvF(r); if (r.dv != null && !(Math.abs(r.dv) < 0.3)) r.dv = null; r.dr = r.dv != null && r.val ? r.val * r.dv / (1 + r.dv) : null; if (r.dr != null) { dR += r.dr; dB += r.val - r.dr; } });
     var ms = (ST.msort || '').replace('-', ''), md = (ST.msort || '').charAt(0) === '-' ? -1 : 1, mv = function (r) { return ms === 'k' ? r.k : ms === 'grp' ? ORDER.indexOf(r.grp) * 1e6 + r.mat : ms === 'pv' ? r.val : r[ms]; };
     var Hs = ms ? Hh.slice().sort(function (a, b) { var x = mv(a), y = mv(b); if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * md; }) : Hh; // tocando el encabezado: ascendente, descendente y de vuelta por grupo
