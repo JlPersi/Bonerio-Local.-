@@ -1675,7 +1675,8 @@ function solve(fn, lo, hi) { // raíz de fn entre lo y hi (con cambio de signo):
     if (!(m > Math.min(x0, x1) && m < Math.max(x0, x1))) m = (x0 + x1) / 2;
     const v = fn(m);
     if (!isFinite(v)) return bisect0(fn, lo, hi);
-    if (v === 0 || Math.abs(m - pm) < 1e-14 || Math.abs(x1 - x0) < 1e-13) return m;
+    if (v === 0 || Math.abs(x1 - x0) < 1e-13) return m;
+    if (Math.abs(m - pm) < 1e-14) return Math.abs(x1 - x0) < 1e-9 ? m : bisect0(fn, lo, hi); // se estancó sin cerrar el intervalo (flujos muy largos: a −90% el valor explota): bisección
     if (v * b < 0) { x0 = x1; a = b; } else a /= 2;
     x1 = m; b = v; pm = m;
   }
