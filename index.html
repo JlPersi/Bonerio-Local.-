@@ -7965,7 +7965,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var isAct = function () { return root.classList.contains('active'); };
   var _oc = window.dlOnClone; window.dlOnClone = function (doc, id) { if (_oc) _oc(doc, id); if (id !== 'pfPick') return; var w = doc.querySelector('#pfPick .pfw'); if (w) { w.style.maxHeight = 'none'; w.style.overflow = 'visible'; } }; // la imagen lleva todos los bonos de la lista, no solo los que entran en el recuadro con scroll
   var PKEY = 'pfSets1', PS = (function () { try { var o = JSON.parse(localStorage.getItem(PKEY) || 'null'); if (o && o.s && o.cur) return o; } catch (e) {} return { cur: 'Mi portfolio', s: {} }; })(); // varios portfolios con nombre; el elegido es el de pfFav1 (lo leen las otras pestañas)
-  var save = function () { try { PS.s[PS.cur] = FAV; localStorage.setItem(PKEY, JSON.stringify(PS)); localStorage.setItem(FKEY, JSON.stringify(FAV)); localStorage.setItem(SKEY, JSON.stringify({ ccy: ST.ccy, conf: ST.conf, hz: ST.hz, win: ST.win, wv: ST.wv, wt: ST.wt, grp: ST.grp, sc: ST.sc, scM: ST.scM, scTo: ST.scTo, shk: ST.shk })); } catch (e) {} };
+  var save = function () { try { PS.s[PS.cur] = FAV; localStorage.setItem(PKEY, JSON.stringify(PS)); localStorage.setItem(FKEY, JSON.stringify(FAV)); localStorage.setItem(SKEY, JSON.stringify({ ccy: ST.ccy, conf: ST.conf, hz: ST.hz, win: ST.win, wv: ST.wv, wt: ST.wt, grp: ST.grp, sc: ST.sc, scM: ST.scM, scTo: ST.scTo, shk: ST.shk, sub: ST.sub })); } catch (e) {} };
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var pc = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : fm(v * 100, d == null ? 2 : d) + '%'; };
   var dfull = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
@@ -8215,6 +8215,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     return { W: W, from: VD.dates[J[0]], to: VD.dates[J[J.length - 1]], pnl: pnl, pVar: z * vp * sh, hVar: -hq.q * hs, hEs: -hq.es * hs, hVar1: -q1.q, ovl: ovl, vp: vp, cols: cols };
   }
 
+  // subpestañas, como en Acciones: qué tarjetas muestra cada una
+  var PSUB = [['cart', 'Cartera', ['pfMine', 'pfPick']], ['esc', 'Escenarios de tasas', ['pfScen']], ['dur', 'Duración', ['pfRisk']], ['flujo', 'Flujo de fondos', ['pfFlow']], ['var', 'Value at Risk', ['pfVar']]];
+  function psub(g) {
+    if (!PSUB.some(function (x) { return x[0] === g; })) g = 'cart'; ST.sub = g; save();
+    PSUB.forEach(function (x) { x[2].forEach(function (id, i) { var e = document.getElementById(id); if (!e) return; e.style.display = x[0] === g ? '' : 'none'; e.style.marginTop = i ? '24px' : '0'; }); });
+    [].forEach.call(document.querySelectorAll('#pfNav button'), function (b) { b.classList.toggle('on', b.getAttribute('data-g') === g); });
+    window.dispatchEvent(new Event('resize')); // los gráficos que estaban ocultos toman su tamaño
+  }
   /* ---------- interfaz ---------- */
   var DL = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>';
   function cardH(id, t, sub, body, dl) {
@@ -8237,8 +8245,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '#port .pfe{padding:28px 10px;text-align:center;color:var(--mu)}#port .pfdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}' +
       '#ampPn .pft{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}#ampPn .pft th,#ampPn .pft td{padding:7px 9px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--bd)}#ampPn .pft th{font-size:12px;color:var(--mu)}#ampPn .pft .l{text-align:left}#ampPn .pft td.k{font-weight:700;text-align:left;color:var(--ok)}#ampPn tfoot td{font-weight:700;border-bottom:0}#ampPn .pfdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}' +
       '#port .pfnote,#ampPn .pfnote{color:var(--mu);font-size:12.5px;margin:10px 0 0;line-height:1.5}' +
+      '#port .sbn{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 18px}#port .sbn button{background:var(--card);color:var(--mu);border:1px solid var(--bd);border-radius:999px;padding:8px 16px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}#port .sbn button:hover{color:var(--tx)}#port .sbn button.on{background:var(--ac);border-color:var(--ac);color:#0b0b0c}' +
       '</style>' +
-      cardH('pfPick', 'Elegí tus bonos', 'Tocá + en los bonos que tenés: pasan a tu portfolio, más abajo (− los saca). La estrella de la ficha es otra cosa: Favoritos. Las tasas son las del sitio: CER en términos reales, dólar linked sobre dólares, TAMAR y duales con la proyección del escenario de Curva Pesos.',
+      '<div class="sbn" id="pfNav">' + PSUB.map(function (x) { return '<button type="button" data-g="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      cardH('pfPick', 'Elegí tus bonos', 'Tocá + en los bonos que tenés: pasan a tu portfolio, arriba (− los saca). La estrella de la ficha es otra cosa: Favoritos. Las tasas son las del sitio: CER en términos reales, dólar linked sobre dólares, TAMAR y duales con la proyección del escenario de Curva Pesos.',
         '<div class="pfc"><label>Grupo<select id="pfG"><option value="all">Todos</option>' + ORDER.map(function (g) { return '<option value="' + g + '">' + GN[g] + '</option>'; }).join('') + '</select></label>' +
         '<label>Buscar<input type="search" id="pfQ" placeholder="Ticker o tipo"></label></div><div class="pfw"><table class="pft" id="pfAll"></table></div>', 'Portfolio_bonos') +
       cardH('pfMine', 'Tu portfolio', '#pfMineSub',
@@ -8260,6 +8270,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         '<label title="EWMA (RiskMetrics): el peso de cada rueda cae 6% por rueda hacia atrás, así la volatilidad reciente pesa más.">Ponderación<select id="pfWt"><option value="eq">Igual para todas las ruedas</option><option value="ewma">EWMA λ 0,94 (más peso a lo reciente)</option></select></label></div>' +
         '<div class="pfchips" id="pfVarChips"></div><div class="pfg"><div class="pfcv"><canvas id="pfVarC"></canvas></div><div style="overflow:auto"><table class="pft" id="pfVarT"></table></div></div><p class="pfnote" id="pfVarNote"></p>', 'VaR_portfolio');
     var g = function (id) { return document.getElementById(id); };
+    root.insertBefore(g('pfMine'), g('pfPick')); // en Cartera, primero lo que tenés
+    g('pfNav').onclick = function (e) { var b = e.target.closest('button[data-g]'); if (b) psub(b.getAttribute('data-g')); };
+    psub(ST.sub);
     g('pfG').value = ST.grp; g('pfC').value = ST.ccy; g('pfCf').value = String(ST.conf); g('pfHz').value = String(ST.hz); g('pfW').value = String(ST.win); g('pfWt').value = ST.wt;
     g('pfG').onchange = function () { ST.grp = this.value; save(); render(); };
     g('pfQ').oninput = function () { ST.q = this.value; renderPick(); };
