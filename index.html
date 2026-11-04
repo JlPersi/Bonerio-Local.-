@@ -111,7 +111,12 @@ window.LIB_XLSX = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.
 <meta name="twitter:image:alt" content="Portada de Bonerío Local: cada bono argentino, con su curva, su retorno y su volumen">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" crossorigin="anonymous"></script>
 <script>/* Chart.js: un gráfico que se rehace (o se borra) mientras el mouse está encima recibe el evento sin su leyenda y tira «reading 'handleEvent'»: se ignora ese evento */
-(function () { try { var p = window.Chart && Chart.registry.getPlugin('legend'), f = p && p.afterEvent; if (f) p.afterEvent = function (c) { if (c && c.legend) return f.apply(this, arguments); }; } catch (e) { } })();</script>
+(function () { try { var p = window.Chart && Chart.registry.getPlugin('legend'), f = p && p.afterEvent; if (f) p.afterEvent = function (c) { if (c && c.legend) return f.apply(this, arguments); }; } catch (e) { } })();
+/* Lo que tachás en una leyenda queda tachado aunque el gráfico se vuelva a armar (al actualizarse los precios, cambiar un filtro, etc.): se recuerda por gráfico (id del canvas) y por serie (nombre) */
+(function () { try { if (!window.Chart) return; var H = window.BLHID = {}, oc = Chart.defaults.plugins.legend.onClick;
+  Chart.defaults.plugins.legend.onClick = function (e, it, lg) { oc.apply(this, arguments); try { var c = lg.chart, id = c.canvas && c.canvas.id, i = it && it.datasetIndex, d = i != null && c.data.datasets[i]; if (id && d && d.label != null) (H[id] = H[id] || {})[d.label] = !c.isDatasetVisible(i); } catch (x) { } };
+  Chart.register({ id: 'blHid', beforeUpdate: function (c) { if (c.$blH) return; c.$blH = 1; var h = c.canvas && H[c.canvas.id]; if (!h) return; (c.data.datasets || []).forEach(function (d, i) { if (d && h[d.label] != null) c.getDatasetMeta(i).hidden = h[d.label] ? true : null; }); } });
+} catch (e) { } })();</script>
 <script>
 /* la página va con html{zoom:.9}: Chart.js toma la posición del mouse sin el zoom y el tooltip queda corrido; se recalcula desde clientX/clientY */
 if (window.Chart) Chart.register({ id: 'zoomPtr', beforeEvent: function (c, a) {
