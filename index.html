@@ -4188,6 +4188,92 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var kd = function (x, nm) { return x ? nm + ': ' + x.pair.replace('/', ' contra ') + ', ' + fm(x.sd * 100, 1) + '% anual en ' + x.n + ' semanas' : ''; }, pr = [kd(K.cer, 'CER/TAMAR'), kd(K.dl, 'dólar/TAMAR')].filter(Boolean);
     NT.innerHTML = 'Cada pata se valúa con la curva de su familia al mismo plazo: Boncer (CER), bonos TAMAR, dollar linked (dólar) y Lecaps (fija). La opción es lo que agrega poder quedarse con la mejor pata (Margrabe): vale más cuanto más cerca están las patas y cuanto más se mueven una contra otra.' + (pr.length ? ' Ese movimiento sale de los cambios semanales recientes, hasta 26 semanas (' + pr.join('; ') + '), y se achica hacia el vencimiento.' : '') + ' <b>Paga el mercado</b>: precio menos la mejor pata, con un error de alrededor de 1%. <b>†</b> Pata fuera de la curva de su familia: ese dato no es confiable.';
   }
+  /* ---------- ¿qué tan duales son los duales? TAMAR real mes a mes, qué pata va ganando y spread de margen entre dos bonos TAMAR/duales ---------- */
+  var gid = function (i) { return document.getElementById(i); };
+  var DUO = { a: 'TMG28', b: 'TXMJ0', n: 120, ch: null };
+  var MESN = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  function ymOf(t) { var d = new Date(t * 864e5); return [d.getUTCFullYear(), d.getUTCMonth()]; }
+  function dOf(y, m, dd) { return Date.UTC(y, m, dd) / 864e5; }
+  function mlab(y, m) { return MESN[m] + '-' + String(y).slice(2); }
+  function ipcOf(y, m) { // IPC del mes por el CER: entre el 16 de m+1 y el 15 de m+2 el CER crece con el IPC de m
+    var o = IDX.CER, a = dOf(y, m + 1, 15), b = dOf(y, m + 2, 15); if (a < o.s || b > lastOf(o)) return null; return o.v[b - o.s] / o.v[a - o.s] - 1;
+  }
+  function remOf(y, m) { var i = (y - 2026) * 12 + m - 8; return i >= 0 && i < REMD.pi.length ? REMD.pi[i] / 100 : null; } // REM mes a mes desde sep-26
+  function temOf(tna) { return Math.pow(1 + tna * 32 / 365, 365 / 384) - 1; } // como el prospecto
+  function duoMonths() {
+    var o = IDX.TAMAR, L = lastOf(o), y0 = ymOf(o.s), y1 = ymOf(L), out = [], y = y0[0], m = y0[1];
+    while (y < y1[0] || (y === y1[0] && m <= y1[1])) {
+      var a = dOf(y, m, 1), b = Math.min(dOf(y, m + 1, 1) - 1, L), s = 0, n = 0, t;
+      for (t = Math.max(a, o.s); t <= b; t++) if (bxIsBiz(t)) { s += o.v[t - o.s]; n++; }
+      if (n) {
+        var tna = s / n / 100, ipc = ipcOf(y, m), rem = remOf(y, m), pi = ipc != null ? ipc : rem, tm = temOf(tna), tm3 = temOf(tna + 0.03);
+        out.push({ y: y, m: m, lab: mlab(y, m), tna: tna, tem: tm, ipc: ipc, rem: rem, pi: pi, real: pi == null ? null : Math.pow((1 + tm) / (1 + pi), 12) - 1, real3: pi == null ? null : Math.pow((1 + tm3) / (1 + pi), 12) - 1, part: b < dOf(y, m + 1, 1) - 1, nd: n });
+      }
+      if (++m > 11) { m = 0; y++; }
+    }
+    return out;
+  }
+  function duoBonds(s) { // cada dual CER/TAMAR: cuánto vale hoy cada pata desde la emisión (por 100 VN) y el margen implícito
+    return Object.keys(INST).filter(function (k) { var ins = INST[k]; return ins.k === 'dual' && rowOf(ins, 'CER') && rowOf(ins, 'TAMAR') && ins.r[ins.r.length - 1][0] > s; }).map(function (k) {
+      var ins = INST[k], rt = rowOf(ins, 'TAMAR'), rc = rowOf(ins, 'CER'), cer = rc[1] * cerAt(bdBack(s, 10), ZERO) / cerBase(ins), tam = rt[1] * factor(ins.iss, s, rt[3], ZERO);
+      var o = PRICE[k] > 0 ? metrics(k, s, scFor(5), PRICE[k]) : {};
+      return { k: k, mat: ins.r[ins.r.length - 1][0], sp: rt[3], cer: cer, tam: tam, dm: o.dm, md: o.md, P: PRICE[k] };
+    }).sort(function (a, b) { return a.mat - b.mat; });
+  }
+  function dmSeries(k, n) { // margen sobre TAMAR de cada rueda guardada, con su precio de cierre
+    if (!HIST[k]) return []; var a = ptsOf(k).slice(-n), sc = scFor(3);
+    return a.map(function (p) { var o = metrics(k, p[0], sc, p[1]); return o.dm != null && isFinite(o.dm) ? { t: p[0], dm: o.dm } : null; }).filter(Boolean);
+  }
+  function duoSpread(A, B, n) {
+    var sa = dmSeries(A, n), sb = dmSeries(B, n), mb = {}; sb.forEach(function (p) { mb[p.t] = p.dm; });
+    return sa.filter(function (p) { return mb[p.t] != null; }).map(function (p) { return { t: p.t, a: p.dm, b: mb[p.t], sp: (mb[p.t] - p.dm) * 100 }; });
+  }
+  function renderDuo(s) {
+    var c5 = document.getElementById('psC5'), card5 = c5 && c5.closest('.card'); if (!card5) return;
+    var box = document.getElementById('duoCard');
+    if (!box) {
+      box = document.createElement('div'); box.className = 'card'; box.id = 'duoCard'; box.style.gridColumn = '1 / -1';
+      box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0">¿Qué tan duales son los duales?</h3><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'duoCard\', \'Duales_TAMAR_real\')" title="Descargar en HD"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></div>' +
+        '<p class="note" id="duoTxt" style="margin:10px 0 14px;color:var(--tx);font-size:14px;line-height:1.55"></p>' +
+        '<div class="duoG" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:18px">' +
+        '<div><h4 style="margin:0 0 6px">TAMAR real, mes a mes</h4><div class="wrap"><table class="qt" id="duoM"></table></div><p class="qs" style="margin-top:6px">TEM como el prospecto: (1 + TNA × 32/365)^(365/384) − 1. IPC del mes por el CER publicado; si todavía no salió, la mediana del REM (en cursiva). Real anual = ((1 + TEM) / (1 + IPC))^12 − 1. La pata CER gana el mes si TAMAR + 3% queda debajo de la inflación.</p></div>' +
+        '<div><h4 style="margin:0 0 6px">Cada dual hoy: cuánto vale cada pata desde la emisión</h4><div class="wrap"><table class="qt" id="duoB"></table></div><p class="qs" style="margin-top:6px">Por 100 VN, con el CER de hace 10 hábiles y el promedio de la TAMAR + 3% desde la emisión, capitalizado como el prospecto. Margen: el implícito sobre TAMAR al precio de hoy.</p></div></div>' +
+        '<div style="margin-top:22px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px 14px;flex-wrap:wrap"><h4 style="margin:0" id="duoSt">Spread de margen sobre TAMAR</h4><div class="ctl" style="display:flex;gap:10px;flex-wrap:wrap"><label>Bono A<select id="duoA"></select></label><label>Bono B<select id="duoB2"></select></label><label>Período<select id="duoN"><option value="60">60 ruedas</option><option value="120">120 ruedas</option><option value="250">250 ruedas</option><option value="9999">Todo</option></select></label></div></div>' +
+        '<p class="note" id="duoSs" style="margin:6px 0 10px;color:var(--tx)"></p><div style="position:relative;height:360px"><canvas id="duoCh"></canvas></div></div>';
+      card5.parentNode.insertBefore(box, card5.nextSibling);
+      ['duoA', 'duoB2', 'duoN'].forEach(function (id) { document.getElementById(id).onchange = function () { DUO.a = gid('duoA').value; DUO.b = gid('duoB2').value; DUO.n = +gid('duoN').value; duoChart(); }; });
+    }
+    var M = duoMonths(), B = duoBonds(s), last = M.filter(function (r) { return !r.part; }).slice(-1)[0] || M[M.length - 1], pc = function (v, d) { return v == null ? '—' : fm(v * 100, d == null ? 1 : d) + '%'; };
+    gid('duoM').innerHTML = '<thead><tr><th class="l">Mes</th><th>TAMAR prom. (TNA)</th><th>TEM</th><th>IPC</th><th>TAMAR real anual</th><th>TAMAR + 3% real</th><th>Pata del mes</th></tr></thead><tbody>' +
+      M.slice(-12).reverse().map(function (r) { var it = r.ipc == null && r.rem != null; return '<tr><td class="l">' + r.lab + (r.part ? ' (en curso)' : '') + '</td><td>' + pc(r.tna, 2) + '</td><td>' + pc(r.tem, 2) + '</td><td' + (it ? ' style="font-style:italic"' : '') + '>' + pc(r.pi, 2) + '</td><td style="font-weight:600;color:' + (r.real == null ? 'inherit' : r.real >= 0 ? 'var(--c-tam)' : 'var(--c-cer)') + '">' + (r.real == null ? '—' : sg(r.real * 100, 1) + '%') + '</td><td>' + (r.real3 == null ? '—' : sg(r.real3 * 100, 1) + '%') + '</td><td>' + (r.real3 == null ? '—' : r.real3 >= 0 ? 'TAMAR' : 'CER') + '</td></tr>'; }).join('') + '</tbody>';
+    gid('duoB').innerHTML = '<thead><tr><th class="l">Bono</th><th>Vence</th><th>Pata CER</th><th>Pata TAMAR</th><th>Va ganando</th><th>Margen s/ TAMAR</th></tr></thead><tbody>' +
+      B.map(function (b) { var w = b.tam >= b.cer; return '<tr><td class="l">' + b.k + '</td><td>' + dstr(b.mat) + '</td><td>' + fm(b.cer, 2) + '</td><td>' + fm(b.tam, 2) + '</td><td style="font-weight:600;color:' + (w ? 'var(--c-tam)' : 'var(--c-cer)') + '">' + (w ? 'TAMAR' : 'CER') + ' por ' + fm(Math.abs(b.tam / b.cer - 1) * 100, 1) + '%</td><td>' + (b.dm == null ? '—' : fm(b.dm, 2) + '%') + '</td></tr>'; }).join('') + '</tbody>';
+    var ip = M.filter(function (r) { return r.ipc != null; }).slice(-1)[0], rm = last && last.rem;
+    var rv = function (pi) { return Math.pow((1 + last.tem) / (1 + pi), 12) - 1; }, nT = B.filter(function (b) { return b.tam >= b.cer; }).length;
+    gid('duoTxt').innerHTML = last ? 'En ' + last.lab + ' la TAMAR promedió <b>' + pc(last.tna, 1) + ' TNA</b>: ' + (ip ? '<b>' + sg(rv(ip.ipc) * 100, 1) + '% real anual</b> contra el último IPC (' + ip.lab + ', ' + pc(ip.ipc, 1) + ')' : '') + (rm != null ? (ip ? ' o ' : '') + '<b>' + sg(rv(rm) * 100, 1) + '%</b> contra la mediana del REM para ' + last.lab + ' (' + pc(rm, 1) + ')' : '') + '. ' +
+      'Para que se active la pata CER, la TAMAR tiene que quedar unos 3 puntos por debajo de la inflación (real anual cerca de −3%). ' + (B.length ? (nT === B.length ? 'Hoy los ' + B.length + ' duales están <b>ITM TAMAR</b>.' : nT ? nT + ' de ' + B.length + ' duales van ganando por TAMAR.' : 'Hoy los duales van ganando por CER.') : '') : 'Sin datos de TAMAR.';
+    var opts = Object.keys(INST).filter(function (k) { var ins = INST[k]; return (ins.k === 'tamar' || ins.k === 'dual') && rowOf(ins, 'TAMAR') && !rowOf(ins, 'DOLLAR_LINKED') && ins.r[ins.r.length - 1][0] > s && HIST[k]; }).sort(function (a, b) { return INST[a].r[INST[a].r.length - 1][0] - INST[b].r[INST[b].r.length - 1][0]; });
+    if (opts.indexOf(DUO.a) < 0) DUO.a = opts[0]; if (opts.indexOf(DUO.b) < 0) DUO.b = opts[opts.length - 1];
+    var oh = opts.map(function (k) { return '<option value="' + k + '">' + k + (INST[k].k === 'dual' ? ' (dual)' : '') + '</option>'; }).join('');
+    gid('duoA').innerHTML = oh; gid('duoB2').innerHTML = oh; gid('duoA').value = DUO.a; gid('duoB2').value = DUO.b; gid('duoN').value = String(DUO.n);
+    duoChart();
+  }
+  function duoChart() {
+    if (DUO.ch) { DUO.ch.destroy(); DUO.ch = null; } var cv = gid('duoCh'); if (!cv || !DUO.a || !DUO.b) return;
+    var R = duoSpread(DUO.a, DUO.b, DUO.n), tx = css('--tx'), bd = css('--bd'), ca = css('--c-tam') || '#ff8fb3', cb = css('--c-dual') || '#c9a0ff', cs = css('--c-dl') || '#5cc8ff';
+    if (!R.length) { gid('duoSs').textContent = 'Sin precios guardados en común para ' + DUO.a + ' y ' + DUO.b + '.'; return; }
+    var mn = R.reduce(function (z, r) { return r.sp < z.sp ? r : z; }), mx = R.reduce(function (z, r) { return r.sp > z.sp ? r : z; }), nw = R[R.length - 1];
+    gid('duoSt').textContent = 'Spread de margen sobre TAMAR: ' + DUO.b + ' − ' + DUO.a;
+    gid('duoSs').innerHTML = 'Mínimo: <b>' + dstr(mn.t) + '</b> → ' + fm(mn.sp, 0) + ' pb · Máximo: <b>' + dstr(mx.t) + '</b> → ' + fm(mx.sp, 0) + ' pb · Actual: <b>' + dstr(nw.t) + '</b> → ' + fm(nw.sp, 0) + ' pb (' + DUO.a + ' ' + fm(nw.a, 2) + '%, ' + DUO.b + ' ' + fm(nw.b, 2) + '%)';
+    var lb = R.map(function (r) { return dstr(r.t).slice(0, 5); });
+    DUO.ch = new Chart(cv.getContext('2d'), { type: 'line', data: { labels: lb, datasets: [
+      { label: 'Spread ' + DUO.b + ' − ' + DUO.a + ' (pb)', data: R.map(function (r) { return r.sp; }), borderColor: cs, backgroundColor: rgba(cs, 0.15), fill: true, borderWidth: 2.2, pointRadius: 0, yAxisID: 'y1', order: 3 },
+      { label: DUO.a + ' margen (%)', data: R.map(function (r) { return r.a; }), borderColor: ca, borderWidth: 2, pointRadius: 0, yAxisID: 'y', order: 1 },
+      { label: DUO.b + ' margen (%)', data: R.map(function (r) { return r.b; }), borderColor: cb, borderWidth: 2, pointRadius: 0, yAxisID: 'y', order: 2 }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + fm(c.parsed.y, c.dataset.yAxisID === 'y1' ? 0 : 2); } } } },
+        scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }, grid: { display: false } }, y: { position: 'left', title: { display: true, text: 'Margen sobre TAMAR (%)', color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd } }, y1: { position: 'right', title: { display: true, text: 'Spread (pb)', color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 0); } }, grid: { display: false } } } } });
+  }
+  window.DUO = { months: duoMonths, bonds: function () { return duoBonds(day($('d0').value)); }, spread: duoSpread };
   window.renderPesos = function () {
     if (typeof Chart === 'undefined') return;
     syncMir(); scenVis(); SUPON = true;
@@ -4199,7 +4285,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         if (ch && !base0) base0 = snapshot(s, constSc(DEF.pi, DEF.tam, DEF.dev));
         PER[n] = { S: SN, S0: ch ? base0 : null, SC: scN }; renderTables(SN, s, scN, fc, n);
       });
-      renderCharts(PER); try { renderInt(PER); } catch (e) { console.error('curva integrada', e); } renderFwd(PER, s); renderOpt(PER, s);
+      renderCharts(PER); try { renderInt(PER); } catch (e) { console.error('curva integrada', e); } renderFwd(PER, s); renderOpt(PER, s); try { renderDuo(s); } catch (e) { console.error('duales', e); }
       if (!window._psT2) { window._psT2 = 1; [1, 2, 3, 4, 5].forEach(function (n) { renderTables(PER[n].S, s, PER[n].SC, fc, n); }); } // primera vez: los controles del gráfico recién existen, la tabla los toma
       renderHist(); renderSummary(PER);
       var lc = lastOf(IDX.CER), lt = lastOf(IDX.TAMAR), lf = lastOf(IDX.FX);
