@@ -4329,7 +4329,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var ORDER = ['usd', 'fija', 'cer', 'tamar', 'dl', 'dual', 'on', 'pv', 'acc'];
   var CORP = function (g) { return g === 'on' || g === 'pv'; }; // ONs y provinciales: se suman solo si se eligen
   var GR = '#34d399', RD = '#ff6b8b', NE = '#a1a1aa';
-  var ST = { n: 1, vm: 'acum', grp: 'usd', sort: 'dpct', dir: -1, mU: window.USD_MODEL || 'log', mP: 'log', cap: 0, dual: '0', ax: 'md', axU: 'md', sh: 'hide', b0: 0, e1: 0 }, PCT = {}, DATA = null, CH = null, timer = null;
+  var ST = { n: 1, vm: 'acum', grp: 'usd', sort: 'dpct', dir: -1, mU: window.USD_MODEL || 'log', mP: 'log', cap: 0, dual: '0', ax: 'md', axU: 'md', sh: 'hide', b0: 0, e1: 0, bub: true }, PCT = {}, BUB = null, REF1 = 0, DATA = null, CH = null, timer = null;
   var HOST = null, OWN = null; // HOST: la pestaña Resumen, que muestra esta misma tarjeta con su período (b0/e1: fechas elegidas, en días)
   var dstr = function (t) { return bxDayStr(t).split('-').reverse().slice(0, 2).join('/'); };
   var dfull = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
@@ -4491,6 +4491,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<div class="vdc sxc"><label>Grupo<select id="vdG"></select></label><label>Comparar contra<select id="vdN"><option value="1">Ayer (cierre anterior)</option><option value="5">5 ruedas atrás</option><option value="10">10 ruedas atrás</option><option value="m">Un mes atrás</option></select></label>' +
       '<label id="vdKL">Curva<select id="vdK"></select></label><label id="vdAxL">Eje X<select id="vdAx">' + xaxOpts('md') + '</select></label><label id="vdXL">Plazo máximo<select id="vdX"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000">1.000 días</option><option value="1500">1.500 días</option><option value="0" selected>Todos</option></select></label><label id="vdDL">Duales<select id="vdD"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' +
       '<label id="vdShL" title="Con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb (S16O6, a 3 días, 149 pb): su cambio de tasa no se compara con el del resto">Menos de 30 días<select id="vdSh"><option value="hide">Ocultar en el gráfico</option><option value="gray">Mostrar en gris</option></select></label>' +
+      '<label id="vdBubL" title="El tamaño de cada punto es el monto operado en la rueda (todas las especies del bono, en pesos)">Burbujas de volumen<select id="vdBub"><option value="1">Mostrar</option><option value="0">Ocultar</option></select></label>' +
       '<label id="vdTopL" style="display:none" title="Con muchas ONs el gráfico se llena: se destacan las que más movieron la tasa y el resto va tenue, sin la marca de antes">Destacar<select id="vdTop"><option value="12">Las 12 que más se movieron</option><option value="25">Las 25 que más se movieron</option><option value="0">Todas por igual</option></select></label>' +
       '</div>' +
       '<div class="vdchips" id="vdChips" style="margin-bottom:16px"></div>' +
@@ -4508,6 +4509,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     document.getElementById('vdX').onchange = function () { ST.cap = +this.value; render(); };
     document.getElementById('vdD').onchange = function () { ST.dual = this.value; render(); };
     document.getElementById('vdSh').onchange = function () { ST.sh = this.value; render(); };
+    document.getElementById('vdBub').onchange = function () { ST.bub = this.value === '1'; render(); };
     document.getElementById('vdTop').onchange = function () { ST.top = this.value; render(); };
     document.getElementById('vdTable').onclick = function (e) { var th = e.target.closest ? e.target.closest('th[data-s]') : null; if (!th) return; var s = th.getAttribute('data-s'); if (ST.sort === s) ST.dir = -ST.dir; else { ST.sort = s; ST.dir = s === 'k' ? 1 : -1; } render(); };
     var det = document.getElementById('vdDet'); try { det.open = localStorage.getItem('vdDet') === '1'; } catch (e) { } det.addEventListener('toggle', function () { try { localStorage.setItem('vdDet', det.open ? '1' : '0'); } catch (e) { } });
@@ -4593,13 +4595,15 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       }
       S.r.forEach(function (r, i) {
         var d = r.dpb == null ? 0 : r.dpb, sh = isShort(r), c = sh ? NE : d < -0.5 ? GR : d > 0.5 ? RD : NE;
-        var kn = r.k + (r.star ? ' *' : ''); hoy.push({ x: r.x1, y: r.y1, k: kn, y0: r.y0, dv: d / 100, p: r.dpct, sh: sh }); hc.push(c); hs.push(r.star ? 'triangle' : S.st);
+        var kn = r.k + (r.star ? ' *' : ''); hoy.push({ x: r.x1, y: r.y1, k: kn, y0: r.y0, dv: d / 100, p: r.dpct, sh: sh, m: BUB ? montoOf(r.k, BUB) : null }); hc.push(c); hs.push(r.star ? 'triangle' : S.st);
         ayer.push({ x: r.x0, y: r.y0, k: kn, dv: d / 100, y0: r.y1 });
       });
     });
     if (CORP(grp) && hoy.length > 25) { var TN = +(ST.top == null ? 12 : ST.top), top = hoy.filter(function (p) { return !p.sh; }).sort(function (a, b) { return Math.abs(b.dv) - Math.abs(a.dv); }).slice(0, TN > 0 ? TN : 20); hoy.forEach(function (p, i) { if (top.indexOf(p) < 0) { p.nl = 1; if (TN > 0) { p.dim = 1; ayer[i].dim = 1; hc[i] = rgba(hc[i], 0.28); } } }); } // con muchas ONs: se destacan las que más se movieron (rótulo, marca de antes y línea); el resto, tenue
     sets.push({ type: 'scatter', role: 'ayer', label: AY(1), data: ayer, ghostPts: true, noLabel: true, unitPb: true, unit: ' pb', backgroundColor: 'rgba(0,0,0,0)', borderColor: rgba(tx.charAt(0) === '#' ? tx : '#e4e4e7', 0.55), borderWidth: 1.5, pointRadius: function (c) { return c.raw && c.raw.dim ? 0 : 5; }, hoverRadius: function (c) { return c.raw && c.raw.dim ? 0 : 6; }, pointStyle: hs, order: 3 });
-    sets.push({ type: 'scatter', role: 'hoy', tip: true, label: 'Hoy', data: hoy, backgroundColor: hc, borderColor: hc, pointRadius: function (c) { return c.raw && c.raw.dim ? 4.5 : 7; }, hoverRadius: 9, pointStyle: hs, order: 1 });
+    var mx = BUB ? Math.max.apply(null, hoy.map(function (p) { return p.m || 0; }).concat([0])) : 0, rad = function (p, h) { return !p ? 7 : mx > 0 ? (p.m > 0 ? 4 + 22 * Math.sqrt(p.m / mx) : 3.5) + h : (p.dim ? 4.5 : 7) + h; }; // con burbujas, el área es proporcional al monto operado
+    if (mx > 0) hc = hc.map(function (c) { return rgba(c, 0.6); });
+    sets.push({ type: 'scatter', role: 'hoy', tip: true, label: 'Hoy', data: hoy, backgroundColor: hc, borderColor: hc, pointRadius: function (c) { return rad(c.raw, 0); }, hoverRadius: function (c) { return rad(c.raw, 2); }, pointStyle: hs, order: 1 });
     var yl = isUsd ? 'TIR (%)' : (good[0].yl === 'TEA' ? 'TEA (%)' : good[0].yl + ' (%)');
     var LINK = { id: 'vdLink', beforeDatasetsDraw: function (ch) {
       var ia = -1, ih = -1; ch.data.datasets.forEach(function (d, i) { if (d.role === 'ayer') ia = i; if (d.role === 'hoy') ih = i; }); if (ia < 0 || ih < 0) return;
@@ -4608,12 +4612,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var logTicks = function (a) { var set = [10, 20, 30, 60, 90, 180, 365, 540, 730, 1000, 1500, 2000, 3000, 5000, 7000, 10000]; a.ticks = set.filter(function (v) { return v >= a.min && v <= a.max; }).map(function (v) { return { value: v }; }); };
     CH = new Chart(document.getElementById('vdChart').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [X.LABELS, LINK], options: {
       responsive: true, maintainAspectRatio: false, animation: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2), layout: { padding: { right: 28, top: 6 } }, interaction: { mode: 'nearest', intersect: true },
-      plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.dataset.tip; }, callbacks: { label: function (c) { var r = c.raw; return [r.k + ': ' + fm(r.y, 2) + '% hoy · ' + fm(r.y0, 2) + '% ' + AY(), sg(r.dv * 100, 0) + ' pb · precio ' + sg(r.p, 2) + '%']; } } } },
+      plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.dataset.tip; }, callbacks: { label: function (c) { var r = c.raw; return [r.k + ': ' + fm(r.y, 2) + '% hoy · ' + fm(r.y0, 2) + '% ' + AY(), sg(r.dv * 100, 0) + ' pb · precio ' + sg(r.p, 2) + '%'].concat(r.m != null ? ['Operado: $ ' + fm(r.m / 1e6, r.m >= 1e8 ? 0 : 1) + ' M'] : []); } } } },
       scales: { x: useLog ? { type: 'logarithmic', title: { display: true, text: xaxTitle(ax, true), color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 0); } }, afterBuildTicks: logTicks, grid: { color: bd } }
         : { title: { display: true, text: xaxTitle(ax), color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, yrs ? 1 : 0); } }, grid: { color: bd }, min: 0, grace: '6%' },
         y: { title: { display: true, text: yl, color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd }, grace: '6%' } } } });
     var sh = function (c, ico) { return '<i style="width:' + (ico === 'ring' ? 10 : 12) + 'px;height:' + (ico === 'ring' ? 10 : 12) + 'px;border-radius:50%;background:' + (ico === 'ring' ? 'transparent' : c) + ';border:' + (ico === 'ring' ? '1.5px solid var(--mu)' : '0') + '"></i>'; };
-    leg.innerHTML = (nTf.length ? '<span>' + nTf.map(function (r) { return r.k; }).join(', ') + ' (dual tasa fija / TAMAR) no va en el gráfico: se mide por TEA y no por margen sobre TAMAR; está en la tabla</span>' : '') + '<span>' + sh(GR) + 'La tasa bajó</span><span>' + sh(RD) + 'La tasa subió</span><span>' + sh(NE) + 'Sin cambio</span><span>' + sh('', 'ring') + AY(1) + '</span>' +
+    leg.innerHTML = (nTf.length ? '<span>' + nTf.map(function (r) { return r.k; }).join(', ') + ' (dual tasa fija / TAMAR) no va en el gráfico: se mide por TEA y no por margen sobre TAMAR; está en la tabla</span>' : '') + (mx > 0 ? '<span>Tamaño del punto: monto operado ' + (bxDayStr(REF1) === bxDayStr(bxToday()) && !(VJ && VJ.dates.indexOf(bxDayStr(REF1)) >= 0) ? 'hoy hasta ahora' : 'en la rueda') + '</span>' : '') + '<span>' + sh(GR) + 'La tasa bajó</span><span>' + sh(RD) + 'La tasa subió</span><span>' + sh(NE) + 'Sin cambio</span><span>' + sh('', 'ring') + AY(1) + '</span>' +
       SER.map(function (S) { return S.noFit ? '<span>◆ ' + S.n + ' (puntos, sin curva)</span>' : '<span><i style="width:22px;height:0;border-top:3px solid ' + S.c + '"></i>Curva hoy ' + (isUsd ? S.n + (S.st === 'triangle' ? ' (▲)' : ' (●)') : '') + '</span>'; }).join('') + '<span><i style="width:22px;height:0;border-top:2px dashed var(--mu)"></i>Curva ' + AY() + '</span>' + (nOut ? '<span>' + nOut + (grp === 'pv' ? (nOut === 1 ? ' provincial con TIR' : ' provinciales con TIR') : nOut === 1 ? ' ON con TIR' : ' ONs con TIR') + ' fuera de -5% a 30% no se grafican (precio sin referencia); están en la tabla</span>' : '') + (nShort ? '<span>No se muestran ' + nShort + (nShort === 1 ? ' bono que vence' : ' bonos que vencen') + ' en menos de 30 días: con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb</span>' : SER.some(function (S) { return S.nEx; }) ? '<span>En gris, los que vencen en menos de 30 días: no entran en la curva porque 0,01% de precio les mueve la tasa decenas o cientos de pb</span>' : '');
     shift.innerHTML = shifts.map(function (s) {
       var mu = mean(s.rows.map(function (r) { return (r.h - r.a) * 100; }));
@@ -4718,7 +4722,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var kk = document.getElementById('vdK'), usdG = ST.grp === 'usd' || CORP(ST.grp), want = usdG ? 'u' : 'p';
       if (kk.getAttribute('data-for') !== want) { kk.setAttribute('data-for', want); kk.innerHTML = (usdG ? window.USD_CURVES : [['auto', 'Automática (mejor ajuste)'], ['log', 'Logarítmica'], ['sqrt', 'Raíz cuadrada'], ['lin', 'Lineal'], ['quad', 'Cuadrática'], ['ns', 'Nelson-Siegel']]).map(function (c) { return '<option value="' + c[0] + '">' + c[1] + '</option>'; }).join(''); }
       kk.value = usdG ? ST.mU : ST.mP;
-      document.getElementById('vdAx').value = usdG ? ST.axU : ST.ax; document.getElementById('vdDL').style.display = isD ? '' : 'none'; document.getElementById('vdShL').style.display = !usdG ? '' : 'none'; document.getElementById('vdSh').value = ST.sh; document.getElementById('vdTopL').style.display = CORP(ST.grp) ? '' : 'none'; document.getElementById('vdTop').value = ST.top == null ? '12' : ST.top;
+      document.getElementById('vdAx').value = usdG ? ST.axU : ST.ax; document.getElementById('vdDL').style.display = isD ? '' : 'none'; document.getElementById('vdShL').style.display = !usdG ? '' : 'none'; document.getElementById('vdSh').value = ST.sh; document.getElementById('vdBub').value = ST.bub ? '1' : '0'; document.getElementById('vdTopL').style.display = CORP(ST.grp) ? '' : 'none'; document.getElementById('vdTop').value = ST.top == null ? '12' : ST.top;
       var rows = ST.grp === 'all' ? DATA : DATA.filter(function (r) { return r.grp === ST.grp || (isD && ST.dual === '2' && r.grp === 'dual' && (ST.grp === 'tamar' || r.dualCer)); });
       rows.forEach(function (r) { r.star = r.grp === 'dual' && ST.grp !== 'dual' && ST.grp !== 'all'; });
       if (ST.cap > 0) rows = rows.filter(function (r) { return r.days <= ST.cap; });
@@ -4729,6 +4733,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       chips(rows);
       REF = (function () { var c = {}; rows.forEach(function (r) { var k = r.t0 + '|' + r.t1; c[k] = (c[k] || 0) + 1; }); var k = Object.keys(c).sort(function (a, b) { return c[b] - c[a]; })[0]; return k ? k.split('|').map(Number) : [t0, t1]; })(); // las fechas del grupo que se muestra
       document.getElementById('vdTit').textContent = ST.n === 1 ? 'Variación diaria contra el cierre anterior' : ST.mes ? 'Variación contra un mes atrás (' + ST.n + ' ruedas)' : 'Variación contra ' + ST.n + ' ruedas atrás'; document.getElementById('vdN').value = ST.mes ? 'm' : String(ST.n);
+      REF1 = t1; BUB = null; if (ST.bub) { vjLoad(); var dsB = bxDayStr(t1); BUB = VJ && VJ.dates.indexOf(dsB) >= 0 ? volDay(dsB) : t1 >= bxToday() ? volLive() : null; if (BUB && !Object.keys(BUB).length) BUB = null; } // burbujas: el monto de la última rueda del gráfico
       volView(curveView(rows, ST.grp) || [], ST.n > 1 ? prevBiz(t1) : t0, t1); // con N ruedas, el volumen compara el promedio de las últimas N contra las N anteriores
       table(rows, t0);
     } catch (e) { console.error('vard', e); var i = document.getElementById('vdInfo'); if (i) i.textContent = 'Error: ' + e.message; }
