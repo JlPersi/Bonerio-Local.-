@@ -4338,6 +4338,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var median = function (a) { a = a.filter(function (x) { return x != null && isFinite(x); }).sort(function (p, q) { return p - q; }); return a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : null; };
   var mean = function (a) { a = a.filter(function (x) { return x != null && isFinite(x); }); return a.length ? a.reduce(function (s, x) { return s + x; }, 0) / a.length : null; };
   function prevBiz(t) { t--; while (!bxIsBiz(t)) t--; return t; }
+  function mesAtras(t) { // el mismo día del mes anterior (o el último del mes si no existe), y si no es hábil, el hábil anterior: un mes son 20, 21 o 22 ruedas según los feriados
+    var d = bxDayStr(t), y = +d.slice(0, 4), m = +d.slice(5, 7) - 1, dd = +d.slice(8, 10); if (m < 1) { m = 12; y--; }
+    var last = new Date(Date.UTC(y, m, 0)).getUTCDate(), u = bxDayNum(y + '-' + ('0' + m).slice(-2) + '-' + ('0' + Math.min(dd, last)).slice(-2)); while (!bxIsBiz(u)) u--; return u;
+  }
+  function mesN() { var t = bxToday(), u = mesAtras(t), n = 0; do { t = prevBiz(t); n++; } while (t > u); return n; } // cuántas ruedas hay en ese mes
   var dcol = function (v, eps) { return v == null || !isFinite(v) ? 'var(--mu)' : Math.abs(v) < eps ? 'var(--mu)' : v > 0 ? 'var(--ok)' : 'var(--bad)'; };
   var REF = null; // [t0, t1] de la comparación que se está mostrando
   var AY = function (cap) { // contra qué se compara: "ayer" solo si la rueda anterior fue el día anterior (después de un feriado o un fin de semana, su fecha)
@@ -4381,7 +4386,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     if (ST.e1) { while (ci >= 0 && ser[ci][0] > ST.e1) ci--; if (ci < 1 || ST.e1 - ser[ci][0] > 4) return null; } // hasta una fecha elegida (Resumen)
     var cur = ser[ci], t1 = cur[0], P1 = cur[1], tp = prevBiz(t1), pv = null, i;
     if (ST.b0 || ST.n > 1) { // N ruedas atrás (o desde una fecha elegida): el cierre de ese día o, si no operó, el último dentro de los 4 días previos
-      if (ST.b0) tp = ST.b0; else for (var j = 1; j < ST.n; j++) tp = prevBiz(tp);
+      if (ST.b0) tp = ST.b0; else if (ST.mes) tp = mesAtras(t1); else for (var j = 1; j < ST.n; j++) tp = prevBiz(tp);
       for (i = ci - 1; i >= 0; i--) if (ser[i][0] <= tp) return tp - ser[i][0] <= 4 ? { t1: t1, P1: P1, t0: ser[i][0], P0: ser[i][1], src: ser[i][0] === tp ? 'cierre' : 'previo' } : null;
       return null;
     }
@@ -4483,7 +4488,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '</style>' +
       '<div class="card sx" id="vdCap"><div class="sxh"><div style="min-width:0"><p class="qh" id="vdTit">Variación diaria contra el cierre anterior</p><p class="qs keep" id="vdInfo"></p></div>' +
       '<div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'vdCap\', \'Soberanos_Variacion_Diaria\')" title="Descargar en HD"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>' +
-      '<div class="vdc sxc"><label>Grupo<select id="vdG"></select></label><label>Comparar contra<select id="vdN"><option value="1">Ayer (cierre anterior)</option><option value="5">5 ruedas atrás</option><option value="10">10 ruedas atrás</option><option value="20">20 ruedas atrás</option><option value="21">21 ruedas atrás (un mes)</option></select></label>' +
+      '<div class="vdc sxc"><label>Grupo<select id="vdG"></select></label><label>Comparar contra<select id="vdN"><option value="1">Ayer (cierre anterior)</option><option value="5">5 ruedas atrás</option><option value="10">10 ruedas atrás</option><option value="m">Un mes atrás</option></select></label>' +
       '<label id="vdKL">Curva<select id="vdK"></select></label><label id="vdAxL">Eje X<select id="vdAx">' + xaxOpts('md') + '</select></label><label id="vdXL">Plazo máximo<select id="vdX"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000">1.000 días</option><option value="1500">1.500 días</option><option value="0" selected>Todos</option></select></label><label id="vdDL">Duales<select id="vdD"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' +
       '<label id="vdShL" title="Con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb (S16O6, a 3 días, 149 pb): su cambio de tasa no se compara con el del resto">Menos de 30 días<select id="vdSh"><option value="hide">Ocultar en el gráfico</option><option value="gray">Mostrar en gris</option></select></label>' +
       '<label id="vdTopL" style="display:none" title="Con muchas ONs el gráfico se llena: se destacan las que más movieron la tasa y el resto va tenue, sin la marca de antes">Destacar<select id="vdTop"><option value="12">Las 12 que más se movieron</option><option value="25">Las 25 que más se movieron</option><option value="0">Todas por igual</option></select></label>' +
@@ -4496,7 +4501,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     g.innerHTML = ORDER.map(function (k) { return '<option value="' + k + '">' + GN[k] + '</option>'; }).join('');
     g.value = ST.grp;
     g.onchange = function () { ST.grp = g.value; render(); };
-    document.getElementById('vdN').onchange = function () { ST.n = +this.value; render(); };
+    document.getElementById('vdN').onchange = function () { ST.mes = this.value === 'm'; ST.n = ST.mes ? mesN() : +this.value; render(); };
     document.getElementById('vdK').onchange = function () { if (ST.grp === 'usd') ST.mU = this.value; else ST.mP = this.value; render(); };
     document.getElementById('vdAx').value = ST.ax;
     document.getElementById('vdAx').onchange = function () { if (ST.grp === 'usd') ST.axU = this.value; else ST.ax = this.value; render(); };
@@ -4703,8 +4708,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (ST.grp === 'all') { ST.grp = 'usd'; document.getElementById('vdG').value = 'usd'; }
       var acc = ST.grp === 'acc', ac = document.getElementById('vdAccCard'); document.getElementById('vdCurveCard').hidden = acc; ac.hidden = !acc; ['vdKL', 'vdAxL', 'vdXL'].forEach(function (id) { document.getElementById(id).style.display = acc ? 'none' : ''; });
       if (acc) { // acciones: su propia vista (barras y monto operado), armada por la pestaña Acciones
-        document.getElementById('vdDL').style.display = document.getElementById('vdShL').style.display = 'none'; document.getElementById('vdN').value = String(ST.n);
-        document.getElementById('vdTit').textContent = ST.n === 1 ? 'Variación diaria contra el cierre anterior' : 'Variación contra ' + ST.n + ' ruedas atrás';
+        document.getElementById('vdDL').style.display = document.getElementById('vdShL').style.display = 'none'; document.getElementById('vdN').value = ST.mes ? 'm' : String(ST.n);
+        document.getElementById('vdTit').textContent = ST.n === 1 ? 'Variación diaria contra el cierre anterior' : ST.mes ? 'Variación contra un mes atrás (' + ST.n + ' ruedas)' : 'Variación contra ' + ST.n + ' ruedas atrás';
         var v = window.ACCQ && window.ACCQ.vard ? window.ACCQ.vard(ac, ST.n, later) : { info: 'Las acciones no están disponibles.', chips: '' };
         document.getElementById('vdInfo').textContent = v.info; document.getElementById('vdChips').innerHTML = v.chips; return;
       }
@@ -4723,7 +4728,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       document.getElementById('vdInfo').textContent = DATA.length ? 'Hoy ' + dfull(t1) + ' contra el cierre del ' + dfull(t0) + (ST.n > 1 ? ' (' + ST.n + ' ruedas)' : '') + ' · ' + (CORP(ST.grp) ? DATA.filter(function (r) { return r.grp === ST.grp; }).length + (ST.grp === 'on' ? ' ONs' : ' provinciales') : DATA.filter(function (r) { return !CORP(r.grp); }).length + ' bonos') + ' · liquidación ' + (window.settleMode === 'T1' ? 'T+1' : 'CI') + (ST.n === 1 && bxSettle(t1) - bxSettle(t0) > 1 ? ' (la rueda anterior liquida el ' + dstr(bxSettle(t0)) + ' y hoy el ' + dstr(bxSettle(t1)) + ': ' + (bxSettle(t1) - bxSettle(t0)) + ' días de devengamiento)' : '') + ' · hard dollar en ' + (especie === 'D' ? 'MEP' : 'Cable') + (n912 ? ' · ' + n912 + ' con la variación diaria de data912' : '') + (nOld ? ' · ' + nOld + ' contra una fecha anterior' : '') : 'Sin datos todavía: esperando precios en vivo o cierres guardados.';
       chips(rows);
       REF = (function () { var c = {}; rows.forEach(function (r) { var k = r.t0 + '|' + r.t1; c[k] = (c[k] || 0) + 1; }); var k = Object.keys(c).sort(function (a, b) { return c[b] - c[a]; })[0]; return k ? k.split('|').map(Number) : [t0, t1]; })(); // las fechas del grupo que se muestra
-      document.getElementById('vdTit').textContent = ST.n === 1 ? 'Variación diaria contra el cierre anterior' : 'Variación contra ' + ST.n + ' ruedas atrás'; document.getElementById('vdN').value = String(ST.n);
+      document.getElementById('vdTit').textContent = ST.n === 1 ? 'Variación diaria contra el cierre anterior' : ST.mes ? 'Variación contra un mes atrás (' + ST.n + ' ruedas)' : 'Variación contra ' + ST.n + ' ruedas atrás'; document.getElementById('vdN').value = ST.mes ? 'm' : String(ST.n);
       volView(curveView(rows, ST.grp) || [], ST.n > 1 ? prevBiz(t1) : t0, t1); // con N ruedas, el volumen compara el promedio de las últimas N contra las N anteriores
       table(rows, t0);
     } catch (e) { console.error('vard', e); var i = document.getElementById('vdInfo'); if (i) i.textContent = 'Error: ' + e.message; }
@@ -4745,10 +4750,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   window.VARDX = { // la pestaña Resumen muestra esta misma tarjeta (gráficos, tabla y volumen) con su período: n ruedas, o de la fecha b0 a e1 (días)
     mount: function (host, n, b0, e1) {
       if (typeof Chart === 'undefined') return; if (!document.getElementById('vdChart')) html();
-      var c = document.getElementById('vdCap'); if (!HOST) OWN = { n: ST.n }; HOST = host; host.classList.add('vdw'); if (c.parentNode !== host) host.appendChild(c);
-      ST.n = n; ST.b0 = b0 || 0; ST.e1 = e1 || 0; var nl = document.getElementById('vdN'); if (nl) nl.parentNode.style.display = 'none'; render();
+      var c = document.getElementById('vdCap'); if (!HOST) OWN = { n: ST.n, mes: ST.mes }; HOST = host; host.classList.add('vdw'); if (c.parentNode !== host) host.appendChild(c);
+      ST.n = n; ST.mes = false; ST.b0 = b0 || 0; ST.e1 = e1 || 0; var nl = document.getElementById('vdN'); if (nl) nl.parentNode.style.display = 'none'; render();
     },
-    unmount: function () { var c = document.getElementById('vdCap'); if (c && c.parentNode !== root) root.appendChild(c); if (OWN) ST.n = OWN.n; HOST = null; OWN = null; ST.b0 = ST.e1 = 0; var nl = document.getElementById('vdN'); if (nl) nl.parentNode.style.display = ''; },
+    unmount: function () { var c = document.getElementById('vdCap'); if (c && c.parentNode !== root) root.appendChild(c); if (OWN) { ST.n = OWN.n; ST.mes = OWN.mes; } HOST = null; OWN = null; ST.b0 = ST.e1 = 0; var nl = document.getElementById('vdN'); if (nl) nl.parentNode.style.display = ''; },
     render: function () { later(); }
   };
   window.switchTab = function (id) { _sw(id); var gc = document.getElementById('globalControls'); if (id === 'vard') { if (HOST) window.VARDX.unmount(); if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
