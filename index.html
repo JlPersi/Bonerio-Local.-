@@ -5328,16 +5328,16 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     if (CHS) { CHS.destroy(); CHS = null; }
     var span = Math.min(n, M.w === 1 ? 5 : M.w), a0 = n - span, bs = Math.max(1, Math.ceil(span / 90)), labels = [], sets = {}, i, b, f;
     FORD.forEach(function (ff) { sets[ff] = []; });
-    for (b = a0; b < n; b += bs) {
-      var e1 = Math.min(n, b + bs); labels.push(DATES[e1 - 1].slice(5).split('-').reverse().join('/'));
+    for (b = a0 + ((span % bs) ? (span % bs) - bs : 0); b < n; b += bs) { // bloques contados desde la última rueda, y cada barra es el promedio por rueda: así la escala es la misma que con barras diarias
+      var b0 = Math.max(a0, b), e1 = Math.min(n, b + bs); labels.push(DATES[e1 - 1].slice(5).split('-').reverse().join('/'));
       FORD.forEach(function (ff) { sets[ff].push(0); });
-      list.forEach(function (e) { var s = 0; for (i = b; i < e1; i++) s += e.M[i]; sets[e.fam][sets[e.fam].length - 1] += s; });
+      list.forEach(function (e) { var s = 0; for (i = b0; i < e1; i++) s += e.M[i]; sets[e.fam][sets[e.fam].length - 1] += s / (e1 - b0); });
     }
     var tx = css('--tx'), bd = css('--bd'), div = ST.met === 'v' ? 1e6 : 1e6;
-    document.getElementById('vlT1').textContent = 'Dónde estuvo el volumen · ' + (bs > 1 ? 'por bloques de ' + bs + ' ruedas' : 'por rueda');
+    document.getElementById('vlT1').textContent = 'Dónde estuvo el volumen · ' + (bs > 1 ? 'promedio por rueda, en bloques de ' + bs + ' ruedas' : 'por rueda');
     CHS = new Chart(document.getElementById('vlCh1').getContext('2d'), { type: 'bar', data: { labels: labels, datasets: FORD.filter(function (ff) { return sets[ff].some(function (v) { return v > 0; }); }).map(function (ff) { return { label: FAMS[ff][0], data: sets[ff], backgroundColor: M.w === 1 ? labels.map(function (l, k) { return FAMS[ff][1] + (k === labels.length - 1 ? '' : '55'); }) : FAMS[ff][1], stack: 's', borderWidth: 0 }; }) },
       options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { labels: { color: tx, boxWidth: 12, generateLabels: function (ch) { var L = Chart.defaults.plugins.legend.labels.generateLabels(ch); L.forEach(function (l) { FORD.forEach(function (f) { if (FAMS[f][0] === l.text) { l.fillStyle = FAMS[f][1]; l.strokeStyle = FAMS[f][1]; } }); }); return L; } } }, tooltip: { mode: 'index', callbacks: { label: function (c) { return c.dataset.label + ': ' + mon(c.parsed.y); } } } },
-        scales: { x: { stacked: true, ticks: { color: tx, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { display: false } }, y: { stacked: true, title: { display: true, text: 'Millones de ' + (unit() === 'VN' ? 'VN' : unit()), color: tx }, ticks: { color: tx, callback: function (v) { return nf(v / div, 0); } }, grid: { color: bd } } } } });
+        scales: { x: { stacked: true, ticks: { color: tx, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { display: false } }, y: { stacked: true, title: { display: true, text: 'Millones de ' + (unit() === 'VN' ? 'VN' : unit()) + (bs > 1 ? ' por rueda' : ''), color: tx }, ticks: { color: tx, callback: function (v) { return nf(v / div, 0); } }, grid: { color: bd } } } } });
   }
 
   function why(e) { // los números detrás de la Lectura de una fila
