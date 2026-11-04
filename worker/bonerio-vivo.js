@@ -104,7 +104,7 @@ function patch(r, m) {
   if (!m) return r;
   const bi = (m.BI || [])[0], of = (m.OF || [])[0], la = deHoy(m.LA && m.LA.date) ? px(m.LA) : null, cl = px(m.CL), o = Object.assign({}, r, { src: 'primary' });
   if (la) { o.c = la; if (cl) o.pct_change = (la / cl - 1) * 100; } else if (!(r.c > 0) && cl) { o.c = cl; o.pct_change = 0; } // papel que data912 no tiene: sin operaciones hoy, el cierre anterior
-  const ev = la ? num(m.EV) : 0; if (ev && (!(r.v > 0) || ev / r.v < 5)) o.v = Math.max(r.v || 0, ev); // monto de Primary (más al día que data912); si difiere demasiado, queda el de data912
+  const ev = la ? num(m.EV) : 0; if (ev && r.v > 0 && ev > r.v && ev / r.v < 1.5) o.v = ev; // monto de Primary solo si confirma el de data912 (en deuda puede venir en otra escala: por cada 100 nominales o en la moneda del bono)
   if (bi) { o.px_bid = bi.price; o.q_bid = bi.size; }
   if (of) { o.px_ask = of.price; o.q_ask = of.size; }
   return o;
