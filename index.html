@@ -3611,7 +3611,7 @@ h = '<tr><th class="l">Ticker</th><th>Vencimiento</th><th>Días</th><th>Precio<b
     document.getElementById('psDl').innerHTML = h;
     }
         if (!only || only === 5) {
-h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th><th>Precio</th><th>Rama A<br>(esc.)</th><th>Rama B: TAMAR<br>+ margen (esc.)</th><th>Gana</th><th>Margen<br>s/ TAMAR</th><th>TNA rama A<br>(real / USD)</th><th>TEA<br>(esc.)</th><th>Indiferencia</th>' + VH + mh + '</tr>';
+h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th><th>Precio</th><th title="La otra rama del dual: CER en los TX, dólar en TMVE8, tasa fija en TTD26">Rama CER / USD / fija<br>(esc.)</th><th>Rama TAMAR<br>+ margen (esc.)</th><th>Gana</th><th>Margen<br>s/ TAMAR</th><th title="Lo que rinde el dual si paga la rama no TAMAR: tasa real (CER) o en dólares (dólar linked)">TNA rama CER / USD<br>(real / en USD)</th><th>TEA<br>(esc.)</th><th>Indiferencia</th>' + VH + mh + '</tr>';
     S.filter(function (o) { return o.fam === 'dual' && capOk(o); }).sort(function (a, b) { return a.mat - b.mat; }).forEach(function (o) {
       var dec = o.isCer || o.isFix ? 2 : 0;
       var A_ = function (v) { return o.isCer ? v.cer : o.isFix ? v.fix : v.dl; }, bv = o.bv, a = A_(bv), wins = a >= bv.tam ? (o.isCer ? 'CER' : o.isFix ? 'Tasa fija' : 'Dólar') : 'TAMAR';
@@ -3619,7 +3619,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       h += '<tr>' + tkcell(o) + '<td>' + (o.isCer ? 'CER / TAMAR' : o.isFix ? 'Tasa fija / TAMAR' : 'Dólar / TAMAR') + '</td><td>' + dstr(o.mat) + '</td><td>' + o.d + '</td><td' + flc(o) + '>' + fm(o.P, dec) + '</td><td>' + fm(a, dec) + '</td><td>' + fm(bv.tam, dec) + '</td><td><span class="tag ' + (wins === 'TAMAR' ? '' : 'up') + '">' + wins + '</span></td><td style="' + AC + '">' + fm(o.dm, 2) + '%</td><td>' + (o.isCer ? pcs(o.realTna30) + ' real' : o.isFix ? (o.fixTnas > 0 ? pcs(o.fixTnas) + ' fija' : 'fija < precio') : pcs(o.usdTna30) + ' USD') + '</td><td>' + pcs(o.tea) + '</td><td>' + (ind == null ? 'n/a' : o.isFix ? 'TAMAR ' + pcs(ind, 1) + ' (TNA prom.)' : (o.isCer ? 'inflación ' : 'devaluación ') + pcs(ind, 2) + ' / mes') + '</td>' + vcells(o, dec) + mc(o) + '</tr>';
     });
     document.getElementById('psDual').innerHTML = h;
-    h = '<tr><th class="l">Ticker</th><th>Precio</th><th>Pata A<br>(a curva)</th><th>Pata TAMAR<br>(a curva)</th><th>Pata más cara</th><th>Opción<br>implícita</th><th class="l">Lectura</th></tr>';
+    h = '<tr><th class="l">Ticker</th><th>Precio</th><th>Pata CER / USD<br>(a curva)</th><th>Pata TAMAR<br>(a curva)</th><th>Pata más cara</th><th>Opción<br>implícita</th><th class="l">Lectura</th></tr>';
     S.filter(function (o) { return o.fam === 'dual' && !o.isFix && o.P > 0 && capOk(o); }).sort(function (a, b) { return a.mat - b.mat; }).forEach(function (o) {
       var L = dualLegs(o, S); if (!L) return;
       var dec = o.isCer ? 2 : 0, ca = L.ca, ct = L.ct, VA = L.VA, VT = L.VT, mx = L.mx, pr = L.pr, nA = o.isCer ? 'CER' : 'Dólar';
