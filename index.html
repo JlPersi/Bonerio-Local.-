@@ -6729,7 +6729,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var SRC = (S.V && S.V.bsrc && S.V.bsrc[m]) || 'BYMA'; // de dónde salió la foto de la rueda: Primary o BYMA
       var bc = TJ && TJ.bcau && TJ.bcau[td] && TJ.bcau[td][m]; // BYMA ya cerró: su cierre de hoy [días, cierre, vwap, monto]
       var kb = S.V && S.V.bk && S.V.bk[m]; if (kb && Date.now() - kb.t > 180000) kb = null; // la última operación de Primary, la misma que muestra la caja de puntas (cada 30 s)
-      if (kb) { o.v = kb.v; o.dl = kb.d; o.vs = 'Primary, ' + (kb.d ? dias(kb.d) + ', ' : '') + 'hoy ' + hm(kb.m); if (o.i && o.i.d === td && kb.m > o.i.p[o.i.p.length - 1][0]) o.i = { d: o.i.d, dias: o.i.dias, p: o.i.p.concat([[kb.m, kb.v, null]]) }; }
+      if (kb) { o.kb = kb; o.v = kb.v; o.dl = kb.d; o.vs = 'Primary, ' + (kb.d ? dias(kb.d) + ', ' : '') + 'hoy ' + hm(kb.m); if (o.i && o.i.d === td && kb.m > o.i.p[o.i.p.length - 1][0]) o.i = { d: o.i.d, dias: o.i.dias, p: o.i.p.concat([[kb.m, kb.v, null]]) }; }
       else if (bc && m === 'EXT' && bc[2] != null) { o.v = bc[2]; o.vs = 'BYMA, ' + dias(bc[0]) + ', promedio ponderado de hoy' + (bc[3] ? ' · US$ ' + nf(bc[3] / 1e6, 1) + ' M' : '') + (bc[1] != null && Math.abs(bc[1] - bc[2]) >= 1 ? ' · última operación ' + P(bc[1]) : ''); } // en cable opera poco: una operación suelta al cierre mueve el último precio, el promedio ponderado no
       else if (bc && bc[1] != null) { o.v = bc[1]; o.vs = 'BYMA, ' + dias(bc[0]) + ', cierre de hoy'; }
       else if (b && cp(b) != null && S.bts && S.bts.slice(0, 10) === td && (!o.i || o.i.d !== td || +S.bts.slice(11, 13) * 60 + +S.bts.slice(14, 16) > o.i.p[o.i.p.length - 1][0])) { // la foto en vivo (Worker, cada 30 s) es más nueva que el intradiario del Action
@@ -6789,6 +6789,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     if (o.v == null && l2) { o.v = o.h[l2]; o.vs = o.vs || (o.u === '$' && k !== 'A3500' ? 'ajuste del ' : 'dato del ') + fr(l2); o.prev = p2 ? o.h[p2] : null; }
     if (o.v == null) return null;
     o.ch = o.prev == null ? null : o.u === '$' ? (o.v / o.prev - 1) * 100 : o.v - o.prev; o.chU = o.u === '$' ? '%' : ' pp';
+    if (o.kb && o.kb.b && o.kb.o) o.bk = [['Tomadora', P(o.kb.b)], ['Colocadora', P(o.kb.o)]]; // las puntas de la misma caja
     o.fmt = o.u === '$' ? PS : P; o.vf = o.fmt(o.v);
     return o;
   }
@@ -6918,7 +6919,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     return Object.keys(u).length > 2 ? [k] : sel.concat([k]);
   }
 
-  function tab(id, render) {
+  function tab(id, render, light) { // light: la actualización liviana de la caución en vivo (si no, se redibuja todo)
     var root = document.getElementById(id); if (!root) return null;
     var isAct = function () { return root.classList.contains('active'); };
     var _sw = window.switchTab;
@@ -6927,13 +6928,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     setInterval(function () { if (isAct()) reload(render); }, 5 * 60000); // el Action la actualiza cada 10 minutos en la rueda
     var cauV = function () { // con el Worker, la caución de BYMA cada 30 s (pisa la foto de 10 minutos del Action)
       if (!window.BL_LIVE || !isAct() || !TJ) return; fetch(window.BL_LIVE.replace(/\/+$/, '') + '/caucion', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (o) {
-        if (!o || !(o.ARS || []).length) return; var V = TJ.vivo = TJ.vivo || {}; V.bcau = { ARS: o.ARS, USD: o.USD, EXT: o.EXT }; V.bts = o.ts; V.bsrc = o.src || null; SS = null; render(); }).catch(function () {});
+        if (!o || !(o.ARS || []).length) return; var V = TJ.vivo = TJ.vivo || {}; V.bcau = { ARS: o.ARS, USD: o.USD, EXT: o.EXT }; V.bts = o.ts; V.bsrc = o.src || null; SS = null; (light || render)(); }).catch(function () {});
       var B0 = window.BL_LIVE.replace(/\/+$/, ''), td0 = todayBA(); ['ARS', 'USD', 'EXT'].forEach(function (m) { // la caja de puntas de la caución más corta: su última operación de hoy es el dato de la tarjeta
         fetch(B0 + '/book/CAU-' + m, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
           var la = d && d.LA && d.LA[0] > 0 ? d.LA : null, t = la && la[2] != null ? new Date(/^\d+$/.test(String(la[2])) ? +la[2] : la[2]) : null; if (!t || isNaN(t)) return;
           var p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(t), g = {}; p.forEach(function (x) { g[x.type] = x.value; });
           if (g.year + '-' + g.month + '-' + g.day !== td0) return; var dd = /(\d+) d[ií]as?$/.exec(d.s || '');
-          var V = TJ.vivo = TJ.vivo || {}; (V.bk = V.bk || {})[m] = { v: la[0], d: dd ? +dd[1] : null, m: (+g.hour % 24) * 60 + +g.minute, t: Date.now() }; SS = null; render();
+          var V = TJ.vivo = TJ.vivo || {}; (V.bk = V.bk || {})[m] = { v: la[0], b: d.BI && d.BI[0] ? d.BI[0][0] : null, o: d.OF && d.OF[0] ? d.OF[0][0] : null, d: dd ? +dd[1] : null, m: (+g.hour % 24) * 60 + +g.minute, t: Date.now() }; SS = null; (light || render)();
         }).catch(function () {});
       }); };
     cauV.$slow = 1; setInterval(cauV, 30000);
@@ -6957,7 +6958,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
      MERCADO DE DINERO: caución en pesos, dólar MEP y cable, Lecaps, plazo fijo, TAMAR y BADLAR
      ===================================================================== */
   (function () {
-    var T = tab('tcor', render); if (!T) return;
+    var T = tab('tcor', render, live); if (!T) return;
     var root = T.root, ST = { h: 400, rc: '3m', rd: '3m', s: ['cau'], w: '1a' }, CH = {}, S = null, VREQ = false, lTry = 0;
     var SER = { cau: ['Caución en pesos', C_CAU, 'r'], usd: ['Caución en dólares', C_USD, 'u'], pf: ['Plazo fijo 30 días', C_PF, 'r'], tam: ['TAMAR', C_TAM, 'r'], bad: ['BADLAR', C_BAD, 'r'] };
     function html() {
@@ -6966,7 +6967,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         '<p class="note" style="margin-top:4px" id="tcSub"></p></div>' + dl('tcCap', 'Mercado_de_dinero', 'Descargar la pestaña en HD') + '</div>' +
         '<div class="rcards" id="tcCards"></div>' +
         '<div class="rs" id="tcS1"><div style="' + HD + '"><h4>Curva de tasas en pesos (TNA)</h4><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="tcCfx"></span><span id="tcH"></span>' + dl('tcS1', 'Mercado_de_dinero_Curva', 'Descargar la curva en HD') + '</span></div>' +
-        '<div class="cw" style="height:min(600px,62vh)"><canvas id="tcCh1"></canvas></div><p class="ft" id="tcKn"></p><div class="spr" id="tcSp"></div></div>' +
+        '<div class="cw" style="height:min(780px,78vh)"><canvas id="tcCh1"></canvas></div><p class="ft" id="tcKn"></p><div class="spr" id="tcSp"></div></div>' +
         '<div class="rs" id="tcS5"><div style="' + HD + '"><h4 id="tcT5">Lecaps y Boncaps</h4>' + dl('tcS5', 'Mercado_de_dinero_Lecaps', 'Descargar la tabla en HD') + '</div>' +
         '<div class="sc"><table class="rt" id="tcLec"></table></div><p class="ft">Volumen diario: promedio de las últimas 20 ruedas (en naranja, menos de $ 100 M). Tocá una fila para ver su ticker.</p></div>' +
         '<div class="rs rg" id="tcS4"><div><div style="' + HD + '"><h4 id="tcT4">Caución en pesos</h4>' + dl('tcS4', 'Mercado_de_dinero_Caucion', 'Descargar la caución en HD') + '</div><div class="sc"><table class="rt" id="tcCau"></table></div>' +
@@ -7119,6 +7120,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         lecFit(L); cards(L); curveChart(L); lecTable(L); cauTables(); history();
         if (!L.length && lTry++ < 20) setTimeout(function () { if (T.isAct()) render(); }, 1500); // Curva Pesos todavía no tiene precios
       } catch (x) { console.error('tcor', x); var s2 = document.getElementById('tcSub'); if (s2) s2.textContent = 'Error: ' + x.message; }
+    }
+    function live() { // dato nuevo de la caución: las tarjetas y el punto de la caución se mueven; la curva, las Lecaps y las tasas del BCRA quedan quietas
+      if (!T.isAct()) return; if (!CH.a || !S) return render();
+      try {
+        S = getS(); var L = lecapsAll(), c = inst('CAUCION'), cx = null; cards(L);
+        CH.a.data.datasets.forEach(function (d) { var p = d.data && d.data[0]; if (p && p.bk === 'CAU-ARS' && c && c.v != null) { p.y = c.v; p.s = 'Caución en pesos · ' + c.vs; cx = p.x; } });
+        CH.a.update('none'); if (cx != null) spreads(LF, c, cx);
+      } catch (x) { render(); }
     }
     window.renderMercadoDinero = render;
   })();

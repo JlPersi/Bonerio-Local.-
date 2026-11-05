@@ -235,15 +235,21 @@ async function cauSyms(env) {
 }
 async function cauPrimary(env) { // por REST, como la caja de puntas: el websocket suelto puede chocar con la conexión permanente del Feed y la tarjeta caía a los datos abiertos de BYMA, que van atrasados
   const S = await cauSyms(env), syms = Object.keys(S); if (!syms.length) return null;
-  const pick = []; ['ARS', 'USD', 'EXT'].forEach((m) => { syms.filter((s) => S[s][0] === m).sort((a, b) => S[a][1] - S[b][1]).slice(0, 6).forEach((s) => pick.push(s)); }); // los 6 plazos más cortos de cada moneda
+  const pick = [];
   const get = async (s) => {
     const q = base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(s) + '&entries=BI,OF,LA,CL&depth=1';
     let r = await fetch(q, { headers: { 'X-Auth-Token': await token(env) } });
     if (r.status === 401 || r.status === 403) r = await fetch(q, { headers: { 'X-Auth-Token': await token(env, true) } });
     const j = await r.json(); return (j && j.marketData) || null;
   };
-  const md = {}, out = { ARS: [], USD: [], EXT: [] };
-  await Promise.all(pick.map(async (s) => { try { md[s] = await get(s); } catch (e) { } }));
+  const md = {}, out = { ARS: [], USD: [], EXT: [] }, has = (d) => d && (px(Array.isArray(d.BI) ? d.BI[0] : d.BI) || px(Array.isArray(d.OF) ? d.OF[0] : d.OF) || (d.LA && deHoy(d.LA.date)));
+  await Promise.all(['ARS', 'USD', 'EXT'].map(async (m) => { // de cada moneda, del plazo más corto para arriba: los primeros 4 con puntas u operaciones de hoy (como la caja de puntas), hasta 12 pedidos
+    const L = syms.filter((s) => S[s][0] === m).sort((a, b) => S[a][1] - S[b][1]); let n = 0;
+    for (let i = 0; i < L.length && i < 12 && n < 4; i += 3) {
+      const g = L.slice(i, i + 3); await Promise.all(g.map(async (s) => { try { md[s] = await get(s); } catch (e) { } }));
+      g.forEach((s) => { if (has(md[s])) { pick.push(s); n++; } });
+    }
+  }));
   pick.forEach((s) => { const d = md[s]; if (!d) return; const lv = (a) => px(Array.isArray(a) ? a[0] : a);
     const row = [S[s][1], lv(d.BI), lv(d.OF), d.LA && deHoy(d.LA.date) ? px(d.LA) : null, px(d.CL), null, null];
     if (row.slice(1).some((v) => v != null)) out[S[s][0]].push(row); });
@@ -257,7 +263,7 @@ async function caucion(env) {
   const live = (rows) => (rows || []).some((r) => r[3] != null);
   const out = { ts: new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 16), src: {}, ARS: [], USD: [], EXT: [] };
   ['ARS', 'USD', 'EXT'].forEach((m) => { const p = P && P[m], b = B && B[m]; const usp = live(p) || (p && p.length && !live(b));
-    out[m] = usp ? p.concat((b || []).filter((r) => !p.some((x) => x[0] === r[0]))).sort((x, y) => x[0] - y[0]) : b || []; out.src[m] = usp ? 'Primary' : 'BYMA'; });
+    out[m] = usp ? p.concat((b || []).filter((r) => r[0] > p[p.length - 1][0])) : b || []; out.src[m] = usp ? 'Primary' : 'BYMA'; }); // BYMA (atrasado) solo completa los plazos más largos que los de Primary
   return out;
 }
 
