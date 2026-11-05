@@ -15000,7 +15000,7 @@ window.RATG = (function () {
   var modal = window.BLPROPOP = function (id) {
     var w = document.getElementById('blPro'); if (w) w.remove(); w = document.createElement('div'); w.id = 'blPro'; w.setAttribute('data-html2canvas-ignore', 'true');
     var mail = 'mailto:hola@boneriolocal.com.ar?subject=' + encodeURIComponent('Quiero Bonerío PRO');
-    w.innerHTML = '<div class="bx"><button class="x" title="Cerrar">×</button><span class="tg">🔒 Función PRO</span><h3>' + nm(id) + ' es parte de Bonerío PRO</h3>' +
+    w.innerHTML = '<div class="bx"><button class="x" title="Cerrar">×</button><span class="tg">🔒 Función PRO</span><h3>' + (id === '*' ? 'Suscribite a Bonerío PRO' : nm(id) + ' es parte de Bonerío PRO') + '</h3>' +
       '<p>Suscribite para usar todas las herramientas: caja de puntas en vivo, carry, sintéticos, forwards, ONs, acciones, alertas y más.</p><div class="pl">' +
       PLANES.map(function (p, i) { return '<a href="' + (p[3] || mail) + '" target="_blank" rel="noopener"' + (i === 2 ? ' class="on"' : '') + '><span>' + p[0] + '<small>' + p[2] + '</small></span><b>' + p[1] + '</b></a>'; }).join('') +
       '</div><p class="ft"><b style="color:var(--ac)">Precio fundador:</b> si te suscribís ahora, lo mantenés mientras sigas suscripto, aunque después suba.</p><p class="ft">Pagás con Mercado Pago. Si ya pagaste, la activamos en el día con el mail de tu cuenta.</p></div>';
@@ -15036,16 +15036,24 @@ window.RATG = (function () {
       '<p class="shp" style="margin:18px 0 0"><b style="color:#ffc542">Precio fundador:</b> si te suscribís ahora, lo mantenés mientras sigas suscripto. Las cuentas nuevas tienen <b style="color:#f4f4f5">2 días de prueba gratis</b>. Pagás con Mercado Pago, con el mismo mail de tu cuenta. <a data-login="up" href="#" style="color:#ffc542;font-weight:600">Crear cuenta</a></p>';
     cat.parentNode.insertBefore(d, cat);
   };
-  intro(); try { new MutationObserver(intro).observe(document.body, { childList: true }); } catch (e) { }
+  var menu = function () { // en el menú de la cuenta: suscribirse, o hasta cuándo tenés PRO
+    var mn = document.querySelector('#blUser .mn'), out = mn && mn.querySelector('[data-out]'); if (!out) return;
+    var a = window.BLAUTH && window.BLAUTH(), u = U || (a && a.user), m = u && u.app_metadata || {}, ph = paga() ? String(m.pro_hasta).slice(0, 10) : '', b = mn.querySelector('[data-pro]'), txt = ph ? 'PRO activo hasta el ' + ph.split('-').reverse().join('/') : 'Suscribirme a PRO';
+    if (b) { if (b.textContent !== txt) b.textContent = txt; return; }
+    b = document.createElement('button'); b.setAttribute('data-pro', ''); b.textContent = txt; b.style.color = '#ffc542';
+    b.onclick = function () { var d = document.getElementById('blUser'); if (d) d.classList.remove('on'); if (!paga()) modal('*'); };
+    mn.insertBefore(b, out);
+  };
+  intro(); menu(); try { new MutationObserver(function () { intro(); menu(); }).observe(document.body, { childList: true }); } catch (e) { }
   var check = function () { // si quedó abierta una sección con candado (al recargar), vuelve al inicio
-    marks(); promo(); var c = document.querySelector('.tab-content.active'); if (c && locked(c.id)) { _sw('home'); modal(c.id); }
+    marks(); promo(); menu(); var c = document.querySelector('.tab-content.active'); if (c && locked(c.id)) { _sw('home'); modal(c.id); }
   };
   document.addEventListener('bl-auth', function () {
     var a = window.BLAUTH && window.BLAUTH(); check();
     if (a && a.sb && a.sb.auth.getUser) a.sb.auth.getUser().then(function (r) { if (r && r.data && r.data.user) { U = r.data.user; check(); } }, function () { });
   });
   window.addEventListener('load', function () { setTimeout(check, 800); });
-  setInterval(function () { marks(); promo(); }, 5000); // el menú lateral y el Inicio se arman después
+  setInterval(function () { marks(); promo(); menu(); }, 5000); // el menú lateral y el Inicio se arman después
 })();
 </script>
 <script>
