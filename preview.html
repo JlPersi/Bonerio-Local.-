@@ -3317,29 +3317,30 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
     return bisect(function (x) { var t = tirOf(flowsOf(o.ins, s, withConst(sc, key, x)), s, o.P); return t == null ? NaN : t - target; }, lo, hi);
   }
 
-  /* ---------- REM (BCRA, septiembre 2026): medianas ---------- */
-  // pi: inflación mensual sep-26 a mar-27; pi12: var. i.a. a sep-27; pi24: a sep-28; piDec27 / piDec28: i.a. a diciembre
-  // tam: TAMAR TNA oct-26 a mar-27; tamDec27: TNA dic-27; fx: tipo de cambio oct-26 a mar-27, a sep-27 (fxSep27) y a dic-27
-  // fx0: promedio de septiembre del A3500 (dato real; ancla para la devaluación de octubre)
-  var REMD = { pi: [1.9, 1.7, 1.615, 1.8, 1.6, 1.6, 1.7], pi12: 21.05, pi24: 17.2, piDec27: 21.21, piDec28: 15,
-    tam: [23.5625, 23.5, 23.5, 23.15, 22.61, 22.255], tamDec27: 21.339,
-    fx0: 1513.887, fx: [1545.032, 1579.921, 1614.322, 1644, 1672, 1704], fxSep27: 1945.05, fxDec27: 2008.5 };
-  function buildRem() { // mensualiza el REM: datos mes a mes hasta mar-27 y empalme con las cifras a 12/24 meses y a dic-27/dic-28
+  /* ---------- REM (BCRA, octubre 2026): medianas ---------- */
+  // pi: inflación mensual sep-26 (REM anterior) y oct-26 a abr-27; pi12: var. i.a. a oct-27; pi24: a oct-28; piDec27 / piDec28: i.a. a diciembre
+  // tam: TAMAR TNA nov-26 a abr-27; tamDec27: TNA dic-27; fx: tipo de cambio nov-26 a abr-27, a oct-27 (fxOct27) y a dic-27
+  // fxSep / fx0: septiembre y octubre del A3500 (último dato real; ancla para la devaluación de noviembre)
+  var REMD = { pi: [1.9, 1.8, 1.7, 1.84, 1.7, 1.6, 1.7, 1.66], pi12: 21.8, pi24: 17.3, piDec27: 21.9, piDec28: 15.34,
+    tam: [23.9, 24, 23.95, 23.25, 23.54, 23.2], tamDec27: 21.97,
+    fxSep: 1513.887, fx0: 1523.09, fx: [1558.48, 1590, 1618.83, 1649.18, 1676.89, 1701.54], fxOct27: 1984.91, fxDec27: 1993.51 };
+
+  function buildRem() { // mensualiza el REM: datos mes a mes hasta abr-27 y empalme con las cifras a 12/24 meses y a dic-27/dic-28 (índice 0 = sep-26)
     var n = MAX_M - MIN_M + 1, pi = [], tam = [], dev = [], i, L = [];
-    for (i = 0; i < 7; i++) pi[i] = REMD.pi[i] / 100;
+    for (i = 0; i < 8; i++) pi[i] = REMD.pi[i] / 100;
     var prod = function (a, b) { var q = 1; for (var j = a; j <= b; j++) q *= 1 + pi[j]; return q; };
-    var m1 = Math.pow((1 + REMD.pi12 / 100) / prod(1, 6), 1 / 6) - 1; for (i = 7; i <= 12; i++) pi[i] = m1;      // oct-26 a sep-27 = 12 meses
-    var m2 = Math.pow((1 + REMD.piDec27 / 100) / prod(4, 12), 1 / 3) - 1; for (i = 13; i <= 15; i++) pi[i] = m2; // ene-27 a dic-27
-    var m3 = Math.pow((1 + REMD.pi24 / 100) / prod(13, 15), 1 / 9) - 1; for (i = 16; i <= 24; i++) pi[i] = m3;   // oct-27 a sep-28
-    var m4 = Math.pow((1 + REMD.piDec28 / 100) / prod(16, 24), 1 / 3) - 1; for (i = 25; i < n; i++) pi[i] = m4;  // ene-28 a dic-28
-    for (i = 1; i <= 6; i++) tam[i] = REMD.tam[i - 1] / 100; tam[0] = tam[1];
-    for (i = 7; i <= 15; i++) tam[i] = (REMD.tam[5] + (REMD.tamDec27 - REMD.tam[5]) * (i - 6) / 9) / 100;
-    for (i = 16; i < n; i++) tam[i] = REMD.tamDec27 / 100;
-    L[0] = REMD.fx0; for (i = 1; i <= 6; i++) L[i] = REMD.fx[i - 1];
-    for (i = 7; i <= 12; i++) L[i] = L[6] * Math.pow(REMD.fxSep27 / L[6], (i - 6) / 6);
-    for (i = 13; i <= 15; i++) L[i] = REMD.fxSep27 * Math.pow(REMD.fxDec27 / REMD.fxSep27, (i - 12) / 3);
-    dev[0] = 0; for (i = 1; i <= 15; i++) dev[i] = L[i] / L[i - 1] - 1;
-    for (i = 16; i < n; i++) dev[i] = pi[i]; // desde 2028: tipo de cambio real constante (devaluación = inflación del REM)
+    var m1 = Math.pow((1 + REMD.pi12 / 100) / prod(2, 7), 1 / 6) - 1; for (i = 8; i <= 13; i++) pi[i] = m1;      // nov-26 a oct-27 = 12 meses
+    var m2 = Math.pow((1 + REMD.piDec27 / 100) / prod(5, 13), 1 / 3) - 1; for (i = 14; i <= 16; i++) pi[i] = m2; // ene-27 a dic-27
+    var m3 = Math.pow((1 + REMD.pi24 / 100) / prod(14, 16), 1 / 9) - 1; for (i = 17; i <= 25; i++) pi[i] = m3;   // nov-27 a oct-28
+    var m4 = Math.pow((1 + REMD.piDec28 / 100) / prod(17, 25), 1 / 3) - 1; for (i = 26; i < n; i++) pi[i] = m4;  // ene-28 a dic-28
+    for (i = 2; i <= 7; i++) tam[i] = REMD.tam[i - 2] / 100; tam[0] = tam[1] = tam[2];
+    for (i = 8; i <= 16; i++) tam[i] = (REMD.tam[5] + (REMD.tamDec27 - REMD.tam[5]) * (i - 7) / 9) / 100;
+    for (i = 17; i < n; i++) tam[i] = REMD.tamDec27 / 100;
+    L[0] = REMD.fxSep; L[1] = REMD.fx0; for (i = 2; i <= 7; i++) L[i] = REMD.fx[i - 2];
+    for (i = 8; i <= 13; i++) L[i] = L[7] * Math.pow(REMD.fxOct27 / L[7], (i - 7) / 6);
+    for (i = 14; i <= 16; i++) L[i] = REMD.fxOct27 * Math.pow(REMD.fxDec27 / REMD.fxOct27, (i - 13) / 2);
+    dev[0] = 0; for (i = 1; i <= 16; i++) dev[i] = L[i] / L[i - 1] - 1;
+    for (i = 17; i < n; i++) dev[i] = pi[i]; // desde 2028: tipo de cambio real constante (devaluación = inflación del REM)
     return { pi: pi, tam: tam, dev: dev, fx: L };
   }
   var REMP = buildRem(), remF = function (a) { return function (mi) { return a[Math.max(0, Math.min(a.length - 1, mi - MIN_M))]; }; };
@@ -3374,7 +3375,7 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
     return '<div class="psPjM" id="psPj' + n + '" role="dialog" aria-label="Proyección" hidden data-html2canvas-ignore="true"><div class="psPjHd"><div><b>Proyección · ' + PJT[n] + '</b><small>' + (n === 6 ? 'Se usa en las tarjetas CER, TAMAR y duales' : 'Mové la ventana desde acá; el gráfico se actualiza solo') + '</small></div><button type="button" class="psPjX" data-pjx="' + n + '" title="Cerrar" aria-label="Cerrar">×</button></div><div class="psPjB">' +
       '<p class="psPjH">Escenarios</p><div class="psPjE"><select data-esc="' + n + '"></select><button class="act" data-escdel="' + n + '" title="Borrar el escenario elegido">Borrar</button></div><div class="psPjE"><input type="text" data-escn="' + n + '" placeholder="Nombre (ej.: desinflación)" maxlength="40"><button class="act" data-escsv="' + n + '" title="Guarda los supuestos y los valores por mes de esta ventana en este navegador">Guardar escenario</button></div>' +
       '<p class="psPjH">Supuesto base (rige en todos los meses)</p><div class="psPjI"><label title="Inflación mensual esperada">Inflación mensual (%)<input type="number" id="psPi' + n + '" step="0.1"></label><label title="TAMAR esperada">TAMAR (TNA, %)<input type="number" id="psTam' + n + '" step="0.5"></label><label title="Devaluación mensual esperada">Devaluación mensual (%)<input type="number" id="psDev' + n + '" step="0.1"></label></div>' +
-      '<p class="psPjH">Por mes (opcional)</p><div class="psPjBt"><button class="act" data-pjrem="' + n + '" title="Completa los meses con la expectativa del REM de septiembre 2026 (datos mensuales hasta marzo de 2027 y empalme con las cifras a 12 y 24 meses y a diciembre de 2027 y 2028); después la podés editar">Cargar REM</button><button class="act" data-pjclr="' + n + '">Limpiar</button></div>' +
+      '<p class="psPjH">Por mes (opcional)</p><div class="psPjBt"><button class="act" data-pjrem="' + n + '" title="Completa los meses con la expectativa del REM de octubre 2026 (datos mensuales hasta marzo de 2027 y empalme con las cifras a 12 y 24 meses y a diciembre de 2027 y 2028); después la podés editar">Cargar REM</button><button class="act" data-pjclr="' + n + '">Limpiar</button></div>' +
       '<div class="psPjW"><table class="qt psPjT" id="psPjT' + n + '"></table></div>' +
       '<p class="psPjN">Cada mes que completes rige hasta el próximo completo; en gris, lo que hereda. La inflación del mes entra al CER con rezago (la de septiembre mueve el CER del 16/10 al 15/11). Devaluación: variación mensual del A3500. TAMAR en TNA.</p></div></div>';
   };
@@ -3465,7 +3466,7 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
     // escenarios guardados en este navegador: los supuestos base y los valores por mes, para usarlos en cualquier tarjeta
     var ESC = function () { try { return JSON.parse(localStorage.getItem('psEsc') || '{}') || {}; } catch (e) { return {}; } };
     var escPut = function (o) { try { localStorage.setItem('psEsc', JSON.stringify(o)); } catch (e) { } };
-    var escFill = function (n) { var sel = root.querySelector('[data-esc="' + n + '"]'); if (!sel) return; var E = ESC(), ks = Object.keys(E).sort(); sel.innerHTML = '<option value="">' + (ks.length ? 'Elegí un escenario guardado' : 'Todavía no guardaste escenarios') + '</option><option value="@rem">REM (septiembre 2026)</option>' + ks.map(function (k) { return '<option>' + k.replace(/</g, '&lt;') + '</option>'; }).join(''); };
+    var escFill = function (n) { var sel = root.querySelector('[data-esc="' + n + '"]'); if (!sel) return; var E = ESC(), ks = Object.keys(E).sort(); sel.innerHTML = '<option value="">' + (ks.length ? 'Elegí un escenario guardado' : 'Todavía no guardaste escenarios') + '</option><option value="@rem">REM (octubre 2026)</option>' + ks.map(function (k) { return '<option>' + k.replace(/</g, '&lt;') + '</option>'; }).join(''); };
     root.addEventListener('change', function (e) { var sel = e.target.closest('[data-esc]'); if (!sel || !sel.value) return; var n = +sel.getAttribute('data-esc');
       if (sel.value === '@rem') { root.querySelector('[data-pjrem="' + n + '"]').click(); return; }
       var d = ESC()[sel.value]; if (!d) return; [['pi', 'psPi'], ['tam', 'psTam'], ['dev', 'psDev']].forEach(function (c) { var el = ID(c[1] + n); if (el && d.b && d.b[c[0]] != null) el.value = d.b[c[0]]; (PATH[n][c[0]] || []).forEach(function (x, j) { if (!x.disabled) x.value = d.m && d.m[c[0]] ? d.m[c[0]][j] || '' : ''; }); });
