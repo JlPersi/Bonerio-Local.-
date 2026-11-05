@@ -1288,11 +1288,11 @@ window.curveFitUSD = function (pts, model, minN) {
     var tx = css('--tx'), mu = css('--mu'), bd = css('--bd'), ac = css('--ac') || '#ffc542';
     if (CH) CH.destroy();
     CH = new Chart($('rpChart').getContext('2d'), { type: 'line',
-      data: { labels: a.map(function (x) { return dd(x[0]); }), datasets: [{ label: 'Riesgo país (pb)', data: vs, borderColor: ac, backgroundColor: ac + '22', fill: true, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.15 }] },
+      data: { labels: a.map(function (x) { return dd(x[0]); }), datasets: [{ label: 'Riesgo país (pb)', data: vs, borderColor: ac, fill: false, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.15 }] }, // sin relleno: el eje no arranca en 0 y un área pintada hasta abajo hace parecer que el mínimo fue 0
       options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return 'Riesgo país: ' + nf(c.parsed.y) + ' pb'; } } } },
         scales: { x: { ticks: { color: mu, maxTicksLimit: 8, maxRotation: 0 }, grid: { display: false } },
-          y: { title: { display: true, text: 'Puntos básicos', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v); } }, grid: { color: bd } } } } });
+          y: { grace: '8%', title: { display: true, text: 'Puntos básicos', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v); } }, grid: { color: bd } } } } });
   }
   $('rpPer').onchange = render;
   setInterval(load, 120000); // el dato del día cambia durante la rueda: se vuelve a leer cada 2 minutos
