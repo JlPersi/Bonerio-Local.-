@@ -196,12 +196,13 @@ async function mervIns(env, again) {
     const s = (i.instrumentId || {}).symbol || '', n = nm(s), u = nm(i.underlying), cfi = String(i.cficode || '').toUpperCase();
     if (/ - CI$/.test(s) || / - 48hs$/i.test(s)) return; // de BYMA, solo 24 hs
     const ms = /MSCI MERVAL|GFORCE/.test(u), isE = ms && cfi[0] !== 'O' && cfi[0] !== 'F' && cfi[0] !== 'M', etf = (n === 'MERV' && /^MERV - XMEV - /.test(s)) || (isE && !/[DC]$/.test(n)); // el ETF en pesos (MERVD/MERVC, en dólares, quedan como etfx)
-    const rel = etf || ms || /(^|[^A-Z])MERV([^A-Z]|$)/.test(u) || /^(MERV|MVL)\//.test(s) || /^(I\.)?MERV[ /]/.test(n) || (/^MERV - XMEV - /.test(s) && /^(MER|MVL)[CV]\d/.test(n));
+    const ix = /^(I\.)?MMSCI$/.test(n), rel = ix || etf || ms || /(^|[^A-Z])MERV([^A-Z]|$)/.test(u) || /^(MERV|MVL)\//.test(s) || /^(I\.)?MERV[ /]/.test(n) || (/^MERV - XMEV - /.test(s) && /^(MER|MVL)[CV]\d/.test(n));
     if (!rel || seen[s]) return; seen[s] = 1;
-    const k = cfi[0] === 'M' ? 'idx' : etf ? 'etf' : isE ? 'etfx' : cfi[0] === 'O' ? (cfi[1] === 'P' ? 'put' : 'call') : cfi[0] === 'F' ? 'fut' : /C\d|CALL/.test(n) ? 'call' : /V\d|PUT/.test(n) ? 'put' : 'otro';
+    const k = ix || cfi[0] === 'M' ? 'idx' : etf ? 'etf' : isE ? 'etfx' : cfi[0] === 'O' ? (cfi[1] === 'P' ? 'put' : 'call') : cfi[0] === 'F' ? 'fut' : /C\d|CALL/.test(n) ? 'call' : /V\d|PUT/.test(n) ? 'put' : 'otro';
     out.push({ s: s, n: n, k: k, cfi: cfi, u: i.underlying || null, mat: i.maturityDate || null, K: i.strikePrice || null, mult: i.contractMultiplier || 1, ccy: i.currency || null, tick: i.minPriceIncrement || null, seg: (i.segment || {}).marketSegmentId || null });
   });
   if (!out.length && !again && Date.now() - INST > 15 * 60e3) { INS = null; return mervIns(env, true); }
+  if (out.length && !out.some((x) => x.k === 'idx')) ['MERV - XMEV - MMSCI', 'MMSCI', 'I.MMSCI'].forEach((s) => out.push({ s: s, n: 'MMSCI', k: 'idx', cfi: null, u: null, mat: null, K: null, mult: 1, ccy: 'ARS', tick: null, seg: 'MERV', fb: 1 })); // el índice MSCI Merval (MMSCI en Primary) si no figura en la lista: se prueba por REST con cada formato y queda el que responda
   if (out.length && !out.some((x) => x.k === 'etf')) out.push({ s: 'MERV - XMEV - MERV - 24hs', n: 'MERV', k: 'etf', cfi: null, u: null, mat: null, K: null, mult: 1, ccy: 'ARS', tick: null, seg: 'MERV' }); // el ETF no figura en la lista: se pide igual por su ticker // instrumentos nuevos: la lista guardada puede ser vieja
   MVI = out; MVIT = Date.now(); return out;
 }
@@ -216,10 +217,11 @@ async function merv(env) {
   try { Object.assign(md, await snapshot(env, L.filter((x) => x.cfi).map((x) => x.s), 4000, E)); } catch (e) { err = String(e.message || e); }
   if (SNAPERR) err = SNAPERR;
   // lo que no llegó por websocket, uno por uno por REST (primero el ETF y el índice, después las opciones)
-  const rest = L.filter((x) => !md[x.s] || !Object.keys(md[x.s]).length).sort((a, b) => (a.k === 'etf' || a.k === 'idx' ? 0 : 1) - (b.k === 'etf' || b.k === 'idx' ? 0 : 1)).slice(0, 40);
-  if (rest.length) { const tk = await token(env); await Promise.all(rest.map(async (x) => { try { const r = await fetch(base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(x.s) + '&entries=' + E.join(',') + '&depth=1', { headers: { 'X-Auth-Token': tk } }); const j = await r.json(); if (j && j.marketData) md[x.s] = j.marketData; else if (j && j.status === 'ERROR' && !err) err = x.n + ': ' + String(j.description || '').slice(0, 200); } catch (e) { } })); }
+  const rest = L.filter((x) => !md[x.s] || !Object.keys(md[x.s]).length).sort((a, b) => (a.k === 'etf' || a.k === 'idx' ? 0 : 1) - (b.k === 'etf' || b.k === 'idx' ? 0 : 1)).slice(0, 42);
+  if (rest.length) { const tk = await token(env); await Promise.all(rest.map(async (x) => { try { const r = await fetch(base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(x.s) + '&entries=' + E.join(',') + '&depth=1', { headers: { 'X-Auth-Token': tk } }); const j = await r.json(); if (j && j.marketData) md[x.s] = j.marketData; else if (j && j.status === 'ERROR' && !err && !x.fb) err = x.n + ': ' + String(j.description || '').slice(0, 200); } catch (e) { } })); }
   const p = (o) => (o && o.price > 0 ? o.price : null), lv = (a) => { a = Array.isArray(a) ? a[0] : a; return a && a.price > 0 ? [a.price, a.size] : null; };
-  return { ts: Date.now(), err: err, ws: L.length - rest.length, ins: L.map((x) => { const m = md[x.s] || {}; return Object.assign({}, x, { BI: lv(m.BI), OF: lv(m.OF), LA: m.LA && m.LA.price > 0 ? [m.LA.price, m.LA.size, m.LA.date || null] : null, CL: p(m.CL), SE: p(m.SE), OI: m.OI && (m.OI.size || m.OI.price) || null, EV: m.EV || null, NV: m.NV || null }); }) };
+  const has = (x) => md[x.s] && Object.keys(md[x.s]).length, L2 = L.filter((x) => !x.fb || has(x)); // de los formatos probados del índice, solo el que respondió
+  return { ts: Date.now(), err: err, ws: L.length - rest.length, ins: L2.map((x) => { const m = md[x.s] || {}; return Object.assign({}, x, { BI: lv(m.BI), OF: lv(m.OF), LA: m.LA && m.LA.price > 0 ? [m.LA.price, m.LA.size, m.LA.date || null] : null, CL: p(m.CL), SE: p(m.SE), OI: m.OI && (m.OI.size || m.OI.price) || null, EV: m.EV || null, NV: m.NV || null }); }) };
 }
 async function cauSyms(env) {
   if (CSY && Date.now() - CSYT < 6 * 3600e3) return CSY;

@@ -15166,7 +15166,7 @@ window.RATG = (function () {
       var d = dt(x.mat);
       if (o.k === 'call' || o.k === 'put') { var m = /[CV](\d+(?:[.,]\d+)?)\.?([A-Z]{2})$/.exec(o.n); if (m) { if (!o.K) o.K = +m[1].replace(',', '.'); var mo = MES[m[2]]; if (!d && mo) { var y = new Date().getUTCFullYear(); d = third(y, mo); if (d < Date.now() - 864e5) d = third(y + 1, mo); } } }
       o.mat = d; o.dd = d ? Math.max(0, (d - Date.now()) / 864e5) : null;
-      if (o.k === 'etf') e = o; else if (o.k === 'idx') ix = o; else if (o.k === 'fut' && o.dd != null) F.push(o); else if ((o.k === 'call' || o.k === 'put') && o.K && o.dd != null) O.push(o);
+      if (o.k === 'etf') e = o; else if (o.k === 'idx') { if (!ix || !ix.p || /MMSCI/.test(o.n) && o.p) ix = o; } // el índice: el que tenga precio, y si hay varios el MMSCI de Primary else if (o.k === 'fut' && o.dd != null) F.push(o); else if ((o.k === 'call' || o.k === 'put') && o.K && o.dd != null) O.push(o);
     });
     F.sort(function (a, b) { return a.dd - b.dd; });
     var nav = window.MVK && window.MVK.cp > 0 ? window.MVK.cp : null, S = e && e.p ? e.p : nav;
