@@ -233,23 +233,31 @@ async function cauSyms(env) {
   });
   CSY = out; CSYT = Date.now(); return out;
 }
-async function cauPrimary(env) {
+async function cauPrimary(env) { // por REST, como la caja de puntas: el websocket suelto puede chocar con la conexión permanente del Feed y la tarjeta caía a los datos abiertos de BYMA, que van atrasados
   const S = await cauSyms(env), syms = Object.keys(S); if (!syms.length) return null;
-  const md = await snapshot(env, syms, 4000), out = { ARS: [], USD: [], EXT: [] };
-  syms.forEach((s) => { const d = md[s]; if (!d) return; const lv = (a) => px(Array.isArray(a) ? a[0] : a);
+  const pick = []; ['ARS', 'USD', 'EXT'].forEach((m) => { syms.filter((s) => S[s][0] === m).sort((a, b) => S[a][1] - S[b][1]).slice(0, 6).forEach((s) => pick.push(s)); }); // los 6 plazos más cortos de cada moneda
+  const get = async (s) => {
+    const q = base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(s) + '&entries=BI,OF,LA,CL&depth=1';
+    let r = await fetch(q, { headers: { 'X-Auth-Token': await token(env) } });
+    if (r.status === 401 || r.status === 403) r = await fetch(q, { headers: { 'X-Auth-Token': await token(env, true) } });
+    const j = await r.json(); return (j && j.marketData) || null;
+  };
+  const md = {}, out = { ARS: [], USD: [], EXT: [] };
+  await Promise.all(pick.map(async (s) => { try { md[s] = await get(s); } catch (e) { } }));
+  pick.forEach((s) => { const d = md[s]; if (!d) return; const lv = (a) => px(Array.isArray(a) ? a[0] : a);
     const row = [S[s][1], lv(d.BI), lv(d.OF), d.LA && deHoy(d.LA.date) ? px(d.LA) : null, px(d.CL), null, null];
     if (row.slice(1).some((v) => v != null)) out[S[s][0]].push(row); });
   ['ARS', 'USD', 'EXT'].forEach((m) => out[m].sort((a, b) => a[0] - b[0]));
   return out;
 }
 async function caucion(env) {
-  let P = null; // primero Primary; BYMA (datos abiertos) completa la moneda que Primary no tenga con operaciones de hoy
+  let P = null; // primero Primary; BYMA (datos abiertos) completa los plazos que Primary no trae y la moneda que Primary no tenga con operaciones de hoy
   if (env && env.ROFEX_USER) try { P = await cauPrimary(env); } catch (e) { LASTERR = String(e.message || e); }
   let B = null; try { B = await cauByma(); } catch (e) { }
   const live = (rows) => (rows || []).some((r) => r[3] != null);
   const out = { ts: new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 16), src: {}, ARS: [], USD: [], EXT: [] };
   ['ARS', 'USD', 'EXT'].forEach((m) => { const p = P && P[m], b = B && B[m]; const usp = live(p) || (p && p.length && !live(b));
-    out[m] = (usp ? p : b) || []; out.src[m] = usp ? 'Primary' : 'BYMA'; });
+    out[m] = usp ? p.concat((b || []).filter((r) => !p.some((x) => x[0] === r[0]))).sort((x, y) => x[0] - y[0]) : b || []; out.src[m] = usp ? 'Primary' : 'BYMA'; });
   return out;
 }
 
