@@ -6728,7 +6728,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var b = S.B && S.B[m] ? S.B[m].filter(function (r) { return cp(r); })[0] : null, hk = keys(h), l = hk[hk.length - 1];
       var SRC = (S.V && S.V.bsrc && S.V.bsrc[m]) || 'BYMA'; // de dónde salió la foto de la rueda: Primary o BYMA
       var bc = TJ && TJ.bcau && TJ.bcau[td] && TJ.bcau[td][m]; // BYMA ya cerró: su cierre de hoy [días, cierre, vwap, monto]
-      if (bc && m === 'EXT' && bc[2] != null) { o.v = bc[2]; o.vs = 'BYMA, ' + dias(bc[0]) + ', promedio ponderado de hoy' + (bc[3] ? ' · US$ ' + nf(bc[3] / 1e6, 1) + ' M' : '') + (bc[1] != null && Math.abs(bc[1] - bc[2]) >= 1 ? ' · última operación ' + P(bc[1]) : ''); } // en cable opera poco: una operación suelta al cierre mueve el último precio, el promedio ponderado no
+      var kb = S.V && S.V.bk && S.V.bk[m]; if (kb && Date.now() - kb.t > 180000) kb = null; // la última operación de Primary, la misma que muestra la caja de puntas (cada 30 s)
+      if (kb) { o.v = kb.v; o.dl = kb.d; o.vs = 'Primary, ' + (kb.d ? dias(kb.d) + ', ' : '') + 'hoy ' + hm(kb.m); if (o.i && o.i.d === td && kb.m > o.i.p[o.i.p.length - 1][0]) o.i = { d: o.i.d, dias: o.i.dias, p: o.i.p.concat([[kb.m, kb.v, null]]) }; }
+      else if (bc && m === 'EXT' && bc[2] != null) { o.v = bc[2]; o.vs = 'BYMA, ' + dias(bc[0]) + ', promedio ponderado de hoy' + (bc[3] ? ' · US$ ' + nf(bc[3] / 1e6, 1) + ' M' : '') + (bc[1] != null && Math.abs(bc[1] - bc[2]) >= 1 ? ' · última operación ' + P(bc[1]) : ''); } // en cable opera poco: una operación suelta al cierre mueve el último precio, el promedio ponderado no
       else if (bc && bc[1] != null) { o.v = bc[1]; o.vs = 'BYMA, ' + dias(bc[0]) + ', cierre de hoy'; }
       else if (b && cp(b) != null && S.bts && S.bts.slice(0, 10) === td && (!o.i || o.i.d !== td || +S.bts.slice(11, 13) * 60 + +S.bts.slice(14, 16) > o.i.p[o.i.p.length - 1][0])) { // la foto en vivo (Worker, cada 30 s) es más nueva que el intradiario del Action
         var bm = +S.bts.slice(11, 13) * 60 + +S.bts.slice(14, 16); o.v = cp(b); o.vs = SRC + ', ' + dias(b[0]) + ', hoy ' + S.bts.slice(11, 16);
@@ -6925,7 +6927,15 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     setInterval(function () { if (isAct()) reload(render); }, 5 * 60000); // el Action la actualiza cada 10 minutos en la rueda
     var cauV = function () { // con el Worker, la caución de BYMA cada 30 s (pisa la foto de 10 minutos del Action)
       if (!window.BL_LIVE || !isAct() || !TJ) return; fetch(window.BL_LIVE.replace(/\/+$/, '') + '/caucion', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (o) {
-        if (!o || !(o.ARS || []).length) return; var V = TJ.vivo = TJ.vivo || {}; V.bcau = { ARS: o.ARS, USD: o.USD, EXT: o.EXT }; V.bts = o.ts; V.bsrc = o.src || null; SS = null; render(); }).catch(function () {}); };
+        if (!o || !(o.ARS || []).length) return; var V = TJ.vivo = TJ.vivo || {}; V.bcau = { ARS: o.ARS, USD: o.USD, EXT: o.EXT }; V.bts = o.ts; V.bsrc = o.src || null; SS = null; render(); }).catch(function () {});
+      var B0 = window.BL_LIVE.replace(/\/+$/, ''), td0 = todayBA(); ['ARS', 'USD', 'EXT'].forEach(function (m) { // la caja de puntas de la caución más corta: su última operación de hoy es el dato de la tarjeta
+        fetch(B0 + '/book/CAU-' + m, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+          var la = d && d.LA && d.LA[0] > 0 ? d.LA : null, t = la && la[2] != null ? new Date(/^\d+$/.test(String(la[2])) ? +la[2] : la[2]) : null; if (!t || isNaN(t)) return;
+          var p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(t), g = {}; p.forEach(function (x) { g[x.type] = x.value; });
+          if (g.year + '-' + g.month + '-' + g.day !== td0) return; var dd = /(\d+) d[ií]as?$/.exec(d.s || '');
+          var V = TJ.vivo = TJ.vivo || {}; (V.bk = V.bk || {})[m] = { v: la[0], d: dd ? +dd[1] : null, m: (+g.hour % 24) * 60 + +g.minute, t: Date.now() }; SS = null; render();
+        }).catch(function () {});
+      }); };
     cauV.$slow = 1; setInterval(cauV, 30000);
     root.addEventListener('click', function (e) { var c = e.target.closest('[data-qv]'); if (c && window.QV && window.QV.show) window.QV.show(c.getAttribute('data-qv')); });
     return { root: root, isAct: isAct };
