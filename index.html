@@ -462,6 +462,7 @@ window.BLBND = (function () {
     if (!cur) return; var c = cur; cur = null;
     c.box.classList.remove('amp-in');
     if (c.ph.parentNode) c.ph.parentNode.replaceChild(c.box, c.ph); else if (c.box.parentNode) c.box.parentNode.removeChild(c.box); // si la pestaña se rearmó mientras estaba abierto, el viejo se descarta
+    if (c.ch) { c.ch.$amp = 0; c.ch.options.layout.padding = c.pad; try { c.ch.update('none'); } catch (e) {} }
     c.ov.remove(); document.documentElement.style.overflow = c.ovf; document.removeEventListener('keydown', key);
     resize(c.box); var b = c.box.querySelector('.ampb'); if (b && c.box.isConnected) b.focus({ preventScroll: true });
   }
@@ -477,6 +478,8 @@ window.BLBND = (function () {
     ov.addEventListener('click', function (e) { if (e.target === ov && down) close(); });
     ov.querySelector('#ampX').onclick = close;
     cur = { box: box, ph: ph, ov: ov, ovf: document.documentElement.style.overflow };
+    var cv = box.querySelector('canvas'), ch = cv && Chart.getChart(cv); // la marca (logo + "Bonerío Local") va dibujada en el gráfico, arriba a la derecha: sale en cualquier imagen que se guarde
+    if (ch) { var L = ch.options.layout || (ch.options.layout = {}), p = L.padding, P = typeof p === 'number' ? { top: p, right: p, bottom: p, left: p } : Object.assign({ top: 0, right: 0, bottom: 0, left: 0 }, p || {}); cur.ch = ch; cur.pad = p; P.top += 34; L.padding = P; ch.$amp = 1; }
     document.body.appendChild(ov); document.documentElement.style.overflow = 'hidden'; document.addEventListener('keydown', key);
     requestAnimationFrame(function () { resize(box); }); ov.querySelector('#ampX').focus({ preventScroll: true });
   }
@@ -488,7 +491,8 @@ window.BLBND = (function () {
     b.setAttribute('data-html2canvas-ignore', 'true'); b.innerHTML = ICO; b.onclick = function (e) { e.stopPropagation(); open(box); };
     box.appendChild(b);
   };
-  Chart.register({ id: 'ampBtn', afterInit: function (c) { try { add(c.canvas); } catch (e) {} } });
+  Chart.register({ id: 'ampBtn', afterInit: function (c) { try { add(c.canvas); c.canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); }); } catch (e) {} }, // sin "Guardar imagen como" con clic derecho
+    afterDraw: function (c) { if (c.$amp && window.addBrandMark) try { addBrandMark(c.canvas, c.currentDevicePixelRatio || 1, 6); } catch (e) {} } });
 })();
 /*@@AMP_END@@*/
 </script>
@@ -2488,8 +2492,8 @@ window.fetchLive = async function() {
 }
 
 // marca arriba a la derecha (logo + "Bonerío Local"), sobre el hueco que dejan los botones de la tarjeta (no salen en la imagen)
-window.addBrandMark = function(cv, sc) {
-    const u = sc || 1, pad = 14 * u, logo = 22 * u, fs = 14 * u, gap = 7 * u;
+window.addBrandMark = function(cv, sc, pd) {
+    const u = sc || 1, pad = (pd != null ? pd : 14) * u, logo = 22 * u, fs = 14 * u, gap = 7 * u;
     const ctx = cv.getContext('2d');
     const txCol = getComputedStyle(document.body).getPropertyValue('--mu').trim() || '#a1a1aa';
     const label = 'Bonerío Local';
