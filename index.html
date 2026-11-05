@@ -1462,6 +1462,7 @@ window.settleMode = 'T1'; try { if (localStorage.getItem('settle3') === 'CI') wi
 function bxSettleT1(t) { var s = t + 1; while (!bxIsSet(s)) s++; return s; }
 function bxSettle(t) { if (window.settleMode === 'T1') return bxSettleT1(t); var s = t; while (!bxIsSet(s)) s++; return s; } // CI: el mismo día (o el próximo hábil); T+1: el día hábil siguiente
 function bxExDay(p) { var t = p; while (bxSettleT1(t - 1) >= p) t--; return t; }
+function bxCum(p, s) { return window.settleMode === 'T1' ? p > s : bxExDay(p) > s; } // ¿el flujo del día p sigue en el precio? En CI el mercado ya cotiza ex desde bxExDay (los precios son de 24 hs), aunque se liquide antes del pago
 function bxDayStr(t) { return new Date(t * 864e5).toISOString().slice(0, 10); }
 function bxDayNum(s) { return Date.parse(s + 'T00:00:00Z') / 864e5; }
 function bxToday() { var n = new Date(); return Math.floor(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()) / 864e5); }
@@ -3202,9 +3203,9 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
   function flowsOf(ins, s, sc) {
     var mat = ins.r[ins.r.length - 1][0], k = ins.k, b;
     if (k === 'cap') return [[mat, ins.r[0][1]]];
-    if (k === 'cpn') return ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; });
+    if (k === 'cpn') return ins.r.filter(function (r) { return bxCum(r[0], s); }).map(function (r) { return [r[0], r[1]]; });
     if (k === 'cer0') { b = cerBase(ins); return isFinite(b) ? [[mat, ins.r[0][1] * cerAt(bdBack(mat, 10), sc) / b]] : null; }
-    if (k === 'cerc') { b = cerBase(ins); if (!isFinite(b)) return null; return ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1] * cerAt(bdBack(r[0], 10), sc) / b]; }); }
+    if (k === 'cerc') { b = cerBase(ins); if (!isFinite(b)) return null; return ins.r.filter(function (r) { return bxCum(r[0], s); }).map(function (r) { return [r[0], r[1] * cerAt(bdBack(r[0], 10), sc) / b]; }); }
     if (k === 'tamar') { var f = factor(ins.iss, mat, ins.r[0][3], sc); return isFinite(f) ? [[mat, ins.r[0][1] * f]] : null; }
     if (k === 'dl') return [[mat, ins.r[0][1] * fxAt(bdBack(mat, 3), sc)]];
     if (k === 'dual') { var bv = branchVals(ins, mat, sc), a = bv.cer != null ? bv.cer : bv.dl; return isFinite(a) && isFinite(bv.tam) ? [[mat, Math.max(a, bv.tam)]] : null; }
@@ -3263,7 +3264,7 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
     if (kd === 'cer0' || kd === 'cerc') {
       o.coef = cerAt(bdBack(s, 10), ZERO) / cerBase(ins);
       o.cfx = bdBack(mat, 10) <= lastOf(IDX.CER); // el CER del último pago ya se publicó: lo que falta cobrar está fijo en pesos
-      real(P / o.coef, kd === 'cerc' ? ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; }) : null);
+      real(P / o.coef, kd === 'cerc' ? ins.r.filter(function (r) { return bxCum(r[0], s); }).map(function (r) { return [r[0], r[1]]; }) : null);
     }
     if (kd === 'dl') { o.fx0 = fx0; o.usdTea = Math.pow(100 * fx0 / P, 365 / o.d) - 1; o.usdTnas = (100 * fx0 / P - 1) * 365 / o.d; o.usdTna30 = tnaOf(o.usdTea); o.vt = 100 * fxAt(bdBack(s, 3), ZERO); o.par = P / o.vt; } // como BYMA: TIR con el último A3500 (tipo de cambio constante); paridad contra el valor técnico, 100 × A3500 de 3 días hábiles antes de la liquidación
     var kn = mkSc(sc.piF, function () { return T0(); }, sc.devF); // el devengado hasta hoy usa la TAMAR publicada: los días sin dato van con la última, no con tu escenario
@@ -3278,7 +3279,7 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
       if (isCer) { o.coef = cerAt(bdBack(s, 10), ZERO) / cerBase(ins); real(P / o.coef, null); }
       else { o.fx0 = fx0; o.usdTnas = (100 * fx0 / P - 1) * 365 / o.d; o.usdTea = Math.pow(100 * fx0 / P, 365 / o.d) - 1; o.usdTna30 = tnaOf(o.usdTea); }
     }
-    var du = null; try { du = (kd === 'cer0' || kd === 'cerc') ? (o.preal ? durOf(kd === 'cerc' ? ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; }) : [[mat, 100]], s, o.preal) : null) : kd === 'dl' ? durOf([[mat, 100 * fx0]], s, P) : durOf(fl, s, P); } catch (e) {} // como BYMA: CER en términos reales, dollar linked a tipo de cambio constante
+    var du = null; try { du = (kd === 'cer0' || kd === 'cerc') ? (o.preal ? durOf(kd === 'cerc' ? ins.r.filter(function (r) { return bxCum(r[0], s); }).map(function (r) { return [r[0], r[1]]; }) : [[mat, 100]], s, o.preal) : null) : kd === 'dl' ? durOf([[mat, 100 * fx0]], s, P) : durOf(fl, s, P); } catch (e) {} // como BYMA: CER en términos reales, dollar linked a tipo de cambio constante
     o.mac = du ? du.mac : null; o.mdur = du ? du.md : null;
     if (kd === 'dualtf') {
       var A3 = factor(ins.iss, s, TTD_M, kn); o.isFix = true; o.sp = TTD_M; o.bv = branchVals(ins, mat, sc); o.clean = P / A3;
@@ -3288,7 +3289,7 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
   }
   function snapshot(s, sc) {
     var out = [];
-    Object.keys(INST).forEach(function (k) { var ins = INST[k], mat = ins.r[ins.r.length - 1][0]; if (mat <= s) return; var sp = SUPON && SUP[k] > 0, o = metrics(k, s, sc, sp ? SUP[k] : PRICE[k]); if (sp) { o.sup = SUP[k]; o.mkt = metrics(k, s, sc, PRICE[k]); } out.push(o); }); // con precio supuesto: el bono rinde con tu precio y guarda cómo rendía a mercado
+    Object.keys(INST).forEach(function (k) { var ins = INST[k], mat = ins.r[ins.r.length - 1][0]; if (!bxCum(mat, s)) return; var sp = SUPON && SUP[k] > 0, o = metrics(k, s, sc, sp ? SUP[k] : PRICE[k]); if (sp) { o.sup = SUP[k]; o.mkt = metrics(k, s, sc, PRICE[k]); } out.push(o); }); // con precio supuesto: el bono rinde con tu precio y guarda cómo rendía a mercado
     return out;
   }
   function curveFija(S) {
@@ -3943,7 +3944,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (kd === 'cap' || kd === 'cpn' || kd === 'dualtf') { var y = tirOf(flowsOf(ins, s, kd === 'dualtf' ? TC : ZERO), s, P); return y == null ? null : y * 100; } // dual TAMAR/fija: la rama TAMAR con la TAMAR actual constante
       if (kd === 'cer0' || kd === 'cerc' || (kd === 'dual' && rowOf(ins, 'CER') && false)) {
         var b = cerBase(ins), c = cerAt(bdBack(s, 10), ZERO); if (!isFinite(b) || !isFinite(c)) return null;
-        var pr = P / (c / b), rf = kd === 'cerc' ? ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; }) : null;
+        var pr = P / (c / b), rf = kd === 'cerc' ? ins.r.filter(function (r) { return bxCum(r[0], s); }).map(function (r) { return [r[0], r[1]]; }) : null;
         var ry = rf ? tirOf(rf, s, pr) : Math.pow(100 / pr, 365 / d) - 1; return ry == null ? null : tnaOf(ry) * 100;
       }
       if (kd === 'dl') { var f = fxAt(Math.min(t, lastOf(IDX.FX)), ZERO); if (!isFinite(f)) return null; return tnaOf(Math.pow(100 * f / P, 365 / d) - 1) * 100; }
@@ -3960,13 +3961,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     if (!(pv > 0)) return null; var mac = tw / pv; return { mac: mac, md: mac / 365 / (1 + y) };
   }
   function durAt(k, t, P, io) { // duración de un día pasado, con los mismos flujos y supuestos que yieldAt
-    var ins = io || INST[k], s = bxSettle(t), mat = ins.r[ins.r.length - 1][0], kd = ins.k; if (mat <= s || !(P > 0)) return null;
+    var ins = io || INST[k], s = bxSettle(t), mat = ins.r[ins.r.length - 1][0], kd = ins.k; if (!bxCum(mat, s) || !(P > 0)) return null;
     TC = TC || constSc(0, T0(), 0);
     try {
       if (kd === 'cap' || kd === 'cpn' || kd === 'dualtf') return durOf(flowsOf(ins, s, kd === 'dualtf' ? TC : ZERO), s, P);
       if (kd === 'cer0' || kd === 'cerc') { // en términos reales: flujos sin ajustar contra el precio deflactado por CER
         var b = cerBase(ins), c = cerAt(bdBack(s, 10), ZERO); if (!isFinite(b) || !isFinite(c)) return null;
-        return durOf(kd === 'cerc' ? ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; }) : [[mat, 100]], s, P / (c / b));
+        return durOf(kd === 'cerc' ? ins.r.filter(function (r) { return bxCum(r[0], s); }).map(function (r) { return [r[0], r[1]]; }) : [[mat, 100]], s, P / (c / b));
       }
       if (kd === 'dl') { var f = fxAt(Math.min(t, lastOf(IDX.FX)), ZERO); return isFinite(f) ? durOf([[mat, 100 * f]], s, P) : null; }
       if (kd === 'tamar' || kd === 'dual') return durOf(flowsOf(ins, s, TC), s, P); // pago proyectado con la TAMAR actual constante: sensibilidad al margen = Macaulay / (1 + TAMAR + margen)
@@ -8053,12 +8054,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (o.miss || !(o.P > 0) || o.d <= 0) return;
       var ins = o.ins, kd = ins.k, grp = X.famOf(ins), tipo = psTipo(o.k, ins), tir = o.tea, tl = 'TIR nominal', krFl = o.fl, krP = o.P, krY = o.tea, feat = [tipo, 'Paga en pesos'];
       if ((kd === 'cer0' || kd === 'cerc') && o.cfx) { tl = 'TIR nominal (el CER del último pago ya se publicó: el pago está fijo en pesos, como una Lecap)'; feat.push('Ajusta por CER', 'Pago ya fijo en pesos'); }
-      else if (kd === 'cer0' || kd === 'cerc') { tir = o.realTea; tl = 'TIR real (sobre CER)'; krFl = kd === 'cerc' ? ins.r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1]]; }) : [[o.mat, 100]]; krP = o.preal; krY = o.realTea; feat.push('Ajusta por CER'); }
+      else if (kd === 'cer0' || kd === 'cerc') { tir = o.realTea; tl = 'TIR real (sobre CER)'; krFl = kd === 'cerc' ? ins.r.filter(function (r) { return bxCum(r[0], s); }).map(function (r) { return [r[0], r[1]]; }) : [[o.mat, 100]]; krP = o.preal; krY = o.realTea; feat.push('Ajusta por CER'); }
       else if (kd === 'dl') { tir = o.usdTea; tl = 'TIR en dólares (A3500 constante)'; krFl = [[o.mat, 100 * o.fx0]]; krY = o.usdTea; feat.push('Ajusta por dólar oficial A3500'); }
       else if (kd === 'tamar') { feat.push('TAMAR + ' + fm(ins.r[0][3] * 100, 2) + '%'); tl = 'TIR nominal con la TAMAR proyectada'; }
       else if (kd === 'dual' || kd === 'dualtf') tl = 'TIR nominal con la rama que gana en el escenario';
       if (kd === 'cpn' && !ins.cerFix) feat.push('Cupón ' + fm(ins.r[0][3] * 100, 2) + '% anual');
-      var cuotas = ins.r.filter(function (r) { return r[0] > s; }).length;
+      var cuotas = ins.r.filter(function (r) { return bxCum(r[0], s); }).length;
       feat.push(kd === 'cpn' || kd === 'cerc' ? (cuotas > 1 ? cuotas + ' pagos por delante' : 'Último pago') : 'Paga todo al vencimiento');
       if (ins.iss) feat.push('Emitido el ' + dfull(ins.iss));
       var tna = o.tnas != null ? o.tnas : o.tna30; if ((kd === 'cer0' || kd === 'cerc') && !o.cfx) tna = o.realTna30; if (kd === 'dl') tna = o.usdTnas;
