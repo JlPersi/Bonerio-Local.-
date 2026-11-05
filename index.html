@@ -6855,6 +6855,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function card(k, title) { // tarjeta de un instrumento: valor, variación, fuente y la serie de 3 meses (o la rueda de hoy); al tocarla abre el panel
     var o = inst(k); if (!o) return '';
     var tdy = o.i && o.i.d === todayBA() && o.i.p.length >= 3, sp = tdy ? o.i.p.map(function (p) { return p[1]; }) : tail(o.h, 63).map(function (p) { return p[1]; });
+    if (!tdy && o.v != null && / hoy /.test(o.vs || '') && !(o.h && o.h[todayBA()] != null)) sp.push(o.v); // la serie de 3 meses termina en el dato en vivo de hoy, no en el cierre de ayer
     var cl = o.ch > 0 ? 'up' : o.ch < 0 ? 'dn' : 'mu';
     return '<button type="button" class="rcard" data-qv="' + k + '" title="Ver ' + (title || o.t) + ': gráfico intradiario e histórico">' + GO + '<small>' + (title || o.t) + '</small><span class="v"><b>' + o.vf + '</b>' + (o.ch != null ? '<em class="' + cl + '">' + sg(o.ch, 2) + o.chU + '</em>' : '') + '</span>' +
       '<span class="s">' + o.vs + '</span>' + spark(sp) + '</button>';
