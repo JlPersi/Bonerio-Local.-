@@ -15028,6 +15028,15 @@ window.RATG = (function () {
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' + PLANES.map(function (p, i) { return '<a href="' + p[3] + '" target="_blank" rel="noopener" style="display:flex;flex-direction:column;gap:2px;min-width:120px;padding:10px 14px;border:1px solid ' + (i === 2 ? '#ffc542' : 'var(--bd)') + ';border-radius:10px;color:var(--tx);text-decoration:none"><span style="font-weight:600">' + p[0] + '</span><b style="font-size:17px">' + p[1] + '</b><small style="color:var(--mu)">' + p[2] + '</small></a>'; }).join('') + '</div></div>';
     hero.parentNode.insertBefore(c, hero.nextSibling);
   };
+  var intro = function () { // la portada antes de ingresar (auth.js): los planes, con el mismo estilo de sus secciones
+    var ov = document.getElementById('blIntro'), cat = ov && ov.querySelector('.cat'); if (!cat || ov.querySelector('#blIntroPro')) return;
+    var d = document.createElement('div'); d.className = 'fm'; d.id = 'blIntroPro'; var CC = ['#5cc8ff', '#b8e986', '#ffc542'];
+    d.innerHTML = '<h3 class="sh"><span class="dm">Bonerío PRO,</span> todas las herramientas.</h3><p class="shp">' + (hoy() < '2026-11-11' ? 'Desde el miércoles 11/11, el acceso completo es con suscripción. ' : '') + 'Caja de puntas en vivo, carry, sintéticos, forwards, ONs, acciones, alertas y más. Siguen gratis: tabla de retornos, curvas, curva en pesos, dólar, licitaciones, calendario macro y resumen.</p>' +
+      '<div class="fg">' + PLANES.map(function (p, i) { return '<a class="f" href="' + p[3] + '" target="_blank" rel="noopener" style="--c:' + CC[i] + ';min-height:0;padding-bottom:22px;color:inherit;text-decoration:none' + (i === 2 ? ';border-color:#ffc542' : '') + '"><i>' + p[0] + '</i><b>' + p[1] + '</b><p>' + (i ? p[2] + ' contra el mensual' : 'por mes') + '</p></a>'; }).join('') + '</div>' +
+      '<p class="shp" style="margin:18px 0 0"><b style="color:#ffc542">Precio fundador:</b> si te suscribís ahora, lo mantenés mientras sigas suscripto. Las cuentas nuevas tienen <b style="color:#f4f4f5">2 días de prueba gratis</b>. Pagás con Mercado Pago, con el mismo mail de tu cuenta. <a data-login="up" href="#" style="color:#ffc542;font-weight:600">Crear cuenta</a></p>';
+    cat.parentNode.insertBefore(d, cat);
+  };
+  intro(); try { new MutationObserver(intro).observe(document.body, { childList: true }); } catch (e) { }
   var check = function () { // si quedó abierta una sección con candado (al recargar), vuelve al inicio
     marks(); promo(); var c = document.querySelector('.tab-content.active'); if (c && locked(c.id)) { _sw('home'); modal(c.id); }
   };
