@@ -4121,7 +4121,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'nearest', axis: 'x', intersect: false },
           plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.datasetIndex === 0; }, callbacks: { title: function (c) { var t = tr[c[0].raw.i]; return (t.a ? t.a.k : 'Liquidación') + ' → ' + t.b.k; }, label: function (c) { var t = tr[c.raw.i]; return dd(t.d0) + ' al ' + dd(t.d1) + ' (' + t.days + ' días): ' + pct(t.f) + (t.short ? ' · tramo corto' : ''); } } } },
           scales: { x: { type: 'linear', min: 0, max: tr[tr.length - 1].d1, ticks: { color: tx, maxTicksLimit: 8, callback: function (v) { return dstr(s + Math.round(v)).slice(3); } }, grid: { color: bd } },
-            y: { title: { display: true, text: U === 'tna' ? F.yl.replace('TEA', 'TNA') : F.yl, color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, F.lin ? 1 : 0) + '%'; } }, grid: { color: bd } } } } });
+            y: { beginAtZero: true, title: { display: true, text: U === 'tna' ? F.yl.replace('TEA', 'TNA') : F.yl, color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, F.lin ? 1 : 0) + '%'; } }, grid: { color: bd } } } } });
     });
   }
   /* ---------- duales: cuánto vale la opción de quedarse con la mejor pata ----------
@@ -5878,9 +5878,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     }
     if (pts.length >= 2 && typeof Chart !== 'undefined') {
       em.textContent = ''; var up = pts[pts.length - 1].y >= pts[0].y, col = up ? '#34d399' : '#ff6b8b', tx = css('--mu'), bdc = css('--bd');
-      CHT = new Chart(bd.querySelector('#qvC').getContext('2d'), { type: 'line', data: { datasets: [{ data: pts, borderColor: col, backgroundColor: col + '22', fill: true, borderWidth: 2, pointRadius: 0, tension: 0.15, stepped: R === 'in' ? 'before' : false }].concat(window.BLBND ? window.BLBND.sets(pts) : []) },
+      CHT = new Chart(bd.querySelector('#qvC').getContext('2d'), { type: 'line', data: { datasets: [{ data: pts, borderColor: col, fill: false, borderWidth: 2, pointRadius: 0, tension: 0.15, stepped: R === 'in' ? 'before' : false }].concat(window.BLBND ? window.BLBND.sets(pts) : []) },
         options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'nearest', axis: 'x', intersect: false }, plugins: { legend: { display: false }, tooltip: { displayColors: false, filter: function (it) { return !it.dataset.$aux; }, callbacks: { title: function (c) { return lbl(c[0].parsed.x); }, label: function (c) { return unit + nf(c.parsed.y, 2); } } } },
-          scales: { x: { type: 'linear', min: R === 'in' ? 630 : undefined, max: R === 'in' ? 1020 : undefined, ticks: { color: tx, maxTicksLimit: R === 'in' ? 8 : 5, stepSize: R === 'in' ? 60 : undefined, callback: function (v) { return lbl(v); } }, grid: { display: false } }, y: { position: 'right', ticks: { color: tx, maxTicksLimit: 5, callback: function (v) { return nf(v, v >= 1000 ? 0 : 2); } }, grid: { color: bdc } } } } });
+          scales: { x: { type: 'linear', min: R === 'in' ? 630 : undefined, max: R === 'in' ? 1020 : undefined, ticks: { color: tx, maxTicksLimit: R === 'in' ? 8 : 5, stepSize: R === 'in' ? 60 : undefined, callback: function (v) { return lbl(v); } }, grid: { display: false } }, y: { position: 'right', grace: '8%', ticks: { color: tx, maxTicksLimit: 5, callback: function (v) { return nf(v, v >= 1000 ? 0 : 2); } }, grid: { color: bdc } } } } });
     }
   }
 
@@ -5904,9 +5904,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     if (pts.length < 2) { em.textContent = sr.note ? '' : 'No hay datos para este período.'; if (sr.note && !pts.length) { em.textContent = sr.note; bd.querySelector('.nt').remove(); } return; }
     if (typeof Chart === 'undefined') return;
     var up = pts[pts.length - 1].y >= pts[0].y, col = up ? '#34d399' : '#ff6b8b', tx = css('--mu'), bdc = css('--bd');
-    CHT = new Chart(bd.querySelector('#qvC').getContext('2d'), { type: 'line', data: { datasets: [{ data: pts, borderColor: col, backgroundColor: col + '22', fill: true, borderWidth: 2, pointRadius: 0, tension: 0.15, stepped: sr.step ? 'before' : false }].concat(window.BLBND ? window.BLBND.sets(pts) : []) },
+    CHT = new Chart(bd.querySelector('#qvC').getContext('2d'), { type: 'line', data: { datasets: [{ data: pts, borderColor: col, fill: false, borderWidth: 2, pointRadius: 0, tension: 0.15, stepped: sr.step ? 'before' : false }].concat(window.BLBND ? window.BLBND.sets(pts) : []) },
       options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'nearest', axis: 'x', intersect: false }, plugins: { legend: { display: false }, tooltip: { displayColors: false, filter: function (it) { return !it.dataset.$aux; }, callbacks: { title: function (c) { return sr.lbl(c[0].parsed.x) + (RNG === 'in' ? ' hs' : ''); }, label: function (c) { return o.fmt(c.parsed.y); } } } },
-        scales: { x: { type: 'linear', min: pts[0].x, max: pts[pts.length - 1].x, ticks: { color: tx, maxTicksLimit: 5, stepSize: RNG === 'in' ? 60 : undefined, callback: function (v) { return sr.lbl(v); } }, grid: { display: false } }, y: { position: 'right', ticks: { color: tx, maxTicksLimit: 5, callback: function (v) { return o.u === '$' ? nf(v, v >= 1000 ? 0 : 2) : nf(v, 1) + '%'; } }, grid: { color: bdc } } } } });
+        scales: { x: { type: 'linear', min: pts[0].x, max: pts[pts.length - 1].x, ticks: { color: tx, maxTicksLimit: 5, stepSize: RNG === 'in' ? 60 : undefined, callback: function (v) { return sr.lbl(v); } }, grid: { display: false } }, y: { position: 'right', grace: '8%', ticks: { color: tx, maxTicksLimit: 5, callback: function (v) { return o.u === '$' ? nf(v, v >= 1000 ? 0 : 2) : nf(v, 1) + '%'; } }, grid: { color: bdc } } } } });
   }
 
   /* ---------- volumen ---------- */
@@ -9845,9 +9845,9 @@ window.USTX = (function () {
 
   function drawRP() {
     var rp = window.RIESGO_PAIS; if (!rp || !rp.length) return; var a = rp.slice(-RPN), ac = css('--ac') || '#ffc542', mu = css('--mu'), bd = css('--bd');
-    chart('hmRPc', { type: 'line', data: { labels: a.map(function (x) { return dmy(x[0]); }), datasets: [{ data: a.map(function (x) { return x[1]; }), borderColor: ac, backgroundColor: function (c) { var ch = c.chart, ar = ch.chartArea; if (!ar) return ac + '22'; var g = ch.ctx.createLinearGradient(0, ar.top, 0, ar.bottom); g.addColorStop(0, ac + '55'); g.addColorStop(1, ac + '00'); return g; }, fill: true, borderWidth: 2.2, pointRadius: 0, pointHoverRadius: 4, tension: 0.2 }] },
+    chart('hmRPc', { type: 'line', data: { labels: a.map(function (x) { return dmy(x[0]); }), datasets: [{ data: a.map(function (x) { return x[1]; }), borderColor: ac, fill: false, borderWidth: 2.2, pointRadius: 0, pointHoverRadius: 4, tension: 0.2 }] },
       options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return 'Riesgo país: ' + nf(c.parsed.y) + ' pb'; } } } },
-        scales: { x: { ticks: { color: mu, maxTicksLimit: 7, maxRotation: 0 }, grid: { display: false } }, y: { ticks: { color: mu, callback: function (v) { return nf(v); } }, grid: { color: bd } } } } });
+        scales: { x: { ticks: { color: mu, maxTicksLimit: 7, maxRotation: 0 }, grid: { display: false } }, y: { grace: '8%', ticks: { color: mu, callback: function (v) { return nf(v); } }, grid: { color: bd } } } } });
   }
 
   var labelPlug = { id: 'hmLab', afterDatasetsDraw: function (ch) { var ctx = ch.ctx; ctx.save(); ctx.font = '600 10.5px Inter, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = css('--mu');
@@ -11144,7 +11144,7 @@ window.USTX = (function () {
     CH.ch = mkC(ctx, { type: 'line', data: { datasets: [{ data: pts, borderColor: col, backgroundColor: gr, fill: true, borderWidth: 2, pointRadius: FRQ !== 'd' && R !== 'in' && pts.length < 60 ? 2.5 : 0, pointBackgroundColor: col, pointHoverRadius: 4, tension: 0.15, stepped: R === 'in' ? 'before' : false }].concat(window.BLBND ? window.BLBND.sets(pts, hv) : []) },
       options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'nearest', axis: 'x', intersect: false },
         plugins: { legend: { display: false }, tooltip: { displayColors: false, filter: function (it) { return !it.dataset.$aux; }, callbacks: { title: function (c) { return R === 'in' ? lbl(c[0].parsed.x) + ' hs' : tip(c[0].parsed.x); }, label: function (c) { return unit + fm(c.parsed.y, 2); } } } },
-        scales: { x: { type: 'linear', min: pts[0].x, max: pts[pts.length - 1].x, ticks: { color: mu, maxTicksLimit: 7, includeBounds: false, stepSize: R === 'in' ? 60 : Math.max(1, Math.ceil((pts.length - 1) / 6)), maxRotation: 0, callback: function (v) { return lbl(v); } }, grid: { display: false } }, y: { position: 'left', ticks: { color: mu, maxTicksLimit: 6, callback: function (v) { return fm0(v, v >= 1000 ? 0 : 2); } }, grid: { color: bd } } } } });
+        scales: { x: { type: 'linear', min: pts[0].x, max: pts[pts.length - 1].x, ticks: { color: mu, maxTicksLimit: 7, includeBounds: false, stepSize: R === 'in' ? 60 : Math.max(1, Math.ceil((pts.length - 1) / 6)), maxRotation: 0, callback: function (v) { return lbl(v); } }, grid: { display: false } }, y: { position: 'left', grace: '8%', ticks: { color: mu, maxTicksLimit: 6, callback: function (v) { return fm0(v, v >= 1000 ? 0 : 2); } }, grid: { color: bd } } } } });
   }
 
   /* la curva de su familia: TIR contra duración (dólares) o contra días (pesos), con un ajuste logarítmico */
