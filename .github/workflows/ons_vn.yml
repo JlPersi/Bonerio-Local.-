@@ -1,0 +1,31 @@
+name: "ONs: VN en circulación (BYMA)"
+# El valor nominal en circulación de cada ON y provincial, para el Calendario de cobros. Una vez por semana alcanza (cambia con emisiones y rescates).
+on:
+  schedule:
+    - cron: "30 23 * * 5"
+  workflow_dispatch:
+    inputs:
+      max:
+        description: "Cantidad máxima de especies (vacío: todas)"
+        required: false
+      log:
+        description: "Mostrar las respuestas de BYMA (sí/no)"
+        default: "no"
+permissions:
+  contents: write
+jobs:
+  vn:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: VN en circulación de ONs y provinciales
+        run: python3 scripts/save_ons_vn.py ${{ github.event.inputs.max && format('--max {0}', github.event.inputs.max) || '' }} ${{ github.event.inputs.log == 'sí' && '--log' || '' }}
+      - name: Commit
+        run: |
+          if [ -n "$(git status --porcelain data)" ]; then
+            git config user.name "cierre-bot"
+            git config user.email "bot@users.noreply.github.com"
+            git add data
+            git commit -m "ons: VN en circulación $(date -u +%F)"
+            git pull --rebase -q origin main && git push
+          fi
