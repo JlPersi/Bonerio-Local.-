@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Valor nominal en circulación de las ONs y provinciales (data/ons.json y data/pvs.json), de la ficha técnica de BYMA (datos abiertos, sin credenciales).
 Sirve para el Calendario de cobros: lo que paga cada emisor = flujo cada 100 VN × VN en circulación.
-Sale data/ons_vn.json: {"act": fecha, "t": {ticker: [vn, moneda, campo]}}. Lo que BYMA no devuelve se conserva de la corrida anterior.
+Sale data/ons_vn.json: {"act": fecha, "t": {ticker: [VN emitido, VN residual, moneda]}} (montoNominal y montoResidual de BYMA, en unidades). Lo que BYMA no devuelve se conserva de la corrida anterior.
 Uso: python3 scripts/save_ons_vn.py [--max N] [--log]   (corre en el Action "ONs: VN en circulación"; desde el sandbox BYMA no responde)"""
 import datetime as dt, json, os, re, sys, time, urllib.request
 
@@ -9,8 +9,6 @@ D = os.path.join(os.path.dirname(__file__), "..", "data")
 OUT = os.path.join(D, "ons_vn.json")
 URL = "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/bnown/fichatecnica/especies/general"
 H = {"User-Agent": "Mozilla/5.0", "Accept": "application/json", "Content-Type": "application/json", "Origin": "https://open.bymadata.com.ar", "Referer": "https://open.bymadata.com.ar/"}
-# campos, en orden de preferencia: primero lo que queda en circulación, después lo emitido
-PREF = [r"circulaci", r"residual", r"vigente", r"emitid", r"montonominal"]
 
 
 def ficha(sym):
@@ -71,12 +69,9 @@ def main():
             P = plano(j)
             if log and n <= 3:
                 print(k, sym, json.dumps(P, ensure_ascii=False)[:1500])
-            for pat in PREF:
-                c = [(kk, num(v)) for kk, v in P.items() if re.search(pat, kk.lower().replace("_", "")) and num(v) and num(v) > 0]
-                if c:
-                    mon = next((str(v) for kk, v in P.items() if re.search(r"moneda", kk.lower()) and isinstance(v, str)), "")
-                    got = [c[0][1], mon, c[0][0]]
-                    break
+            d = next((x for x in (j.get("data") or []) if isinstance(x, dict)), None) if isinstance(j, dict) else None
+            if d and num(d.get("montoNominal")):
+                got = [num(d.get("montoNominal")), num(d.get("montoResidual")), d.get("moneda") or ""]
             if got:
                 break
             time.sleep(0.2)
