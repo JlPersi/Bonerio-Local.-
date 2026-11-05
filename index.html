@@ -15015,15 +15015,28 @@ window.RATG = (function () {
   };
   var _sw = window.switchTab;
   window.switchTab = function (id) { if (locked(id)) { modal(id); return; } return _sw.apply(this, arguments); };
+  var paga = function () { var a = window.BLAUTH && window.BLAUTH(), u = U || (a && a.user), m = u && u.app_metadata || {}; return !!(m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoy()); };
+  var promo = function () { // en el Inicio, para quien no está suscripto: qué es PRO, los planes y la prueba
+    var h = document.getElementById('home'), hero = h && h.querySelector('.hm-hero'), c = document.getElementById('hmPro');
+    if (paga()) { if (c) c.remove(); return; } if (!hero || c) return;
+    c = document.createElement('div'); c.className = 'card'; c.id = 'hmPro'; c.setAttribute('data-norf', '1'); c.setAttribute('data-html2canvas-ignore', 'true');
+    c.style.cssText = 'border:1px solid #ffc542;margin:0 0 16px;padding:18px 20px';
+    c.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between"><div style="flex:1 1 320px;min-width:0"><span style="font:700 12px Inter,sans-serif;letter-spacing:.06em;color:#ffc542;text-transform:uppercase">Bonerío PRO</span>' +
+      '<h3 style="margin:6px 0 6px">' + (hoy() < '2026-11-11' ? 'Desde el miércoles 11/11, el acceso completo es con suscripción' : 'Todas las herramientas, con suscripción') + '</h3>' +
+      '<p class="qs" style="margin:0 0 6px">Caja de puntas en vivo, carry, sintéticos, forwards, ONs, acciones, alertas y más. Siguen gratis: tabla de retornos, curvas, curva en pesos, dólar, licitaciones, calendario macro y resumen.</p>' +
+      '<p class="qs" style="margin:0"><b style="color:var(--ac)">Precio fundador:</b> si te suscribís ahora, lo mantenés mientras sigas suscripto. Las cuentas nuevas tienen 2 días de prueba gratis.</p></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' + PLANES.map(function (p, i) { return '<a href="' + p[3] + '" target="_blank" rel="noopener" style="display:flex;flex-direction:column;gap:2px;min-width:120px;padding:10px 14px;border:1px solid ' + (i === 2 ? '#ffc542' : 'var(--bd)') + ';border-radius:10px;color:var(--tx);text-decoration:none"><span style="font-weight:600">' + p[0] + '</span><b style="font-size:17px">' + p[1] + '</b><small style="color:var(--mu)">' + p[2] + '</small></a>'; }).join('') + '</div></div>';
+    hero.parentNode.insertBefore(c, hero.nextSibling);
+  };
   var check = function () { // si quedó abierta una sección con candado (al recargar), vuelve al inicio
-    marks(); var c = document.querySelector('.tab-content.active'); if (c && locked(c.id)) { _sw('home'); modal(c.id); }
+    marks(); promo(); var c = document.querySelector('.tab-content.active'); if (c && locked(c.id)) { _sw('home'); modal(c.id); }
   };
   document.addEventListener('bl-auth', function () {
     var a = window.BLAUTH && window.BLAUTH(); check();
     if (a && a.sb && a.sb.auth.getUser) a.sb.auth.getUser().then(function (r) { if (r && r.data && r.data.user) { U = r.data.user; check(); } }, function () { });
   });
   window.addEventListener('load', function () { setTimeout(check, 800); });
-  setInterval(marks, 5000); // el menú lateral se arma después
+  setInterval(function () { marks(); promo(); }, 5000); // el menú lateral y el Inicio se arman después
 })();
 </script>
 <script>
