@@ -133,7 +133,7 @@ function patch(r, m) {
    Cada cambio se empuja a los navegadores conectados a /stream (websocket) en tandas de 250 ms.
    Si nadie mira durante 10 minutos, corta la conexión con Primary y se apaga. */
 export class Feed {
-  constructor(ctx, env) { this.ctx = ctx; this.env = env; this.rows = {}; this.idx = {}; this.md = {}; this.ws = null; this.cl = new Set(); this.cd = new Set(); this.hist = []; this.dirty = new Set(); this.seen = Date.now(); this.lt = 0; this.lists_t = 0; }
+  constructor(ctx, env) { this.ctx = ctx; this.env = env; this.rows = {}; this.idx = {}; this.md = {}; this.ws = null; this.cl = new Set(); this.cd = new Set(); this.hist = []; this.md5 = {}; this.a5 = {}; this.t5 = {}; this.w5 = {}; this.dirty = new Set(); this.seen = Date.now(); this.lt = 0; this.lists_t = 0; }
   ok() { return !!(this.ws && this.lt && Date.now() - this.lt < 15 * 60e3); }
   async lists() { // la lista de data912 más los papeles que Primary tiene y data912 todavía no; si data912 falla, queda la anterior (o la de Primary sola)
     const nu = []; let P = null; try { P = await pextra(this.env); } catch (e) { LASTERR = String(e.message || e); }
@@ -149,7 +149,7 @@ export class Feed {
     let ws;
     for (const force of [false, true]) { const r = await fetch(base(this.env) + '/', { headers: { Upgrade: 'websocket', 'X-Auth-Token': await token(this.env, force) } }); if (r.webSocket) { ws = r.webSocket; break; } }
     if (!ws) throw new Error('websocket de Primary rechazado');
-    ws.accept(); this.ws = ws;
+    ws.accept(); this.ws = ws; this.md5 = {}; this.a5 = {}; this.t5 = {}; // conexión nueva: las suscripciones a demanda se vuelven a pedir
     ws.addEventListener('message', (e) => this.onMd(e.data));
     const lost = () => { if (this.ws !== ws) return; this.ws = null; if (this.alive()) setTimeout(() => this.connect().catch((x) => (LASTERR = String(x.message || x))), 3000); };
     ws.addEventListener('close', lost); ws.addEventListener('error', lost);
@@ -163,7 +163,11 @@ export class Feed {
   onMd(data) {
     let m; try { m = JSON.parse(data); } catch (x) { return; }
     if (m.type !== 'Md' || !m.instrumentId) return;
-    const k = m.instrumentId.symbol; this.md[k] = Object.assign(this.md[k] || {}, m.marketData || {}); this.lt = Date.now();
+    const k = m.instrumentId.symbol, md = m.marketData || {}; this.md[k] = Object.assign(this.md[k] || {}, md); this.lt = Date.now();
+    if (this.a5[k]) { // pedido a demanda (caja de puntas, caución, MERV): 5 niveles; si el mismo papel llega también con 1 nivel (la suscripción general), no pisa la profundidad reciente
+      const o = this.md5[k] || (this.md5[k] = {}), deep = ['BI', 'OF'].some((e) => Array.isArray(md[e]) && md[e].length > 1);
+      Object.keys(md).forEach((e) => { if ((e === 'BI' || e === 'OF') && !deep && Array.isArray(o[e]) && o[e].length > 1 && Date.now() - (this.t5[k] || 0) < 15000) return; o[e] = md[e]; });
+      if (deep) this.t5[k] = Date.now(); const w = this.w5[k]; if (w) { delete this.w5[k]; w.forEach((f) => f()); } }
     const dd = new Date().toISOString().slice(0, 10); if (this.nd !== dd) { this.nd = dd; this.nm = 0; } this.nm++; // mensajes de hoy (UTC), para ver el consumo en /diag
     if (!this.cl.size) return;
     this.dirty.add(k); if (!this.tm) this.tm = setTimeout(() => this.flush(), 250);
@@ -202,6 +206,17 @@ export class Feed {
       if (dm) { const d = this.dsnap(); s.send(JSON.stringify(d ? { s: d.s, d: 1 } : { d: 0 })); } // sin PRO: la foto de hace 20 minutos y después una por minuto
       else { const snap = {}; SEPS.forEach((ep) => (snap[ep] = this.merged(ep))); s.send(JSON.stringify({ s: snap })); }
       return new Response(null, { status: 101, webSocket: c });
+    }
+    if (u.pathname === '/md') { // cotizaciones a demanda por la misma conexión permanente (Primary pide websocket, no REST): {s: listados, x: fuera de la lista (de a uno), ms}
+      const q = await req.json(), L = (q.s || []).slice(0, 1500), X = (q.x || []).slice(0, 10), all = L.concat(X), ms = Math.min(+q.ms || 3000, 6000);
+      if (!this.ws) return new Response('{}', { status: 503 });
+      const nu = L.filter((k) => !this.a5[k]), nx = X.filter((k) => !this.a5[k]), E = ['BI', 'OF', 'LA', 'CL', 'SE', 'OI', 'EV'], t0 = Date.now();
+      all.forEach((k) => { if (!this.a5[k]) this.a5[k] = t0; });
+      try { for (let i = 0; i < nu.length; i += 500) this.ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 5, entries: E, products: nu.slice(i, i + 500).map((s) => ({ symbol: s, marketId: 'ROFX' })) }));
+        nx.forEach((s) => this.ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 5, entries: E, products: [{ symbol: s, marketId: 'ROFX' }] }))); } catch (e) { return new Response('{}', { status: 503 }); }
+      const pend = all.filter((k) => !this.md5[k] && Date.now() - this.a5[k] < ms); // los que nunca mandaron nada se esperan solo la primera vez
+      if (pend.length) await Promise.race([Promise.all(pend.map((k) => new Promise((ok) => (this.w5[k] = (this.w5[k] || []).concat([ok]))))), new Promise((ok) => setTimeout(ok, ms))]);
+      const out = {}; all.forEach((k) => { if (this.md5[k]) out[k] = this.md5[k]; }); return new Response(JSON.stringify(out));
     }
     if (u.pathname === '/stats') return new Response(JSON.stringify({ dia: this.nd || null, mensajes: this.nm || 0, visitantes: this.cl.size, demorados: this.cd.size, simbolos: Object.keys(this.idx).length }));
     const ep = u.pathname.replace(/^\/live\//, '');
@@ -244,14 +259,16 @@ async function buscar(env, q) { // diagnóstico: qué tiene Primary con ese text
   L.forEach((i) => { const s = (i.instrumentId || {}).symbol || '', t = [nm(s), i.underlying].join(' ').toUpperCase(); if (t.indexOf(Q) >= 0 && hits.length < 300) hits.push({ s: s, u: i.underlying || null, cfi: i.cficode || null, mat: i.maturityDate || null, K: i.strikePrice || null, seg: (i.segment || {}).marketSegmentId || null, d: i.securityDescription || i.description || null }); });
   return { total: L.length, err: INSERR || null, q: Q, n: hits.length, hits: hits };
 }
+async function wsmd(env, L, X, ms) { // cotizaciones por el websocket permanente del Feed (sin REST)
+  if (!env.FEED || (!L.length && !(X || []).length)) return {};
+  const r = await env.FEED.get(env.FEED.idFromName('main')).fetch(new Request('https://feed/md', { method: 'POST', body: JSON.stringify({ s: L, x: X || [], ms: ms || 3000 }) }));
+  return r.ok ? await r.json() : {};
+}
 async function merv(env) {
   const L = await mervIns(env), md = {}, E = ['BI', 'OF', 'LA', 'CL', 'SE', 'OI']; let err = null; SNAPERR = null;
   // por websocket solo los que figuran en la lista de Primary (un símbolo inexistente puede tirar toda la suscripción)
-  try { Object.assign(md, await snapshot(env, L.filter((x) => x.cfi).map((x) => x.s), 4000, E)); } catch (e) { err = String(e.message || e); }
-  if (SNAPERR) err = SNAPERR;
-  // lo que no llegó por websocket, uno por uno por REST (primero el ETF y el índice, después las opciones)
-  const rest = L.filter((x) => !md[x.s] || !Object.keys(md[x.s]).length).sort((a, b) => (a.k === 'etf' || a.k === 'idx' ? 0 : 1) - (b.k === 'etf' || b.k === 'idx' ? 0 : 1)).slice(0, 42);
-  if (rest.length) { const tk = await token(env); await Promise.all(rest.map(async (x) => { try { const r = await fetch(base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(x.s) + '&entries=' + E.join(',') + '&depth=1', { headers: { 'X-Auth-Token': tk } }); const j = await r.json(); if (j && j.marketData) md[x.s] = j.marketData; else if (j && j.status === 'ERROR' && !err && !x.fb) err = x.n + ': ' + String(j.description || '').slice(0, 200); } catch (e) { } })); }
+  try { Object.assign(md, await wsmd(env, L.filter((x) => x.cfi).map((x) => x.s), L.filter((x) => !x.cfi).map((x) => x.s), 4000)); } catch (e) { err = String(e.message || e); } // todo por el websocket (los que no figuran en la lista de Primary, de a uno)
+  const rest = L.filter((x) => !md[x.s] || !Object.keys(md[x.s]).length);
   const p = (o) => (o && o.price > 0 ? o.price : null), lv = (a) => { a = Array.isArray(a) ? a[0] : a; return a && a.price > 0 ? [a.price, a.size] : null; };
   const has = (x) => md[x.s] && Object.keys(md[x.s]).length, L2 = L.filter((x) => !x.fb || has(x)); // de los formatos probados del índice, solo el que respondió
   return { ts: Date.now(), err: err, ws: L.length - rest.length, ins: L2.map((x) => { const m = md[x.s] || {}; return Object.assign({}, x, { BI: lv(m.BI), OF: lv(m.OF), LA: m.LA && m.LA.price > 0 ? [m.LA.price, m.LA.size, m.LA.date || null] : null, CL: p(m.CL), SE: p(m.SE), OI: m.OI && (m.OI.size || m.OI.price) || null, EV: m.EV || null, NV: m.NV || null }); }) };
@@ -266,23 +283,12 @@ async function cauSyms(env) {
   });
   CSY = out; CSYT = Date.now(); return out;
 }
-async function cauPrimary(env) { // por REST, como la caja de puntas: el websocket suelto puede chocar con la conexión permanente del Feed y la tarjeta caía a los datos abiertos de BYMA, que van atrasados
+async function cauPrimary(env) { // por el websocket permanente del Feed (a demanda), no por REST
   const S = await cauSyms(env), syms = Object.keys(S); if (!syms.length) return null;
-  const pick = [];
-  const get = async (s) => {
-    const q = base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(s) + '&entries=BI,OF,LA,CL&depth=1';
-    let r = await fetch(q, { headers: { 'X-Auth-Token': await token(env) } });
-    if (r.status === 401 || r.status === 403) r = await fetch(q, { headers: { 'X-Auth-Token': await token(env, true) } });
-    const j = await r.json(); return (j && j.marketData) || null;
-  };
-  const md = {}, out = { ARS: [], USD: [], EXT: [] }, has = (d) => d && (px(Array.isArray(d.BI) ? d.BI[0] : d.BI) || px(Array.isArray(d.OF) ? d.OF[0] : d.OF) || (d.LA && deHoy(d.LA.date)));
-  await Promise.all(['ARS', 'USD', 'EXT'].map(async (m) => { // de cada moneda, del plazo más corto para arriba: los primeros 4 con puntas u operaciones de hoy (como la caja de puntas), hasta 12 pedidos
-    const L = syms.filter((s) => S[s][0] === m).sort((a, b) => S[a][1] - S[b][1]); let n = 0;
-    for (let i = 0; i < L.length && i < 12 && n < 4; i += 3) {
-      const g = L.slice(i, i + 3); await Promise.all(g.map(async (s) => { try { md[s] = await get(s); } catch (e) { } }));
-      g.forEach((s) => { if (has(md[s])) { pick.push(s); n++; } });
-    }
-  }));
+  const pick = [], md = await wsmd(env, syms, [], 3000), out = { ARS: [], USD: [], EXT: [] }, has = (d) => d && (px(Array.isArray(d.BI) ? d.BI[0] : d.BI) || px(Array.isArray(d.OF) ? d.OF[0] : d.OF) || (d.LA && deHoy(d.LA.date)));
+  ['ARS', 'USD', 'EXT'].forEach((m) => { // de cada moneda, del plazo más corto para arriba: los primeros 4 con puntas u operaciones de hoy (como la caja de puntas)
+    let n = 0; syms.filter((s) => S[s][0] === m).sort((a, b) => S[a][1] - S[b][1]).forEach((s) => { if (n < 4 && has(md[s])) { pick.push(s); n++; } });
+  });
   pick.forEach((s) => { const d = md[s]; if (!d) return; const lv = (a) => px(Array.isArray(a) ? a[0] : a);
     const row = [S[s][1], lv(d.BI), lv(d.OF), d.LA && deHoy(d.LA.date) ? px(d.LA) : null, px(d.CL), null, null];
     if (row.slice(1).some((v) => v != null)) out[S[s][0]].push(row); });
@@ -338,21 +344,18 @@ export default {
       if (m && Date.now() - m.t < 2000) return new Response(m.b, { headers: hb });
       try {
         const pz = ci ? ' - CI' : ' - 24hs', lv = (a) => (Array.isArray(a) ? a : a ? [a] : []).filter((x) => x && x.price > 0).slice(0, 5).map((x) => [x.price, x.size]);
-        const get = async (t) => { // ?s=ci: contado inmediato (la ficha, con su switch CI / 24 hs)
-          const q = base(env) + '/rest/marketdata/get?marketId=ROFX&symbol=' + encodeURIComponent(t.includes('/') || t.startsWith('MERV - ') ? t : 'MERV - XMEV - ' + t + pz) + '&entries=BI,OF,LA,CL,SE&depth=5';
-          let r = await fetch(q, { headers: { 'X-Auth-Token': await token(env) } });
-          if (r.status === 401 || r.status === 403) r = await fetch(q, { headers: { 'X-Auth-Token': await token(env, true) } });
-          const j = await r.json(); return (j && j.marketData) || {};
-        };
+        const VS = new Set((await instruments(env)).map((i) => (i.instrumentId || {}).symbol)), full = (t) => (t.includes('/') || t.startsWith('MERV - ') ? t : 'MERV - XMEV - ' + t + pz);
+        const getM = async (ts) => { const f = ts.map(full), md = await wsmd(env, f.filter((x) => VS.has(x)), [], 2500); return f.map((x) => md[x] || {}); }; // por el websocket del Feed; solo símbolos de la lista de Primary
+        const get = async (t) => (await getM([t]))[0]; // ?s=ci: contado inmediato (la ficha, con su switch CI / 24 hs)
         let t = bk[1], md;
         const cm = /^CAU-(ARS|USD|EXT)(?:-(\d+))?$/.exec(t);
         if (cm) { // la caución de esa moneda: el plazo pedido o, si no, el más corto con puntas
           const S = await cauSyms(env), L = Object.keys(S).filter((s) => S[s][0] === cm[1] && (!cm[2] || S[s][1] === +cm[2])).sort((a, b) => S[a][1] - S[b][1]); md = {};
-          for (const s of L) { const m2 = await get(s); if (lv(m2.BI).length || lv(m2.OF).length) { md = m2; t = 'Caución ' + { ARS: 'en pesos', USD: 'MEP', EXT: 'cable' }[cm[1]] + ' · ' + S[s][1] + (S[s][1] === 1 ? ' día' : ' días'); break; } }
+          const M2 = await getM(L); for (let q = 0; q < L.length; q++) { const s = L[q], m2 = M2[q]; if (lv(m2.BI).length || lv(m2.OF).length) { md = m2; t = 'Caución ' + { ARS: 'en pesos', USD: 'MEP', EXT: 'cable' }[cm[1]] + ' · ' + S[s][1] + (S[s][1] === 1 ? ' día' : ' días'); break; } }
         } else md = await get(t);
         if (!cm && !t.includes('/') && !lv(md.BI).length && !lv(md.OF).length) { // sin puntas en pesos (BOPREAL y otros que operan en dólares o con otro nombre en Primary): la especie D, la C o el nombre de Primary
           const al = []; try { (await instruments(env)).forEach((i) => { const m = /^MERV - XMEV - (.+) - (24hs|CI)$/.exec((i.instrumentId || {}).symbol || ''); if (m && m[2] === pz.slice(3) && m[1] !== t && m[1].replace(/^BPO/, 'BP').replace(/[DC]$/, '') === t) al.push(m[1]); }); } catch (e) { }
-          for (const c of [t + 'D', t + 'C'].concat(al.filter((x) => x !== t + 'D' && x !== t + 'C'))) { const m2 = await get(c); if (lv(m2.BI).length || lv(m2.OF).length) { t = c; md = m2; break; } }
+          const C = [t + 'D', t + 'C'].concat(al.filter((x) => x !== t + 'D' && x !== t + 'C')), MC = await getM(C); for (let q = 0; q < C.length; q++) { const m2 = MC[q]; if (lv(m2.BI).length || lv(m2.OF).length) { t = C[q]; md = m2; break; } }
         }
         const body = JSON.stringify({ t: Date.now(), s: t, BI: lv(md.BI), OF: lv(md.OF), LA: md.LA && md.LA.price > 0 ? [md.LA.price, md.LA.size, md.LA.date || null] : null, CL: md.CL && md.CL.price > 0 ? md.CL.price : md.SE && md.SE.price > 0 ? md.SE.price : null });
         MEM[k] = { t: Date.now(), b: body };
