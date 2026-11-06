@@ -52,3 +52,4 @@ y deja los ratios en `data/acciones/ratios.json`.
 `scripts/balances_cnv.py` baja de la CNV la planilla estandarizada de cada estado contable presentado (consolidado, o individual si no
 hay) y reescribe estos archivos. Corre en el Action "Balances CNV" (semanal y a mano). Las empresas, su CUIT y el valor nominal de la
 acción están en la tabla `EMPRESAS` del script.
+- `detalle` (desde la versión 5, salvo bancos): renglones del estado de resultados acumulado con el signo de la planilla de la CNV (gastos en negativo): `costo_ventas`, `bruto`, `comercializacion`, `administracion`, `honorarios`, `otros_ingresos`, `otros_gastos_operativos`, `depreciaciones_er`, `ingresos_financieros`, `costos_financieros`, `recpam`, `otros_resultados`, `antes_impuestos`, `impuesto`, `discontinuadas`. Lo usa el flujo de «Nuevo balance» en la pestaña Acciones.
