@@ -13931,16 +13931,18 @@ window.RATG = (function () {
     var P = $('accNBp'); if (!P) return; [].forEach.call($('accNB').querySelectorAll('[data-nb]'), function (b) { b.classList.toggle('on', b.getAttribute('data-nb') === NB.open); });
     var t = NB.open; if (!t) { P.innerHTML = ''; return; }
     if (!NB.B[t]) { P.innerHTML = '<div class="nbP"><p class="note">Cargando el balance de ' + esc(t) + '…</p></div>'; j('data/acciones/balances/' + t + '.json').then(function (d) { NB.B[t] = d || { periodos: [] }; if (NB.open === t) nbShow(); }); return; }
-    P.innerHTML = '<div class="nbP">' + nbHtml(t, NB.B[t]) + '</div>';
+    P.innerHTML = '<div class="nbP" id="accNBc">' + nbHtml(t, NB.B[t]) + '</div>';
   }
-  function nbQ(d) { // el último trimestre (acumulado menos el acumulado anterior del mismo ejercicio) y el mismo trimestre del año anterior, en $ millones
+  function nbQ(d, dv) {
+    dv = dv || function () { return 1; }; // el último trimestre (acumulado menos el acumulado anterior del mismo ejercicio) y el mismo trimestre del año anterior, en $ millones
     var P = d.periodos || [], sc = function (p) { return p.escala || d.escala || 1; };
     var back = function (c, k) { var y = +c.slice(0, 4), m = +c.slice(5, 7) - k; while (m <= 0) { m += 12; y--; } var dd = new Date(Date.UTC(y, m, 0)).getUTCDate(); return y + '-' + (m < 10 ? '0' : '') + m + '-' + dd; };
     var find = function (c, m) { return P.filter(function (p) { return p.cierre === c && p.acumulado_meses === m; })[0]; };
     var qOf = function (p) {
       if (!p) return null; var m = p.acumulado_meses, pv = m > 3 ? find(back(p.cierre, 3), m - 3) : null; if (m > 3 && !pv) return null; var o = { cierre: p.cierre };
-      ['ventas', 'resultado_operativo', 'depreciaciones', 'resultado_neto', 'flujo_operativo'].forEach(function (k) { var a = p.resultados[k], b = pv ? pv.resultados[k] : 0; o[k] = a == null || b == null ? null : (a * sc(p) - (pv ? b * sc(pv) : 0)) / 1e6; });
-      if (p.detalle && (!pv || pv.detalle)) { o.det = {}; Object.keys(p.detalle).forEach(function (k) { var a = p.detalle[k], b = pv ? pv.detalle[k] : 0; o.det[k] = a == null && (b == null || !pv) ? null : ((a || 0) * sc(p) - (pv ? (b || 0) * sc(pv) : 0)) / 1e6; }); }
+      ['ventas', 'resultado_operativo', 'depreciaciones', 'resultado_neto', 'flujo_operativo'].forEach(function (k) { var a = p.resultados[k], b = pv ? pv.resultados[k] : 0; o[k] = a == null || b == null ? null : (a * sc(p) / dv(p.cierre) - (pv ? b * sc(pv) / dv(pv.cierre) : 0)) / 1e6; });
+      if (p.detalle && (!pv || pv.detalle)) { o.det = {}; Object.keys(p.detalle).forEach(function (k) { var a = p.detalle[k], b = pv ? pv.detalle[k] : 0; o.det[k] = a == null && (b == null || !pv) ? null : ((a || 0) * sc(p) / dv(p.cierre) - (pv ? (b || 0) * sc(pv) / dv(pv.cierre) : 0)) / 1e6; });
+        var dp = o.det.depreciaciones_er; if (dp && o.det.costo_ventas != null && o.det.bruto != null) { o.det.costo_ventas += dp; o.det.bruto += dp; o.det.depreciaciones_er = null; } } // las depreciaciones van dentro del costo, como lo presentan las empresas
       if (o.resultado_operativo != null && o.depreciaciones != null) o.ebitda = o.resultado_operativo + o.depreciaciones; return o;
     };
     var last = P[P.length - 1]; if (!last) return null;
@@ -13949,15 +13951,22 @@ window.RATG = (function () {
   function nbHtml(t, d) {
     var R = nbQ(d); if (!R || !R.Q) return '<p class="note">No hay un trimestre armado para ' + esc(t) + ' (falta el balance anterior del mismo ejercicio).</p>';
     var ck = Object.keys(CCL).sort(), ccl = function (c) { var v = null; for (var i = 0; i < ck.length && ck[i] <= c; i++) v = CCL[ck[i]]; return v || (ck.length ? CCL[ck[0]] : null); };
-    var usd = NB.cur === 'usd' && ck.length, cv = function (v, c) { return v == null ? null : usd ? v / ccl(c) : v; };
-    var Q = R.Q, Q0 = R.Q0, k1 = usd ? ccl(Q.cierre) : 1;
+    var a35 = function (c) { try { var o = PSD.IDX.FX, i = Math.min(Math.round(Date.parse(c) / 864e5) - o.s, o.v.length - 1); if (i < 0) return null; for (; i >= 0; i--) if (o.v[i] > 0) return o.v[i]; } catch (e) { } return null; };
+    var usd = NB.cur === 'usd' && ck.length, off = usd && d.moneda_funcional === 'USD' && a35(R.p.cierre) && Math.round(Date.parse(R.p.cierre) / 864e5) - 470 >= PSD.IDX.FX.s; // moneda funcional dólar: cada acumulado al A3500 de su cierre (así lo convierte la empresa) y después se resta
+    var avg = function (c) { // tipo de cambio promedio del trimestre que cierra en c: los resultados se convierten a los cambios de cada operación, no al del cierre
+      var e = Math.round(Date.parse(c) / 864e5), s0 = e - 91, n = 0, t = 0, i, v;
+      if (off) { var o = PSD.IDX.FX; for (i = Math.max(s0 + 1 - o.s, 0); i <= Math.min(e - o.s, o.v.length - 1); i++) if ((v = o.v[i]) > 0) { t += v; n++; } }
+      else { var lo = new Date(s0 * 864e5).toISOString().slice(0, 10); ck.forEach(function (k) { if (k > lo && k <= c) { t += CCL[k]; n++; } }); }
+      return n ? t / n : off ? a35(c) : ccl(c); };
+    var cv = function (v, c) { return v == null ? null : usd ? v / avg(c) : v; }, cs = function (v, c) { return v == null ? null : off ? v / a35(c) : usd ? v / ccl(c) : v; };
+    var Q = R.Q, Q0 = R.Q0, k1 = usd ? avg(Q.cierre) : 1;
     var fm = function (v) { if (v == null || !isFinite(v)) return '—'; var a = Math.abs(v), s = v < 0 ? '−' : ''; if (usd) return s + 'US$ ' + a.toLocaleString('es-AR', { maximumFractionDigits: a < 10 ? 1 : 0 }) + ' M'; return s + '$ ' + (a >= 1e6 ? (a / 1e6).toLocaleString('es-AR', { maximumFractionDigits: 2 }) + ' B' : a.toLocaleString('es-AR', { maximumFractionDigits: 0 }) + ' M'); };
     var pc = function (v) { return v == null || !isFinite(v) ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v * 100).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '%'; };
     var g = function (k) { return cv(Q[k], Q.cierre); }, g0 = function (k) { return Q0 ? cv(Q0[k], Q0.cierre) : null; };
     var yoy = function (k) { var a = g(k), b = g0(k); return a == null || b == null || b <= 0 ? null : a / b - 1; };
     var c = Q.cierre, mq = +c.slice(5, 7), lab = (mq % 3 === 0 && (d.cierre_ejercicio == null) ? Math.ceil(mq / 3) + 'T ' + c.slice(0, 4) : 'Trimestre al ' + c.slice(8, 10) + '/' + c.slice(5, 7) + '/' + c.slice(0, 4));
     var h = '<div class="nbH"><div class="wsT">' + logo(t, 30) + '<div><b>' + esc(t) + ' · ' + lab + '</b><small>' + esc(SN[secOf(t)] || '') + ' · trimestre de 3 meses que termina el ' + c.split('-').reverse().join('/') + ' (presentó el ' + ((NB.T[t] && NB.T[t].ult.publicado) || R.p.publicado || '').split('-').reverse().join('/') + ')</small></div></div>' +
-      '<div class="nbC"><span class="seg"><button data-nbc="usd"' + (NB.cur === 'usd' ? ' class="on"' : '') + '>US$</button><button data-nbc="ars"' + (NB.cur === 'ars' ? ' class="on"' : '') + '>$</button></span><button class="nbX" data-nbx="1" title="Cerrar">×</button></div></div>';
+      '<div class="nbC">' + dlb('accNBc', 'Bonerio_balance_' + t + '_' + c.slice(0, 7)) + '<span class="seg" data-html2canvas-ignore="true"><button data-nbc="usd"' + (NB.cur === 'usd' ? ' class="on"' : '') + '>US$</button><button data-nbc="ars"' + (NB.cur === 'ars' ? ' class="on"' : '') + '>$</button></span><button class="nbX" data-nbx="1" data-html2canvas-ignore="true" title="Cerrar">×</button></div></div>';
     /* --- flujo (sankey) --- */
     var V = g('ventas'), O = g('resultado_operativo'), N = g('resultado_neto');
     h += '<h5>Estado de resultados del trimestre</h5>';
@@ -13971,9 +13980,9 @@ window.RATG = (function () {
       h += '<h5>Estado de resultados</h5><div class="tw" style="max-height:none"><table><thead><tr><th class="l">Trimestre</th><th>' + lab + '</th><th>Hace un año</th><th>Variación</th></tr></thead><tbody>' + ER.map(function (r) { var a = gv(Q, r), b = gv(Q0, r); if (a == null && b == null || !a && !b) return ''; var vv = a != null && b ? a / Math.abs(b) - Math.sign(b) : null; return '<tr' + (r[3] ? ' style="font-weight:700"' : '') + '><td class="l">' + r[0] + '</td><td>' + fm(a) + '</td><td>' + fm(b) + '</td><td class="' + (vv == null ? '' : vv >= 0 ? 'up' : 'dn') + '">' + (vv == null ? '—' : pc(vv)) + '</td></tr>'; }).join('') + '</tbody></table></div>';
     }
     /* --- snapshot --- */
-    var s = R.p.situacion || {}, ss = function (k) { return s[k] == null ? null : cv(s[k] * R.s, c); }, m = R.p.acumulado_meses, an = 12 / m, rs = R.p.resultados || {};
+    var s = R.p.situacion || {}, ss = function (k) { return s[k] == null ? null : cs(s[k] * R.s, c); }, m = R.p.acumulado_meses, an = 12 / m, rs = R.p.resultados || {};
     var dn = s.deuda_financiera != null && s.caja_inversiones != null ? ss('deuda_financiera') - ss('caja_inversiones') : null;
-    var ebA = rs.resultado_operativo != null && rs.depreciaciones != null ? cv((rs.resultado_operativo + rs.depreciaciones) * R.s, c) * an : null;
+    var ebA = rs.resultado_operativo != null && rs.depreciaciones != null ? cs((rs.resultado_operativo + rs.depreciaciones) * R.s, c) * an : null;
     var roe = rs.resultado_neto != null && s.patrimonio_neto > 0 ? rs.resultado_neto * an / s.patrimonio_neto : null;
     var kp = function (n, v, y, x) { return '<div><small>' + n + '</small><b>' + v + '</b>' + (y !== undefined ? '<small class="' + (y == null ? '' : y >= 0 ? 'up' : 'dn') + '">' + (y == null ? 'sin dato del año anterior' : pc(y) + ' interanual') + '</small>' : x ? '<small>' + x + '</small>' : '') + '</div>'; };
     h += '<h5>Snapshot</h5><div class="kp">' +
@@ -13986,7 +13995,7 @@ window.RATG = (function () {
       kp('Deuda neta', fm(dn), undefined, dn != null && ebA > 0 ? (dn / ebA).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + 'x EBITDA anualizado' : 'deuda financiera − caja e inversiones') +
       kp('Patrimonio neto', fm(ss('patrimonio_neto')), undefined, roe != null ? 'ROE anualizado ' + pc(roe).replace('+', '') : '') +
       (g('flujo_operativo') != null ? kp('Flujo de caja operativo', fm(g('flujo_operativo')), yoy('flujo_operativo')) : '') + '</div>';
-    h += '<p class="note" style="margin-top:8px">El trimestre sale de restar al acumulado de ' + m + ' meses el acumulado anterior del mismo ejercicio. ' + (usd ? 'En dólares al CCL del cierre de cada trimestre (' + (k1 ? '$ ' + Math.round(k1).toLocaleString('es-AR') : '—') + ' para este), así la variación interanual no está inflada por la inflación. ' : 'En pesos nominales (M = millones, B = billones): la variación interanual incluye la inflación. ') + 'Fuente: ' + esc(R.p.fuente || 'CNV') + '. <a href="#" data-nbf="' + esc(t) + '">Ver la ficha de ' + esc(t) + '</a>.</p>';
+    h += '<p class="note" style="margin-top:8px">El trimestre sale de restar al acumulado de ' + m + ' meses el acumulado anterior del mismo ejercicio. ' + (usd ? 'En dólares: los resultados al ' + (off ? 'oficial (A3500)' : 'CCL') + ' promedio de cada trimestre ($ ' + Math.round(k1).toLocaleString('es-AR') + ' en este) y los saldos al del cierre' + (off ? ', como lo presenta la empresa (moneda funcional dólar)' : '') + '. Las depreciaciones van dentro del costo de ventas; la planilla de la CNV agrupa algunos rubros distinto que el comunicado de la empresa, así que puede haber diferencias chicas. ' : 'En pesos nominales (M = millones, B = billones): la variación interanual incluye la inflación. ') + 'Fuente: ' + esc(R.p.fuente || 'CNV') + '. <a href="#" data-nbf="' + esc(t) + '">Ver la ficha de ' + esc(t) + '</a>.</p>';
     return h;
   }
   function nbSk(n, fm, neg, N) { // sankey simple en SVG: ventas a la izquierda, se abre en costos y resultado operativo, y este en financieros/impuestos y ganancia (en el celular, más angosto y con los rótulos de la derecha por dentro)
