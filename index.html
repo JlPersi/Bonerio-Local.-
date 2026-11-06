@@ -103,6 +103,11 @@
 /* Precios en vivo por Primary: si BL_LIVE tiene la dirección del Worker (carpeta worker/), los pedidos a data912.com/live/arg_* van al Worker,
    que devuelve lo mismo con precio y puntas de Primary en tiempo real. Si el Worker falla, se pide a data912 como siempre. Vacío: solo data912. */
 window.BL_LIVE = 'https://bonerio-vivo.persijuanluis.workers.dev';
+/* Cada pedido al Worker lleva la sesión (?t=): con PRO, precios en vivo; sin PRO, los de hace 20 minutos (lo decide el Worker). */
+window.BLTK = function () { try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (/^sb-.+-auth-token$/.test(k)) { var j = JSON.parse(localStorage.getItem(k)) || {}; return j.access_token || (j.currentSession && j.currentSession.access_token) || ''; } } } catch (e) { } return ''; };
+(function () { var F = window.fetch; if (!F) return; window.fetch = function (u, o) {
+  if (typeof u === 'string' && window.BL_LIVE && u.indexOf(window.BL_LIVE) === 0 && !/[?&]t=/.test(u)) { var t = window.BLTK(); if (t) return F.call(window, u + (u.indexOf('?') < 0 ? '?' : '&') + 't=' + encodeURIComponent(t), o); }
+  return F.apply(window, arguments); }; })();
 /* Stream: con el Worker, una conexión abierta (websocket) recibe cada cambio de Primary al instante (BLS.by[ticker] = fila).
    Mientras está viva, los pedidos a data912.com/live/arg_* se contestan desde acá sin ir a la red, y lo que se refresca
    cada 30 s se vuelve a dibujar cada BL_MS (3 s) si llegó algo nuevo. Si se corta, todo sigue como antes (Worker o data912). */
@@ -111,8 +116,9 @@ window.BL_MS = 3000;
   if (!window.BL_LIVE || !window.WebSocket) return;
   var S = window.BLS = { rows: {}, by: {}, ok: false, t: 0, n: 0, q: 0, chg: {}, cur: null }, url = window.BL_LIVE.replace(/^http/, 'ws').replace(/\/+$/, '') + '/stream', back = 1000, ws = null, off = null;
   var open = function () {
-    if (ws) return; try { ws = new WebSocket(url); } catch (e) { ws = null; return; }
+    if (ws) return; tk = window.BLTK(); try { ws = new WebSocket(url + (tk ? '?t=' + encodeURIComponent(tk) : '')); } catch (e) { ws = null; return; }
     ws.onmessage = function (e) { var m; try { m = JSON.parse(e.data); } catch (x) { return; }
+      if ('d' in m) S.dem = m.d ? 1 : (m.s ? 0 : 2); else if (m.s) S.dem = 0; // 1: precios de hace 20 min (sin PRO); 2: todavía sin foto demorada (la página usa data912)
       if (m.s) { S.rows = m.s; S.by = {}; Object.keys(m.s).forEach(function (ep) { (m.s[ep] || []).forEach(function (r) { S.by[r.symbol] = r; r.$ep = ep; }); S.chg[ep] = S.n + 1; }); S.ok = true; S.n++; }
       var pc = 0, qc = 0; if (m.u) Object.keys(m.u).forEach(function (k) { var r = S.by[k], v = m.u[k]; if (!r) return; if (v[0] != null && v[0] !== r.c) { pc = 1; S.chg[r.$ep] = S.n + 1; } else if (v[2] != null && v[2] !== r.px_bid || v[4] != null && v[4] !== r.px_ask) qc = 1; if (v[0] != null) { r.c = v[0]; if (v[1] != null) r.pct_change = v[1]; } if (v[2] != null) { r.px_bid = v[2]; r.q_bid = v[3]; } if (v[4] != null) { r.px_ask = v[4]; r.q_ask = v[5]; } r.src = 'primary'; });
       if (pc) S.n++; else if (qc) S.q++; S.t = Date.now(); back = 1000; }; // S.n cuenta solo operaciones con precio nuevo (S.chg: en qué listado); S.q, cambios de puntas sin operación
@@ -121,6 +127,14 @@ window.BL_MS = 3000;
   document.addEventListener('visibilitychange', function () { // con la pestaña oculta 5 minutos se corta (no gasta), al volver se reconecta
     if (document.hidden) off = setTimeout(function () { if (ws) ws.close(); }, 300000); else { clearTimeout(off); off = null; back = 1000; open(); } });
   open();
+  var tk, dm = null; // al ingresar o renovar la sesión, si venía con demora, se reconecta para ver si ya es PRO
+  var re = function () { var t = window.BLTK(); if (t !== tk && S.dem && ws) { tk = t; ws.close(); } };
+  document.addEventListener('bl-auth', function () { setTimeout(re, 500); }); setInterval(re, 60000);
+  setInterval(function () { // aviso abajo a la izquierda mientras los precios vienen con demora
+    if (!dm) { if (!S.dem) return; dm = document.createElement('button'); dm.id = 'blDem'; dm.type = 'button';
+      dm.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:9990;max-width:calc(100% - 24px);padding:7px 12px;border-radius:999px;border:1px solid var(--bd,#27272a);background:var(--card,#0f0f10);color:var(--mu,#a1a1aa);font:600 12px Inter,sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.3)';
+      dm.innerHTML = 'Precios con 20 min de demora · <span style="color:#ffc542">en vivo con PRO</span>'; dm.onclick = function () { if (window.BLPROPOP) window.BLPROPOP('*'); }; document.body.appendChild(dm); }
+    dm.style.display = S.dem ? '' : 'none'; }, 2000);
   var SI = window.setInterval, L = [], last = 0, lastQ = 0, lastT = 0, busy = 0, scr = 0; // lo que ya se refresca cada 30 s, más seguido mientras llegan precios
   window.setInterval = function (f, ms) { if (ms === 30000 && typeof f === 'function' && !f.$slow) L.push(f); return SI.apply(window, arguments); };
   try { new PerformanceObserver(function (l) { l.getEntries().forEach(function (e) { if (tick.t && e.startTime >= tick.t - 5 && e.startTime < tick.t + 2000) busy += e.duration; }); }) /* solo lo que dibujó la actualización (2 s después) */.observe({ type: 'longtask' }); } catch (e) { busy = -1; }
