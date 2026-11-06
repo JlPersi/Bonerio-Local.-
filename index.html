@@ -14634,6 +14634,10 @@ window.RATG = (function () {
   }
   function calc(tr) {
     var c = tr.cx, dTo = c ? c.d : hoy(), pB = c ? c.pb : px(tr.b), pA = tr.a ? (c ? c.pa : px(tr.a)) : null;
+    if (tr.sh) { // short: vendés VN = monto / precio, la plata queda en caución, pagás el préstamo de los títulos y al final los recomprás
+      var ns = tr.m / tr.pb0, bs = bench(tr, dTo), nd = dias(tr.d, dTo), fee = tr.m * (tr.fee || 0) / 100 * nd / 365, rs = pB > 0 && bs != null ? tr.m * (1 - tr.c / 100) * (1 + bs) - ns * pB - fee : null;
+      return { n: nd, val: rs == null ? null : tr.m + rs, res: rs, ret: rs == null ? null : rs / tr.m, vk: null, bm: bs, ex: rs == null ? null : rs - tr.m * bs, fee: fee };
+    }
     var nB = tr.m * (1 - tr.c / 100) / tr.pb0, val = pB > 0 ? nB * pB * (c ? 1 : 1) : null;
     var keep = tr.a && pA > 0 ? tr.m / tr.pa0 * pA : null, bm = bench(tr, dTo), bv = bm == null ? null : tr.m * (1 + bm);
     return { n: dias(tr.d, dTo), val: val, res: val == null ? null : val - tr.m, ret: val == null ? null : val / tr.m - 1, vk: val != null && keep != null ? val - keep : null, bm: bm, ex: val != null && bv != null ? val - bv : null };
@@ -14645,7 +14649,8 @@ window.RATG = (function () {
     '#trd .tw{overflow:auto}#trd .kp{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}@media(max-width:800px){#trd .kp{grid-template-columns:repeat(2,minmax(0,1fr))}}#trd .kp div{border:1px solid var(--bd);border-radius:12px;padding:12px 14px}#trd .kp small{display:block;color:var(--mu);font-size:11.5px;text-transform:uppercase;letter-spacing:.4px}#trd .kp b{font-size:21px}' +
     '#trd .hl{color:var(--mu);font-size:14px;line-height:1.6;border-top:1px solid var(--bd);margin-top:18px;padding-top:16px}#trd .hl p{margin:0 0 6px}#trd .hl ul{margin:4px 0 0;padding-left:20px}#trd .hl b{color:var(--tx)}#trd .px{font-size:12px;color:var(--mu);margin-top:8px;min-height:18px}</style>' +
     '<div class="card sx"><div class="sxh"><div style="min-width:0"><p class="qh">Nuevo trade</p><p class="qs">Anotá una compra o una rotación y seguila con los precios en vivo, contra lo que hubieras ganado dejando la plata en caución, plazo fijo o una Lecap corta.</p></div></div>' +
-    '<div class="tf"><label>Tipo<select id="trT"><option value="rot">Rotación (vendo A, compro B)</option><option value="buy">Compra</option></select></label>' +
+    '<div class="tf"><label>Tipo<select id="trT"><option value="rot">Rotación (vendo A, compro B)</option><option value="buy">Compra</option><option value="sh">Venta en corto (short)</option></select></label>' +
+    '<label id="trFw" style="display:none" title="Lo que cobra quien te presta los títulos (préstamo de títulos o caución tomadora), en % anual">Préstamo % anual<input id="trF" type="number" step="0.5" value="3" style="width:90px"></label>' +
     '<label id="trAw">Vendo<input class="tk" id="trA" list="trL" placeholder="S30N6" autocomplete="off"></label><label>Compro<input class="tk" id="trB" list="trL" placeholder="TMF28" autocomplete="off"></label>' +
     '<label>Monto ($)<input id="trM" type="number" min="0" step="1000" value="1000000" style="width:140px"></label><label>Fecha<input id="trD" type="date"></label>' +
     '<label title="Comisiones y derechos de las dos puntas, en % del monto">Costo total %<input id="trC" type="number" step="0.05" value="0.25" style="width:90px"></label>' +
@@ -14655,14 +14660,14 @@ window.RATG = (function () {
     '<div class="card sx" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Ideas sugeridas</p><p class="qs">Lo que detecta la página ahora: rotaciones que convienen después de costos, bonos baratos contra su curva y pares de acciones lejos de su relación normal. Tocá «Cargar» para armar el trade. No son recomendaciones de inversión.</p></div></div><div id="trI"><p class="qs">Calculando…</p></div></div>' +
     '<div class="card sx" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Trades abiertos</p><p class="qs">Valuados a los precios de ahora. Exceso = lo que ganaste por encima del costo de oportunidad.</p></div></div><div id="trOk"></div><div class="tw"><table id="trO"></table></div></div>' +
     '<div class="card sx" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Historial</p><p class="qs">Los trades que desarmaste, con su resultado final.</p></div></div><div id="trHk"></div><div class="tw"><table id="trH"></table></div>' +
-    '<div class="hl"><p><b>Cómo se lee</b></p><ul><li><b>Rotación</b>: vendés A y con esa plata (menos el costo) comprás B. <b>Vs quedarte</b> compara lo que vale hoy B contra lo que valdría A si no la hubieras vendido.</li>' +
+    '<div class="hl"><p><b>Cómo se lee</b></p><ul><li><b>Venta en corto</b>: tomás prestados los títulos (préstamo de títulos o caución tomadora), los vendés y dejás la plata en caución; al desarmar los recomprás. Ganás si el precio baja más de lo que cuesta el préstamo. <b>Exceso</b> es lo que ganaste por encima de la caución sola.</li><li><b>Rotación</b>: vendés A y con esa plata (menos el costo) comprás B. <b>Vs quedarte</b> compara lo que vale hoy B contra lo que valdría A si no la hubieras vendido.</li>' +
     '<li><b>Costo de oportunidad</b>: la misma plata en caución a 1 día renovada todos los días (a la tasa de cada día: el cierre de las ruedas anteriores y la de hoy en vivo), en plazo fijo a 30 días (interés simple) o en la Lecap más corta con al menos 20 días al vencimiento, a su precio de mercado.</li>' +
     '<li><b>Exceso</b>: valor de hoy menos el costo de oportunidad. Es la medida de si el trade valió la pena.</li>' +
     '<li>Precios al último operado (en vivo durante la rueda). No incluye cupones ni amortizaciones cobrados en el medio: para Lecaps, Boncaps y la mayoría de los trades de pocos días no cambia nada.</li>' +
     '<li>Los trades se guardan en este navegador. Si cargás una fecha anterior, toma el cierre de ese día de los bonos en pesos (últimas semanas).</li></ul></div></div>';
 
   $('trD').value = hoy();
-  var showA = function () { $('trAw').style.display = $('trT').value === 'rot' ? '' : 'none'; preview(); };
+  var showA = function () { var t = $('trT').value; $('trAw').style.display = t === 'rot' ? '' : 'none'; $('trFw').style.display = t === 'sh' ? '' : 'none'; var lb = $('trB').closest('label'); if (lb && lb.firstChild) lb.firstChild.nodeValue = t === 'sh' ? 'Vendo en corto' : 'Compro'; if (t === 'sh') $('trK').value = 'cau'; $('trK').disabled = t === 'sh'; preview(); };
   $('trT').onchange = showA;
   function preview() {
     var a = $('trA').value.trim().toUpperCase(), b = $('trB').value.trim().toUpperCase(), d = $('trD').value || hoy(), rot = $('trT').value === 'rot';
@@ -14675,12 +14680,12 @@ window.RATG = (function () {
   }
   ['trA', 'trB', 'trD', 'trK'].forEach(function (id) { $(id).addEventListener('change', preview); });
   $('trGo').onclick = function () {
-    var rot = $('trT').value === 'rot', a = rot ? $('trA').value.trim().toUpperCase() : null, b = $('trB').value.trim().toUpperCase(), d = $('trD').value || hoy(), m = +$('trM').value, c = +$('trC').value || 0, k = $('trK').value;
+    var rot = $('trT').value === 'rot', sh = $('trT').value === 'sh', a = rot ? $('trA').value.trim().toUpperCase() : null, b = $('trB').value.trim().toUpperCase(), d = $('trD').value || hoy(), m = +$('trM').value, c = +$('trC').value || 0, k = sh ? 'cau' : $('trK').value;
     if (!b || !(m > 0) || (rot && !a)) { $('trPx').textContent = 'Completá ' + (rot ? 'qué vendés, ' : '') + 'qué comprás y el monto.'; return; }
     live().then(base).then(function (r) { var cl = r[0], ts = r[1], pb = px(b, d, cl), pa = a ? px(a, d, cl) : null;
       if (!(pb > 0) || (a && !(pa > 0))) { $('trPx').textContent = 'No encuentro precio de ' + (!(pb > 0) ? b : a) + (d < hoy() ? ' para ese día' : '') + '.'; return; }
       var bm = { k: k }; if (k === 'lec') { var l = lecapCorta(d); if (l) { bm.t = l; bm.px = px(l, d, cl); } else { bm.k = 'cau'; } } if (bm.k !== 'lec') bm.tna = tasa(bm.k, d, ts);
-      TR.unshift({ id: Date.now().toString(36), d: d, a: a, b: b, pa0: pa, pb0: pb, m: m, c: c, bm: bm, n: $('trN').value.trim() }); save(); $('trN').value = ''; draw();
+      TR.unshift({ id: Date.now().toString(36), d: d, a: a, b: b, pa0: pa, pb0: pb, m: m, c: c, bm: bm, n: $('trN').value.trim(), sh: sh ? 1 : 0, fee: sh ? +$('trF').value || 0 : 0 }); save(); $('trN').value = ''; draw();
       $('trPx').textContent = 'Trade abierto: ' + (a ? a + ' → ' : '') + b + '.';
     });
   };
@@ -14701,8 +14706,8 @@ window.RATG = (function () {
     if (!list.length) return '<tr><td style="text-align:left;color:var(--mu);padding:14px 10px">' + (open ? 'Todavía no abriste ningún trade.' : 'Nada desarmado todavía.') + '</td></tr>';
     return '<tr><th>Trade</th><th>Desde</th><th>Días</th><th>Monto</th><th>' + (open ? 'Valor hoy' : 'Valor final') + '</th><th>Resultado</th><th>Vs quedarte</th><th>Costo de oportunidad</th><th>Exceso</th><th></th></tr>' +
       list.map(function (tr) { var r = calc(tr), pb = tr.cx ? tr.cx.pb : px(tr.b), pa = tr.a ? (tr.cx ? tr.cx.pa : px(tr.a)) : null;
-        return '<tr><td><b>' + (tr.a ? esc(tr.a) + ' → ' : 'Compra ') + esc(tr.b) + '</b><small>' + (tr.a ? esc(tr.a) + ' ' + nf(tr.pa0, 2) + (pa ? ' → ' + nf(pa, 2) : '') + ' · ' : '') + esc(tr.b) + ' ' + nf(tr.pb0, 2) + (pb ? ' → ' + nf(pb, 2) : '') + (tr.n ? ' · ' + esc(tr.n) : '') + '</small></td>' +
-          '<td>' + tr.d.split('-').reverse().join('/') + (tr.cx ? '<small>al ' + tr.cx.d.split('-').reverse().join('/') + '</small>' : '') + '</td><td>' + r.n + '</td><td>' + mo(tr.m) + '</td><td>' + mo(r.val) + '</td>' +
+        return '<tr><td><b>' + (tr.a ? esc(tr.a) + ' → ' : tr.sh ? 'Short ' : 'Compra ') + esc(tr.b) + '</b><small>' + (tr.sh ? 'préstamo ' + nf(tr.fee, 1) + '% anual' + (r.fee ? ' (' + mo(r.fee) + ')' : '') + ' · ' : '') + (tr.a ? esc(tr.a) + ' ' + nf(tr.pa0, 2) + (pa ? ' → ' + nf(pa, 2) : '') + ' · ' : '') + esc(tr.b) + ' ' + nf(tr.pb0, 2) + (pb ? ' → ' + nf(pb, 2) : '') + (tr.n ? ' · ' + esc(tr.n) : '') + '</small></td>' +
+          '<td>' + tr.d.split('-').reverse().join('/') + (tr.cx ? '<small>al ' + tr.cx.d.split('-').reverse().join('/') + '</small>' : '') + '</td><td>' + r.n + '</td><td>' + mo(tr.m) + '</td><td>' + (tr.sh ? '—' : mo(r.val)) + '</td>' +
           '<td' + cls(r.res) + '>' + mo(r.res) + '<small>' + pc(r.ret) + '</small></td><td' + cls(r.vk) + '>' + (tr.a ? mo(r.vk) + '<small>' + pc(r.vk / tr.m) + '</small>' : '—') + '</td>' +
           '<td>' + pc(r.bm) + '<small>' + esc(bmTxt(tr)) + '</small></td><td' + cls(r.ex) + '><b>' + mo(r.ex) + '</b><small>' + pc(r.ex / tr.m) + '</small></td>' +
           '<td>' + (open ? '<button class="lnk" data-x="close" data-id="' + tr.id + '" title="Desarma a los precios de ahora">Desarmar</button> ' : '<button class="lnk" data-x="open" data-id="' + tr.id + '">Reabrir</button> ') + '<button class="lnk" data-x="del" data-id="' + tr.id + '">Borrar</button></td></tr>';
