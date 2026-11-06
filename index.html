@@ -14580,7 +14580,7 @@ window.RATG = (function () {
 /* ---------- Trade ideas: anotás un trade (compra o rotación) y se sigue con los precios en vivo contra el costo de oportunidad (caución, plazo fijo o Lecap corta). Se guarda en este navegador ---------- */
 (function () {
   var root = document.getElementById('trd'); if (!root) return;
-  var KEY = 'blTrades1', TR = [], LV = {}, lvT = 0, CL = null, TS = null, TSV = null, TSt = 0, CAUV = null, CAUd = null, CVt = 0, CK = null, MES = { E: 0, F: 1, M: 2, A: 3, Y: 4, J: 5, L: 6, G: 7, S: 8, O: 9, N: 10, D: 11 };
+  var KEY = 'blTrades1', ED = null, TR = [], LV = {}, lvT = 0, CL = null, TS = null, TSV = null, TSt = 0, CAUV = null, CAUd = null, CVt = 0, CK = null, MES = { E: 0, F: 1, M: 2, A: 3, Y: 4, J: 5, L: 6, G: 7, S: 8, O: 9, N: 10, D: 11 };
   try { TR = JSON.parse(localStorage.getItem(KEY) || '[]') || []; } catch (e) { TR = []; }
   var save = function () { try { localStorage.setItem(KEY, JSON.stringify(TR)); } catch (e) {} };
   var $ = function (id) { return document.getElementById(id); };
@@ -14685,7 +14685,8 @@ window.RATG = (function () {
     live().then(base).then(function (r) { var cl = r[0], ts = r[1], pb = px(b, d, cl), pa = a ? px(a, d, cl) : null;
       if (!(pb > 0) || (a && !(pa > 0))) { $('trPx').textContent = 'No encuentro precio de ' + (!(pb > 0) ? b : a) + (d < hoy() ? ' para ese día' : '') + '.'; return; }
       var bm = { k: k }; if (k === 'lec') { var l = lecapCorta(d); if (l) { bm.t = l; bm.px = px(l, d, cl); } else { bm.k = 'cau'; } } if (bm.k !== 'lec') bm.tna = tasa(bm.k, d, ts);
-      TR.unshift({ id: Date.now().toString(36), d: d, a: a, b: b, pa0: pa, pb0: pb, m: m, c: c, bm: bm, n: $('trN').value.trim(), sh: sh ? 1 : 0, fee: sh ? +$('trF').value || 0 : 0 }); save(); $('trN').value = ''; draw();
+      var nt = { id: ED || Date.now().toString(36), d: d, a: a, b: b, pa0: pa, pb0: pb, m: m, c: c, bm: bm, n: $('trN').value.trim(), sh: sh ? 1 : 0, fee: sh ? +$('trF').value || 0 : 0 }, ix = ED ? TR.map(function (t) { return t.id; }).indexOf(ED) : -1;
+      if (ix >= 0) { if (TR[ix].cx) nt.cx = TR[ix].cx; TR[ix] = nt; } else TR.unshift(nt); var was = ED; ED = null; $('trGo').textContent = 'Abrir trade'; save(); $('trN').value = ''; draw(); if (was) { $('trPx').textContent = 'Trade actualizado.'; return; }
       $('trPx').textContent = 'Trade abierto: ' + (a ? a + ' → ' : '') + b + '.';
     });
   };
@@ -14693,6 +14694,9 @@ window.RATG = (function () {
     var x = e.target.closest('[data-x]'); if (!x) return; var id = x.getAttribute('data-id'), tr = TR.filter(function (t) { return t.id === id; })[0]; if (!tr) return; var op = x.getAttribute('data-x');
     if (op === 'close') { live().then(function () { var pb = px(tr.b), pa = tr.a ? px(tr.a) : null, bp = tr.bm.k === 'lec' && tr.bm.t ? px(tr.bm.t) : null; if (!(pb > 0)) return; tr.cx = { d: hoy(), pb: pb, pa: pa, bp: bp }; save(); draw(); }); }
     else if (op === 'open') { delete tr.cx; save(); draw(); }
+    else if (op === 'edit') { // carga el trade en el formulario; «Guardar cambios» lo reemplaza (los precios de entrada se toman de nuevo para la fecha elegida)
+      ED = id; $('trT').value = tr.a ? 'rot' : tr.sh ? 'sh' : 'buy'; $('trA').value = tr.a || ''; $('trB').value = tr.b; $('trD').value = tr.d; $('trM').value = tr.m; $('trC').value = tr.c; $('trN').value = tr.n || ''; if (tr.sh) $('trF').value = tr.fee; else $('trK').value = tr.bm.k;
+      showA(); $('trGo').textContent = 'Guardar cambios'; try { root.querySelector('.card').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (z) { } }
     else if (op === 'del') { if (x.getAttribute('data-ok')) { TR = TR.filter(function (t) { return t.id !== id; }); save(); draw(); } else { x.setAttribute('data-ok', '1'); x.textContent = '¿Seguro?'; setTimeout(function () { if (x.isConnected) { x.removeAttribute('data-ok'); x.textContent = 'Borrar'; } }, 3000); } }
   });
   function bmTxt(tr) { var b = tr.bm; if (b.k === 'cau') { var r = cauDia(tr.cx ? tr.cx.d : hoy(), TSV); return 'Caución ' + nf(b.tna, 1) + '%' + (r > 0 && Math.abs(r - b.tna) >= 0.05 ? ' → ' + nf(r, 1) + '%' : ''); } return b.k === 'lec' ? 'Lecap ' + b.t : (b.k === 'pf' ? 'Plazo fijo' : 'Caución') + ' ' + nf(b.tna, 1) + '%'; }
@@ -14710,7 +14714,7 @@ window.RATG = (function () {
           '<td>' + tr.d.split('-').reverse().join('/') + (tr.cx ? '<small>al ' + tr.cx.d.split('-').reverse().join('/') + '</small>' : '') + '</td><td>' + r.n + '</td><td>' + mo(tr.m) + '</td><td>' + (tr.sh ? '—' : mo(r.val)) + '</td>' +
           '<td' + cls(r.res) + '>' + mo(r.res) + '<small>' + pc(r.ret) + '</small></td><td' + cls(r.vk) + '>' + (tr.a ? mo(r.vk) + '<small>' + pc(r.vk / tr.m) + '</small>' : '—') + '</td>' +
           '<td>' + pc(r.bm) + '<small>' + esc(bmTxt(tr)) + '</small></td><td' + cls(r.ex) + '><b>' + mo(r.ex) + '</b><small>' + pc(r.ex / tr.m) + '</small></td>' +
-          '<td>' + (open ? '<button class="lnk" data-x="close" data-id="' + tr.id + '" title="Desarma a los precios de ahora">Desarmar</button> ' : '<button class="lnk" data-x="open" data-id="' + tr.id + '">Reabrir</button> ') + '<button class="lnk" data-x="del" data-id="' + tr.id + '">Borrar</button></td></tr>';
+          '<td>' + (open ? '<button class="lnk" data-x="close" data-id="' + tr.id + '" title="Desarma a los precios de ahora">Desarmar</button> ' : '<button class="lnk" data-x="open" data-id="' + tr.id + '">Reabrir</button> ') + '<button class="lnk" data-x="edit" data-id="' + tr.id + '">Editar</button> <button class="lnk" data-x="del" data-id="' + tr.id + '">Borrar</button></td></tr>';
       }).join('');
   }
   function draw() {
