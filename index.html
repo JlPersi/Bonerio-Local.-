@@ -1,6 +1,79 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<script>/* Actualización suave: cuando el código vuelve a escribir un bloque con innerHTML (tablas, tarjetas, paneles), en vez de tirar todo y
+   armarlo de cero se cambian solo los nodos que cambiaron (texto, atributos, filas nuevas). Los gráficos quedan en su lugar (el canvas no se
+   reemplaza) y cada número que cambia destella un instante en verde o rojo, como en una terminal. Se apaga con localStorage blSuave = 0 */
+(function () {
+  try { if (localStorage.getItem('blSuave') === '0') return; } catch (e) { }
+  var EP = EventTarget.prototype, AEL = EP.addEventListener;
+  EP.addEventListener = function (t, f, o) { if (this && this.nodeType === 1) this.__bl = 1; return AEL.call(this, t, f, o); }; // un nodo con listeners no se reusa (el código se los vuelve a poner al nodo nuevo)
+  var D = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML'); if (!D || !D.set) return;
+  var ON = ['onclick', 'onchange', 'oninput', 'onmouseover', 'onmouseenter', 'onmouseleave', 'onmousedown', 'onmouseup', 'onmousemove', 'onpointerdown', 'onkeydown', 'onkeyup', 'onsubmit', 'onfocus', 'onblur', 'ontouchstart', 'onscroll', 'onwheel'];
+  var FORM = /^(INPUT|SELECT|TEXTAREA|OPTION|SCRIPT|STYLE|IFRAME|VIDEO|AUDIO|OBJECT)$/;
+  var hasH = function (n) { if (n.__bl) return true; for (var i = 0; i < ON.length; i++) if (typeof n[ON[i]] === 'function' && !n.hasAttribute(ON[i])) return true; return false; };
+  var key = function (n) { return n.id || n.getAttribute('data-k') || n.getAttribute('data-qv') || n.getAttribute('data-t') || n.getAttribute('data-tk') || ''; };
+  var keep = function (n) { return n.nodeType === 1 && n.classList.contains('ampb'); }; // el botón Ampliar que se agrega al lado de cada gráfico
+  var same = function (a, b) {
+    if (a.nodeType !== b.nodeType) return false; if (a.nodeType !== 1) return true;
+    if (a.tagName !== b.tagName || key(a) !== key(b)) return false;
+    if (FORM.test(a.tagName)) return a === document.activeElement; // un campo donde el usuario está escribiendo no se toca; los demás se rehacen como antes
+    return !hasH(a);
+  };
+  var NUM = /^[^\d−+-]*([−+-]?\s?[\d.]*\d(?:,\d+)?)/;
+  var num = function (s) { var m = NUM.exec(String(s || '').trim()); if (!m) return null; var v = parseFloat(m[1].replace(/\s/g, '').replace('−', '-').replace(/\./g, '').replace(',', '.')); return isFinite(v) ? v : null; };
+  var TAB = null, TABT = 0, FL = 0;
+  var flash = function (el, a, b) {
+    if (!FL || !el || el.nodeType !== 1 || el.childNodes.length > 3) return; var x = num(a), y = num(b); if (x == null || y == null || x === y) return;
+    el.classList.remove('tk-up', 'tk-dn'); void el.offsetWidth; el.classList.add(y > x ? 'tk-up' : 'tk-dn');
+    clearTimeout(el.__tk); el.__tk = setTimeout(function () { el.classList.remove('tk-up', 'tk-dn'); }, 900);
+  };
+  var attrs = function (a, b) {
+    var i, n, ab = b.attributes, aa = a.attributes;
+    for (i = 0; i < ab.length; i++) { n = ab[i]; if (a.getAttribute(n.name) !== n.value) a.setAttribute(n.name, n.value); }
+    for (i = aa.length - 1; i >= 0; i--) { n = aa[i].name; if (!b.hasAttribute(n)) a.removeAttribute(n); }
+  };
+  var patch = function (a, b) {
+    if (a.nodeType === 3 || a.nodeType === 8) { if (a.nodeValue !== b.nodeValue) { var o = a.nodeValue; a.nodeValue = b.nodeValue; flash(a.parentNode, o, b.nodeValue); } return; }
+    if (a.tagName === 'CANVAS' || FORM.test(a.tagName)) return; // el canvas sigue con su gráfico (tamaño y estilo los maneja Chart.js)
+    var cl = a.classList.contains('tk-up') ? 'tk-up' : a.classList.contains('tk-dn') ? 'tk-dn' : '';
+    attrs(a, b); if (cl) a.classList.add(cl); // el destello en curso sigue
+    kids(a, b);
+  };
+  var kids = function (from, to) {
+    var a = from.firstChild, b = to.firstChild;
+    while (b) {
+      var nb = b.nextSibling;
+      while (a && keep(a)) a = a.nextSibling;
+      if (!a) { from.appendChild(b); b = nb; continue; }
+      var na = a.nextSibling;
+      if (same(a, b)) patch(a, b); else from.replaceChild(b, a);
+      a = na; b = nb;
+    }
+    while (a) { var n2 = a.nextSibling; if (!keep(a)) from.removeChild(a); a = n2; }
+  };
+  var tpl = document.createElement('template');
+  Object.defineProperty(Element.prototype, 'innerHTML', { configurable: true, enumerable: D.enumerable, get: D.get, set: function (v) {
+    var el = this;
+    if (typeof v !== 'string' || !el.firstChild || !el.isConnected || el.namespaceURI !== 'http://www.w3.org/1999/xhtml' || FORM.test(el.tagName) || !el.closest('.tab-content') || el.closest('[data-nomorph]')) return D.set.call(el, v);
+    try {
+      var t = document.querySelector('.tab-content.active'), now = Date.now(); if (t !== TAB) { TAB = t; TABT = now; } FL = now - TABT > 1500; // al entrar a una sección no destella nada
+      var T = tpl.cloneNode(); D.set.call(T, v); kids(el, T.content);
+    } catch (e) { D.set.call(el, v); }
+  } });
+  // si el canvas siguió en su lugar y el código arma otro gráfico encima sin destruir el anterior, se destruye el anterior (antes el canvas era nuevo)
+  var fix = function () { if (!window.Chart || window.Chart.__suave) return !!window.Chart; var O = window.Chart;
+    window.Chart = new Proxy(O, { construct: function (t, a, nt) { try { var it = a[0], cv = it && (it.canvas || it); if (typeof cv === 'string') cv = document.getElementById(cv); var old = cv && cv.tagName === 'CANVAS' && O.getChart(cv); if (old) old.destroy(); } catch (e) { } return Reflect.construct(t, a, nt); } });
+    window.Chart.__suave = 1; return true; };
+  window.__suaveFix = fix; addEventListener('DOMContentLoaded', fix);
+  var st = document.createElement('style');
+  st.textContent = '@keyframes tkUp{0%{background-color:rgba(52,211,153,.32)}100%{background-color:transparent}}@keyframes tkDn{0%{background-color:rgba(255,107,139,.32)}100%{background-color:transparent}}' +
+    '.tk-up{animation:tkUp .9s ease-out}.tk-dn{animation:tkDn .9s ease-out}' +
+    '@keyframes tabIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}.tab-content.active{animation:tabIn .18s ease-out}' +
+    '@media (prefers-reduced-motion:reduce){.tk-up,.tk-dn,.tab-content.active{animation:none}}';
+  (document.head || document.documentElement).appendChild(st);
+})();
+</script>
 <meta charset="utf-8">
 <script>if(/[?&]emb=/.test(location.search)&&window.top!==window)document.documentElement.classList.add('emb')</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -110,6 +183,7 @@ window.LIB_XLSX = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.
 <meta name="twitter:image" content="https://boneriolocal.com.ar/og-portada.jpg">
 <meta name="twitter:image:alt" content="Portada de Bonerío Local: cada bono argentino, con su curva, su retorno y su volumen">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" crossorigin="anonymous"></script>
+<script>if (window.__suaveFix) window.__suaveFix();</script>
 <script>/* Chart.js: un gráfico que se rehace (o se borra) mientras el mouse está encima recibe el evento sin su leyenda y tira «reading 'handleEvent'»: se ignora ese evento */
 (function () { try { var p = window.Chart && Chart.registry.getPlugin('legend'), f = p && p.afterEvent; if (f) p.afterEvent = function (c) { if (c && c.legend) return f.apply(this, arguments); }; } catch (e) { } })();
 /* Lo que tachás en una leyenda queda tachado aunque el gráfico se vuelva a armar (al actualizarse los precios, cambiar un filtro, etc.): se recuerda por gráfico (id del canvas) y por serie (nombre) */
@@ -3746,7 +3820,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var fitX = function (pts, m) { var u = yrs ? 365 : 1, q = fairFit(pts.map(function (p) { return { x: p.x * u, y: p.y, k: p.k }; }), m); return !q || u === 1 ? q : { f: function (x) { return q.f(x * u); }, sigma: q.sigma, res: q.res, name: q.name }; }; // las formas de la curva están pensadas en días
     // spec: {label, val(o)->fracción o null, inv: true si un valor menor es más barato, sfx}
     var tx = css('--tx'), bd = css('--bd'), pcol = css('--ac');
-    var P = S.filter(function (o) { return !o.miss && o.d <= cap; }).map(function (o) { var v = spec.val(o), xv = xOf(o); var mk = o.mkt ? spec.val(o.mkt) : null; return v == null || !isFinite(v) || !(xv > 0) ? null : { x: xv, y: v * 100, k: o.k, dual: o.fam === 'dual' && ref !== 'c5', fd: o.fairD, fp: o.fairP, sup: !!o.sup, mk: mk != null && isFinite(mk) ? mk * 100 : null }; }).filter(Boolean);
+    var P = S.filter(function (o) { return !o.miss && o.d <= cap; }).map(function (o) { var v = spec.val(o), xv = xOf(o); var mk = o.mkt ? spec.val(o.mkt) : null; return v == null || !isFinite(v) || !(xv > 0) ? null : { x: xv, y: v * 100, k: o.k, dd: o.d, dual: o.fam === 'dual' && ref !== 'c5', fd: o.fairD, fp: o.fairP, sup: !!o.sup, mk: mk != null && isFinite(mk) ? mk * 100 : null }; }).filter(Boolean);
     var cvEl = document.getElementById(id), qc = cvEl && cvEl.parentNode, old = qc && qc.querySelector('.bemsg'); if (old) old.remove(); if (cvEl) { cvEl.style.display = ''; qc.style.height = ''; }
     if (/breakeven/.test(spec.label) && P.length < 3 && cvEl) { // con menos de 3 bonos no hay curva que ajustar: aviso en lugar de un gráfico con puntos sueltos
       if (Q[ref]) { Q[ref].destroy(); delete Q[ref]; } CMAP[ref] = {}; cvEl.style.display = 'none'; qc.style.height = 'auto';
@@ -3755,7 +3829,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       msg.textContent = nm + ': ' + (P.length ? 'solo ' + P.length + ' bono' + (P.length > 1 ? 's vencen' : ' vence') : 'ningún bono vence') + ' dentro de la curva Lecap' + (lm ? ' (hasta ' + lm + ' días)' : '') + '; hacen falta al menos 3 para graficar.' + (P.length ? (P.length > 1 ? ' Los valores están' : ' El valor está') + ' en la tabla.' : '');
       qc.appendChild(msg); var kn0 = document.getElementById(id.replace('psC', 'psKn')); if (kn0) kn0.textContent = ''; return;
     }
-    var xs_ = P.map(function (p) { return p.x; }).sort(function (a, b) { return a - b; }), useLog = !yrs && xs_.length > 3 && (xs_[xs_.length - 1] > 1500 || (xs_[xs_.length - 1] > 600 && xs_[Math.ceil(xs_.length * 0.85) - 1] < xs_[xs_.length - 1] / 3)), fx0 = 0, fx1 = 0, fit = spec.zero ? null : fitX(P.filter(function (p) { return !p.dual || dualMode === 2; }), model), sets = [], cheapSign = spec.inv ? -1 : 1, PS_ = P.filter(function (p) { return p.sup && p.mk != null; });
+    var xs_ = P.map(function (p) { return p.x; }).sort(function (a, b) { return a - b; }), useLog = !yrs && xs_.length > 3 && (xs_[xs_.length - 1] > 1500 || (xs_[xs_.length - 1] > 600 && xs_[Math.ceil(xs_.length * 0.85) - 1] < xs_[xs_.length - 1] / 3)), fx0 = 0, fx1 = 0, fit = spec.zero ? null : fitX((function () { var a = P.filter(function (p) { return !p.dual || dualMode === 2; }), b = a.filter(function (p) { return !(p.dd < 7); }); return b.length >= 3 ? b : a; })(), model), /* la curva sin los que vencen en menos de 7 días: a 2 o 3 días, un centavo de precio mueve la TNA 10 o 20 puntos y tiraba la punta corta */ sets = [], cheapSign = spec.inv ? -1 : 1, PS_ = P.filter(function (p) { return p.sup && p.mk != null; });
     if (spec.zero && P.length) { var zx0 = Math.max(yrs ? 0 : 1, Math.min.apply(null, P.map(function (p) { return p.x; })) - (yrs ? 0.03 : 10)), zx1 = Math.max.apply(null, P.map(function (p) { return p.x; })) + (yrs ? 0.03 : 10); sets.push({ type: 'line', label: 'Curva Lecap (mercado)', data: [{ x: zx0, y: 0 }, { x: zx1, y: 0 }], borderColor: css('--c-s1'), borderWidth: 2.5, pointRadius: 0, fill: false, order: 4 }); }
     if (fit) {
       var PF = P.filter(function (p) { return !p.dual || dualMode === 2; }), x0 = Math.min.apply(null, PF.map(function (p) { return p.x; })), x1 = Math.max.apply(null, PF.map(function (p) { return p.x; })), N = 90, cu = [], up = [], lo = [];
@@ -9836,7 +9910,10 @@ window.USTX = (function () {
   $('hmRPp').addEventListener('click', function (e) { var b = e.target.closest('[data-n]'); if (!b) return; RPN = +b.getAttribute('data-n'); [].forEach.call(this.children, function (x) { x.classList.toggle('on', x === b); }); drawRP(); });
 
   var CH = {}, RPN = 126, DATA = null, MAYD = null;
-  function chart(id, cfg) { if (CH[id]) CH[id].destroy(); var c = $(id); if (!c || !window.Chart) return null; CH[id] = new Chart(c.getContext('2d'), cfg); return CH[id]; }
+  function chart(id, cfg) { // en caliente: si el gráfico ya está en ese canvas y es del mismo tipo, se le cambian los datos (update) en vez de destruirlo y armarlo de nuevo
+    var c = $(id), o = CH[id]; if (!c || !window.Chart) return null;
+    if (o && o.canvas === c && o.config && o.config.type === cfg.type) try { o.config._config.plugins = cfg.plugins || []; if (o._plugins) o._plugins.invalidate(); o.data = cfg.data; o.options = cfg.options || {}; o.update('none'); return o; } catch (e) { }
+    if (o) o.destroy(); CH[id] = new Chart(c.getContext('2d'), cfg); return CH[id]; }
   function spark(svg, ys, col) {
     ys = ys.filter(function (y) { return y > 0; }); if (!svg || ys.length < 2) return;
     var lo = Math.min.apply(null, ys), hi = Math.max.apply(null, ys), r = hi - lo || 1, pts = ys.map(function (y, i) { return (i / (ys.length - 1) * 100).toFixed(1) + ',' + (31 - (y - lo) / r * 28).toFixed(1); });
