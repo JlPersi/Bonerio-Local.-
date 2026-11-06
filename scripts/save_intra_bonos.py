@@ -18,6 +18,27 @@ URLS = ["https://data912.com/live/arg_bonds", "https://data912.com/live/arg_note
 ACC = {"YPFD", "PAMP", "GGAL", "BMA", "TGSU2", "CEPU", "BBAR", "TXAR", "BYMA", "LOMA", "CRES", "ALUA", "VALO", "SUPV", "EDN", "TRAN", "ECOG", "METR", "TGNO4", "MERV"}
 TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 RUEDAS = 2
+# data/intra_hist.json: lo mismo pero cada 15 minutos (el último precio de cada tramo, sin volumen) y sin acciones, de las últimas 20 ruedas;
+# lo usa el gráfico de brecha y canje para dibujar la rueda adentro de cada día en los períodos de 5 a 20 ruedas
+HIST = os.path.join(os.path.dirname(__file__), "..", "data", "intra_hist.json")
+HRUEDAS, HPASO = 20, 15
+
+
+def historia(o):
+    h = leer(HIST)
+    for d, esp in o.items():
+        nd = {}
+        for s, a in esp.items():
+            if s in ACC:
+                continue
+            q = {}
+            for x in a:
+                q[min(1020, -(-x[0] // HPASO) * HPASO)] = x[1]  # el último precio de cada tramo, al final del tramo
+            nd[s] = [[k, q[k]] for k in sorted(q)]
+        h[d] = nd
+    for k in sorted(h)[:-HRUEDAS]:
+        del h[k]
+    guardar(h, HIST)
 
 
 def ahora():
@@ -87,5 +108,6 @@ if __name__ == "__main__":
     if "--copiar" in sys.argv:
         if os.path.exists(ACUM):
             shutil.copyfile(ACUM, OUT)
+        historia(leer(OUT))
     else:
         foto()
