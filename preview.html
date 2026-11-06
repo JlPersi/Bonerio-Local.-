@@ -12455,8 +12455,10 @@ window.RATG = (function () {
     S + '.sbn{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 18px}' + S + '.sbn button{background:var(--card);color:var(--mu);border:1px solid var(--bd);border-radius:999px;padding:8px 16px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}' + S + '.sbn button:hover{color:var(--tx)}' + S + '.sbn button.on{background:var(--fc);border-color:var(--fc);color:#0b0b0c}' + S + '.wsG{position:relative;margin-top:10px}' + S + '#accTv{position:absolute;inset:0}' + S + '.lg{position:absolute;left:8px;z-index:3;font-size:13px;line-height:1.5;color:var(--mu);pointer-events:none;font-variant-numeric:tabular-nums;max-width:calc(100% - 100px);text-shadow:0 0 6px var(--card)}' +
     S + '.lg b{color:var(--tx);font-weight:700;margin-right:8px}' + S + '.lg i{font-style:normal;margin-right:10px;white-space:nowrap;display:inline-block}' +
     '@media(max-width:700px){' + S + '.snm{display:none}' + S + '.ctl input[type=search]{width:100%}' + S + '.wsT b{font-size:20px}' + S + '.lg{font-size:11px}}' +
+    '#accNB .nbB{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin:0 0 14px;padding:10px 12px;border:1px solid rgba(var(--fr),.45);border-radius:14px;background:rgba(var(--fr),.08)}#accNB .nbTag{display:inline-flex;align-items:center;gap:7px;font-weight:800;font-size:13px;color:var(--fc);text-transform:uppercase;letter-spacing:.4px}#accNB .nbTag i{width:8px;height:8px;border-radius:50%;background:var(--fc);box-shadow:0 0 0 0 rgba(var(--fr),.6);animation:nbP 1.8s infinite}@keyframes nbP{70%{box-shadow:0 0 0 8px rgba(var(--fr),0)}100%{box-shadow:0 0 0 0 rgba(var(--fr),0)}}#accNB .nbL{display:flex;flex-wrap:wrap;gap:6px}#accNB .nbL button{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid var(--bd);border-radius:999px;background:var(--bg);color:var(--tx);font:inherit;font-size:12.5px;cursor:pointer}#accNB .nbL button small{color:var(--mu)}#accNB .nbL button.on{border-color:var(--fc);background:rgba(var(--fr),.16)}#accNB .nbP{border:1px solid var(--bd);border-radius:16px;background:var(--card);padding:16px;margin:-4px 0 18px}#accNB .nbH{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}#accNB .nbH .wsT small{display:block;color:var(--mu);font-size:12px;margin-top:2px}#accNB .nbH .wsT b{font-size:20px}#accNB .nbC{display:flex;gap:8px;align-items:center}#accNB .nbX{border:1px solid var(--bd);background:var(--bg);color:var(--mu);border-radius:9px;width:32px;height:32px;font-size:18px;cursor:pointer}#accNB{--nbB:#38bdf8;--nbR:#f43f5e;--nbG:#22c55e}#accNB .nbS{overflow-x:auto;margin-top:6px}#accNB .nbS svg{display:block;width:100%;height:auto}@media(max-width:639px){#accNB .nbT{font-size:15px}#accNB .nbP{padding:12px}}#accNB .nbT{font-size:12.5px;fill:var(--tx);paint-order:stroke;stroke:var(--card);stroke-width:4px;stroke-linejoin:round}#accNB .kp b{white-space:nowrap}' +
     '</style>' +
 
+    '<div id="accNB"></div>' +
     '<div class="sbn" id="accNav">' + SUBS.map(function (g) { return '<button type="button" data-g="' + g[0] + '">' + g[1] + '</button>'; }).join('') + '</div>' +
     '<div class="card sx" id="accT"><div class="sxh"><div style="min-width:0"><p class="qh">Acciones</p><p class="qs" id="accTs">Panel líder y panel general de BYMA, con el precio en vivo.</p></div><div class="sxb">' + dlb('accT', 'Bonerio_acciones') + '</div></div>' +
     '<div class="ctl"><label>Panel<span class="seg" id="accPn"><button data-v="lider">Líder</button><button data-v="general">General</button><button data-v="all">Todas</button></span></label>' +
@@ -13521,6 +13523,109 @@ window.RATG = (function () {
       rs.map(function (r) { var o = r.o; return '<tr data-t="' + esc(r.t) + '" style="cursor:pointer"><td class="l"><b>' + esc(r.t) + '</b></td><td class="l">' + esc(SN[secOf(r.t)] || '') + '</td><td>' + per(o.ult.cierre, o.ult.meses) + '</td><td>' + fd(o.ult.publicado) + '</td><td>' + per(o.prox.cierre, o.prox.meses) + '</td><td title="' + (o.prox.como === 'anunciada' ? 'Fecha anunciada por la empresa (tentativa)' : o.prox.como === 'año anterior' ? 'La fecha del mismo balance del año pasado' : 'El cierre más la demora habitual de la empresa') + '">' + fd(o.prox.est) + (o.prox.como === 'anunciada' ? ' <span style="color:#ffc542">●</span>' : '') + '</td><td>' + (o.prox.plazo ? fd(o.prox.plazo) : '<span title="Los bancos presentan con los plazos del BCRA">—</span>') + '</td><td class="l ' + r.cl + '">' + r.st + '</td></tr>'; }).join('') + '</tbody>';
     $('accCn').innerHTML = 'Fecha estimada: la anunciada por la empresa cuando la hay (●, tentativa); si no, la del mismo balance del año pasado; si no hay, el cierre más la demora habitual de la empresa. Plazo CNV: 42 días corridos del cierre para los trimestrales y 70 para los anuales (los bancos tienen los del BCRA). Los balances se buscan en la CNV todos los días hábiles a la noche. Tocá una acción para ver su ficha.';
   }
+  /* ---------- Nuevo balance: aviso de los balances que entraron a la CNV en los últimos 7 días. Al tocar una empresa se despliega
+     el flujo del trimestre (ventas → resultado operativo → ganancia, data/acciones/balances/<T>.json) y el snapshot con la variación interanual ---------- */
+  var NB = { done: 0, open: null, cur: 'usd', B: {}, T: {} };
+  function newBal() {
+    if (NB.done) return; NB.done = 1;
+    j('data/acciones/calendario_balances.json').then(function (C) {
+      var W = $('accNB'), T = NB.T = (C && C.t) || {}, hoy = new Date(Date.now() - 3 * 36e5).toISOString().slice(0, 10); if (!W) return;
+      var L = Object.keys(T).filter(function (t) { var p = T[t].ult && T[t].ult.publicado; return p && (Date.parse(hoy) - Date.parse(p)) / 864e5 <= 7; })
+        .sort(function (a, b) { return T[b].ult.publicado.localeCompare(T[a].ult.publicado) || a.localeCompare(b); });
+      if (!L.length) { W.innerHTML = ''; return; }
+      var fd = function (d) { return d.slice(8, 10) + '/' + d.slice(5, 7); };
+      W.innerHTML = '<div class="nbB"><span class="nbTag"><i></i>Nuevo balance</span><span class="nbL">' + L.map(function (t) { return '<button type="button" data-nb="' + esc(t) + '" title="Presentó el ' + fd(T[t].ult.publicado) + '">' + logo(t, 18) + '<b>' + esc(t) + '</b><small>' + fd(T[t].ult.publicado) + '</small></button>'; }).join('') + '</span></div><div id="accNBp"></div>';
+      W.onclick = function (e) {
+        var b = e.target.closest('[data-nb]'); if (b) { var t = b.getAttribute('data-nb'); NB.open = NB.open === t ? null : t; nbShow(); return; }
+        var c = e.target.closest('[data-nbc]'); if (c) { NB.cur = c.getAttribute('data-nbc'); nbShow(); return; }
+        if (e.target.closest('[data-nbx]')) { NB.open = null; nbShow(); }
+        var f = e.target.closest('[data-nbf]'); if (f) { e.preventDefault(); pick(f.getAttribute('data-nbf'), 1); }
+      };
+    });
+  }
+  function nbShow() {
+    var P = $('accNBp'); if (!P) return; [].forEach.call($('accNB').querySelectorAll('[data-nb]'), function (b) { b.classList.toggle('on', b.getAttribute('data-nb') === NB.open); });
+    var t = NB.open; if (!t) { P.innerHTML = ''; return; }
+    if (!NB.B[t]) { P.innerHTML = '<div class="nbP"><p class="note">Cargando el balance de ' + esc(t) + '…</p></div>'; j('data/acciones/balances/' + t + '.json').then(function (d) { NB.B[t] = d || { periodos: [] }; if (NB.open === t) nbShow(); }); return; }
+    P.innerHTML = '<div class="nbP">' + nbHtml(t, NB.B[t]) + '</div>';
+  }
+  function nbQ(d) { // el último trimestre (acumulado menos el acumulado anterior del mismo ejercicio) y el mismo trimestre del año anterior, en $ millones
+    var P = d.periodos || [], sc = function (p) { return p.escala || d.escala || 1; };
+    var back = function (c, k) { var y = +c.slice(0, 4), m = +c.slice(5, 7) - k; while (m <= 0) { m += 12; y--; } var dd = new Date(Date.UTC(y, m, 0)).getUTCDate(); return y + '-' + (m < 10 ? '0' : '') + m + '-' + dd; };
+    var find = function (c, m) { return P.filter(function (p) { return p.cierre === c && p.acumulado_meses === m; })[0]; };
+    var qOf = function (p) {
+      if (!p) return null; var m = p.acumulado_meses, pv = m > 3 ? find(back(p.cierre, 3), m - 3) : null; if (m > 3 && !pv) return null; var o = { cierre: p.cierre };
+      ['ventas', 'resultado_operativo', 'depreciaciones', 'resultado_neto', 'flujo_operativo'].forEach(function (k) { var a = p.resultados[k], b = pv ? pv.resultados[k] : 0; o[k] = a == null || b == null ? null : (a * sc(p) - (pv ? b * sc(pv) : 0)) / 1e6; });
+      if (o.resultado_operativo != null && o.depreciaciones != null) o.ebitda = o.resultado_operativo + o.depreciaciones; return o;
+    };
+    var last = P[P.length - 1]; if (!last) return null;
+    return { p: last, s: sc(last) / 1e6, Q: qOf(last), Q0: qOf(find(back(last.cierre, 12), last.acumulado_meses)) };
+  }
+  function nbHtml(t, d) {
+    var R = nbQ(d); if (!R || !R.Q) return '<p class="note">No hay un trimestre armado para ' + esc(t) + ' (falta el balance anterior del mismo ejercicio).</p>';
+    var ck = Object.keys(CCL).sort(), ccl = function (c) { var v = null; for (var i = 0; i < ck.length && ck[i] <= c; i++) v = CCL[ck[i]]; return v || (ck.length ? CCL[ck[0]] : null); };
+    var usd = NB.cur === 'usd' && ck.length, cv = function (v, c) { return v == null ? null : usd ? v / ccl(c) : v; };
+    var Q = R.Q, Q0 = R.Q0, k1 = usd ? ccl(Q.cierre) : 1;
+    var fm = function (v) { if (v == null || !isFinite(v)) return '—'; var a = Math.abs(v), s = v < 0 ? '−' : ''; if (usd) return s + 'US$ ' + a.toLocaleString('es-AR', { maximumFractionDigits: a < 10 ? 1 : 0 }) + ' M'; return s + '$ ' + (a >= 1e6 ? (a / 1e6).toLocaleString('es-AR', { maximumFractionDigits: 2 }) + ' B' : a.toLocaleString('es-AR', { maximumFractionDigits: 0 }) + ' M'); };
+    var pc = function (v) { return v == null || !isFinite(v) ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v * 100).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '%'; };
+    var g = function (k) { return cv(Q[k], Q.cierre); }, g0 = function (k) { return Q0 ? cv(Q0[k], Q0.cierre) : null; };
+    var yoy = function (k) { var a = g(k), b = g0(k); return a == null || b == null || b <= 0 ? null : a / b - 1; };
+    var c = Q.cierre, mq = +c.slice(5, 7), lab = (mq % 3 === 0 && (d.cierre_ejercicio == null) ? Math.ceil(mq / 3) + 'T ' + c.slice(0, 4) : 'Trimestre al ' + c.slice(8, 10) + '/' + c.slice(5, 7) + '/' + c.slice(0, 4));
+    var h = '<div class="nbH"><div class="wsT">' + logo(t, 30) + '<div><b>' + esc(t) + ' · ' + lab + '</b><small>' + esc(SN[secOf(t)] || '') + ' · trimestre de 3 meses que termina el ' + c.split('-').reverse().join('/') + ' (presentó el ' + ((NB.T[t] && NB.T[t].ult.publicado) || R.p.publicado || '').split('-').reverse().join('/') + ')</small></div></div>' +
+      '<div class="nbC"><span class="seg"><button data-nbc="usd"' + (NB.cur === 'usd' ? ' class="on"' : '') + '>US$</button><button data-nbc="ars"' + (NB.cur === 'ars' ? ' class="on"' : '') + '>$</button></span><button class="nbX" data-nbx="1" title="Cerrar">×</button></div></div>';
+    /* --- flujo (sankey) --- */
+    var V = g('ventas'), O = g('resultado_operativo'), N = g('resultado_neto');
+    h += '<h5>Estado de resultados del trimestre</h5>';
+    if (V == null || O == null || N == null || V <= 0) h += '<p class="note">' + (V == null ? 'Es un banco o no informa ventas: el flujo no aplica. ' : '') + 'Mirá el snapshot.</p>';
+    else if (O < 0 || N < 0 && -N > V - Math.max(O, 0)) h += nbSk([['Ventas', V, 'b'], ['Costos y gastos', V - O, 'r'], ['Pérdida operativa', O, 'r']], fm, 1, N) ;
+    else h += nbSk([['Ventas', V, 'b'], ['Costos y gastos operativos', V - O, 'r'], ['Resultado operativo', O, 'g'], ['Ganancia neta', N, 'g']], fm, 0, N);
+    /* --- snapshot --- */
+    var s = R.p.situacion || {}, ss = function (k) { return s[k] == null ? null : cv(s[k] * R.s, c); }, m = R.p.acumulado_meses, an = 12 / m, rs = R.p.resultados || {};
+    var dn = s.deuda_financiera != null && s.caja_inversiones != null ? ss('deuda_financiera') - ss('caja_inversiones') : null;
+    var ebA = rs.resultado_operativo != null && rs.depreciaciones != null ? cv((rs.resultado_operativo + rs.depreciaciones) * R.s, c) * an : null;
+    var roe = rs.resultado_neto != null && s.patrimonio_neto > 0 ? rs.resultado_neto * an / s.patrimonio_neto : null;
+    var kp = function (n, v, y, x) { return '<div><small>' + n + '</small><b>' + v + '</b>' + (y !== undefined ? '<small class="' + (y == null ? '' : y >= 0 ? 'up' : 'dn') + '">' + (y == null ? 'sin dato del año anterior' : pc(y) + ' interanual') + '</small>' : x ? '<small>' + x + '</small>' : '') + '</div>'; };
+    h += '<h5>Snapshot</h5><div class="kp">' +
+      kp('Ventas', fm(g('ventas')), g('ventas') == null ? undefined : yoy('ventas')) +
+      kp('EBITDA', fm(g('ebitda')), g('ebitda') == null ? undefined : yoy('ebitda')) +
+      kp('Resultado operativo', fm(g('resultado_operativo')), g('resultado_operativo') == null ? undefined : yoy('resultado_operativo')) +
+      kp('Ganancia neta', fm(g('resultado_neto')), yoy('resultado_neto')) +
+      (V > 0 && g('ebitda') != null ? kp('Margen EBITDA', pc(g('ebitda') / V).replace('+', ''), undefined, Q0 && Q0.ebitda != null && Q0.ventas > 0 ? 'hace un año ' + pc(Q0.ebitda / Q0.ventas).replace('+', '') : '') : '') +
+      (V > 0 ? kp('Margen neto', pc(N / V).replace('+', ''), undefined, Q0 && Q0.resultado_neto != null && Q0.ventas > 0 ? 'hace un año ' + pc(Q0.resultado_neto / Q0.ventas).replace('+', '') : '') : '') +
+      kp('Deuda neta', fm(dn), undefined, dn != null && ebA > 0 ? (dn / ebA).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + 'x EBITDA anualizado' : 'deuda financiera − caja e inversiones') +
+      kp('Patrimonio neto', fm(ss('patrimonio_neto')), undefined, roe != null ? 'ROE anualizado ' + pc(roe).replace('+', '') : '') +
+      (g('flujo_operativo') != null ? kp('Flujo de caja operativo', fm(g('flujo_operativo')), yoy('flujo_operativo')) : '') + '</div>';
+    h += '<p class="note" style="margin-top:8px">El trimestre sale de restar al acumulado de ' + m + ' meses el acumulado anterior del mismo ejercicio. ' + (usd ? 'En dólares al CCL del cierre de cada trimestre (' + (k1 ? '$ ' + Math.round(k1).toLocaleString('es-AR') : '—') + ' para este), así la variación interanual no está inflada por la inflación. ' : 'En pesos nominales (M = millones, B = billones): la variación interanual incluye la inflación. ') + 'Fuente: ' + esc(R.p.fuente || 'CNV') + '. <a href="#" data-nbf="' + esc(t) + '">Ver la ficha de ' + esc(t) + '</a>.</p>';
+    return h;
+  }
+  function nbSk(n, fm, neg, N) { // sankey simple en SVG: ventas a la izquierda, se abre en costos y resultado operativo, y este en financieros/impuestos y ganancia (en el celular, más angosto y con los rótulos de la derecha por dentro)
+    var mo = window.innerWidth < 640, Wd = mo ? 480 : 910, H = mo ? 400 : 330, nw = 14, V = n[0][1], top = mo ? 52 : 35, k = (H - top - 30) / V, x0 = mo ? 24 : 150, x1 = mo ? 210 : 400, x2 = mo ? Wd - nw - 4 : 640, col = { b: 'var(--nbB)', r: 'var(--nbR)', g: 'var(--nbG)' };
+    var band = function (xa, ya, xb, yb, h, c) { var m = (xa + xb) / 2; return '<path d="M' + xa + ',' + ya + ' C' + m + ',' + ya + ' ' + m + ',' + yb + ' ' + xb + ',' + yb + ' L' + xb + ',' + (yb + h) + ' C' + m + ',' + (yb + h) + ' ' + m + ',' + (ya + h) + ' ' + xa + ',' + (ya + h) + ' Z" fill="' + c + '" opacity=".38"/>'; };
+    var node = function (x, y, h, c) { return '<rect x="' + x + '" y="' + y + '" width="' + nw + '" height="' + Math.max(h, 2) + '" rx="2" fill="' + c + '"/>'; };
+    var lab = function (x, y, t, v, anc) { return '<text x="' + x + '" y="' + y + '" text-anchor="' + anc + '" class="nbT"><tspan font-weight="700">' + esc(t) + '</tspan><tspan x="' + x + '" dy="1.2em">' + v + '</tspan></text>'; };
+    var labR = function (y, h, t, v) { return mo ? lab(x2 - 6, y + h / 2 - 6, t, v, 'end') : lab(x2 + nw + 8, y + h / 2 - 4, t, v, 'start'); };
+    var labV = function (y, h, v) { return mo ? lab(x0 - nw, top - 30, 'Ventas', v, 'start') : lab(x0 - nw - 8, y + h / 2 - 4, 'Ventas', v, 'end'); };
+    var s = '', yV = top, hV = V * k;
+    if (neg) { // pérdida operativa: costos más grandes que las ventas
+      var C = n[1][1], kk = (H - top - 30) / C; s = node(x0 - nw, yV, V * kk, col.b) + labV(yV, V * kk, fm(V)) + node(x1, yV, C * kk, col.r) + band(x0, yV, x1, yV, V * kk, col.r) + lab(x1 + nw + 8, yV + C * kk / 2 - 4, 'Costos y gastos', fm(C), 'start');
+      s += '<text x="' + (x1 + nw + 8) + '" y="' + (yV + C * kk / 2 + 40) + '" class="nbT" fill="var(--bad)">' + esc(n[2][0]) + ': ' + fm(n[2][1]) + '</text><text x="' + (x1 + nw + 8) + '" y="' + (yV + C * kk / 2 + 60) + '" class="nbT">Neto: ' + fm(N) + '</text>';
+    } else {
+      s += node(x0 - nw, yV, hV, col.b) + labV(yV, hV, fm(V));
+      var O = n[2][1], Cc = n[1][1], gap = 22, hO = O * k, hC = Cc * k, yO = yV - (mo ? 0 : 12), yC = yO + hO + gap;
+      s += band(x0, yV, x1, yO, hO, col.g) + band(x0, yV + hO, x1, yC, hC, col.r) + node(x1, yO, hO, col.g) + node(x1, yC, hC, col.r);
+      var Nn = n[3][1], tail = '';
+      if (Nn <= O) { var F = O - Nn, hN = Nn * k, hF = F * k, yN = Math.max(mo ? top : 4, yO - 20), yF = yN + hN + gap;
+        if (Nn > 0) { s += band(x1 + nw, yO, x2, yN, hN, col.g) + node(x2, yN, hN, col.g); tail += labR(yN, hN, 'Ganancia neta', fm(Nn)); }
+        if (F > 0) { s += band(x1 + nw, yO + hN, x2, yF, hF, col.r) + node(x2, yF, hF, col.r); tail += labR(yF + (mo ? 12 : 0), hF, mo ? 'Financ., imp. y otros' : 'Financieros, impuestos y otros', fm(F)); }
+      } else { var X = Nn - O, hX = X * k, hN2 = Nn * k, yN2 = Math.max(mo ? top : 4, yO - 20), yX = yC + hC + gap;
+        if (yX + hX > H - 4) yX = H - 4 - hX;
+        s += band(x1 + nw, yO, x2, yN2, hO, col.g) + band(x1 + nw, yX, x2, yN2 + hO, hX, col.g) + node(x1, yX, hX, col.g) + node(x2, yN2, hN2, col.g);
+        tail += lab(x1 - 8, yX + hX / 2 - 4, 'Financieros y otros (+)', fm(X), 'end') + labR(yN2, hN2, 'Ganancia neta', fm(Nn));
+      }
+      s += lab(x1 + nw + 8, yO + hO / 2 - 4, mo ? 'Res. operativo' : 'Resultado operativo', fm(O), 'start') + lab(x1 + nw + 8, yC + hC / 2 - 4, mo ? 'Costos y gastos' : n[1][0], fm(Cc), 'start') + tail;
+    }
+    return '<div class="nbS"><svg viewBox="0 0 ' + (mo ? Wd : Wd) + ' ' + H + '" role="img" aria-label="Flujo del estado de resultados">' + s + '</svg></div>';
+  }
   $('accCtab').onclick = function (e) { var tr = e.target.closest('tr[data-t]'); if (tr) pick(tr.getAttribute('data-t'), 1); };
   function adrs() {
     if (!IX) return; var rs = [], ks = Object.keys(CCL).sort(), cc = ks.length ? CCL[ks[ks.length - 1]] : null;
@@ -13768,7 +13873,7 @@ window.RATG = (function () {
     }, function () { $('accPn2').textContent = 'No se pudo cargar la librería del gráfico.'; });
   }
 
-  function drawAll() { SX = {}; SL = {}; sub(ST.sub || 'panel'); table(); chart(); radar(); pair(); flow(); sectors(); scatter(); valua(); erp(); hold(); adrs(); covered(); }
+  function drawAll() { newBal(); SX = {}; SL = {}; sub(ST.sub || 'panel'); table(); chart(); radar(); pair(); flow(); sectors(); scatter(); valua(); erp(); hold(); adrs(); covered(); }
   function render() {
     if (err) { $('accTs').textContent = err; return; }
     load().then(function () { if (err) { $('accTs').textContent = err; return; } drawAll(); loadAll(); live().then(function () { table(); adrs(); valua(); head(); if (ST.sub === 'bnd') { BDL = {}; bands(); } }); });
