@@ -14652,7 +14652,7 @@ window.RATG = (function () {
     '<div class="tf"><label>Tipo<select id="trT"><option value="rot">Rotación (vendo A, compro B)</option><option value="buy">Compra</option><option value="sh">Venta en corto (short)</option></select></label>' +
     '<label id="trFw" style="display:none" title="Lo que cobra quien te presta los títulos (préstamo de títulos o caución tomadora), en % anual">Préstamo % anual<input id="trF" type="number" step="0.5" value="3" style="width:90px"></label>' +
     '<label id="trAw">Vendo<input class="tk" id="trA" list="trL" placeholder="S30N6" autocomplete="off"></label><label>Compro<input class="tk" id="trB" list="trL" placeholder="TMF28" autocomplete="off"></label>' +
-    '<label>Monto ($)<input id="trM" type="number" min="0" step="1000" value="1000000" style="width:140px"></label><label>Fecha<input id="trD" type="date"></label>' +
+    '<label id="trPAw" title="Precio al que vendiste A (vacío: el cierre o el último de esa fecha)">Precio A<input id="trPA" type="number" step="any" placeholder="auto" style="width:110px"></label><label title="Precio al que operaste B (vacío: el cierre o el último de esa fecha)">Precio B<input id="trPB" type="number" step="any" placeholder="auto" style="width:110px"></label><label>Monto ($)<input id="trM" type="number" min="0" step="1000" value="1000000" style="width:140px"></label><label>Fecha<input id="trD" type="date"></label>' +
     '<label title="Comisiones y derechos de las dos puntas, en % del monto">Costo total %<input id="trC" type="number" step="0.05" value="0.25" style="width:90px"></label>' +
     '<label>Costo de oportunidad<select id="trK"><option value="cau">Caución</option><option value="lec">Lecap corta</option><option value="pf">Plazo fijo</option></select></label>' +
     '<label style="flex:1 1 200px">Nota<input id="trN" placeholder="Por qué lo hago (opcional)"></label><button class="btn" id="trGo" type="button">Abrir trade</button></div>' +
@@ -14667,7 +14667,7 @@ window.RATG = (function () {
     '<li>Los trades se guardan en este navegador. Si cargás una fecha anterior, toma el cierre de ese día de los bonos en pesos (últimas semanas).</li></ul></div></div>';
 
   $('trD').value = hoy();
-  var showA = function () { var t = $('trT').value; $('trAw').style.display = t === 'rot' ? '' : 'none'; $('trFw').style.display = t === 'sh' ? '' : 'none'; var lb = $('trB').closest('label'); if (lb && lb.firstChild) lb.firstChild.nodeValue = t === 'sh' ? 'Vendo en corto' : 'Compro'; if (t === 'sh') $('trK').value = 'cau'; $('trK').disabled = t === 'sh'; preview(); };
+  var showA = function () { var t = $('trT').value; $('trAw').style.display = $('trPAw').style.display = t === 'rot' ? '' : 'none'; $('trFw').style.display = t === 'sh' ? '' : 'none'; var lb = $('trB').closest('label'); if (lb && lb.firstChild) lb.firstChild.nodeValue = t === 'sh' ? 'Vendo en corto' : 'Compro'; if (t === 'sh') $('trK').value = 'cau'; $('trK').disabled = t === 'sh'; preview(); };
   $('trT').onchange = showA;
   function preview() {
     var a = $('trA').value.trim().toUpperCase(), b = $('trB').value.trim().toUpperCase(), d = $('trD').value || hoy(), rot = $('trT').value === 'rot';
@@ -14682,11 +14682,11 @@ window.RATG = (function () {
   $('trGo').onclick = function () {
     var rot = $('trT').value === 'rot', sh = $('trT').value === 'sh', a = rot ? $('trA').value.trim().toUpperCase() : null, b = $('trB').value.trim().toUpperCase(), d = $('trD').value || hoy(), m = +$('trM').value, c = +$('trC').value || 0, k = sh ? 'cau' : $('trK').value;
     if (!b || !(m > 0) || (rot && !a)) { $('trPx').textContent = 'Completá ' + (rot ? 'qué vendés, ' : '') + 'qué comprás y el monto.'; return; }
-    live().then(base).then(function (r) { var cl = r[0], ts = r[1], pb = px(b, d, cl), pa = a ? px(a, d, cl) : null;
+    live().then(base).then(function (r) { var cl = r[0], ts = r[1], pb = +$('trPB').value > 0 ? +$('trPB').value : px(b, d, cl), pa = a ? (+$('trPA').value > 0 ? +$('trPA').value : px(a, d, cl)) : null; // el precio que cargás pisa al del día
       if (!(pb > 0) || (a && !(pa > 0))) { $('trPx').textContent = 'No encuentro precio de ' + (!(pb > 0) ? b : a) + (d < hoy() ? ' para ese día' : '') + '.'; return; }
       var bm = { k: k }; if (k === 'lec') { var l = lecapCorta(d); if (l) { bm.t = l; bm.px = px(l, d, cl); } else { bm.k = 'cau'; } } if (bm.k !== 'lec') bm.tna = tasa(bm.k, d, ts);
       var nt = { id: ED || Date.now().toString(36), d: d, a: a, b: b, pa0: pa, pb0: pb, m: m, c: c, bm: bm, n: $('trN').value.trim(), sh: sh ? 1 : 0, fee: sh ? +$('trF').value || 0 : 0 }, ix = ED ? TR.map(function (t) { return t.id; }).indexOf(ED) : -1;
-      if (ix >= 0) { if (TR[ix].cx) nt.cx = TR[ix].cx; TR[ix] = nt; } else TR.unshift(nt); var was = ED; ED = null; $('trGo').textContent = 'Abrir trade'; save(); $('trN').value = ''; draw(); if (was) { $('trPx').textContent = 'Trade actualizado.'; return; }
+      if (ix >= 0) { if (TR[ix].cx) nt.cx = TR[ix].cx; TR[ix] = nt; } else TR.unshift(nt); var was = ED; ED = null; $('trGo').textContent = 'Abrir trade'; save(); $('trN').value = $('trPA').value = $('trPB').value = ''; draw(); if (was) { $('trPx').textContent = 'Trade actualizado.'; return; }
       $('trPx').textContent = 'Trade abierto: ' + (a ? a + ' → ' : '') + b + '.';
     });
   };
@@ -14695,7 +14695,7 @@ window.RATG = (function () {
     if (op === 'close') { live().then(function () { var pb = px(tr.b), pa = tr.a ? px(tr.a) : null, bp = tr.bm.k === 'lec' && tr.bm.t ? px(tr.bm.t) : null; if (!(pb > 0)) return; tr.cx = { d: hoy(), pb: pb, pa: pa, bp: bp }; save(); draw(); }); }
     else if (op === 'open') { delete tr.cx; save(); draw(); }
     else if (op === 'edit') { // carga el trade en el formulario; «Guardar cambios» lo reemplaza (los precios de entrada se toman de nuevo para la fecha elegida)
-      ED = id; $('trT').value = tr.a ? 'rot' : tr.sh ? 'sh' : 'buy'; $('trA').value = tr.a || ''; $('trB').value = tr.b; $('trD').value = tr.d; $('trM').value = tr.m; $('trC').value = tr.c; $('trN').value = tr.n || ''; if (tr.sh) $('trF').value = tr.fee; else $('trK').value = tr.bm.k;
+      ED = id; $('trT').value = tr.a ? 'rot' : tr.sh ? 'sh' : 'buy'; $('trA').value = tr.a || ''; $('trB').value = tr.b; $('trD').value = tr.d; $('trM').value = tr.m; $('trC').value = tr.c; $('trN').value = tr.n || ''; $('trPB').value = tr.pb0 || ''; $('trPA').value = tr.pa0 || ''; if (tr.sh) $('trF').value = tr.fee; else $('trK').value = tr.bm.k;
       showA(); $('trGo').textContent = 'Guardar cambios'; try { root.querySelector('.card').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (z) { } }
     else if (op === 'del') { if (x.getAttribute('data-ok')) { TR = TR.filter(function (t) { return t.id !== id; }); save(); draw(); } else { x.setAttribute('data-ok', '1'); x.textContent = '¿Seguro?'; setTimeout(function () { if (x.isConnected) { x.removeAttribute('data-ok'); x.textContent = 'Borrar'; } }, 3000); } }
   });
