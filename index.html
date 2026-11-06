@@ -3534,6 +3534,8 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
     root.addEventListener('click', function (e) {
       var o = e.target.closest('[data-pjo]'), x = e.target.closest('[data-pjx]'); if (!o && !x) return;
       var n = +(o || x).getAttribute(o ? 'data-pjo' : 'data-pjx'), m = ID('psPj' + n), was = m && !m.hidden; shut(); if (x || was || !m) return;
+      try { var lc = IDX.CER && lastOf(IDX.CER), d1 = lc + 1, f1 = lc ? mIdx(d1) - (new Date(d1 * 864e5).getUTCDate() >= 16 ? 0 : 1) - 1 : MIN_M; // la primera inflación que todavía no está en el CER publicado (el CER llega al 15 del mes que viene)
+        ID('psPjT' + n).querySelectorAll('tr').forEach(function (tr, j) { if (j && MIN_M + j - 1 < f1) { tr.hidden = true; tr.querySelectorAll('input').forEach(function (el) { el.value = ''; el.disabled = true; }); } }); } catch (e) { }
       if (n === 6) load6(); escFill(n); m.hidden = false; ID('psPjBtn' + n).classList.add('on'); window.renderPesos();
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') shut(); });
