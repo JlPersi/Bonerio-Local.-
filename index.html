@@ -6748,7 +6748,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     // la de BYMA (caución en pesos, MEP y cable), si es de hoy y ya se operó
     var B = V && V.bcau && bd === todayBA() && ['ARS', 'USD', 'EXT'].some(function (m) { return hasLive(V.bcau[m], 3) || hasLive(V.bcau[m], 5); }) ? V.bcau : null;
     // caución: el plazo más corto de cada rueda (1 día hábil: 1 día corrido, 3 los viernes o 4 si hay feriado)
-    var shortest = function (o) { var r = {}; keys(o).forEach(function (d) { var x = o[d][0]; if (x && x[0] <= 5) r[d] = x; }); return r; };
+    var shortest = function (o) { var r = {}; keys(o).forEach(function (d) { var x = (o[d] || []).filter(function (q) { return q && q[0] <= 10; }).sort(function (a, b) { return (b[4] || 0) - (a[4] || 0); })[0]; if (x) r[d] = x; }); return r; }; // el plazo corto con más monto (antes de un feriado largo el de 1 día casi no opera: el 05/11, $ 13 mil M a 1 día contra $ 2,9 billones a 6)
     var curve = function (d, rows, live) {
       var Sp = live && V.spot > 0 ? V.spot : spot(d)[1], base = d; // en la rueda: el spot de A3 por Primary o el del último cierre
       return (rows || []).map(function (r) {
@@ -6833,15 +6833,20 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       }
       if (o.v != null && !o.dl && / hoy /.test(o.vs || '')) o.dl = b && b[0] || (o.i && o.i.d === td ? o.i.dias : null); // el plazo de la foto de hoy (para el título)
       if (o.v != null && l && l < td) o.prev = h[l];
+      if (o.v == null && TJ && TJ.bcau) { // sin datos de hoy: el cierre de BYMA de la última rueda (lo mismo que mostraba la tarjeta al cerrar), si es tan nuevo como el de A3
+        var bks = keys(TJ.bcau).filter(function (d) { return d < td && TJ.bcau[d][m]; }), bl = bks[bks.length - 1], bq = bl && TJ.bcau[bl][m], pq = bks.length > 1 ? TJ.bcau[bks[bks.length - 2]][m] : null;
+        var bv = function (q) { return q ? (m === 'EXT' && q[2] != null ? q[2] : q[1] != null ? q[1] : q[2]) : null; };
+        if (bv(bq) != null && (!l || bl >= l)) { o.v = bv(bq); o.dl = bq[0]; o.vs = 'BYMA, ' + dias(bq[0]) + ', ' + (m === 'EXT' && bq[2] != null ? 'promedio ponderado' : 'cierre') + ' del ' + fr(bl); o.prev = bv(pq); }
+      }
       return b;
     };
     if (k === 'CAUCION') {
-      var c = S.cau[0], b = cauX(map(S.corta, function (r) { return r[1]; }), 'ARS', '1 día hábil · TNA');
+      var c = S.corta[S.dc] || S.cau[0], b = cauX(map(S.corta, function (r) { return r[1]; }), 'ARS', '1 día hábil · TNA');
       o.t = 'Caución en pesos';
       if (c) o.kv = [['Plazo', dias(c[0])], ['Liquida', fr(c[5])], ['Cierre A3', P(c[1])], ['Mín. A3', P(c[2])], ['Máx. A3', P(c[3])], ['Monto A3', '$ ' + nf(c[4] / 1e9, 0) + ' mil M']];
       if (b && b[1] && b[2]) o.bk = [['Tomadora', P(b[1])], ['Colocadora', P(b[2])]];
     } else if (k === 'CAUCION USD') {
-      var u = S.cauD[0], bu = cauX(map(S.cortaD, function (r) { return r[1]; }), 'USD', '1 día hábil · TNA');
+      var u = S.cortaD[S.dcD] || S.cauD[0], bu = cauX(map(S.cortaD, function (r) { return r[1]; }), 'USD', '1 día hábil · TNA');
       o.t = 'Caución en dólares (MEP)';
       if (u) o.kv = [['Plazo', dias(u[0])], ['Liquida', fr(u[5])], ['Cierre A3', P(u[1])], ['Mín. A3', P(u[2])], ['Máx. A3', P(u[3])], ['Monto A3', 'US$ ' + nf(u[4] / 1e6, 1) + ' M']];
       if (bu && bu[1] && bu[2]) o.bk = [['Tomadora', P(bu[1])], ['Colocadora', P(bu[2])]];
@@ -7112,7 +7117,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       document.getElementById('tcH').innerHTML = pills('data-h', ST.h, [[190, '6 meses'], [400, '1 año'], [0, 'Toda la curva']]);
       document.getElementById('tcCfx').innerHTML = cfxP();
       var Lh = L.filter(function (o) { return !ST.h || o.d <= ST.h; }), F = LF, xe = Lh.length ? Math.min(F ? F.x1 : 0, Lh[Lh.length - 1].d + 10) : 0;
-      var c = inst('CAUCION'), cd = S.cau[0] ? S.cau[0][0] : 1, set = [];
+      var c = inst('CAUCION'), cd = (c && c.dl) || (S.cau[0] ? S.cau[0][0] : 1), set = [];
       var x0 = Math.min.apply(null, [F ? F.x0 : 0].concat(Lh.map(function (o) { return o.d; }))); // desde la Lecap más corta, como en Curva Pesos: si no, la línea al desvío de las de menos de 3 semanas queda colgando
       if (F && xe > x0) { // la curva ajustada con su banda de ±1σ, solo en el rango de las Lecaps
         var cu = [], up = [], lo = [];
@@ -7124,14 +7129,15 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var lp = Lh.map(function (o) { var r = F ? F.res[o.k] : null; return { x: o.d, y: o.tnas * 100, s: o.k, k: o.k, r: r, fy: r != null ? o.tnas * 100 - r / 100 : null }; });
       set.push(ds('Lecaps y Boncaps', lp, C_LEC, { type: 'scatter', showLine: false, pointRadius: 5.5, pointHoverRadius: 8, toFit: true, legCol: C_LEC, backgroundColor: lp.map(function (p) { return RESC(p.r); }), borderColor: lp.map(function (p) { return RESC(p.r); }), order: 1 }));
       var cx = (c && c.i && c.i.d === todayBA() && c.i.dias) || cd; // el plazo de la caución más corta: 1 día hábil (3 días un viernes)
-      if (c) set.push(ds('Caución ' + dias(cx) + (cx > 1 ? ' (1 día hábil)' : ''), [{ x: cx, y: c.v, s: 'Caución en pesos · ' + c.vs, bk: 'CAU-ARS' }], C_CAU, { pointRadius: 8, pointStyle: 'circle', showLine: false }));
+      var ctop = Math.max.apply(null, [0, S.pf[1] || 0, S.bad[1] || 0, S.tam[1] || 0].concat(lp.map(function (p) { return p.y; }))), cfx = c && ctop > 0 && c.v > ctop + 15; // una caución fuera de escala (el 05/11 cerró a 190% antes del finde largo) va arriba del todo con su valor real en el rótulo: si no, aplasta la curva
+      if (c) set.push(ds('Caución ' + dias(cx) + (cx > 1 ? ' (1 día hábil)' : '') + (cfx ? ' · ' + nf(c.v, 2) + '% (fuera de escala)' : ''), [{ x: cx, y: cfx ? ctop + 3 : c.v, yv: cfx ? c.v : null, ct: ctop, s: 'Caución en pesos · ' + c.vs, bk: 'CAU-ARS' }], C_CAU, { pointRadius: 8, pointStyle: 'circle', showLine: false }));
       if (S.pf[0]) set.push(ds('Plazo fijo 30 días', [{ x: 30, y: S.pf[1], s: 'Plazo fijo 30 días · BCRA ' + fr(S.pf[0]), k: 'Plazo fijo' }], C_PF, { type: 'scatter', legCol: C_PF, pointRadius: 8, pointStyle: 'rectRot', showLine: false, order: 0, borderColor: css('--card') || '#0a0a0b', borderWidth: 1.5, backgroundColor: C_PF }));
       if (S.bad[0]) set.push(ds('BADLAR', [{ x: 32, y: S.bad[1], s: 'BADLAR · BCRA ' + fr(S.bad[0]), k: 'BADLAR' }], C_BAD, { type: 'scatter', legCol: C_BAD, pointRadius: 8, pointStyle: 'rect', showLine: false, order: 0, borderColor: css('--card') || '#0a0a0b', borderWidth: 1.5, backgroundColor: C_BAD }));
       if (S.tam[0]) set.push(ds('TAMAR', [{ x: 34, y: S.tam[1], s: 'TAMAR · BCRA ' + fr(S.tam[0]), k: 'TAMAR' }], C_TAM, { type: 'scatter', legCol: C_TAM, pointRadius: 8, pointStyle: 'triangle', showLine: false, order: 0, borderColor: css('--card') || '#0a0a0b', borderWidth: 1.5, backgroundColor: C_TAM }));
       var cfd = S.dcf ? dn(S.dcf) : 0, cfp = S.cfut.map(function (r) { return { x: r[1] ? dn(r[1]) - cfd : null, y: r[2], s: name(r[0]) + ' · caución a 1 día esperada', k: 'Cau. ' + name(r[0]).replace('Caución ', ''), bk: /^CAUC\/[A-Z]{3}\d{2}$/.test(r[0]) ? r[0] : '' }; }).filter(function (p) { return p.x > 0 && p.y > 0 && (!ST.h || p.x <= ST.h); });
       if (cfp.length) set.push(ds('Futuros de caución', cfp, C_CF, { type: 'scatter', showLine: false, pointRadius: 5, pointHoverRadius: 8, pointStyle: 'rectRounded', borderColor: css('--card') || '#0a0a0b', borderWidth: 1.5, backgroundColor: C_CF, legCol: C_CF, order: 2 }));
       var mx = Math.ceil((Math.max.apply(null, Lh.map(function (o) { return o.d; }).concat([60])) + 15) / 30) * 30;
-      var tip = function (cc) { var p = cc.raw, t = 'TNA ' + nf(p.y, 2) + '% · ' + dias(Math.round(p.x)); if (p.r != null) t += ' · desvío ' + sg(p.r, 0) + ' pb' + (F && Math.abs(p.r) >= 100 * F.sigma ? ' (fuera de la banda)' : ''); return t; };
+      var tip = function (cc) { var p = cc.raw, t = 'TNA ' + nf(p.yv != null ? p.yv : p.y, 2) + '% · ' + dias(Math.round(p.x)); if (p.r != null) t += ' · desvío ' + sg(p.r, 0) + ' pb' + (F && Math.abs(p.r) >= 100 * F.sigma ? ' (fuera de la banda)' : ''); return t; };
       CH.a = new Chart(document.getElementById('tcCh1').getContext('2d'), { type: 'scatter', data: { datasets: set }, plugins: [VLN].concat(LBL()),
         options: scatterOpt('Días al vencimiento', '', function (v) { return nf(v, 0) + '%'; }, tip, mx, null, 'TNA (%)') });
       spreads(F, c, cx);
@@ -7214,7 +7220,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (!T.isAct()) return; if (!CH.a || !S) return render();
       try {
         S = getS(); var L = lecapsAll(), c = inst('CAUCION'), cx = null; cards(L);
-        CH.a.data.datasets.forEach(function (d) { var p = d.data && d.data[0]; if (p && p.bk === 'CAU-ARS' && c && c.v != null) { p.y = c.v; p.s = 'Caución en pesos · ' + c.vs; cx = p.x; } });
+        CH.a.data.datasets.forEach(function (d) { var p = d.data && d.data[0]; if (p && p.bk === 'CAU-ARS' && c && c.v != null) { var t3 = p.ct, fx = t3 > 0 && c.v > t3 + 15; p.y = fx ? t3 + 3 : c.v; p.yv = fx ? c.v : null; d.label = d.label.replace(/ · [\d.,]+% \(fuera de escala\)$/, '') + (fx ? ' · ' + nf(c.v, 2) + '% (fuera de escala)' : ''); p.s = 'Caución en pesos · ' + c.vs; cx = p.x; } });
         CH.a.update('none'); if (cx != null) spreads(LF, c, cx);
       } catch (x) { render(); }
     }
