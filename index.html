@@ -6449,6 +6449,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var unit = function () { return ST.op === 'dif' ? ' $' : '%'; }, fmtV = function (v) { return v == null ? '—' : ST.op === 'dif' ? (v < 0 ? '−' : '+') + '$ ' + nf(Math.abs(v), 2) : sg(v, 2) + '%'; };
   var tickF = function (pct) { return function (v, i, T) { var st = T && T.length > 1 ? Math.abs(T[1].value - T[0].value) : 1, d = st < 0.095 ? 2 : st < 0.95 ? 1 : 0; return (pct ? '' : '') + nf(v, d) + (pct ? '%' : ''); }; }; // los decimales según el paso del eje: en intradiario, 0,52% / 0,54%
 
+  var LT = {}; // hoy: los ratios de cada precio nuevo, por par de patas
   function series() { // la serie del ratio que se grafica: [{x, y, lab}]
     var t = nowAR();
     if (ST.tf === 'd') {
@@ -6458,17 +6459,25 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     }
     // intradiario: cada 5 minutos, cada serie con su último dato; las ruedas guardadas, una al lado de la otra
     var days = Object.keys(IB || {}).concat(Object.keys(IJ || {})).filter(function (d, i, a) { return a.indexOf(d) === i && d <= t.d; }).sort().slice(-(ST.wi || 2)), out = [], x = 0;
-    var LA = live(ST.a), LB = live(ST.b);
+    var LA = live(ST.a), LB = live(ST.b), mt = t.m + new Date().getSeconds() / 60, lk = ST.a + '|' + ST.b + '|' + ST.op, TK = LT[lk] || (LT[lk] = []); // hoy, cada precio nuevo del stream es un punto (no espera los 5 minutos)
+    if (LT.$d !== t.d) { Object.keys(LT).forEach(function (k) { if (k !== '$d') LT[k] = []; }); LT.$d = t.d; TK = LT[lk]; }
+    var yl = t.m >= 630 && t.m <= 1020 ? comb(LA.last, LB.last) : null; if (yl != null && (!TK.length || TK[TK.length - 1][1] !== yl || mt - TK[TK.length - 1][0] > 0.5)) { TK.push([mt, yl]); if (TK.length > 4000) TK.splice(0, 1000); }
+    if (TK.length && days.indexOf(t.d) < 0) days = days.concat([t.d]).slice(-(ST.wi || 2)); // hoy todavía sin intradiario guardado: solo lo del stream
     days.forEach(function (d) {
-      var a = intra(ST.a, d), b = intra(ST.b, d); if (d === t.d && t.m >= 630 && t.m <= 1020) { if (LA.last) a.push([t.m, LA.last]); if (LB.last) b.push([t.m, LB.last]); }
+      var a = intra(ST.a, d), b = intra(ST.b, d), hoy = d === t.d, tk = hoy ? TK.filter(function (q) { return !a.length || !b.length || q[0] > Math.min(a[a.length - 1][0], b[b.length - 1][0]); }) : [];
+      if (hoy && !tk.length && yl != null) { if (LA.last) a.push([t.m, LA.last]); if (LB.last) b.push([t.m, LB.last]); }
       if (ST.b === 'OFI') { var so = d === t.d ? spotHoy(d) : null, sp = so ? so.v : (TJ && TJ.spot && TJ.spot[d]) || (DJ && DJ.A3500 && DJ.A3500[d]); if (sp) b = [[600, sp]]; }
-      if (!a.length || !b.length) return;
-      var m0 = Math.max(630, Math.min(a[0][0], b[0][0])), m1 = Math.min(1020, Math.max(a[a.length - 1][0], b[b.length - 1][0])), i = 0, k = 0, va = null, vb = null;
-      for (var m = Math.ceil(m0 / 5) * 5; m <= m1 + 4; m += 5) {
-        while (i < a.length && a[i][0] <= m) va = a[i++][1]; while (k < b.length && b[k][0] <= m) vb = b[k++][1];
-        var y = comb(va, vb); if (y != null) out.push({ x: x, y: y, lab: d.slice(8, 10) + '/' + d.slice(5, 7) + ' ' + hm(Math.min(m, m1)) });
-        x++;
-      }
+      if ((!a.length || !b.length) && !tk.length) return;
+      var dl = d.slice(8, 10) + '/' + d.slice(5, 7) + ' ';
+      if (a.length && b.length) {
+        var m0 = Math.max(630, Math.min(a[0][0], b[0][0])), m1 = Math.min(1020, Math.max(a[a.length - 1][0], b[b.length - 1][0])), i = 0, k = 0, va = null, vb = null, mb = Math.ceil(m0 / 5) * 5, xb = x;
+        for (var m = mb; m <= m1 + (tk.length ? 0 : 4); m += 5) {
+          while (i < a.length && a[i][0] <= m) va = a[i++][1]; while (k < b.length && b[k][0] <= m) vb = b[k++][1];
+          var y = comb(va, vb); if (y != null) out.push({ x: x, y: y, lab: dl + hm(Math.min(m, m1)) });
+          x++;
+        }
+      } else { mb = Math.ceil(tk[0][0] / 5) * 5 - 5; xb = x; }
+      tk.forEach(function (q) { var xq = xb + (q[0] - mb) / 5; if (out.length && xq <= out[out.length - 1].x) return; out.push({ x: xq, y: q[1], lab: dl + hm(Math.floor(q[0])) + ':' + ('0' + Math.floor((q[0] % 1) * 60)).slice(-2) }); x = Math.max(x, Math.ceil(xq) + 1); });
       x += 6; // un hueco entre ruedas
     });
     return out;
@@ -6560,7 +6569,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       // gráfico
       var S = series(), ys = S.map(function (p) { return p.y; }), n = ys.length, mean = n ? ys.reduce(function (s, y) { return s + y; }, 0) / n : null, sd = n > 1 ? Math.sqrt(ys.reduce(function (s, y) { return s + (y - mean) * (y - mean); }, 0) / (n - 1)) : null;
       var last = n ? ys[n - 1] : null, pct = n ? Math.round(ys.filter(function (y) { return y < last; }).length / n * 100) : null;
-      document.getElementById('brT').textContent = name + ' · ' + (ST.tf === 'd' ? 'cierre de cada rueda' : 'cada 5 minutos') + ' (' + (ST.op === 'dif' ? 'pesos por dólar' : '%') + ')';
+      document.getElementById('brT').textContent = name + ' · ' + (ST.tf === 'd' ? 'cierre de cada rueda' : 'cada 5 minutos' + (LT[ST.a + '|' + ST.b + '|' + ST.op] && LT[ST.a + '|' + ST.b + '|' + ST.op].length ? ' y hoy en vivo' : '')) + ' (' + (ST.op === 'dif' ? 'pesos por dólar' : '%') + ')';
       document.getElementById('brSt').textContent = ST.tf === 'd' ? 'En el gráfico (' + n + ' ruedas)' : 'En el gráfico (intradiario)';
       var mn = n ? Math.min.apply(null, ys) : null, mx = n ? Math.max.apply(null, ys) : null;
       document.getElementById('brSs').innerHTML = n ? '<span>Último</span><b>' + fmtV(last) + '</b><span>Promedio</span><b>' + fmtV(mean) + '</b><span>Desvío (±1σ)</span><b>' + (ST.op === 'dif' ? nf(sd, 2) : nf(sd, 2) + '%') + '</b><span>Mínimo / máximo</span><b>' + fmtV(mn) + ' / ' + fmtV(mx) + '</b><span>Percentil del último</span><b>' + pct + '</b><span>Contra el promedio</span><b>' + (sd ? sg((last - mean) / sd, 1) + ' σ' : '—') + '</b>' : '<span>Sin datos para este ratio en el período.</span>';
