@@ -22,7 +22,7 @@ OUT = os.path.join(HERE, "..", "data", "acciones", "balances")
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36"}
 BASE = "https://www.cnv.gov.ar/SitioWeb"
 DESDE = "2010-01-01"  # toda la historia que tenga la CNV en planillas estandarizadas
-VERSION = 4  # si cambia la forma de leer las planillas, se suben: los archivos de otra versión se rearman enteros
+VERSION = 5  # si cambia la forma de leer las planillas, se suben: los archivos de otra versión se rearman enteros
 
 # ticker: (CUIT, valor nominal por acción al cierre de los balances, mes de cierre del ejercicio, banco, moneda funcional)
 EMPRESAS = {
@@ -167,6 +167,12 @@ def escala_de(activo):
     return 1 if activo > 1e11 else (1000 if activo > 1e8 else 1000000)
 
 
+DETALLE = [("costo_ventas", "3000200"), ("bruto", "3009999"), ("honorarios", "3011301"), ("administracion", "3011300"), ("comercializacion", "3011200"),
+           ("otros_gastos_operativos", "3011400"), ("otros_ingresos", "3011100"), ("depreciaciones_er", "3011600"), ("ingresos_financieros", "3021400"),
+           ("costos_financieros", "3021500"), ("recpam", "3021800"), ("otros_resultados", "3021900"), ("antes_impuestos", "3029999"),
+           ("impuesto", "3031100"), ("discontinuadas", "3041000")]
+
+
 def periodo(t, v, p, vn, mes_cierre, banco):
     g = lambda k: v.get(k)
     def suma(*ks):
@@ -202,6 +208,8 @@ def periodo(t, v, p, vn, mes_cierre, banco):
             "resultado_neto_controlante": None,
             "flujo_operativo": g("3241100"),  # flujo de efectivo de las actividades operativas (acumulado del ejercicio)
         },
+        # renglones del estado de resultados (acumulados), con el signo de la planilla (gastos en negativo): el flujo de la pestaña Acciones
+        "detalle": None if banco else {k: g(c) for k, c in DETALLE},
         "situacion": {
             "patrimonio_neto": pn,
             "patrimonio_neto_controlante": (pn - (mino or 0)) if pn is not None else None,
@@ -285,7 +293,9 @@ def main():
         esc = periodos[-1]["escala"]
         for p in periodos:  # todo en la unidad del último balance
             f = p.pop("escala") / esc
-            for grupo in ("resultados", "situacion"):
+            for grupo in ("resultados", "situacion", "detalle"):
+                if p.get(grupo) is None:
+                    continue
                 p[grupo] = {k: (round(x * f, 2) if x is not None else None) for k, x in p[grupo].items()}
         doc = {"t": t, "v": VERSION, "cuit": cuit, "fuente": "CNV - Estados contables (www.cnv.gov.ar)", "moneda_funcional": moneda,
                "splits": SPLITS.get(t, []),

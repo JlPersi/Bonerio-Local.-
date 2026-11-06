@@ -13938,6 +13938,7 @@ window.RATG = (function () {
     var qOf = function (p) {
       if (!p) return null; var m = p.acumulado_meses, pv = m > 3 ? find(back(p.cierre, 3), m - 3) : null; if (m > 3 && !pv) return null; var o = { cierre: p.cierre };
       ['ventas', 'resultado_operativo', 'depreciaciones', 'resultado_neto', 'flujo_operativo'].forEach(function (k) { var a = p.resultados[k], b = pv ? pv.resultados[k] : 0; o[k] = a == null || b == null ? null : (a * sc(p) - (pv ? b * sc(pv) : 0)) / 1e6; });
+      if (p.detalle && (!pv || pv.detalle)) { o.det = {}; Object.keys(p.detalle).forEach(function (k) { var a = p.detalle[k], b = pv ? pv.detalle[k] : 0; o.det[k] = a == null && (b == null || !pv) ? null : ((a || 0) * sc(p) - (pv ? (b || 0) * sc(pv) : 0)) / 1e6; }); }
       if (o.resultado_operativo != null && o.depreciaciones != null) o.ebitda = o.resultado_operativo + o.depreciaciones; return o;
     };
     var last = P[P.length - 1]; if (!last) return null;
@@ -13960,7 +13961,13 @@ window.RATG = (function () {
     h += '<h5>Estado de resultados del trimestre</h5>';
     if (V == null || O == null || N == null || V <= 0) h += '<p class="note">' + (V == null ? 'Es un banco o no informa ventas: el flujo no aplica. ' : '') + 'Mirá el snapshot.</p>';
     else if (O < 0 || N < 0 && -N > V - Math.max(O, 0)) h += nbSk([['Ventas', V, 'b'], ['Costos y gastos', V - O, 'r'], ['Pérdida operativa', O, 'r']], fm, 1, N) ;
-    else h += nbSk([['Ventas', V, 'b'], ['Costos y gastos operativos', V - O, 'r'], ['Resultado operativo', O, 'g'], ['Ganancia neta', N, 'g']], fm, 0, N);
+    else { var Dc = null; if (Q.det) { Dc = {}; Object.keys(Q.det).forEach(function (kk) { Dc[kk] = cv(Q.det[kk], c); }); } var St = window.innerWidth >= 640 && nbSt(Dc, V, O, N);
+      h += St ? nbSk2(St, fm) : nbSk([['Ventas', V, 'b'], ['Costos y gastos operativos', V - O, 'r'], ['Resultado operativo', O, 'g'], ['Ganancia neta', N, 'g']], fm, 0, N); }
+    if (Q.det) { // el estado de resultados en tabla, contra el mismo trimestre del año anterior
+      var ER = [['Ventas', 'ventas'], ['Costo de ventas', 'costo_ventas', 1], ['Resultado bruto', 'bruto', 1, 1], ['Comercialización', 'comercializacion', 1], ['Administración', ['administracion', 'honorarios'], 1], ['Otros ingresos', 'otros_ingresos', 1], ['Otros gastos operativos', 'otros_gastos_operativos', 1], ['Depreciaciones', 'depreciaciones_er', 1], ['Resultado operativo', 'resultado_operativo', 0, 1], ['Ingresos financieros', 'ingresos_financieros', 1], ['Costos financieros', 'costos_financieros', 1], ['RECPAM', 'recpam', 1], ['Otros resultados', 'otros_resultados', 1], ['Resultado antes de impuestos', 'antes_impuestos', 1, 1], ['Impuesto a las ganancias', 'impuesto', 1], ['Ganancia neta', 'resultado_neto', 0, 1]];
+      var gv = function (q, r) { if (!q) return null; var src = r[2] ? q.det : q; if (!src) return null; var ks = [].concat(r[1]), v = null; ks.forEach(function (kk) { if (src[kk] != null) v = (v || 0) + src[kk]; }); return v == null ? null : cv(v, q.cierre); };
+      h += '<h5>Estado de resultados</h5><div class="tw" style="max-height:none"><table><thead><tr><th class="l">Trimestre</th><th>' + lab + '</th><th>Hace un año</th><th>Variación</th></tr></thead><tbody>' + ER.map(function (r) { var a = gv(Q, r), b = gv(Q0, r); if (a == null && b == null || !a && !b) return ''; var vv = a != null && b ? a / Math.abs(b) - Math.sign(b) : null; return '<tr' + (r[3] ? ' style="font-weight:700"' : '') + '><td class="l">' + r[0] + '</td><td>' + fm(a) + '</td><td>' + fm(b) + '</td><td class="' + (vv == null ? '' : vv >= 0 ? 'up' : 'dn') + '">' + (vv == null ? '—' : pc(vv)) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+    }
     /* --- snapshot --- */
     var s = R.p.situacion || {}, ss = function (k) { return s[k] == null ? null : cv(s[k] * R.s, c); }, m = R.p.acumulado_meses, an = 12 / m, rs = R.p.resultados || {};
     var dn = s.deuda_financiera != null && s.caja_inversiones != null ? ss('deuda_financiera') - ss('caja_inversiones') : null;
@@ -14007,6 +14014,39 @@ window.RATG = (function () {
       s += lab(x1 + nw + 8, yO + hO / 2 - 4, mo ? 'Res. operativo' : 'Resultado operativo', fm(O), 'start') + lab(x1 + nw + 8, yC + hC / 2 - 4, mo ? 'Costos y gastos' : n[1][0], fm(Cc), 'start') + tail;
     }
     return '<div class="nbS"><svg viewBox="0 0 ' + (mo ? Wd : Wd) + ' ' + H + '" role="img" aria-label="Flujo del estado de resultados">' + s + '</svg></div>';
+  }
+  function nbSt(D, V, O, N) { // escalones del flujo con el detalle de la planilla: ventas → bruto → operativo → ganancia (cada uno cierra con un «otros» si no suma)
+    if (!D || D.bruto == null || D.costo_ventas == null || !(V > 0) || D.bruto < 0 || O < 0 || N < 0) return null;
+    var tiny = V * 0.02, z = function (v) { return v || 0; };
+    var st = function (base, nb, items, res, nr) { // items: [nombre, monto con signo]; agrupa lo chico en «Otros» y concilia contra el resultado
+      var pos = [], neg = [], ot = 0; items.forEach(function (x) { if (x[1] == null || x[1] === 0) return; if (Math.abs(x[1]) < tiny) ot += x[1]; else (x[1] > 0 ? pos : neg).push([x[0], Math.abs(x[1])]); });
+      var sum = base + pos.reduce(function (a, x) { return a + x[1]; }, 0) - neg.reduce(function (a, x) { return a + x[1]; }, 0) + ot, r = res - sum + ot;
+      if (Math.abs(r) >= tiny) (r > 0 ? pos : neg).push(['Otros', Math.abs(r)]); else if (r !== 0) { if (r > 0 && pos.length) pos[pos.length - 1][1] += r; else if (r < 0 && neg.length) neg[neg.length - 1][1] -= r; }
+      return { b: [nb, base], pos: pos, neg: neg, r: [nr, res] };
+    };
+    return [st(V, 'Ventas', [['Costo de ventas', D.costo_ventas]], D.bruto, 'Resultado bruto'),
+      st(D.bruto, 'Resultado bruto', [['Otros ingresos', D.otros_ingresos], ['Comercialización', D.comercializacion], ['Administración', z(D.administracion) + z(D.honorarios)], ['Otros gastos operativos', D.otros_gastos_operativos], ['Depreciaciones', D.depreciaciones_er]], O, 'Resultado operativo'),
+      st(O, 'Resultado operativo', [['Ingresos financieros', D.ingresos_financieros], ['Costos financieros', D.costos_financieros], ['RECPAM', D.recpam], ['Otros resultados', D.otros_resultados], ['Impuesto a las ganancias', D.impuesto], ['Discontinuadas', D.discontinuadas]], N, 'Ganancia neta')];
+  }
+  function nbSk2(S, fm) { // sankey de 4 columnas: el resultado de cada escalón arriba, lo que resta abajo en rojo y lo que suma entra desde abajo en verde
+    var Wd = 1180, H = 420, nw = 14, gap = 14, X = [130, 400, 670, 940], col = { b: 'var(--nbB)', r: 'var(--nbR)', g: 'var(--nbG)' }, sm = function (L) { return L.reduce(function (q, x) { return q + x[1]; }, 0); };
+    var k = Infinity; for (var c = 0; c < 4; c++) { var tot = (c ? S[c - 1].r[1] + sm(S[c - 1].neg) : S[0].b[1]) + (c < 3 ? sm(S[c].pos) : 0), n = (c ? 1 + S[c - 1].neg.length : 1) + (c < 3 ? S[c].pos.length : 0); k = Math.min(k, (H - 24 - gap * (n - 1)) / tot); }
+    var out = '', labs = '', bot = [0, 0, 0, 0], top = 12;
+    var band = function (xa, ya, xb, yb, h, c) { var m = (xa + xb) / 2; return '<path d="M' + xa + ',' + ya + ' C' + m + ',' + ya + ' ' + m + ',' + yb + ' ' + xb + ',' + yb + ' L' + xb + ',' + (yb + h) + ' C' + m + ',' + (yb + h) + ' ' + m + ',' + (ya + h) + ' ' + xa + ',' + (ya + h) + ' Z" fill="' + c + '" opacity=".36"/>'; };
+    var node = function (x, y, h, c) { return '<rect x="' + x + '" y="' + y + '" width="' + nw + '" height="' + Math.max(h, 2) + '" rx="2" fill="' + c + '"/>'; };
+    var lab = function (x, y, h, t, v, anc) { return '<text x="' + x + '" y="' + (y + h / 2 - 3) + '" text-anchor="' + anc + '" class="nbT"><tspan font-weight="700">' + esc(t) + '</tspan><tspan x="' + x + '" dy="1.2em">' + v + '</tspan></text>'; };
+    var hV = S[0].b[1] * k; out += node(X[0], top, hV, col.b); labs += lab(X[0] - 8, top, hV, S[0].b[0], fm(S[0].b[1]), 'end'); bot[0] = top + hV; var yB = top;
+    S.forEach(function (s, i) {
+      var xa = X[i] + nw, xb = X[i + 1], src = [[yB, s.b[1] * k]], tg = [];
+      s.pos.forEach(function (p) { var h = p[1] * k, y = bot[i] + gap; out += node(X[i], y, h, col.g); labs += lab(X[i] - 8, y, h, p[0], '+' + fm(p[1]), 'end'); src.push([y, h]); bot[i] = y + h; });
+      var hr = s.r[1] * k; out += node(xb, top, hr, col.g); tg.push([top, hr, col.g]); bot[i + 1] = top + hr;
+      s.neg.forEach(function (p) { var h = p[1] * k, y = bot[i + 1] + gap; out += node(xb, y, h, col.r); labs += lab(xb + nw + 8, y, h, p[0], '−' + fm(p[1]), 'start'); tg.push([y, h, col.r]); bot[i + 1] = y + h; });
+      labs += lab(xb + nw + 8, top, hr, s.r[0], fm(s.r[1]), 'start');
+      var si = 0, so = 0, ti = 0, to = 0; // reparte en orden: cada tramo va de la fuente actual al destino actual
+      while (si < src.length && ti < tg.length) { var a = Math.min(src[si][1] - so, tg[ti][1] - to); if (a > 0.05) out += band(xa, src[si][0] + so, xb, tg[ti][0] + to, a, tg[ti][2]); so += a; to += a; if (src[si][1] - so < 0.05) { si++; so = 0; } if (tg[ti][1] - to < 0.05) { ti++; to = 0; } }
+      yB = top;
+    });
+    return '<div class="nbS"><svg viewBox="0 0 ' + Wd + ' ' + H + '" role="img" aria-label="Flujo del estado de resultados">' + out + labs + '</svg></div>';
   }
   $('accCtab').onclick = function (e) { var tr = e.target.closest('tr[data-t]'); if (tr) pick(tr.getAttribute('data-t'), 1); };
   function adrs() {
