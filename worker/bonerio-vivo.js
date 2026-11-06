@@ -9,6 +9,8 @@
    - /merv/buscar?q=MERV  diagnóstico: los instrumentos de Primary que contienen ese texto (símbolo, subyacente, cfi, vencimiento).
    - /merv       el ETF del MSCI Merval (MERV), sus futuros y sus opciones, con puntas, último, cierre, ajuste e interés abierto: { ts, ins: [...] }.
    - /book/<ticker>  caja de puntas de Primary (hasta 5 niveles, 24 hs; con ?s=ci, contado inmediato): { t, BI: [[precio, cantidad], ...], OF: [...], LA: [precio, cantidad] }.
+   Precios con demora: quien no es PRO (?t=<token de Supabase> sin pro_hasta vigente ni prueba) recibe en /stream y /live la foto de hace 20 minutos,
+   en /caucion solo BYMA (datos abiertos) y en /book y /merv un 403. Hasta FREE_HASTA todos son PRO (igual que la página).
    Sin el Durable Object (FEED), cada respuesta se guarda 15 segundos: muchos visitantes a la vez = una sola consulta a Primary. */
 
 const D912 = 'https://data912.com/live/';
@@ -16,6 +18,22 @@ const EPS = ['arg_bonds', 'arg_notes', 'arg_corp', 'arg_stocks', 'arg_cedears'];
 const SEPS = EPS.filter((e) => e !== 'arg_cedears'); // lo que va por la conexión permanente: los CEDEARs no los usa la página y son la mayoría de los mensajes de Primary (cada mensaje que recibe el Durable Object cuenta para el límite diario)
 const BYMA = 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/cauciones';
 const TTL = 15;
+const SB = 'https://sbvebxqeltvkerrarzqn.supabase.co', SBK = 'sb_publishable_yhGb-WD_rjY-PohFtWjRig_g54LnhVf'; // la clave pública de la página (auth.js), no es un secreto
+const FREE_HASTA = '2026-11-13', DEMORA = 20 * 60e3;
+const PROC = new Map();
+async function esPro(t) { // el mismo criterio que la página (BLPRO): prueba abierta, cuenta nueva de menos de 2 días o pro_hasta vigente; se guarda 10 minutos por token
+  if (hoyBA() < FREE_HASTA) return true;
+  if (!t || t.length > 4000) return false;
+  const c = PROC.get(t); if (c && Date.now() - c.t < 10 * 60e3) return c.ok;
+  let ok = false;
+  try {
+    const r = await fetch(SB + '/auth/v1/user', { headers: { apikey: SBK, Authorization: 'Bearer ' + t } });
+    if (r.status >= 500) return true; // Supabase caído: no se le corta el vivo a quien paga (no se guarda)
+    if (r.ok) { const us = await r.json(), m = (us && us.app_metadata) || {}; ok = !!(us && ((us.created_at && Date.now() < Date.parse(us.created_at) + 2 * 864e5) || (m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoyBA()))); }
+  } catch (e) { return true; }
+  if (PROC.size > 5000) PROC.clear(); PROC.set(t, { t: Date.now(), ok }); return ok;
+}
+const cerrado = () => { const d = new Date(Date.now() - 3 * 3600e3), w = d.getUTCDay(), mi = d.getUTCHours() * 60 + d.getUTCMinutes(); return w === 0 || w === 6 || mi < 600 || mi > 1050; }; // fuera de 10 a 17:30 (hora de Buenos Aires)
 const sym = (s) => 'MERV - XMEV - ' + s + ' - 24hs'; // precios de 24 hs, como data912
 
 const MEM = {};
@@ -114,7 +132,7 @@ function patch(r, m) {
    Cada cambio se empuja a los navegadores conectados a /stream (websocket) en tandas de 250 ms.
    Si nadie mira durante 10 minutos, corta la conexión con Primary y se apaga. */
 export class Feed {
-  constructor(ctx, env) { this.ctx = ctx; this.env = env; this.rows = {}; this.idx = {}; this.md = {}; this.ws = null; this.cl = new Set(); this.dirty = new Set(); this.seen = Date.now(); this.lt = 0; this.lists_t = 0; }
+  constructor(ctx, env) { this.ctx = ctx; this.env = env; this.rows = {}; this.idx = {}; this.md = {}; this.ws = null; this.cl = new Set(); this.cd = new Set(); this.hist = []; this.dirty = new Set(); this.seen = Date.now(); this.lt = 0; this.lists_t = 0; }
   ok() { return !!(this.ws && this.lt && Date.now() - this.lt < 15 * 60e3); }
   async lists() { // la lista de data912 más los papeles que Primary tiene y data912 todavía no; si data912 falla, queda la anterior (o la de Primary sola)
     const nu = []; let P = null; try { P = await pextra(this.env); } catch (e) { LASTERR = String(e.message || e); }
@@ -136,7 +154,7 @@ export class Feed {
     ws.addEventListener('close', lost); ws.addEventListener('error', lost);
     this.sub(Object.keys(this.idx));
   }
-  alive() { return this.cl.size > 0 || Date.now() - this.seen < 10 * 60e3; }
+  alive() { return this.cl.size > 0 || this.cd.size > 0 || Date.now() - this.seen < 10 * 60e3; }
   start() {
     if (!this.go) this.go = (async () => { await this.lists(); await this.connect(); await this.ctx.storage.setAlarm(Date.now() + 60e3); })().catch((e) => { LASTERR = String(e.message || e); this.go = null; });
     return this.go;
@@ -155,10 +173,22 @@ export class Feed {
     this.dirty.clear(); if (!Object.keys(u).length) return;
     const msg = JSON.stringify({ u }); this.cl.forEach((c) => { try { c.send(msg); } catch (e) { this.cl.delete(c); } });
   }
+  dsnap() { // la foto de hace 20 minutos (se toma una por minuto); sin foto tan vieja, la actual solo si no se movió nada en 20 minutos o el mercado está cerrado
+    const lim = Date.now() - DEMORA; for (let i = this.hist.length - 1; i >= 0; i--) if (this.hist[i].t <= lim) return this.hist[i];
+    if (!this.lt || this.lt <= lim || cerrado()) { const s = {}; SEPS.forEach((ep) => (s[ep] = this.merged(ep))); return { t: Math.max(this.lt || 0, this.lists_t || 0), s }; }
+    return null;
+  }
+  shot() { // una foto por minuto (35 minutos) y la de hace 20 minutos a los conectados sin PRO
+    if (this.ok()) { const s = {}; SEPS.forEach((ep) => (s[ep] = this.merged(ep))); this.hist.push({ t: Date.now(), s }); }
+    const lim = Date.now() - 35 * 60e3; while (this.hist.length && this.hist[0].t < lim) this.hist.shift();
+    if (!this.cd.size) return; const d = this.dsnap(); if (!d || d.t === this.dlt) return; this.dlt = d.t;
+    const msg = JSON.stringify({ s: d.s, d: 1 }); this.cd.forEach((c) => { try { c.send(msg); } catch (e) { this.cd.delete(c); } });
+  }
   merged(ep) { return (this.rows[ep] || []).map((r) => patch(r, this.md[sym(r.symbol)])); }
   async alarm() {
     if (!this.alive()) { const w = this.ws; this.ws = null; this.go = null; try { w && w.close(1000, 'sin visitantes'); } catch (e) {} return; }
     if (Date.now() - this.lists_t > 10 * 60e3) await this.lists();
+    try { this.shot(); } catch (e) { LASTERR = String(e.message || e); }
     if (!this.ws && this.go) await this.connect().catch((x) => (LASTERR = String(x.message || x)));
     await this.ctx.storage.setAlarm(Date.now() + 60e3);
   }
@@ -166,13 +196,15 @@ export class Feed {
     const u = new URL(req.url); this.seen = Date.now(); await this.start();
     if (u.pathname === '/stream') {
       if (req.headers.get('Upgrade') !== 'websocket') return new Response('websocket', { status: 426 });
-      const [c, s] = Object.values(new WebSocketPair()); s.accept(); this.cl.add(s);
-      const bye = () => { this.cl.delete(s); this.seen = Date.now(); }; s.addEventListener('close', bye); s.addEventListener('error', bye);
-      const snap = {}; SEPS.forEach((ep) => (snap[ep] = this.merged(ep))); s.send(JSON.stringify({ s: snap }));
+      const [c, s] = Object.values(new WebSocketPair()); s.accept(); const dm = u.searchParams.get('d') === '1'; (dm ? this.cd : this.cl).add(s);
+      const bye = () => { this.cl.delete(s); this.cd.delete(s); this.seen = Date.now(); }; s.addEventListener('close', bye); s.addEventListener('error', bye);
+      if (dm) { const d = this.dsnap(); s.send(JSON.stringify(d ? { s: d.s, d: 1 } : { d: 0 })); } // sin PRO: la foto de hace 20 minutos y después una por minuto
+      else { const snap = {}; SEPS.forEach((ep) => (snap[ep] = this.merged(ep))); s.send(JSON.stringify({ s: snap })); }
       return new Response(null, { status: 101, webSocket: c });
     }
-    if (u.pathname === '/stats') return new Response(JSON.stringify({ dia: this.nd || null, mensajes: this.nm || 0, visitantes: this.cl.size, simbolos: Object.keys(this.idx).length }));
+    if (u.pathname === '/stats') return new Response(JSON.stringify({ dia: this.nd || null, mensajes: this.nm || 0, visitantes: this.cl.size, demorados: this.cd.size, simbolos: Object.keys(this.idx).length }));
     const ep = u.pathname.replace(/^\/live\//, '');
+    if (u.searchParams.get('d') === '1') { const d = SEPS.includes(ep) && this.dsnap(); return d && d.s[ep] ? new Response(JSON.stringify(d.s[ep])) : new Response('', { status: 204 }); }
     if (!this.ok() || !this.rows[ep] || !SEPS.includes(ep)) return new Response('', { status: 204 });
     return new Response(JSON.stringify(this.merged(ep)));
   }
@@ -296,6 +328,8 @@ export default {
       if (env.FEED) try { d.stream = await (await env.FEED.get(env.FEED.idFromName('main')).fetch(new Request(u.origin + '/stats'))).json(); } catch (e) { d.stream = String(e.message || e); } // mensajes de Primary recibidos hoy por la conexión permanente
       return new Response(JSON.stringify(d, null, 1), { headers: h });
     }
+    const P = await esPro(u.searchParams.get('t')); // quien no es PRO: precios de hace 20 minutos (ver arriba)
+    if (!P && (u.pathname.startsWith('/book/') || u.pathname.startsWith('/merv'))) return new Response('{"error":"pro"}', { status: 403, headers: Object.assign({}, h, { 'Cache-Control': 'no-store' }) });
     const bk = /^\/book\/((?:DLR|CAUC)(?:\/|%2F)[A-Z]{3}\d{2}|CAU-(?:ARS|USD|EXT)(?:-\d+)?|[A-Z0-9]{2,10})$/i.exec(u.pathname); // también la caución: CAU-<moneda>[-<días>] // un bono o acción (MERV - XMEV - <t> - 24hs) o un futuro de A3 (DLR/NOV26)
     if (bk) bk[1] = decodeURIComponent(bk[1]).toUpperCase();
     if (bk) { // caja de puntas a pedido (al pasar el mouse por un bono): se guarda 2 segundos
@@ -332,6 +366,16 @@ export default {
       catch (e) { LASTERR = String(e.message || e); return new Response(JSON.stringify({ error: LASTERR }), { status: 502, headers: hb }); }
     }
     const ep = u.pathname.replace(/^\/live\//, ''), feed = env.FEED && env.ROFEX_USER ? env.FEED.get(env.FEED.idFromName('main')) : null;
+    if (!P && u.pathname === '/caucion') { // sin PRO: la caución de BYMA (datos abiertos, con demora)
+      const m = MEM['/caucion?d']; if (m && Date.now() - m.t < 60e3) return new Response(m.b, { headers: h });
+      try { const B = await cauByma(); B.src = { ARS: 'BYMA', USD: 'BYMA', EXT: 'BYMA' }; const body = JSON.stringify(B); MEM['/caucion?d'] = { t: Date.now(), b: body }; return new Response(body, { headers: h }); }
+      catch (e) { return new Response(JSON.stringify({ error: String(e.message || e) }), { status: 502, headers: h }); }
+    }
+    if (!P && u.pathname === '/stream') return feed ? feed.fetch(new Request(u.origin + '/stream?d=1', req)) : new Response('sin Feed', { status: 503 });
+    if (!P) { // /live/<ep> sin PRO: la foto de hace 20 minutos; si no hay, 503 y la página usa data912
+      if (feed) try { const r = await feed.fetch(new Request(u.origin + u.pathname + '?d=1')); if (r.status === 200) return new Response(r.body, { headers: Object.assign({}, h, { 'Cache-Control': 'no-store' }) }); } catch (e) {}
+      return new Response('{"error":"demora"}', { status: 503, headers: Object.assign({}, h, { 'Cache-Control': 'no-store' }) });
+    }
     if (u.pathname === '/stream') return feed ? feed.fetch(req) : new Response('sin Feed', { status: 503 }); // precios empujados al instante
     if (u.pathname !== '/caucion' && !EPS.includes(ep)) return new Response('{"error":"ruta"}', { status: 404, headers: h });
     if (feed && u.pathname !== '/caucion') { // con la conexión permanente ya abierta, la lista sale al instante
