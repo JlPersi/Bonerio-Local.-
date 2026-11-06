@@ -38,10 +38,11 @@ const sym = (s) => 'MERV - XMEV - ' + s + ' - 24hs'; // precios de 24 hs, como d
 
 const MEM = {};
 let LASTERR = '';
-let TOK = null, TOKT = 0, WSST = 0; // el token de Primary dura un día; se renueva cada 6 horas o si lo rechaza
+let TOK = null, TOKT = 0, WSST = 0; // el token de Primary vence al final del día: uno por día (buenas prácticas de Primary) o uno nuevo si lo rechaza (como mucho uno por minuto)
+const diaBA = (t) => new Date(t - 3 * 3600e3).toISOString().slice(0, 10);
 const base = (env) => String(env.ROFEX_URL || 'https://api.bull.xoms.com.ar').trim().replace(/\/+$/, '');
 async function token(env, force) {
-  if (!force && TOK && Date.now() - TOKT < 6 * 3600e3) return TOK;
+  if (TOK && diaBA(TOKT) === diaBA(Date.now()) && (!force || Date.now() - TOKT < 60e3)) return TOK;
   const r = await fetch(base(env) + '/auth/getToken', { method: 'POST', headers: { 'X-Username': String(env.ROFEX_USER || '').trim(), 'X-Password': String(env.ROFEX_PASS || '').trim() } });
   const t = r.headers.get('X-Auth-Token');
   if (!t) throw new Error('login Primary: ' + r.status);
@@ -71,8 +72,8 @@ async function snapshot(env, syms, ms, ents) {
       if (!want.size) { clearTimeout(end); done(); }
     });
     ws.addEventListener('close', () => { clearTimeout(end); done(); });
-    for (let i = 0; i < syms.length; i += 100) {
-      ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ents || ['BI', 'OF', 'LA', 'CL', 'EV'], products: syms.slice(i, i + 100).map((s) => ({ symbol: s, marketId: 'ROFX' })) }));
+    for (let i = 0; i < syms.length; i += 1000) {
+      ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ents || ['BI', 'OF', 'LA', 'CL', 'EV'], products: syms.slice(i, i + 1000).map((s) => ({ symbol: s, marketId: 'ROFX' })) }));
     }
   });
   try { ws.close(1000, 'ok'); } catch (x) {}
@@ -143,7 +144,7 @@ export class Feed {
     this.lists_t = Date.now(); this.by = {}; EPS.forEach((ep) => (this.rows[ep] || []).forEach((x) => (this.by[x.symbol] = x)));
     if (this.ws && nu.length) this.sub(nu);
   }
-  sub(list) { for (let i = 0; i < list.length; i += 100) this.ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ['BI', 'OF', 'LA', 'CL', 'EV'], products: list.slice(i, i + 100).map((s) => ({ symbol: s, marketId: 'ROFX' })) })); }
+  sub(list) { for (let i = 0; i < list.length; i += 1000) this.ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ['BI', 'OF', 'LA', 'CL', 'EV'], products: list.slice(i, i + 1000).map((s) => ({ symbol: s, marketId: 'ROFX' })) })); }
   async connect() {
     let ws;
     for (const force of [false, true]) { const r = await fetch(base(this.env) + '/', { headers: { Upgrade: 'websocket', 'X-Auth-Token': await token(this.env, force) } }); if (r.webSocket) { ws = r.webSocket; break; } }
@@ -210,10 +211,10 @@ export class Feed {
   }
 }
 
-// caución por Primary: los símbolos 'MERV - XMEV - <moneda> - <n>D' (la lista de instrumentos se guarda 6 horas) y una foto por websocket
+// caución por Primary: los símbolos 'MERV - XMEV - <moneda> - <n>D' (la lista de instrumentos se pide una vez por día) y una foto por websocket
 let CSY = null, CSYT = 0, INS = null, INST = 0, INSERR = '';
-async function instruments(env) { // la lista de instrumentos de Primary (se guarda 6 horas)
-  if (INS && Date.now() - INST < 3 * 3600e3) return INS;
+async function instruments(env) { // la lista de instrumentos de Primary (una vez por día)
+  if (INS && INST && diaBA(INST) === diaBA(Date.now())) return INS; // una vez por día (buenas prácticas de Primary)
   let r = await fetch(base(env) + '/rest/instruments/details', { headers: { 'X-Auth-Token': await token(env) } });
   if (r.status === 401 || r.status === 403) r = await fetch(base(env) + '/rest/instruments/details', { headers: { 'X-Auth-Token': await token(env, true) } });
   const j = await r.json(); INS = j.instruments || []; INST = INS.length ? Date.now() : 0; INSERR = INS.length ? '' : String(j.description || j.message || j.status || 'lista vacía'); return INS; // vacía: no se guarda
@@ -256,7 +257,7 @@ async function merv(env) {
   return { ts: Date.now(), err: err, ws: L.length - rest.length, ins: L2.map((x) => { const m = md[x.s] || {}; return Object.assign({}, x, { BI: lv(m.BI), OF: lv(m.OF), LA: m.LA && m.LA.price > 0 ? [m.LA.price, m.LA.size, m.LA.date || null] : null, CL: p(m.CL), SE: p(m.SE), OI: m.OI && (m.OI.size || m.OI.price) || null, EV: m.EV || null, NV: m.NV || null }); }) };
 }
 async function cauSyms(env) {
-  if (CSY && Date.now() - CSYT < 6 * 3600e3) return CSY;
+  if (CSY && diaBA(CSYT) === diaBA(Date.now())) return CSY;
   const L = await instruments(env), out = {};
   L.forEach((i) => {
     const s = (i.instrumentId || {}).symbol || '', m = /^MERV - XMEV - (.+) - (\d+)D$/.exec(s); if (!m || +m[2] > 35) return;
@@ -322,7 +323,7 @@ export default {
     if (req.method === 'OPTIONS') return new Response(null, { headers: h });
     if (u.pathname === '/diag') { // chequeo: login, websocket y una foto de AL30 y GD30 (no muestra la clave)
       const d = { usuario: !!env.ROFEX_USER, clave: !!env.ROFEX_PASS, url: base(env), ultimoError: LASTERR };
-      try { await token(env, true); d.login = 'ok'; } catch (e) { d.login = String(e.message || e); return new Response(JSON.stringify(d, null, 1), { headers: h }); }
+      try { await token(env); d.login = 'ok'; } catch (e) { d.login = String(e.message || e); return new Response(JSON.stringify(d, null, 1), { headers: h }); }
       try { const md = await snapshot(env, [sym('AL30'), sym('GD30')], 5000); d.websocket = 'ok'; d.precios = md; } catch (e) { d.websocket = String(e.message || e); }
       try { const P = await pextra(env); d.nuevos = {}; await Promise.all(EPS.map(async (ep) => { let r = []; try { r = await (await fetch(D912 + ep)).json(); } catch (e) { } const a = addP(Array.isArray(r) ? r : [], P[ep]); d.nuevos[ep] = { data912: Array.isArray(r) ? r.length : 0, dePrimary: a.length - (Array.isArray(r) ? r.length : 0), ej: a.filter((x) => x.src === 'primary').slice(0, 25).map((x) => x.symbol) }; })); } catch (e) { d.nuevos = String(e.message || e); } // papeles que suma Primary
       if (env.FEED) try { d.stream = await (await env.FEED.get(env.FEED.idFromName('main')).fetch(new Request(u.origin + '/stats'))).json(); } catch (e) { d.stream = String(e.message || e); } // mensajes de Primary recibidos hoy por la conexión permanente
