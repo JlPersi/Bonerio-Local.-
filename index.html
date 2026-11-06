@@ -9225,19 +9225,21 @@ window.USTX = (function () {
   var dfull = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
 
   /* ---------- universo ---------- */
-  var USD = Object.keys(PX.S).filter(function (k) { return PX.H[k + 'D'] || PX.H[k + 'C']; });
+  var BOPS = {}; try { BOP.forEach(function (o) { BOPS[o.k] = { r: o.f.map(function (f) { return [f[0], f[1], 0]; }) }; }); } catch (e) {} // BOPREAL: flujos de su cronograma; precios de BPxxD / BPxxC (data/volumen.json)
+  var SX = function (k) { return PX.S[k] || BOPS[k]; };
+  var USD = Object.keys(PX.S).filter(function (k) { return PX.H[k + 'D'] || PX.H[k + 'C']; }).concat(Object.keys(BOPS));
   var isUsd = function (k) { return USD.indexOf(k) >= 0; };
   var famH = function (ins) { return ins.cerFix ? 'cer' : X.famOf(ins); }; // las Lecer y Boncer con el CER ya fijado hoy, en la historia son CER
   var famK = function (k) { if (isUsd(k)) return 'usd'; var ins = INST[k]; return ins ? famH(ins) : null; };
-  var FN = { usd: 'Bonares y Globales', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dual: 'Duales', dl: 'Dólar linked' }, FORD = ['usd', 'cer', 'tamar', 'fija', 'dual', 'dl'];
+  var FN = { usd: 'Bonares, Globales y BOPREAL', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dual: 'Duales', dl: 'Dólar linked' }, FORD = ['usd', 'cer', 'tamar', 'fija', 'dual', 'dl'];
   var margin = function (k) { var ins = INST[k]; return !!ins && (ins.k === 'tamar' || ins.k === 'dual'); };
-  var matOf = function (k) { var r = isUsd(k) ? PX.S[k].r : INST[k] ? INST[k].r : null; return r ? r[r.length - 1][0] : 0; };
+  var matOf = function (k) { var r = isUsd(k) ? SX(k).r : INST[k] ? INST[k].r : null; return r ? r[r.length - 1][0] : 0; };
   var ord = function (a, b) { return matOf(b) < matOf(a) ? [b, a] : [a, b]; }; // el corto primero
   var pkey = function (p) { return p[0] + '|' + p[1]; };
   (function () { var seen = {}; ST.pairs = (ST.pairs || []).map(function (p) { return ord(p[0], p[1]); }).filter(function (p) { var k = pkey(p); if (seen[k] || p[0] === p[1] || !matOf(p[0]) || !matOf(p[1])) return false; seen[k] = 1; return true; }); })();
   function universe(from) { // los bonos con precios después de la fecha elegida, por familia y por vencimiento
     var G = {}; FORD.forEach(function (f) { G[f] = []; });
-    USD.forEach(function (k) { G.usd.push({ k: k, mat: PX.S[k].r[PX.S[k].r.length - 1][0] }); });
+    USD.forEach(function (k) { var r = SX(k).r; if (!BOPS[k] || r[r.length - 1][0] > from) G.usd.push({ k: k, mat: r[r.length - 1][0] }); });
     Object.keys(INST).forEach(function (k) { var ins = INST[k], f = famH(ins), mat = ins.r[ins.r.length - 1][0]; if (!G[f] || mat <= from || !(X.hasPts(k) || OLD.H[k])) return; G[f].push({ k: k, mat: mat }); });
     FORD.forEach(function (f) { G[f].sort(function (a, b) { return a.mat - b.mat; }); });
     return G;
@@ -9253,7 +9255,7 @@ window.USTX = (function () {
     return out.sort(function (a, b) { return a[0] - b[0]; });
   }
   function usdYD(k, t, P) { // TIR efectiva anual y duración de Macaulay (días) con la liquidación de ese día
-    var s = bxSettle(t), fl = PX.S[k].r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1] + r[2]]; }); if (!fl.length || !(P > 0)) return null;
+    var s = bxSettle(t), fl = SX(k).r.filter(function (r) { return r[0] > s; }).map(function (r) { return [r[0], r[1] + r[2]]; }); if (!fl.length || !(P > 0)) return null;
     var y = solve(function (y) { return bxPv(fl, s, y) - P; }, -0.5, 5); if (y == null) return null; var du = bxDur(fl, s, y);
     return { y: y, D: du ? du.mac : fl[fl.length - 1][0] - s };
   }
