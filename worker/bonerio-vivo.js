@@ -336,7 +336,18 @@ export default {
       return new Response(JSON.stringify(d, null, 1), { headers: h });
     }
     const P = await esPro(u.searchParams.get('t')); // quien no es PRO: precios de hace 20 minutos (ver arriba)
-    if (!P && (u.pathname.startsWith('/book/') || u.pathname.startsWith('/merv'))) return new Response('{"error":"pro"}', { status: 403, headers: Object.assign({}, h, { 'Cache-Control': 'no-store' }) });
+    if (!P && (u.pathname.startsWith('/book/') || u.pathname.startsWith('/merv') || u.pathname === '/cim')) return new Response('{"error":"pro"}', { status: 403, headers: Object.assign({}, h, { 'Cache-Control': 'no-store' }) });
+    if (u.pathname === '/cim') { // monitor CI vs 24 hs: la mejor punta y el último de las dos liquidaciones, hasta 60 especies, por el websocket (se guarda 3 segundos)
+      const hb = Object.assign({}, h, { 'Cache-Control': 'no-store' }), T = [...new Set((u.searchParams.get('t') || '').toUpperCase().split(','))].filter((x) => /^[A-Z0-9]{2,10}$/.test(x)).slice(0, 60), k = '/cim?' + T.join(','), m = MEM[k];
+      if (m && Date.now() - m.t < 3000) return new Response(m.b, { headers: hb });
+      try {
+        const VS = new Set((await instruments(env)).map((i) => (i.instrumentId || {}).symbol)), sy = (t, z) => 'MERV - XMEV - ' + t + z, L = [];
+        T.forEach((t) => [' - CI', ' - 24hs'].forEach((z) => { if (VS.has(sy(t, z))) L.push(sy(t, z)); }));
+        const md = await wsmd(env, L, [], 3000), p1 = (a) => { const x = (Array.isArray(a) ? a : a ? [a] : []).find((y) => y && y.price > 0); return x ? [x.price, x.size] : null; }, o = {};
+        T.forEach((t) => { const f = (z) => { const q = md[sy(t, z)]; return q ? [p1(q.BI), p1(q.OF), q.LA && q.LA.price > 0 ? q.LA.price : null] : null; }, c = f(' - CI'), d = f(' - 24hs'); if (c || d) o[t] = { ci: c, h: d }; });
+        const body = JSON.stringify({ t: Date.now(), d: o }); MEM[k] = { t: Date.now(), b: body }; return new Response(body, { headers: hb });
+      } catch (e) { return new Response(JSON.stringify({ error: String(e.message || e) }), { status: 502, headers: hb }); }
+    }
     const bk = /^\/book\/((?:DLR|CAUC)(?:\/|%2F)[A-Z]{3}\d{2}|CAU-(?:ARS|USD|EXT)(?:-\d+)?|[A-Z0-9]{2,10})$/i.exec(u.pathname); // también la caución: CAU-<moneda>[-<días>] // un bono o acción (MERV - XMEV - <t> - 24hs) o un futuro de A3 (DLR/NOV26)
     if (bk) bk[1] = decodeURIComponent(bk[1]).toUpperCase();
     if (bk) { // caja de puntas a pedido (al pasar el mouse por un bono): se guarda 2 segundos

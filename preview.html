@@ -1098,6 +1098,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('res')">Resumen</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('trd')">Trade ideas</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('scr')">Screener</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cim')">CI vs 24 hs</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('fav')">Favoritos</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cal')">Calendario de cobros</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('alert')">Alertas</button>
@@ -1300,6 +1301,7 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="res" class="tab-content"></div>
 <div id="trd" class="tab-content"></div>
 <div id="scr" class="tab-content"></div>
+<div id="cim" class="tab-content"></div>
 <div id="cal" class="tab-content"></div>
 <div id="alert" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
@@ -9848,7 +9850,7 @@ window.USTX = (function () {
     { g: 'pvs', t: 'Bonos provinciales', ic: 'pvs', it: [['pvs', 'Curva y tabla'], ['pvs', 'Por calificación', 'pvsRt'], ['pvsf', 'Flujos y total return']] },
     { h: 'Acciones' }, ['acc', 'Acciones'], { h: 'Dólar y tasas' }, ['dol', 'Dólar'], ['brc', 'Brecha y canje'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['carry', 'Carry trade'],
     { h: 'Mercado' }, ['macro', 'Calendario macro'], { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards'], ['expp', 'Probabilidad de default']] },
-    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], { sep: 1 }, ['cons', 'Consultame']];
+    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], { sep: 1 }, ['cons', 'Consultame']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
   sn.innerHTML = '<div class="sn-h"><img src="/favicon.svg?v=2" alt=""><b>BONERÍO LOCAL</b></div><nav>' +
     GR.map(function (g, i) { return g.h ? '<div class="sn-hd">' + g.h + '</div>' : g.sep ? '<div class="sn-sep"></div>' : (Array.isArray(g) ? item(g) : '<div class="sn-g" data-gr="' + g.g + '"><button class="sn-it" data-g="' + g.g + '" title="' + g.t + '">' + IC[g.ic] + '<span>' + g.t + '</span>' + CAR + '</button><div class="sn-sub">' + g.it.map(function (t) { return item(t, 1); }).join('') + '</div></div>'); }).join('') +
@@ -15773,6 +15775,92 @@ window.RATG = (function () {
     if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey)) { e.preventDefault(); open(); return; }
     if (e.key === '/' && !typing) { e.preventDefault(); open(); }
   });
+})();
+</script>
+<script>
+/* ---------- Monitor CI vs 24 hs: la tasa implícita entre las dos liquidaciones contra la caución (Primary por el websocket, PRO) ---------- */
+(function () {
+  var root = document.getElementById('cim'); if (!root) return;
+  var $ = function (id) { return document.getElementById(id); };
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var K = 'blCim1', O = { m: 'ARS', c: '', u: '0.5', s: 'g1', dir: -1 }; try { Object.assign(O, JSON.parse(localStorage.getItem(K) || '{}')); } catch (e) {}
+  var save = function () { try { localStorage.setItem(K, JSON.stringify(O)); } catch (e) {} };
+  var GN = { usd: 'Soberano USD', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dual: 'Dual', dl: 'Dólar linked' };
+  var D = null, CAU = {}, ERR = '', T0 = 0, busy = 0;
+  var B = function () { return (window.BL_LIVE || 'https://bonerio-vivo.persijuanluis.workers.dev').replace(/\/+$/, ''); };
+  var isAct = function () { return root.classList.contains('active'); };
+  var fd = function (n) { return new Date(n * 864e5).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'UTC' }); };
+  function days() { // la rueda de hoy (o la próxima, fuera de horario): CI liquida ese día o el próximo hábil de liquidación, 24 hs el hábil siguiente
+    try { var t = bxToday(), h = +new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', hour12: false }).format(new Date()); if (!bxIsBiz(t) || h >= 17) { t++; while (!bxIsBiz(t)) t++; }
+      var a = t; while (!bxIsSet(a)) a++; var b = bxSettleT1(t); return [a, b, Math.max(1, b - a)]; } catch (e) { return [0, 0, 1]; } }
+  function list() { // las especies más operadas de cada grupo (hasta 50): en pesos, o la especie D para los soberanos en dólares
+    var u = []; try { u = window.PFQ.universe() || []; } catch (e) {}
+    var A = (window.VOLX && window.VOLX.adtv) || {}, seen = {};
+    return u.filter(function (r) { return GN[r.grp] && (O.m === 'ARS' || r.grp === 'usd') && r.d > 3; }).map(function (r) { var t = O.m === 'USD' ? r.k + 'D' : r.k; return { t: t, k: r.k, g: r.grp, v: A[r.k] || 0 }; })
+      .filter(function (r) { if (seen[r.t]) return false; seen[r.t] = 1; return true; }).sort(function (a, b) { return b.v - a.v; }).slice(0, 50);
+  }
+  function cau() { var c = CAU[O.m]; if (!c) return null; var bi = c.BI && c.BI[0] ? c.BI[0][0] : null, of = c.OF && c.OF[0] ? c.OF[0][0] : null, la = c.LA && c.LA[0] > 0 ? c.LA[0] : null; var v = la || (bi && of ? (bi + of) / 2 : bi || of); return v ? { v: v / 100, bi: bi, of: of, s: c.s } : null; }
+  function load() {
+    if (busy || !isAct()) return; busy = 1; var L = list(); T0 = Date.now();
+    if (!L.length) { busy = 0; setTimeout(load, 1500); return; }
+    var p1 = fetch(B() + '/cim?t=' + L.map(function (r) { return r.t; }).join(','), { cache: 'no-store' }).then(function (r) { if (r.status === 403) { ERR = 'pro'; return null; } return r.ok ? r.json() : null; }).then(function (j) { if (j && j.d) { D = j; ERR = ''; } else if (ERR !== 'pro') ERR = 'sin'; });
+    var p2 = fetch(B() + '/book/CAU-' + O.m, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j) CAU[O.m] = j; }).catch(function () {});
+    Promise.all([p1.catch(function () { ERR = ERR || 'sin'; }), p2]).then(function () { busy = 0; draw(); }, function () { busy = 0; draw(); });
+  }
+  function cupFlag(k, a, b) { try { var c = window.BONO && window.BONO.cf && window.BONO.cf(k); if (!c || !c.f) return false; return c.f.some(function (f) { return f[0] > a && f[0] <= b + 4; }); } catch (e) { return false; } }
+  function rows() {
+    var L = list(), Z = days(), n = Math.max(1, Z[2]), c = (parseFloat(String(O.c).replace(',', '.')) || 0) / 100, out = [];
+    L.forEach(function (r) {
+      var q = D && D.d && D.d[r.t]; if (!q) return; var ci = q.ci || [], h = q.h || [];
+      var cb = ci[0] && ci[0][0], ca = ci[1] && ci[1][0], hb = h[0] && h[0][0], ha = h[1] && h[1][0];
+      var mc = cb && ca ? (cb + ca) / 2 : ci[2], mh = hb && ha ? (hb + ha) / 2 : h[2];
+      var an = function (x, y) { return x > 0 && y > 0 ? (x / y - 1) * 365 / n : null; };
+      out.push({ t: r.t, k: r.k, g: r.g, v: r.v, cb: cb, ca: ca, hb: hb, ha: ha, cl: ci[2], hl: h[2], im: an(mh, mc),
+        g1: an(hb * (1 - c), ca * (1 + c)), // comprás en CI y vendés en 24 hs: colocás pesos n días
+        g2: an(ha * (1 + c), cb * (1 - c)), // vendés en CI y recomprás en 24 hs: tomás pesos n días
+        cup: cupFlag(r.k, Z[0] - 1, Z[1]) });
+    });
+    return out;
+  }
+  root.innerHTML = '<style>#cim .f{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:flex-end}#cim .f label{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--mu)}#cim .f input{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:9px;padding:7px 9px;font:inherit;font-size:14px;width:90px}' +
+    '#cim .ch{display:flex;gap:6px}#cim .ch button{background:none;border:1px solid var(--bd);color:var(--mu);border-radius:999px;padding:6px 12px;font:600 12.5px inherit;font-family:inherit;cursor:pointer}#cim .ch button.on{border-color:var(--ac);color:var(--tx);background:rgba(255,197,66,.08)}' +
+    '#cim .kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:16px}#cim .kp div{border:1px solid var(--bd);border-radius:12px;padding:12px 14px}#cim .kp b{display:block;font-size:20px;margin-top:4px}#cim .kp span{font-size:12px;color:var(--mu)}' +
+    '#cim table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}#cim th,#cim td{padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--bd)}#cim th{font-size:11.5px;color:var(--mu);text-transform:uppercase;letter-spacing:.3px;cursor:pointer;user-select:none}#cim th.s{color:var(--ac)}#cim td:first-child,#cim th:first-child{text-align:left}#cim tbody tr{cursor:pointer}#cim tbody tr:hover{background:rgba(255,255,255,.03)}#cim td small{display:block;color:var(--mu);font-size:11.5px}#cim td.ok{color:#22c55e;font-weight:700}#cim .wr{overflow-x:auto}</style>' +
+    '<div class="card sx"><div class="sxh"><div style="min-width:0"><p class="qh">Monitor CI vs 24 hs</p><p class="qs">La diferencia de precio entre contado inmediato y 24 hs es una tasa: comprar en CI y vender en 24 hs es colocar pesos por los días que separan las dos liquidaciones, y al revés es tomarlos. Si esa tasa le gana a la caución, hay un desarbitraje. Un jueves antes de un feriado, por ejemplo, la 24 hs liquida varios días después y la diferencia pesa más.</p></div></div>' +
+    '<div class="f" style="margin-top:12px"><label>Moneda<span class="ch" id="ciM"><button type="button" data-m="ARS">Pesos</button><button type="button" data-m="USD">Dólar MEP (especie D)</button></span></label>' +
+    '<label>Comisión por punta (%)<input id="ciC" inputmode="decimal" placeholder="0" value="' + esc(O.c) + '"></label><label>Marcar si le gana a la caución por (puntos)<input id="ciU" inputmode="decimal" value="' + esc(O.u) + '"></label></div>' +
+    '<div class="kp" id="ciK"></div></div>' +
+    '<div class="card sx" style="margin-top:20px"><div class="sxh"><div style="min-width:0"><p class="qh" id="ciN">Especies</p><p class="qs" id="ciS">Puntas de Primary en vivo. Tasas nominales anuales (TNA), sin impuestos.</p></div></div><div class="wr"><table id="ciT"></table></div></div>';
+  var COLS = [['t', 'Especie'], ['cb', 'CI compra'], ['ca', 'CI venta'], ['hb', '24 hs compra'], ['ha', '24 hs venta'], ['im', 'Tasa implícita'], ['g1', 'Comprar CI / vender 24 hs'], ['g2', 'Vender CI / comprar 24 hs'], ['v', 'Vol. prom. 20d']];
+  function draw() {
+    if (!isAct()) return;
+    [].forEach.call(root.querySelectorAll('[data-m]'), function (b) { b.classList.toggle('on', b.getAttribute('data-m') === O.m); });
+    var Z = days(), C = cau(), u = (parseFloat(String(O.u).replace(',', '.')) || 0) / 100, R = rows(), s = O.s, dir = O.dir;
+    var best1 = R.filter(function (r) { return r.g1 != null; }).sort(function (a, b) { return b.g1 - a.g1; })[0], best2 = R.filter(function (r) { return r.g2 != null; }).sort(function (a, b) { return a.g2 - b.g2; })[0];
+    var pc = function (v) { return v == null ? '—' : nf(v * 100, 2) + '%'; };
+    $('ciK').innerHTML = '<div><span>Días entre liquidaciones</span><b>' + Z[2] + (Z[2] === 1 ? ' día' : ' días') + '</b><span>CI ' + fd(Z[0]) + ' · 24 hs ' + fd(Z[1]) + '</span></div>' +
+      '<div><span>Caución ' + (O.m === 'ARS' ? 'en pesos' : 'en dólares') + '</span><b>' + (C ? pc(C.v) : '—') + '</b><span>' + (C ? esc(C.s || '') : 'sin dato') + '</span></div>' +
+      '<div><span>Mejor para colocar</span><b>' + (best1 ? pc(best1.g1) : '—') + '</b><span>' + (best1 ? esc(best1.t) + ': comprás CI y vendés 24 hs' : '') + '</span></div>' +
+      '<div><span>Más barato para tomar</span><b>' + (best2 ? pc(best2.g2) : '—') + '</b><span>' + (best2 ? esc(best2.t) + ': vendés CI y recomprás 24 hs' : '') + '</span></div>';
+    if (ERR === 'pro') { $('ciT').innerHTML = '<tbody><tr><td style="text-align:left;white-space:normal;padding:18px 10px">Las puntas en vivo de CI y 24 hs son PRO. <a href="#" id="ciP" style="color:var(--ac)">Ver planes</a></td></tr></tbody>'; var a = $('ciP'); if (a) a.onclick = function (e) { e.preventDefault(); if (window.BLPROPOP) window.BLPROPOP('*'); }; $('ciN').textContent = 'Especies'; return; }
+    R.sort(function (a, b) { var x = a[s], y = b[s]; if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * dir; });
+    $('ciN').textContent = R.length ? R.length + ' especies con puntas' : (D ? 'Sin puntas ahora' : ERR ? 'Sin conexión con Primary' : 'Cargando…');
+    $('ciS').textContent = 'Puntas de Primary en vivo' + (D ? ' (' + new Date(D.t).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ')' : '') + '. TNA por ' + Z[2] + (Z[2] === 1 ? ' día' : ' días') + ', con la comisión que pongas y sin impuestos. En verde: le gana a la caución por más de ' + nf(u * 100, 2) + ' puntos. ⚠ corta cupón cerca: la diferencia de precio puede ser el cupón.';
+    var cv = C ? C.v : null, px = function (v) { return v == null ? '—' : nf(v, v < 10 ? 4 : 2); };
+    $('ciT').innerHTML = '<thead><tr>' + COLS.map(function (c) { return '<th data-s="' + c[0] + '"' + (s === c[0] ? ' class="s"' : '') + '>' + c[1] + (s === c[0] ? (dir < 0 ? ' ▾' : ' ▴') : '') + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      R.map(function (r) { var ok1 = cv != null && r.g1 != null && r.g1 > cv + u, ok2 = cv != null && r.g2 != null && r.g2 < cv - u;
+        return '<tr data-k="' + esc(r.k) + '"><td><b>' + esc(r.t) + '</b>' + (r.cup ? ' ⚠' : '') + '<small>' + GN[r.g] + '</small></td><td>' + px(r.cb) + '</td><td>' + px(r.ca) + '</td><td>' + px(r.hb) + '</td><td>' + px(r.ha) + '</td><td>' + pc(r.im) + '</td><td' + (ok1 ? ' class="ok"' : '') + '>' + pc(r.g1) + '</td><td' + (ok2 ? ' class="ok"' : '') + '>' + pc(r.g2) + '</td><td>' + (r.v ? '$ ' + nf(r.v / 1e6, 0) + ' M' : '—') + '</td></tr>'; }).join('') + '</tbody>';
+  }
+  root.addEventListener('click', function (e) {
+    var m = e.target.closest('[data-m]'); if (m) { O.m = m.getAttribute('data-m'); save(); D = null; draw(); load(); return; }
+    var th = e.target.closest('th[data-s]'); if (th) { var k = th.getAttribute('data-s'); if (O.s === k) O.dir = -O.dir; else { O.s = k; O.dir = k === 't' || k === 'g2' ? 1 : -1; } save(); draw(); return; }
+    var tr = e.target.closest('tr[data-k]'); if (tr && window.BONO) window.BONO.open(tr.getAttribute('data-k'));
+  });
+  root.addEventListener('input', function (e) { if (e.target.id === 'ciC') O.c = e.target.value; else if (e.target.id === 'ciU') O.u = e.target.value; else return; save(); draw(); });
+  setInterval(function () { if (isAct() && !document.hidden) load(); }, 10000);
+  window.CIMX = { rows: rows, days: days, list: list, O: O };
+  var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'cim') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; if (window.VOLX) window.VOLX.ensure(function () { draw(); }); setTimeout(function () { draw(); load(); }, 0); } };
 })();
 </script>
 </body>
