@@ -1100,6 +1100,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('scr')">Screener</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cim')">CI vs 24 hs</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('spr')">Spreads vs Treasuries</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cvh')">Curvas en el tiempo</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('fav')">Favoritos</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cal')">Calendario de cobros</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('alert')">Alertas</button>
@@ -1304,6 +1305,7 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="scr" class="tab-content"></div>
 <div id="cim" class="tab-content"></div>
 <div id="spr" class="tab-content"></div>
+<div id="cvh" class="tab-content"></div>
 <div id="cal" class="tab-content"></div>
 <div id="alert" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
@@ -9755,6 +9757,7 @@ window.USTX = (function () {
   };
   var isAct = function () { return ['thist', 'expi', 'expd', 'expf', 'expp'].some(function (i) { var el = document.getElementById(i); return el && el.classList.contains('active'); }); };
   var _sw = window.switchTab; window.switchTab = function (id) { _sw(id); if (id === 'pesos' || id === 'expf') setTimeout(function () { moveFw(id === 'expf'); }, 80); if ((id === 'expi' || id === 'expd') && X.views) setTimeout(function () { try { X.views(); if (window.PSBE) window.PSBE(); } catch (e) { console.error('breakevens', e); } }, 40); if (/^(thist|expi|expd|expf|expp)$/.test(id)) { later(); if (!VJ && window.VOLX && window.VOLX.raw) window.VOLX.raw(function (d) { if (d) { VJ = d; CACHE = {}; FIT = {}; if (isAct()) later(); } }); } };
+  window.THS = { series: series, universe: universe, ready: function (cb) { if (VJ || !window.VOLX || !window.VOLX.raw) { cb(); return; } window.VOLX.raw(function (d) { if (d && !VJ) { VJ = d; CACHE = {}; } cb(); }); } }; // para Curvas en el tiempo
 })();
 </script>
 <script>
@@ -9852,7 +9855,7 @@ window.USTX = (function () {
     { g: 'pvs', t: 'Bonos provinciales', ic: 'pvs', it: [['pvs', 'Curva y tabla'], ['pvs', 'Por calificación', 'pvsRt'], ['pvsf', 'Flujos y total return']] },
     { h: 'Acciones' }, ['acc', 'Acciones'], { h: 'Dólar y tasas' }, ['dol', 'Dólar'], ['brc', 'Brecha y canje'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['carry', 'Carry trade'],
     { h: 'Mercado' }, ['macro', 'Calendario macro'], { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards'], ['expp', 'Probabilidad de default']] },
-    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['spr', 'Spreads vs Treasuries'], { sep: 1 }, ['cons', 'Consultame']];
+    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['spr', 'Spreads vs Treasuries'], ['cvh', 'Curvas en el tiempo'], { sep: 1 }, ['cons', 'Consultame']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
   sn.innerHTML = '<div class="sn-h"><img src="/favicon.svg?v=2" alt=""><b>BONERÍO LOCAL</b></div><nav>' +
     GR.map(function (g, i) { return g.h ? '<div class="sn-hd">' + g.h + '</div>' : g.sep ? '<div class="sn-sep"></div>' : (Array.isArray(g) ? item(g) : '<div class="sn-g" data-gr="' + g.g + '"><button class="sn-it" data-g="' + g.g + '" title="' + g.t + '">' + IC[g.ic] + '<span>' + g.t + '</span>' + CAR + '</button><div class="sn-sub">' + g.it.map(function (t) { return item(t, 1); }).join('') + '</div></div>'); }).join('') +
@@ -15943,6 +15946,108 @@ window.RATG = (function () {
   root.addEventListener('input', function (e) { if (e.target.id !== 'spQ') return; O.q = e.target.value; save(); draw(); });
   window.SPRX = { rows: rows, curve: curve };
   var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'spr') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; if (window.USTX) USTX.load(function () { ZC = null; draw(); }); setTimeout(draw, 0); } };
+  var _tt = window.toggleTheme; if (_tt) window.toggleTheme = function () { _tt.apply(this, arguments); if (isAct()) setTimeout(draw, 0); };
+})();
+</script>
+<script>
+/* ---------- Curvas en el tiempo: la curva de hoy contra otras fechas, con ajuste Nelson-Siegel-Svensson o spline cúbico, y los bonos que quedan fuera de la curva ----------
+   - puntos: TIR (tasa efectiva anual) contra duración de Macaulay, con las series diarias de Tasas históricas (window.THS)
+   - Nelson-Siegel-Svensson: y(τ) = b0 + b1·f1(τ/λ1) + b2·(f1(τ/λ1) − e^(−τ/λ1)) + b3·(f1(τ/λ2) − e^(−τ/λ2)), f1(x) = (1 − e^(−x)) / x;
+     λ1 y λ2 por grilla y los b por mínimos cuadrados. Con menos de 7 bonos, Nelson-Siegel (sin b3) para no sobreajustar
+   - spline: cúbico natural por los puntos; el desvío de cada bono se mide contra el spline armado sin ese bono */
+(function () {
+  var root = document.getElementById('cvh'); if (!root) return;
+  var $ = function (id) { return document.getElementById(id); };
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var FM = { ny: ['Globales (ley NY)', function (k) { return /^GD/.test(k); }, 'usd'], loc: ['Bonares (ley local)', function (k) { return /^A[LEON]\d/.test(k); }, 'usd'], fija: ['Tasa fija (Lecap y Boncap)', null, 'fija'], cer: ['CER', null, 'cer'], dl: ['Dólar linked', null, 'dl'] };
+  var AGO = [['1s', '1 semana', 7], ['1m', '1 mes', 30], ['3m', '3 meses', 91], ['6m', '6 meses', 182], ['1a', '1 año', 365]];
+  var COL = ['#ffc542', '#4ea8ff', '#a78bfa', '#22c55e', '#f472b6'];
+  var K = 'blCvh1', O = { f: 'ny', a: ['1m', '6m'], c: '', m: 'nss' }; try { Object.assign(O, JSON.parse(localStorage.getItem(K) || '{}')); } catch (e) {}
+  var save = function () { try { localStorage.setItem(K, JSON.stringify(O)); } catch (e) {} };
+  var CH = null, RDY = false, isAct = function () { return root.classList.contains('active'); };
+  var today = function () { return bxToday(); }, FROM = function () { return today() - 400; };
+  function bonds() { var T = window.THS; if (!T) return []; var f = FM[O.f], G = T.universe(FROM()), L = (G[f[2]] || []).map(function (x) { return x.k; }); return f[1] ? L.filter(f[1]) : L; }
+  function snap(t, last) { // los puntos de la curva el día t (o la última rueda antes, hasta 7 días)
+    var out = []; bonds().forEach(function (k) { var S = window.THS.series(k, 'D', FROM()), p = null; for (var i = S.length - 1; i >= 0; i--) { if (S[i].t <= t) { p = S[i]; break; } } if (!p || (!last && t - p.t > 7) || (last && today() - p.t > 10) || p.y == null || !(p.D > 20)) return; if (!(p.y > -0.5 && p.y < 2)) return; out.push({ k: k, x: p.D / 365, y: p.y, t: p.t }); });
+    return out.sort(function (a, b) { return a.x - b.x; });
+  }
+  function f1(x) { return x < 1e-6 ? 1 : (1 - Math.exp(-x)) / x; }
+  function lsq(A, b) { var n = A[0].length, M = [], v = []; for (var i = 0; i < n; i++) { M.push([]); v.push(0); for (var j = 0; j < n; j++) { var s = i === j ? 1e-9 : 0; A.forEach(function (r) { s += r[i] * r[j]; }); M[i].push(s); } A.forEach(function (r, q) { v[i] += r[i] * b[q]; }); }
+    for (var c = 0; c < n; c++) { var p = c; for (var r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r; var t = M[c]; M[c] = M[p]; M[p] = t; var u = v[c]; v[c] = v[p]; v[p] = u; if (Math.abs(M[c][c]) < 1e-14) return null;
+      for (r = 0; r < n; r++) if (r !== c) { var f = M[r][c] / M[c][c]; for (var j = c; j < n; j++) M[r][j] -= f * M[c][j]; v[r] -= f * v[c]; } } return v.map(function (x, i) { return x / M[i][i]; }); }
+  function nss(P) { // ajuste por grilla de λ; devuelve la función y(τ) y su nombre
+    if (P.length < 4) return null; var sv = P.length >= 7, best = null, Lg = []; for (var i = 0; i < 24; i++) Lg.push(0.15 * Math.pow(1.25, i));
+    Lg.forEach(function (l1) { (sv ? Lg.filter(function (l) { return l > l1 * 1.6; }) : [0]).forEach(function (l2) {
+      var row = function (t) { var a = f1(t / l1), r = [1, a, a - Math.exp(-t / l1)]; if (sv) { var c = f1(t / l2); r.push(c - Math.exp(-t / l2)); } return r; };
+      var A = P.map(function (p) { return row(p.x); }), b = lsq(A, P.map(function (p) { return p.y; })); if (!b) return;
+      var e = 0; A.forEach(function (r, q) { var y = 0; r.forEach(function (x, j) { y += x * b[j]; }); e += (y - P[q].y) * (y - P[q].y); }); if (!best || e < best.e) best = { e: e, b: b, row: row }; }); });
+    if (!best) return null; var g = function (t) { var r = best.row(Math.max(t, 0.01)), y = 0; r.forEach(function (x, j) { y += x * best.b[j]; }); return y; }; g.nm = sv ? 'Svensson' : 'Nelson-Siegel'; return g;
+  }
+  function spl(P) { // spline cúbico natural (con x repetidos se queda con el primero)
+    var Q = []; P.forEach(function (p) { if (!Q.length || p.x - Q[Q.length - 1].x > 1e-4) Q.push(p); }); var n = Q.length; if (n < 3) return null;
+    var x = Q.map(function (p) { return p.x; }), y = Q.map(function (p) { return p.y; }), h = [], al = [0], l = [1], mu = [0], z = [0], c = new Array(n).fill(0), b = [], d = [];
+    for (var i = 0; i < n - 1; i++) h.push(x[i + 1] - x[i]);
+    for (i = 1; i < n - 1; i++) al.push(3 / h[i] * (y[i + 1] - y[i]) - 3 / h[i - 1] * (y[i] - y[i - 1]));
+    for (i = 1; i < n - 1; i++) { l[i] = 2 * (x[i + 1] - x[i - 1]) - h[i - 1] * mu[i - 1]; mu[i] = h[i] / l[i]; z[i] = (al[i] - h[i - 1] * z[i - 1]) / l[i]; } l[n - 1] = 1; z[n - 1] = 0;
+    for (var j = n - 2; j >= 0; j--) { c[j] = z[j] - mu[j] * c[j + 1]; b[j] = (y[j + 1] - y[j]) / h[j] - h[j] * (c[j + 1] + 2 * c[j]) / 3; d[j] = (c[j + 1] - c[j]) / (3 * h[j]); }
+    var g = function (t) { if (t <= x[0]) return y[0] + b[0] * (t - x[0]); if (t >= x[n - 1]) { var k = n - 2, s = b[k] + 2 * c[k] * h[k] + 3 * d[k] * h[k] * h[k]; return y[n - 1] + s * (t - x[n - 1]); } var i = 0; while (i < n - 2 && t > x[i + 1]) i++; var u = t - x[i]; return y[i] + b[i] * u + c[i] * u * u + d[i] * u * u * u; };
+    g.nm = 'spline cúbico'; return g;
+  }
+  var fit = function (P) { return O.m === 'spl' ? spl(P) : nss(P); };
+  function resid(P) { // desvío de cada bono: contra el ajuste (NSS) o contra el spline sin ese bono
+    if (O.m !== 'spl') { var g = nss(P); return g ? P.map(function (p) { return { p: p, f: g(p.x), r: p.y - g(p.x) }; }) : []; }
+    return P.map(function (p, i) { var g = spl(P.filter(function (q, j) { return j !== i; })); if (!g || i === 0 || i === P.length - 1) return { p: p, f: null, r: null }; return { p: p, f: g(p.x), r: p.y - g(p.x) }; });
+  }
+  function dates() { var t0 = today(), D = [{ id: 'hoy', l: 'Hoy', t: t0, last: true }]; AGO.forEach(function (a) { if (O.a.indexOf(a[0]) >= 0) D.push({ id: a[0], l: 'Hace ' + a[1], t: t0 - a[2] }); });
+    if (O.c) { var t = bxDayNum(O.c); if (isFinite(t) && t < t0) D.push({ id: 'c', l: O.c.split('-').reverse().join('/'), t: t }); } return D.slice(0, 5); }
+  var pc = function (v) { return v == null ? '—' : nf(v * 100, 2) + '%'; }, bp = function (v) { return v == null ? '—' : (v > 0 ? '+' : '') + nf(v * 1e4, 0); };
+  root.innerHTML = '<style>#cvh .ch{display:flex;flex-wrap:wrap;gap:6px}#cvh .ch button{background:none;border:1px solid var(--bd);color:var(--mu);border-radius:999px;padding:5px 11px;font:600 12.5px inherit;font-family:inherit;cursor:pointer}#cvh .ch button.on{border-color:var(--ac);color:var(--tx);background:rgba(255,197,66,.08)}' +
+    '#cvh .rw{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:12px}#cvh .rw>span{font-size:12.5px;color:var(--mu)}#cvh input{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:9px;padding:6px 9px;font:inherit;font-size:14px}' +
+    '#cvh table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}#cvh th,#cvh td{padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--bd)}#cvh th{font-size:11.5px;color:var(--mu);text-transform:uppercase;letter-spacing:.3px}#cvh td:first-child,#cvh th:first-child{text-align:left}#cvh tbody tr[data-k]{cursor:pointer}#cvh tbody tr:hover{background:rgba(255,255,255,.03)}#cvh .wr{overflow-x:auto}#cvh .up{color:#22c55e}#cvh .dn{color:#ef4444}#cvh i.dt{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}</style>' +
+    '<div class="card sx"><div class="sxh"><div style="min-width:0"><p class="qh">Curvas en el tiempo</p><p class="qs">La curva de hoy contra la de otras fechas, para ver si se empinó, se aplanó o se movió entera. La línea es un ajuste Nelson-Siegel-Svensson (o un spline cúbico) sobre la TIR y la duración de cada bono. Los bonos que quedan arriba de la curva rinden más que sus vecinos (baratos) y los de abajo rinden menos (caros).</p></div></div>' +
+    '<div class="rw"><span>Curva</span><span class="ch" id="cvF">' + Object.keys(FM).map(function (f) { return '<button type="button" data-f="' + f + '">' + FM[f][0] + '</button>'; }).join('') + '</span></div>' +
+    '<div class="rw"><span>Comparar con</span><span class="ch" id="cvA">' + AGO.map(function (a) { return '<button type="button" data-a="' + a[0] + '">' + a[1] + '</button>'; }).join('') + '</span><label style="font-size:12.5px;color:var(--mu)">Otra fecha <input type="date" id="cvC" value="' + esc(O.c) + '"></label></div>' +
+    '<div class="rw"><span>Modelo</span><span class="ch" id="cvM"><button type="button" data-m="nss">Nelson-Siegel-Svensson</button><button type="button" data-m="spl">Spline cúbico</button></span></div>' +
+    '<div id="cvL" class="rw" style="margin-top:14px"></div><div style="position:relative;height:400px;margin-top:10px"><canvas id="cvG"></canvas></div></div>' +
+    '<div class="card sx" style="margin-top:20px"><div class="sxh"><div style="min-width:0"><p class="qh">Cómo se movió la curva</p><p class="qs" id="cvS">Tasa de la curva ajustada en cada plazo y pendiente (largo menos corto), en puntos básicos de diferencia contra hoy.</p></div></div><div class="wr"><table id="cvT"></table></div></div>' +
+    '<div class="card sx" style="margin-top:20px"><div class="sxh"><div style="min-width:0"><p class="qh">Fuera de la curva hoy</p><p class="qs" id="cvRs">Diferencia entre la TIR de cada bono y la curva, en puntos básicos. Positivo: rinde más que la curva (barato). Negativo: rinde menos (caro).</p></div></div><div class="wr"><table id="cvR"></table></div></div>';
+  function draw() {
+    if (!isAct()) return;
+    [['f', 'f'], ['m', 'm']].forEach(function (z) { [].forEach.call(root.querySelectorAll('[data-' + z[0] + ']'), function (b) { b.classList.toggle('on', b.getAttribute('data-' + z[0]) === O[z[1]]); }); });
+    [].forEach.call(root.querySelectorAll('[data-a]'), function (b) { b.classList.toggle('on', O.a.indexOf(b.getAttribute('data-a')) >= 0); });
+    if (!RDY || !window.THS) { $('cvL').innerHTML = '<span>Cargando la historia de precios…</span>'; return; }
+    var D = dates(), all = [], ds = [], H = null;
+    D.forEach(function (d, i) { d.P = snap(d.t, d.last); d.g = fit(d.P); d.c = COL[i]; if (i === 0) H = d; });
+    var xs = []; D.forEach(function (d) { d.P.forEach(function (p) { xs.push(p.x); }); }); var x0 = xs.length ? Math.min.apply(null, xs) : 0, x1 = xs.length ? Math.max.apply(null, xs) : 1;
+    D.forEach(function (d) { ds.push({ type: 'scatter', label: d.l, data: d.P.map(function (p) { return { x: p.x, y: p.y * 100, k: p.k }; }), backgroundColor: d.c, borderColor: d.c, pointRadius: d.last ? 5 : 3.5, pointHoverRadius: 7 });
+      if (d.g) { var L = []; for (var i = 0; i <= 80; i++) { var t = x0 + (x1 - x0) * i / 80; L.push({ x: t, y: d.g(t) * 100 }); } ds.push({ type: 'line', label: d.l + ' (' + d.g.nm + ')', data: L, borderColor: d.c, backgroundColor: d.c, borderWidth: d.last ? 2.5 : 1.6, borderDash: d.last ? [] : [5, 4], pointRadius: 0, tension: 0 }); } });
+    $('cvL').innerHTML = D.map(function (d) { return '<span><i class="dt" style="background:' + d.c + '"></i>' + esc(d.l) + (d.P.length ? ' · ' + d.P.length + ' bonos' : ' · sin datos') + '</span>'; }).join('');
+    var cs = getComputedStyle(document.documentElement), mu = (cs.getPropertyValue('--mu') || '#888').trim(), bd = (cs.getPropertyValue('--bd') || '#333').trim();
+    if (window.Chart) { if (CH) CH.destroy(); CH = new Chart($('cvG'), { type: 'scatter', data: { datasets: ds }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+      plugins: { legend: { display: false }, tooltip: { filter: function (c) { return c.raw && c.raw.k; }, callbacks: { label: function (c) { return c.dataset.label + ' · ' + c.raw.k + ': ' + nf(c.raw.y, 2) + '% · ' + nf(c.raw.x, 2) + ' años'; } } } },
+      scales: { x: { type: 'linear', title: { display: true, text: 'Duración (años)', color: mu }, ticks: { color: mu }, grid: { color: bd } }, y: { title: { display: true, text: 'TIR (% efectiva anual)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } },
+      onClick: function (e, el) { if (el && el.length && window.BONO) { var p = ds[el[0].datasetIndex].data[el[0].index]; if (p && p.k) window.BONO.open(p.k); } } } }); }
+    var TT = [0.08, 0.36, 0.64, 0.92].map(function (q) { var t = x0 + (x1 - x0) * q; return t < 1.5 ? Math.round(t * 4) / 4 : Math.round(t * 2) / 2; }).filter(function (t, i, A) { return t > 0 && A.indexOf(t) === i; }), sl = [TT[0], TT[TT.length - 1]]; // plazos dentro de lo que cubren los bonos
+    var yl = function (t) { return nf(t, 2).replace(/,?0+$/, ''); }, cv = function (g, t) { return g && t >= x0 - 0.05 && t <= x1 + 0.05 ? g(t) : null; };
+    $('cvT').innerHTML = '<thead><tr><th>Fecha</th>' + TT.map(function (t) { return '<th>' + yl(t) + (t === 1 ? ' año' : ' años') + '</th>'; }).join('') + '<th>Pendiente ' + yl(sl[1]) + '−' + yl(sl[0]) + '</th></tr></thead><tbody>' +
+      D.map(function (d) { var sp = cv(d.g, sl[1]) != null && cv(d.g, sl[0]) != null ? cv(d.g, sl[1]) - cv(d.g, sl[0]) : null, sph = H.g && cv(H.g, sl[1]) != null && cv(H.g, sl[0]) != null ? cv(H.g, sl[1]) - cv(H.g, sl[0]) : null;
+        return '<tr><td><i class="dt" style="background:' + d.c + '"></i>' + esc(d.l) + '</td>' + TT.map(function (t) { var v = cv(d.g, t), h = cv(H.g, t); return '<td>' + pc(v) + (d !== H && v != null && h != null ? ' <small style="color:var(--mu)">' + bp(h - v) + '</small>' : '') + '</td>'; }).join('') + '<td>' + (sp == null ? '—' : bp(sp) + ' pb') + (d !== H && sp != null && sph != null ? ' <small style="color:var(--mu)">' + (sph > sp ? 'se empinó ' : 'se aplanó ') + nf(Math.abs(sph - sp) * 1e4, 0) + '</small>' : '') + '</td></tr>'; }).join('') + '</tbody>';
+    $('cvS').textContent = 'Tasa de la curva ajustada (' + (H.g ? H.g.nm : '—') + ') en cada plazo de duración y pendiente (largo menos corto). En gris, lo que cambió hasta hoy en puntos básicos.';
+    var R = resid(H.P).filter(function (r) { return r.r != null; }).sort(function (a, b) { return Math.abs(b.r) - Math.abs(a.r); }), lab = function (r) { return r > 0.0015 ? '<span class="up">barato</span>' : r < -0.0015 ? '<span class="dn">caro</span>' : 'en la curva'; };
+    $('cvR').innerHTML = '<thead><tr><th>Bono</th><th>TIR</th><th>Duración</th><th>Curva</th><th>Desvío (pb)</th><th></th>' + D.slice(1).map(function (d) { return '<th>TIR ' + esc(d.l.toLowerCase()) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      (R.length ? R.map(function (r) { var p = r.p; return '<tr data-k="' + esc(p.k) + '"><td><b>' + esc(p.k) + '</b></td><td>' + pc(p.y) + '</td><td>' + nf(p.x, 2) + ' a</td><td>' + pc(r.f) + '</td><td><b>' + bp(r.r) + '</b></td><td>' + lab(r.r) + '</td>' +
+        D.slice(1).map(function (d) { var q = d.P.filter(function (z) { return z.k === p.k; })[0]; return '<td>' + (q ? pc(q.y) + ' <small style="color:var(--mu)">' + bp(p.y - q.y) + '</small>' : '—') + '</td>'; }).join('') + '</tr>'; }).join('') : '<tr><td colspan="6" style="text-align:left">Hacen falta al menos 4 bonos con precio.</td></tr>') + '</tbody>';
+  }
+  root.addEventListener('click', function (e) {
+    var f = e.target.closest('[data-f]'); if (f) { O.f = f.getAttribute('data-f'); save(); draw(); return; }
+    var m = e.target.closest('[data-m]'); if (m) { O.m = m.getAttribute('data-m'); save(); draw(); return; }
+    var a = e.target.closest('[data-a]'); if (a) { var v = a.getAttribute('data-a'), i = O.a.indexOf(v); if (i >= 0) O.a.splice(i, 1); else { O.a.push(v); if (O.a.length > 3) O.a.shift(); } save(); draw(); return; }
+    var tr = e.target.closest('tr[data-k]'); if (tr && window.BONO) window.BONO.open(tr.getAttribute('data-k'));
+  });
+  root.addEventListener('change', function (e) { if (e.target.id !== 'cvC') return; O.c = e.target.value || ''; save(); draw(); });
+  window.CVHX = { snap: snap, nss: nss, spl: spl, O: O };
+  var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'cvh') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; if (!RDY && window.THS) window.THS.ready(function () { RDY = true; draw(); }); setTimeout(draw, 0); } };
   var _tt = window.toggleTheme; if (_tt) window.toggleTheme = function () { _tt.apply(this, arguments); if (isAct()) setTimeout(draw, 0); };
 })();
 </script>
