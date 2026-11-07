@@ -4407,13 +4407,15 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
   window.PSXD = { // para el Simulador de duales: TAMAR diaria y, por dual, lo necesario para calcular la pata TAMAR con cualquier camino futuro (la otra pata, con el escenario de Curva Pesos)
     tamar: function () { var o = IDX.TAMAR; return { s: o.s, v: o.v }; },
+    base: function () { var sc = scFor(5), c = IDX.CER, f = IDX.FX; return { pi: sc.piF, dev: sc.devF, mIdx: mIdx, bdBack: bdBack, cer: { t: lastOf(c), v: c.v[c.v.length - 1] }, fx: { t: lastOf(f), v: f.v[f.v.length - 1] } }; }, // escenario de Curva Pesos (inflación y devaluación por mes) y últimos CER y A3500
     biz: function (t) { return bxIsBiz(t) && !BANKH[t]; },
     duals: function () { var base = scFor(5), today = bxToday(), o = IDX.TAMAR, lt = lastOf(o), out = [];
       Object.keys(INST).forEach(function (k) { var ins = INST[k]; if (ins.k !== 'dual' && ins.k !== 'dualtf') return; var mat = ins.r[ins.r.length - 1][0]; if (mat <= today) return;
         var bv = branchVals(ins, mat, base), rt = ins.k === 'dualtf' ? null : rowOf(ins, 'TAMAR'), rd = rowOf(ins, 'DOLLAR_LINKED'), t0 = bdBack(ins.iss, 10), t1 = bdBack(mat, 10), hs = 0, hn = 0, fut = [];
         for (var t = t0; t <= t1; t++) { if (!bxIsBiz(t) || BANKH[t]) continue; if (t <= lt) { hs += o.v[t - o.s] / 100; hn++; } else fut.push(t); }
         out.push({ k: k, tf: ins.k === 'dualtf', leg: ins.k === 'dualtf' ? 'fija' : rd ? 'dólar linked' : 'CER', iss: ins.iss, mat: mat, t0: t0, t1: t1, sp: rt ? rt[3] : TTD_M, n: rt ? rt[1] : 100, fx: rd ? fxAt(bdBack(ins.iss, 3), ZERO) : 1,
-          other: ins.k === 'dualtf' ? bv.fix : bv.cer != null ? bv.cer : bv.dl, m: m360(ins.iss, mat), hs: hs, hn: hn, fut: fut }); });
+          other: ins.k === 'dualtf' ? bv.fix : bv.cer != null ? bv.cer : bv.dl, m: m360(ins.iss, mat), hs: hs, hn: hn, fut: fut,
+          cerAmt: ins.k === 'dualtf' ? null : (rowOf(ins, 'CER') || [])[1] || null, cerB: rowOf(ins, 'CER') ? cerBase(ins) : null, dlAmt: rd ? rd[1] : null, fix: ins.k === 'dualtf' ? bv.fix : null }); });
       return out.sort(function (a, b) { return a.mat - b.mat; }); }
   };
   window.PSX = { duo: function (k) { var s0 = day($('d0').value), S = snapshot(s0, scFor(5)), o = S.filter(function (x) { return x.k === k; })[0], L = dualLegs(o, S); if (!L) return null; L.o = o; L.teaX = (1 + o.tea) * Math.pow(o.P / L.mx, 365 / o.d) - 1; L.tem = tem(o.tea); L.temX = tem(L.teaX); return L; }, cerD: function (t) { var o = IDX.CER; return o && t >= o.s && t <= lastOf(o) ? o.v[t - o.s] : null; }, cerOrig: cerOrig, bondCF: bondCF, pvAt: bxPvPS, cfList: function () { var s = day($('d0').value); return Object.keys(INST).filter(function (k) { var ins = INST[k]; return ins.r.length > 1 && (ins.k === 'cerc' || ins.k === 'cpn') && ins.r[ins.r.length - 1][0] > s && PRICE[k] > 0; }).sort(function (a, b) { return INST[a].r[INST[a].r.length - 1][0] - INST[b].r[INST[b].r.length - 1][0]; }); }, snap: function (n) { var s0 = day($('d0').value), sc0 = scFor(n); return { s: s0, sc: sc0, S: snapshot(s0, sc0) }; }, INST: INST, ptsOf: ptsOf, yieldAt: yieldAt, durAt: durAt, yieldLab: yieldLab, famOf: famOf, FAM: FAM, paidFlows: paidFlows, LABELS: LABELS, fairFit: fairFit, css: css, fm: fm, sg: sg, rgba: rgba, bdBack: bdBack, mdOf: mdOf, flowsOf: flowsOf, mkSc: mkSc, fxAt: fxAt, ZERO: function () { return ZERO; }, idxOf: idxOf, ixProj: function (nm, t) { var T = nm === 'CER' ? bdBack(t, 10) : bdBack(t, 3), o = nm === 'CER' ? IDX.CER : IDX.FX; return { nm: nm, d: T, v: nm === 'CER' ? cerAt(T, scFor(2, 1)) : fxAt(T, scFor(4, 1)), fijo: T <= lastOf(o) }; }, ovr: OVR, ovrBase: function (n, id) { return cardV(n, id); }, views: function () { if (!window.PSV || !window.PSV.c1) window.renderPesos(); return window.PSV; }, hasPts: function (k) { return !!HIST[k]; } };
@@ -16018,9 +16020,116 @@ window.RATG = (function () {
   }
   root.addEventListener('click', function (e) { var b = e.target.closest('[data-h],[data-st],[data-w],[data-n],[data-v]'); if (!b) return; ['h', 'st', 'w', 'n', 'v'].forEach(function (k) { var v = b.getAttribute('data-' + k); if (v != null) O[k] = v; }); save(); draw(); });
   root.addEventListener('change', function (e) { if (e.target.id === 'dsB') { O.k = e.target.value; save(); draw(); } });
-  window.DSIMX = { draw: draw, O: O, sim: function () { return MC; } };
+  window.DSIMX = { draw: draw, O: O, sim: function () { return MC; }, calib: calib, last: last, tamLeg: tamLeg, px: px };
   var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'dsim') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; setTimeout(draw, 0); } };
   var _tt = window.toggleTheme; if (_tt) window.toggleTheme = function () { _tt.apply(this, arguments); if (isAct()) setTimeout(draw, 0); };
+})();
+</script>
+<script>
+/* ---------- Simulador de duales · escenario electoral: dos regímenes después de la elección (continuidad o ruptura), simulando TAMAR, A3500, inflación (CER) y brecha ----------
+   - antes de la elección: TAMAR con el CIR calibrado; A3500 e inflación con el escenario de Curva Pesos más ruido
+   - continuidad: TAMAR vuelve a θ de continuidad; dólar e inflación siguen el escenario de Curva Pesos; brecha de hoy
+   - ruptura: salto de la TAMAR y del A3500 el día de la elección, después devaluación mensual más alta, inflación con traspaso del salto y brecha con cepo
+   - cada pago (la pata que gane) se descuenta con la curva de Lecaps y Boncaps de hoy: valor justo y sus intervalos; también, la probabilidad de ruptura que justifica el precio */
+(function () {
+  var root = document.getElementById('dsim'); if (!root) return;
+  var $ = function (id) { return document.getElementById(id); };
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var DEF = { el: '2027-10-24', p: '35', tc: '22', vfx: '3', jt: '25', tr: '45', jf: '50', dr: '4', pt: '60', ir: '4', br: '60', n: '20000' };
+  var K = 'blElec1', O = Object.assign({}, DEF, { k: '' }); try { Object.assign(O, JSON.parse(localStorage.getItem(K) || '{}')); } catch (e) {}
+  var save = function () { try { localStorage.setItem(K, JSON.stringify(O)); } catch (e) {} };
+  var RES = null, CH = null, CH2 = null, BRH = null, isAct = function () { return root.classList.contains('active'); };
+  var num = function (k) { var x = parseFloat(String(O[k]).replace(',', '.')); return isFinite(x) ? x : parseFloat(DEF[k]); };
+  var fd = function (t) { return new Date(t * 864e5).toLocaleDateString('es-AR', { timeZone: 'UTC' }); };
+  var card = document.createElement('div'); card.className = 'card sx'; card.id = 'dsimC5'; card.style.marginTop = '24px'; root.appendChild(card);
+  var inp = function (k, l, w) { return '<label>' + l + '<input data-e="' + k + '" value="' + esc(O[k]) + '"' + (w ? ' style="width:' + w + 'px"' : '') + '></label>'; };
+  card.innerHTML = '<div class="sxh"><div style="min-width:0"><p class="qh">Escenario electoral</p><p class="qs">Antes de la elección todo sigue el escenario de Curva Pesos. Después, cada camino cae en uno de dos regímenes. <b>Continuidad</b>: dólar y tasas quietos, inflación a la baja. <b>Ruptura</b>: salta el dólar oficial, salta la TAMAR, la devaluación pasa a precios y aparece brecha con cepo. Se simulan TAMAR, A3500, inflación y brecha, cada pago se descuenta con la TAMAR de su camino más el spread que hoy paga el mercado (el del simulador CIR de arriba) y sale el valor justo con su intervalo de confianza.</p></div></div>' +
+    '<div class="ctl"><label>Elección<input type="date" data-e="el" value="' + esc(O.el) + '"></label>' + inp('p', 'Probabilidad de ruptura (%)') + '<label>Caminos<span class="seg"><button type="button" data-en="20000">20.000</button><button type="button" data-en="50000">50.000</button><button type="button" data-en="100000">100.000</button></span></label></div>' +
+    '<p class="note" style="margin:14px 0 0"><b style="color:var(--tx)">Continuidad</b></p><div class="ctl" style="margin-top:6px">' + inp('tc', 'TAMAR de largo plazo (% TNA)') + inp('vfx', 'Volatilidad del dólar (% mensual)') + '</div>' +
+    '<p class="note" style="margin:14px 0 0"><b style="color:var(--tx)">Ruptura</b></p><div class="ctl" style="margin-top:6px">' + inp('jf', 'Salto del oficial (%)') + inp('dr', 'Devaluación después (% mensual)') + inp('pt', 'Traspaso a precios (%)') + inp('ir', 'Inflación de fondo (% mensual)') + inp('jt', 'Salto de la TAMAR (pts TNA)') + inp('tr', 'TAMAR de largo plazo (% TNA)') + inp('br', 'Brecha con cepo (%)') + '</div>' +
+    '<div class="ctl"><button class="act" type="button" id="elGo">Simular</button><button class="act" type="button" id="elRs" style="opacity:.8">Valores por defecto</button><span class="note" id="elSt" style="margin:0"></span></div>' +
+    '<div class="kp" id="elK"></div><div class="wrap" style="margin-top:16px"><table id="elT"></table></div>' +
+    '<div class="ctl"><label>Distribución de<select id="elB"></select></label></div><div style="position:relative;height:clamp(360px,34vw,520px);margin-top:12px"><canvas id="elG"></canvas></div>' +
+    '<div style="position:relative;height:clamp(320px,30vw,460px);margin-top:16px"><canvas id="elP"></canvas></div><p class="note" id="elN"></p>';
+  function brecha(cb) { if (BRH != null) return cb(BRH); if (!window.VOLX || !window.VOLX.raw) { BRH = 0; return cb(0); } window.VOLX.raw(function (d) { var a = d && d.t && d.t.AL30, b = d && d.t && d.t.AL30D, B = window.PSXD.base(); BRH = 0;
+    if (a && b) { var la = 0, lb = 0, acc = 0; for (var j = 0; j < a.i.length; j++) { acc += a.i[j]; if (a.c[j] > 0) la = a.c[j]; } acc = 0; for (j = 0; j < b.i.length; j++) { acc += b.i[j]; if (b.c[j] > 0) lb = b.c[j]; } if (la > 0 && lb > 0 && B.fx.v > 0) BRH = Math.max(0, la / lb / B.fx.v - 1); } cb(BRH); }); }
+  function curve() { // Lecaps y Boncaps de hoy: TEA contra días, interpolada (plana afuera)
+    var P = window.DSIMX.px(), Q = Object.keys(P).map(function (k) { return P[k]; }).filter(function (r) { return r.grp === 'fija' && /^(S|T)\d|^TY30P$/.test(r.k) && r.tir > 0.05 && r.tir < 1 && r.d > 7; }).sort(function (a, b) { return a.d - b.d; });
+    return function (d) { if (!Q.length) return 0.3; if (d <= Q[0].d) return Q[0].tir; for (var i = 1; i < Q.length; i++) if (d <= Q[i].d) { var w = (d - Q[i - 1].d) / (Q[i].d - Q[i - 1].d); return Q[i - 1].tir + (Q[i].tir - Q[i - 1].tir) * w; } return Q[Q.length - 1].tir; }; }
+  function rng(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function run(done) {
+    var MC = window.DSIMX.sim(), X = window.PSXD, B = X.base(), D = X.duals(), C = window.DSIMX.calib(), L = window.DSIMX.last(), P = window.DSIMX.px(), yc = curve();
+    var tE = Math.round(Date.parse(O.el + 'T00:00:00Z') / 864e5), N = Math.max(2000, Math.min(100000, parseInt(O.n, 10) || 20000)), p = Math.min(1, Math.max(0, num('p') / 100));
+    var tEnd = Math.max.apply(null, D.map(function (d) { return d.mat; })), t0 = Math.min(L.t, B.cer.t, B.fx.t), steps = []; for (var t = t0 + 7; t <= tEnd + 7; t += 7) steps.push(t); var ns = steps.length;
+    // por dual y por paso: cuántos días hábiles de su ventana TAMAR caen en ese paso; en qué paso se miden CER (10 hábiles antes) y A3500 (3 hábiles antes)
+    D.forEach(function (d) { d.w = new Float32Array(ns); d.fut.forEach(function (t) { var j = Math.min(ns - 1, Math.max(0, Math.floor((t - t0 - 1) / 7))); d.w[j]++; }); d.jc = Math.min(ns - 1, Math.max(0, Math.floor((B.bdBack(d.mat, 10) - t0 - 1) / 7))); d.jf = Math.min(ns - 1, Math.max(0, Math.floor((B.bdBack(d.mat, 3) - t0 - 1) / 7))); d.jm = Math.min(ns - 1, Math.max(0, Math.floor((d.mat - t0 - 1) / 7)));
+      var pr = P[d.k]; d.P = pr ? pr.P : null; d.s0 = pr && pr.s ? pr.s : L.t; var mo0 = MC && MC.out && MC.out[d.k]; d.z = mo0 && isFinite(mo0.z) ? mo0.z : null; d.df = d.z == null ? Math.pow(1 + yc(d.mat - d.s0), -(d.mat - d.s0) / 365) : Math.exp(-d.z * Math.max(1, d.mat - d.s0) / 365); d.pv = new Float64Array(N); d.reg = new Uint8Array(N); d.win = new Uint8Array(N); d.usd = new Float64Array(N); });
+    var U = rng(20271024), gs = function () { var u = 0; while (u === 0) u = U(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * U()); }, dt = 7 / 365, sfx = num('vfx') / 100 * Math.sqrt(12 / 52), jE = Math.min(ns - 1, Math.max(0, Math.floor((tE - t0 - 1) / 7)));
+    var thc = num('tc') / 100, thr = num('tr') / 100, jt = num('jt') / 100, jf = num('jf') / 100, dr = num('dr') / 100, pt = num('pt') / 100, ir = num('ir') / 100, br = num('br') / 100, b0 = BRH || 0;
+    var mo = steps.map(function (t) { return B.mIdx(t); }), cm = steps.map(function (t) { var d = new Date(t * 864e5); return B.mIdx(t) - (d.getUTCDate() >= 16 ? 1 : 2); }); // CER: del 16 al 15 crece con la inflación del mes anterior
+    var mE = B.mIdx(tE), FAN = { c: { r: [], f: [] }, r: { r: [], f: [] } }, R = new Float32Array(ns), FX = new Float64Array(ns), SH = new Float64Array(ns), CE = new Float64Array(ns), pi = {}, pathOut = Math.min(N, 4000), acc = { c: { r: new Float64Array(ns), f: new Float64Array(ns), n: 0 }, r: { r: new Float64Array(ns), f: new Float64Array(ns), n: 0 } };
+    var m0 = B.fx.v * (1 + b0), path = 0, chunk = Math.max(500, Math.floor(N / 20));
+    function batch() {
+      var end = Math.min(N, path + chunk);
+      for (; path < end; path++) {
+        var rup = U() < p, r = C.r0, sh = 0, lf = Math.log(B.fx.v), lc = Math.log(B.cer.v), mnoise = {}; pi = {};
+        var pim = function (m) { if (pi[m] != null) return pi[m]; var base = B.pi(m), v; if (m <= mE || !rup) v = (m > mE ? Math.min(base, base * 0.9) : base) + 0.003 * (mnoise[m] = mnoise[m] != null ? mnoise[m] : gs()); else { var k = m - mE; v = ir + (k >= 1 && k <= 4 ? pt * jf / 4 : 0) + 0.004 * gs(); } return (pi[m] = Math.max(-0.01, v)); };
+        for (var j = 0; j < ns; j++) {
+          var post = j > jE, th = post ? (rup ? thr : thc) : C.th; if (j === jE + 1 && rup) r += jt;
+          var rp = Math.max(r, 0); r = r + C.k * (th - rp) * dt + C.s * Math.sqrt(rp) * Math.sqrt(dt) * gs(); R[j] = Math.max(r, 0.005); sh += Math.log(1 + R[j] * 7 / 365); SH[j] = sh;
+          var dv = post && rup ? dr : B.dev(mo[j]); lf += Math.log(1 + dv) * 7 / 30.4 + sfx * gs(); if (j === jE + 1 && rup) lf += Math.log(1 + jf); FX[j] = Math.exp(lf);
+          lc += Math.log(1 + pim(cm[j])) * 7 / 30.4; CE[j] = Math.exp(lc);
+        }
+        var A = rup ? acc.r : acc.c; if (A.n < pathOut) { for (j = 0; j < ns; j++) { A.r[j] += R[j]; A.f[j] += FX[j]; } A.n++; }
+        for (var q = 0; q < D.length; q++) { var d = D[q], sm = d.hs, n = d.hn; for (j = 0; j < ns; j++) if (d.w[j]) { sm += R[j] * d.w[j]; n += d.w[j]; }
+          var tl = d.n * d.fx * Math.pow(1 + (sm / n + d.sp) * 32 / 365, 365 / 384 * d.m), ot = d.tf ? d.fix : d.dlAmt != null ? d.dlAmt * FX[d.jf] : d.cerAmt * CE[d.jc] / d.cerB, v = Math.max(tl, ot);
+          d.pv[path] = v * d.df * (d.z == null ? 1 : Math.exp(-SH[d.jm])); d.reg[path] = rup ? 1 : 0; d.win[path] = tl > ot ? 1 : 0; var mep = FX[d.jf] * (1 + (d.mat > tE && rup ? br : b0)); d.usd[path] = d.P > 0 ? v / mep / (d.P / m0) * 100 : null; }
+      }
+      $('elSt').textContent = 'Simulando… ' + Math.round(path / N * 100) + '%';
+      if (path < N) return setTimeout(batch, 0);
+      ['c', 'r'].forEach(function (g) { var A = acc[g]; FAN[g] = { r: Array.prototype.map.call(A.r, function (v) { return A.n ? v / A.n : null; }), f: Array.prototype.map.call(A.f, function (v) { return A.n ? v / A.n : null; }) }; });
+      RES = { D: D, N: N, p: p, steps: steps, FAN: FAN, tE: tE, b0: b0 }; $('elSt').textContent = ''; done();
+    }
+    batch();
+  }
+  function Q(a, q) { return a[Math.min(a.length - 1, Math.max(0, Math.floor(q * (a.length - 1))))]; }
+  function stats(d) { var all = Array.prototype.slice.call(d.pv).sort(function (a, b) { return a - b; }), m = [0, 0], c = [0, 0], w = [0, 0], u = [[], []];
+    for (var i = 0; i < d.pv.length; i++) { var g = d.reg[i]; m[g] += d.pv[i]; c[g]++; w[g] += d.win[i]; if (d.usd[i] != null) u[g].push(d.usd[i]); }
+    var fv = all.reduce(function (a, b) { return a + b; }, 0) / all.length, f0 = c[0] ? m[0] / c[0] : null, f1 = c[1] ? m[1] / c[1] : null, pi = d.P > 0 && f0 != null && f1 != null && f1 !== f0 ? (d.P - f0) / (f1 - f0) : null;
+    u.forEach(function (a) { a.sort(function (x, y) { return x - y; }); });
+    return { fv: fv, q: [Q(all, 0.05), Q(all, 0.5), Q(all, 0.95)], f0: f0, f1: f1, w0: c[0] ? w[0] / c[0] : null, w1: c[1] ? w[1] / c[1] : null, pimp: pi, u0: u[0].length ? Q(u[0], 0.5) : null, u1: u[1].length ? Q(u[1], 0.5) : null, all: all }; }
+  function draw() {
+    if (!isAct()) return;
+    [].forEach.call(card.querySelectorAll('[data-en]'), function (b) { b.classList.toggle('on', b.getAttribute('data-en') === String(O.n)); });
+    if (!RES) { $('elK').innerHTML = '<div><span>Tocá Simular</span><b>—</b><span>con los supuestos de arriba</span></div>'; return; }
+    var D = RES.D, S = {}; D.forEach(function (d) { S[d.k] = stats(d); });
+    var pc = function (v, s) { return v == null || !isFinite(v) ? '—' : (s && v > 0 ? '+' : '') + nf(v * 100, 1) + '%'; };
+    $('elK').innerHTML = '<div><span>Elección</span><b>' + fd(RES.tE) + '</b><span>ruptura con ' + nf(RES.p * 100, 0) + '% de probabilidad</span></div><div><span>Brecha hoy</span><b>' + nf(RES.b0 * 100, 1) + '%</b><span>MEP sobre el A3500</span></div><div><span>Caminos</span><b>' + RES.N.toLocaleString('es-AR') + '</b><span>paso semanal</span></div>';
+    $('elT').innerHTML = '<thead><tr><th rowspan="2">Dual</th><th rowspan="2">Precio</th><th colspan="4">Valor justo</th><th colspan="2">Continuidad</th><th colspan="2">Ruptura</th><th rowspan="2">Ruptura implícita en el precio</th></tr><tr><th>Promedio</th><th>5%</th><th>95%</th><th>vs precio</th><th>Valor · gana TAMAR</th><th>US$ MEP al vencimiento</th><th>Valor · gana TAMAR</th><th>US$ MEP al vencimiento</th></tr></thead><tbody>' +
+      D.map(function (d) { var s = S[d.k], dg = d.fx > 1 ? 0 : 2, vs = d.P > 0 ? s.fv / d.P - 1 : null;
+        return '<tr><td class="k">' + esc(d.k) + '<small>TAMAR vs ' + d.leg + ' · vence ' + fd(d.mat) + (d.mat <= RES.tE ? ' · antes de la elección' : '') + '</small></td><td>' + nf(d.P, dg) + '</td><td><b>' + nf(s.fv, dg) + '</b></td><td>' + nf(s.q[0], dg) + '</td><td>' + nf(s.q[2], dg) + '</td><td class="' + (vs == null ? '' : vs >= 0 ? 'up' : 'dn') + '">' + pc(vs, 1) + '</td>' +
+          '<td>' + nf(s.f0, dg) + '<small>TAMAR ' + pc(s.w0) + '</small></td><td>' + nf(s.u0, 2) + '</td><td>' + nf(s.f1, dg) + '<small>TAMAR ' + pc(s.w1) + '</small></td><td>' + nf(s.u1, 2) + '</td><td>' + (d.mat <= RES.tE ? '—' : s.pimp == null ? '—' : s.pimp < 0 ? 'menos de 0%' : s.pimp > 1 ? 'más de 100%' : '<b>' + nf(s.pimp * 100, 0) + '%</b>') + '</td></tr>'; }).join('') + '</tbody>';
+    var sel = $('elB'); if (!O.k || !S[O.k]) O.k = (D.filter(function (d) { return d.mat > RES.tE; })[0] || D[0]).k; sel.innerHTML = D.map(function (d) { return '<option' + (d.k === O.k ? ' selected' : '') + '>' + esc(d.k) + '</option>'; }).join('');
+    var d = D.filter(function (x) { return x.k === O.k; })[0], s = S[O.k], lo = Q(s.all, 0.003), hi = Q(s.all, 0.997), nb = 60, w = (hi - lo) / nb || 1, h0 = new Array(nb).fill(0), h1 = new Array(nb).fill(0);
+    for (var i = 0; i < d.pv.length; i++) { var b = Math.floor((d.pv[i] - lo) / w); if (b >= 0 && b < nb) (d.reg[i] ? h1 : h0)[b]++; }
+    var cs = getComputedStyle(document.documentElement), mu = (cs.getPropertyValue('--mu') || '#888').trim(), bd = (cs.getPropertyValue('--bd') || '#333').trim(), mx = 0; h0.forEach(function (v, i) { mx = Math.max(mx, v + h1[i]); });
+    var vl = function (x, lab, col, dash) { return { type: 'line', label: lab, data: [{ x: x, y: 0 }, { x: x, y: mx * 1.05 }], borderColor: col, borderWidth: 2, borderDash: dash || [], pointRadius: 0 }; }, dg = d.fx > 1 ? 0 : 2;
+    var ds = [{ type: 'bar', label: 'Continuidad', data: h0.map(function (v, i) { return { x: lo + (i + 0.5) * w, y: v }; }), backgroundColor: 'rgba(78,168,255,.55)', stack: 's', barPercentage: 1, categoryPercentage: 1 }, { type: 'bar', label: 'Ruptura', data: h1.map(function (v, i) { return { x: lo + (i + 0.5) * w, y: v }; }), backgroundColor: 'rgba(255,107,139,.55)', stack: 's', barPercentage: 1, categoryPercentage: 1 }];
+    if (d.P > 0) ds.push(vl(d.P, 'Precio de mercado ' + nf(d.P, dg), '#e5e7eb')); ds.push(vl(s.fv, 'Valor justo ' + nf(s.fv, dg), '#ffc542', [6, 4])); ds.push(vl(s.q[0], 'Percentil 5%', 'rgba(255,197,66,.5)', [2, 3])); ds.push(vl(s.q[2], 'Percentil 95%', 'rgba(255,197,66,.5)', [2, 3]));
+    if (window.Chart) { if (CH) CH.destroy(); CH = new Chart($('elG'), { data: { datasets: ds }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, plugins: { legend: { labels: { color: mu, boxWidth: 12 } }, tooltip: { filter: function (c) { return c.dataset.type === 'bar'; }, callbacks: { title: function (c) { return 'Valor ' + nf(c[0].raw.x, dg); }, label: function (c) { return c.dataset.label + ': ' + c.raw.y + ' caminos'; } } } }, scales: { x: { type: 'linear', stacked: true, title: { display: true, text: 'Valor justo de ' + d.k, color: mu }, ticks: { color: mu }, grid: { color: bd } }, y: { stacked: true, title: { display: true, text: 'Caminos', color: mu }, ticks: { color: mu }, grid: { color: bd } } } } }); }
+    var F = RES.FAN, T = RES.steps, ln = function (a, lab, col, ax, dash) { return { label: lab, data: T.map(function (t, i) { return { x: t, y: a[i] }; }), borderColor: col, backgroundColor: col, borderWidth: 2, borderDash: dash || [], pointRadius: 0, yAxisID: ax }; };
+    var ds2 = [ln(F.c.r.map(function (v) { return v * 100; }), 'TAMAR · continuidad', '#4ea8ff', 'y'), ln(F.r.r.map(function (v) { return v * 100; }), 'TAMAR · ruptura', '#ff6b8b', 'y'), ln(F.c.f, 'A3500 · continuidad', '#4ea8ff', 'y2', [6, 4]), ln(F.r.f, 'A3500 · ruptura', '#ff6b8b', 'y2', [6, 4])];
+    if (window.Chart) { if (CH2) CH2.destroy(); CH2 = new Chart($('elP'), { type: 'line', data: { datasets: ds2 }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: mu, boxWidth: 12 } }, tooltip: { callbacks: { title: function (c) { return fd(c[0].raw.x); }, label: function (c) { return c.dataset.label + ': ' + nf(c.raw.y, c.dataset.yAxisID === 'y' ? 1 : 0) + (c.dataset.yAxisID === 'y' ? '%' : ''); } } } },
+      scales: { x: { type: 'linear', min: T[0], max: T[T.length - 1], ticks: { color: mu, maxTicksLimit: 10, callback: function (v) { var dd = new Date(v * 864e5); return (dd.getUTCMonth() + 1) + '/' + String(dd.getUTCFullYear()).slice(2); } }, grid: { color: bd } }, y: { position: 'left', title: { display: true, text: 'TAMAR promedio (% TNA)', color: mu }, ticks: { color: mu }, grid: { color: bd } }, y2: { position: 'right', title: { display: true, text: 'A3500 promedio', color: mu }, ticks: { color: mu }, grid: { display: false } } } } }); }
+    $('elN').textContent = 'Valor justo: el promedio de los pagos descontados con la TAMAR de cada camino más el spread de mercado de cada dual; 5% y 95%, su intervalo. Sin elección el valor justo da el precio, así que la diferencia es lo que agrega el escenario electoral. Ruptura implícita: la probabilidad de ruptura con la que el valor justo da el precio de mercado. US$ MEP al vencimiento: por cada US$ 100 MEP que ponés hoy, cuántos dólares MEP cobrás al vencimiento (A3500 más la brecha de ese régimen), mediana de cada régimen. TAMAR con el CIR calibrado arriba; dólar e inflación hasta la elección y en continuidad, con el escenario de Curva Pesos. Supuestos tuyos, no una predicción.';
+  }
+  card.addEventListener('change', function (e) { var k = e.target.getAttribute && e.target.getAttribute('data-e'); if (k) { O[k] = e.target.value.trim(); save(); } if (e.target.id === 'elB') { O.k = e.target.value; save(); draw(); } });
+  card.addEventListener('click', function (e) { var b = e.target.closest('[data-en]'); if (b) { O.n = b.getAttribute('data-en'); save(); draw(); return; }
+    if (e.target.id === 'elRs') { Object.assign(O, DEF); save(); [].forEach.call(card.querySelectorAll('[data-e]'), function (i) { i.value = O[i.getAttribute('data-e')]; }); draw(); return; }
+    if (e.target.id === 'elGo') { e.target.disabled = true; brecha(function () { run(function () { e.target.disabled = false; draw(); }); }); } });
+  window.ELECX = { run: function (cb) { brecha(function () { run(function () { draw(); if (cb) cb(RES); }); }); }, O: O };
+  var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'dsim') setTimeout(draw, 0); };
 })();
 </script>
 </body>
