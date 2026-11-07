@@ -1102,6 +1102,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('spr')">Spreads vs Treasuries</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cvh')">Curvas en el tiempo</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('pfh')">Rendimiento del portfolio</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('bkt')">Backtest</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('fav')">Favoritos</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cal')">Calendario de cobros</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('alert')">Alertas</button>
@@ -1308,6 +1309,7 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="spr" class="tab-content"></div>
 <div id="cvh" class="tab-content"></div>
 <div id="pfh" class="tab-content"></div>
+<div id="bkt" class="tab-content"></div>
 <div id="cal" class="tab-content"></div>
 <div id="alert" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
@@ -9857,7 +9859,7 @@ window.USTX = (function () {
     { g: 'pvs', t: 'Bonos provinciales', ic: 'pvs', it: [['pvs', 'Curva y tabla'], ['pvs', 'Por calificación', 'pvsRt'], ['pvsf', 'Flujos y total return']] },
     { h: 'Acciones' }, ['acc', 'Acciones'], { h: 'Dólar y tasas' }, ['dol', 'Dólar'], ['brc', 'Brecha y canje'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['carry', 'Carry trade'],
     { h: 'Mercado' }, ['macro', 'Calendario macro'], { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards'], ['expp', 'Probabilidad de default']] },
-    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['spr', 'Spreads vs Treasuries'], ['cvh', 'Curvas en el tiempo'], ['pfh', 'Rendimiento del portfolio'], { sep: 1 }, ['cons', 'Consultame']];
+    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['spr', 'Spreads vs Treasuries'], ['cvh', 'Curvas en el tiempo'], ['pfh', 'Rendimiento del portfolio'], ['bkt', 'Backtest'], { sep: 1 }, ['cons', 'Consultame']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
   sn.innerHTML = '<div class="sn-h"><img src="/favicon.svg?v=2" alt=""><b>BONERÍO LOCAL</b></div><nav>' +
     GR.map(function (g, i) { return g.h ? '<div class="sn-hd">' + g.h + '</div>' : g.sep ? '<div class="sn-sep"></div>' : (Array.isArray(g) ? item(g) : '<div class="sn-g" data-gr="' + g.g + '"><button class="sn-it" data-g="' + g.g + '" title="' + g.t + '">' + IC[g.ic] + '<span>' + g.t + '</span>' + CAR + '</button><div class="sn-sub">' + g.it.map(function (t) { return item(t, 1); }).join('') + '</div></div>'); }).join('') +
@@ -16153,6 +16155,101 @@ window.RATG = (function () {
   window.PFHX = { run: run, O: O };
   var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'pfh') { var gc = $('globalControls'); if (gc) gc.style.display = 'none';
     if (!VJ && window.VOLX && window.VOLX.raw) window.VOLX.raw(function (d) { VJ = d || { t: {} }; MEP = null; if (window.THS) window.THS.ready(draw); else draw(); }); setTimeout(draw, 0); } };
+  var _tt = window.toggleTheme; if (_tt) window.toggleTheme = function () { _tt.apply(this, arguments); if (isAct()) setTimeout(draw, 0); };
+})();
+</script>
+<script>
+/* ---------- Backtest: dos estrategias sobre los precios diarios que ya tiene la página (con cupones y amortizaciones reinvertidos en el mismo bono) ----------
+   - Ratio entre dos bonos: si A está caro contra B (ratio de precios con cupones por encima de su media móvil más la banda) se pasa a B; si está barato, vuelve a A
+   - Media móvil: comprado en el bono si el precio está arriba de su media, si no en efectivo a la tasa que pongas
+   - costo: la comisión por punta se cobra en cada pasada (vender y comprar) */
+(function () {
+  var root = document.getElementById('bkt'); if (!root) return;
+  var $ = function (id) { return document.getElementById(id); };
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var RG = [['6m', '6 meses', 182], ['1a', '1 año', 365], ['2a', '2 años', 730], ['3a', '3 años', 1095]];
+  var K = 'blBkt1', O = { s: 'rat', a: 'AL30', b: 'GD30', m: '20', band: '1', c: '0.25', r: '1a', ma: '50', cash: '3' }; try { Object.assign(O, JSON.parse(localStorage.getItem(K) || '{}')); } catch (e) {}
+  var save = function () { try { localStorage.setItem(K, JSON.stringify(O)); } catch (e) {} };
+  var CH = null, CH2 = null, RDY = false, isAct = function () { return root.classList.contains('active'); };
+  var num = function (v, d) { var x = parseFloat(String(v).replace(',', '.')); return isFinite(x) ? x : d; };
+  function adj(k, s0) { // [día, precio + lo cobrado desde s0] (índice de retorno total, sin reinversión dentro del índice)
+    var x = window.THS && window.THS.px ? window.THS.px(k.toUpperCase()) : null; if (!x || !x.p.length) return null;
+    var cf = window.BONO && window.BONO.cf ? window.BONO.cf(k.toUpperCase()) : null, C = cf && cf.f ? cf.f.map(function (f) { return [typeof bxExDay === 'function' ? bxExDay(f[0]) : f[0] - 1, f[1]]; }) : [];
+    var P = x.p.filter(function (p) { return p[0] >= s0 && p[1] > 0; }).sort(function (a, b) { return a[0] - b[0]; }), j = 0, cum = 0; C.sort(function (a, b) { return a[0] - b[0]; }); while (j < C.length && C[j][0] <= s0) j++;
+    return { c: x.c, p: P.map(function (p) { while (j < C.length && C[j][0] <= p[0]) { cum += C[j][1]; j++; } return [p[0], p[1] + cum]; }) };
+  }
+  function ma(arr, i, n) { if (i < n - 1) return null; var s = 0; for (var j = i - n + 1; j <= i; j++) s += arr[j]; return s / n; }
+  function dd(E) { var pk = E[0], m = 0; E.forEach(function (v) { pk = Math.max(pk, v); m = Math.min(m, v / pk - 1); }); return m; }
+  function runRat(s0) {
+    var A = adj(O.a, s0 - 120), B = adj(O.b, s0 - 120); if (!A || !B) return { err: 'No hay historia de ' + (!A ? O.a : O.b) + '.' }; if (A.c !== B.c) return { err: 'Los dos bonos tienen que cotizar en la misma moneda (los dos en dólares o los dos en pesos).' };
+    var mb = {}; B.p.forEach(function (p) { mb[p[0]] = p[1]; }); var D = A.p.filter(function (p) { return mb[p[0]] > 0; }).map(function (p) { return { t: p[0], a: p[1], b: mb[p[0]] }; });
+    var n = Math.max(2, Math.round(num(O.m, 20))), bd = num(O.band, 1) / 100, c = num(O.c, 0) / 100, R = D.map(function (d) { return d.a / d.b; });
+    var i0 = D.findIndex(function (d, i) { return d.t >= s0 && i >= n - 1; }); if (i0 < 0) return { err: 'Hace falta más historia para esa media móvil.' };
+    var h = 'a', E = [100], BA = [100], BB = [100], T = [], X = [{ t: D[i0].t, r: R[i0], m: ma(R, i0, n) }];
+    for (var i = i0 + 1; i < D.length; i++) { var e = E[E.length - 1] * (h === 'a' ? D[i].a / D[i - 1].a : D[i].b / D[i - 1].b); BA.push(BA[BA.length - 1] * D[i].a / D[i - 1].a); BB.push(BB[BB.length - 1] * D[i].b / D[i - 1].b);
+      var m = ma(R, i, n), want = h; if (m) { if (R[i] > m * (1 + bd)) want = 'b'; else if (R[i] < m * (1 - bd)) want = 'a'; }
+      if (want !== h) { e *= (1 - c) * (1 - c); T.push({ t: D[i].t, from: h === 'a' ? O.a : O.b, to: want === 'a' ? O.a : O.b, r: R[i], m: m, e: e }); h = want; } E.push(e); X.push({ t: D[i].t, r: R[i], m: m }); }
+    return { t: D.slice(i0).map(function (d) { return d.t; }), E: E, B1: BA, B2: BB, T: T, X: X, n1: O.a.toUpperCase(), n2: O.b.toUpperCase(), h: h === 'a' ? O.a : O.b, ccy: A.c };
+  }
+  function runMA(s0) {
+    var A = adj(O.a, s0 - 400); if (!A) return { err: 'No hay historia de ' + O.a + '.' }; var D = A.p, n = Math.max(2, Math.round(num(O.ma, 50))), c = num(O.c, 0) / 100, rc = num(O.cash, 0) / 100, P = D.map(function (d) { return d[1]; });
+    var i0 = D.findIndex(function (d, i) { return d[0] >= s0 && i >= n - 1; }); if (i0 < 0) return { err: 'Hace falta más historia para esa media móvil.' };
+    var m0 = ma(P, i0, n), h = P[i0] > m0, E = [100 * (h ? 1 - c : 1)], BA = [100], T = [], X = [{ t: D[i0][0], r: P[i0], m: m0 }];
+    for (var i = i0 + 1; i < D.length; i++) { var dt = D[i][0] - D[i - 1][0], e = E[E.length - 1] * (h ? P[i] / P[i - 1] : 1 + rc * dt / 365); BA.push(BA[BA.length - 1] * P[i] / P[i - 1]);
+      var m = ma(P, i, n), want = P[i] > m; if (want !== h) { e *= 1 - c; T.push({ t: D[i][0], from: h ? O.a.toUpperCase() : 'efectivo', to: want ? O.a.toUpperCase() : 'efectivo', r: P[i], m: m, e: e }); h = want; } E.push(e); X.push({ t: D[i][0], r: P[i], m: m }); }
+    return { t: D.slice(i0).map(function (d) { return d[0]; }), E: E, B1: BA, T: T, X: X, n1: O.a.toUpperCase(), h: h ? O.a.toUpperCase() : 'efectivo', ccy: A.c };
+  }
+  root.innerHTML = '<style>#bkt .ch{display:flex;flex-wrap:wrap;gap:6px}#bkt .ch button{background:none;border:1px solid var(--bd);color:var(--mu);border-radius:999px;padding:5px 11px;font:600 12.5px inherit;font-family:inherit;cursor:pointer}#bkt .ch button.on{border-color:var(--ac);color:var(--tx);background:rgba(255,197,66,.08)}' +
+    '#bkt .f{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:flex-end;margin-top:14px}#bkt .f label{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--mu)}#bkt .f input{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:9px;padding:7px 9px;font:inherit;font-size:14px;width:100px}' +
+    '#bkt .kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px}#bkt .kp div{border:1px solid var(--bd);border-radius:12px;padding:12px 14px}#bkt .kp b{display:block;font-size:20px;margin-top:4px}#bkt .kp span{font-size:12px;color:var(--mu)}' +
+    '#bkt table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}#bkt th,#bkt td{padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--bd)}#bkt th{font-size:11.5px;color:var(--mu);text-transform:uppercase;letter-spacing:.3px}#bkt td:first-child,#bkt th:first-child{text-align:left}#bkt .wr{overflow-x:auto;max-height:420px}#bkt .up{color:#22c55e}#bkt .dn{color:#ef4444}</style>' +
+    '<div class="card sx"><div class="sxh"><div style="min-width:0"><p class="qh">Backtest de estrategias</p><p class="qs">Probá una regla con los precios de los últimos años, con cupones y amortizaciones reinvertidos y la comisión que pongas. El ratio entre dos bonos es el clásico AL30/GD30: cuando uno se pone caro contra el otro, rotás. La media móvil te deja comprado en el bono cuando el precio está arriba de su media y en efectivo cuando está abajo. Resultado pasado, no promesa.</p></div></div>' +
+    '<div class="ch" style="margin-top:12px"><button type="button" data-s="rat">Ratio entre dos bonos</button><button type="button" data-s="ma">Media móvil sobre un bono</button></div>' +
+    '<div class="f" id="bkF"></div><div class="f"><span class="qs" style="margin:0 6px 4px 0">Período</span><span class="ch">' + RG.map(function (r) { return '<button type="button" data-r="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</span></div>' +
+    '<div class="kp" id="bkK"></div><div style="position:relative;height:340px;margin-top:16px"><canvas id="bkG"></canvas></div><div style="position:relative;height:220px;margin-top:12px"><canvas id="bkG2"></canvas></div></div>' +
+    '<div class="card sx" style="margin-top:20px"><div class="sxh"><div style="min-width:0"><p class="qh" id="bkN">Operaciones</p></div></div><div class="wr"><table id="bkT"></table></div></div>';
+  function form() { var inp = function (id, k, l, w) { return '<label>' + l + '<input id="' + id + '" data-o="' + k + '" value="' + esc(O[k]) + '"' + (w ? ' style="width:' + w + 'px"' : '') + '></label>'; };
+    $('bkF').innerHTML = O.s === 'rat' ? inp('bkA', 'a', 'Bono A') + inp('bkB', 'b', 'Bono B') + inp('bkM', 'm', 'Media móvil (ruedas)') + inp('bkD', 'band', 'Banda (%)') + inp('bkC', 'c', 'Comisión por punta (%)', 130)
+      : inp('bkA', 'a', 'Bono') + inp('bkM', 'ma', 'Media móvil (ruedas)') + inp('bkR', 'cash', 'Efectivo: tasa anual (%)', 150) + inp('bkC', 'c', 'Comisión por punta (%)', 130); }
+  var pc = function (v, s) { return v == null || !isFinite(v) ? '—' : (s && v > 0 ? '+' : '') + nf(v * 100, 2) + '%'; }, cl = function (v) { return v == null ? '' : v >= 0 ? 'up' : 'dn'; }, fd = function (t) { return new Date(t * 864e5).toLocaleDateString('es-AR', { timeZone: 'UTC' }); };
+  function draw() {
+    if (!isAct()) return;
+    [['s', 's'], ['r', 'r']].forEach(function (z) { [].forEach.call(root.querySelectorAll('[data-' + z[0] + ']'), function (b) { b.classList.toggle('on', b.getAttribute('data-' + z[0]) === O[z[1]]); }); });
+    if (!RDY) { $('bkK').innerHTML = '<div><span>Cargando la historia de precios…</span></div>'; return; }
+    var rg = RG.filter(function (r) { return r[0] === O.r; })[0] || RG[1], s0 = bxToday() - rg[2], X = O.s === 'rat' ? runRat(s0) : runMA(s0);
+    if (CH) { CH.destroy(); CH = null; } if (CH2) { CH2.destroy(); CH2 = null; }
+    if (X.err || !X.E || X.E.length < 2) { $('bkK').innerHTML = '<div><span>' + esc(X.err || 'Sin datos en ese período.') + '</span></div>'; $('bkT').innerHTML = ''; return; }
+    var n = X.t[X.t.length - 1] - X.t[0], fin = X.E[X.E.length - 1] / 100 - 1, an = function (v) { return n >= 60 ? Math.pow(1 + v, 365 / n) - 1 : null; }, b1 = X.B1[X.B1.length - 1] / 100 - 1, b2 = X.B2 ? X.B2[X.B2.length - 1] / 100 - 1 : null;
+    var wins = 0; X.T.forEach(function (t, i) { var prev = i ? X.T[i - 1].e : 100; if (t.e > prev) wins++; });
+    $('bkK').innerHTML = '<div><span>Estrategia</span><b class="' + cl(fin) + '">' + pc(fin, 1) + '</b><span>' + (an(fin) != null ? pc(an(fin)) + ' anual' : '') + '</span></div>' +
+      '<div><span>Quedarse en ' + esc(X.n1) + '</span><b class="' + cl(b1) + '">' + pc(b1, 1) + '</b><span>' + (fin > b1 ? 'la estrategia le ganó por ' : 'perdió por ') + nf(Math.abs(fin - b1) * 100, 2) + ' puntos</span></div>' +
+      (X.n2 ? '<div><span>Quedarse en ' + esc(X.n2) + '</span><b class="' + cl(b2) + '">' + pc(b2, 1) + '</b></div>' : '') +
+      '<div><span>Operaciones</span><b>' + X.T.length + '</b><span>' + (X.T.length ? wins + ' mejoraron el resultado' : 'nunca salió la señal') + '</span></div>' +
+      '<div><span>Peor caída</span><b class="dn">' + pc(dd(X.E)) + '</b><span>la de ' + esc(X.n1) + ': ' + pc(dd(X.B1)) + '</span></div>' +
+      '<div><span>Hoy estaría en</span><b>' + esc(String(X.h).toUpperCase()) + '</b><span>' + (X.T.length ? 'desde el ' + fd(X.T[X.T.length - 1].t) : 'todo el período') + '</span></div>';
+    var cs = getComputedStyle(document.documentElement), mu = (cs.getPropertyValue('--mu') || '#888').trim(), bd = (cs.getPropertyValue('--bd') || '#333').trim();
+    var L = function (lab, arr, col, w, dash) { return { label: lab, data: X.t.map(function (t, i) { return { x: t, y: arr[i] }; }), borderColor: col, backgroundColor: col, borderWidth: w, borderDash: dash || [], pointRadius: 0, tension: 0 }; };
+    var xs = { type: 'linear', ticks: { color: mu, maxTicksLimit: 8, callback: function (v) { var d = new Date(v * 864e5); return d.getUTCDate() + '/' + (d.getUTCMonth() + 1) + '/' + String(d.getUTCFullYear()).slice(2); } }, grid: { color: bd } };
+    var tt = { callbacks: { title: function (c) { return fd(c[0].raw.x); }, label: function (c) { return c.dataset.label + ': ' + nf(c.raw.y, c.raw.y < 10 ? 4 : 2); } } };
+    var ds = [L('Estrategia', X.E, '#ffc542', 2.5), L(X.n1, X.B1, '#4ea8ff', 1.5, [5, 4])]; if (X.B2) ds.push(L(X.n2, X.B2, '#a78bfa', 1.5, [5, 4]));
+    if (window.Chart) {
+      CH = new Chart($('bkG'), { type: 'line', data: { datasets: ds }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: mu, boxWidth: 14 } }, tooltip: tt }, scales: { x: xs, y: { title: { display: true, text: 'Base 100', color: mu }, ticks: { color: mu }, grid: { color: bd } } } } });
+      var bdw = O.s === 'rat' ? num(O.band, 1) / 100 : 0, sig = [{ label: O.s === 'rat' ? 'Ratio ' + X.n1 + '/' + X.n2 : 'Precio ' + X.n1, data: X.X.map(function (x) { return { x: x.t, y: x.r }; }), borderColor: '#e5e7eb', backgroundColor: '#e5e7eb', borderWidth: 1.4, pointRadius: 0 }, { label: 'Media móvil', data: X.X.map(function (x) { return { x: x.t, y: x.m }; }), borderColor: '#ffc542', backgroundColor: '#ffc542', borderWidth: 1.2, pointRadius: 0 }];
+      if (bdw) { sig.push({ label: 'Banda superior', data: X.X.map(function (x) { return { x: x.t, y: x.m ? x.m * (1 + bdw) : null }; }), borderColor: bd, borderDash: [3, 3], borderWidth: 1, pointRadius: 0 }, { label: 'Banda inferior', data: X.X.map(function (x) { return { x: x.t, y: x.m ? x.m * (1 - bdw) : null }; }), borderColor: bd, borderDash: [3, 3], borderWidth: 1, pointRadius: 0 }); }
+      sig.push({ type: 'scatter', label: 'Rotaciones', data: X.T.map(function (t) { return { x: t.t, y: t.r }; }), backgroundColor: '#f472b6', borderColor: '#f472b6', pointRadius: 4 });
+      CH2 = new Chart($('bkG2'), { type: 'line', data: { datasets: sig }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, plugins: { legend: { labels: { color: mu, boxWidth: 12, filter: function (i) { return !/Banda inferior/.test(i.text); } } }, tooltip: tt }, scales: { x: xs, y: { ticks: { color: mu }, grid: { color: bd } } } } }); }
+    $('bkN').textContent = X.T.length + (X.T.length === 1 ? ' operación' : ' operaciones') + ' · precios en ' + (X.ccy === 'USD' ? 'dólares (especie D)' : 'pesos');
+    $('bkT').innerHTML = '<thead><tr><th>Fecha</th><th>Sale de</th><th>Entra a</th><th>' + (O.s === 'rat' ? 'Ratio' : 'Precio') + '</th><th>Media</th><th>Estrategia (base 100)</th></tr></thead><tbody>' +
+      X.T.slice().reverse().map(function (t) { return '<tr><td>' + fd(t.t) + '</td><td>' + esc(String(t.from).toUpperCase()) + '</td><td><b>' + esc(String(t.to).toUpperCase()) + '</b></td><td>' + nf(t.r, t.r < 10 ? 4 : 2) + '</td><td>' + nf(t.m, t.m < 10 ? 4 : 2) + '</td><td>' + nf(t.e, 2) + '</td></tr>'; }).join('') + '</tbody>';
+  }
+  root.addEventListener('click', function (e) {
+    var s = e.target.closest('[data-s]'); if (s) { O.s = s.getAttribute('data-s'); save(); form(); draw(); return; }
+    var r = e.target.closest('[data-r]'); if (r) { O.r = r.getAttribute('data-r'); save(); draw(); }
+  });
+  root.addEventListener('change', function (e) { var k = e.target.getAttribute && e.target.getAttribute('data-o'); if (!k) return; O[k] = e.target.value.trim(); save(); draw(); });
+  form(); window.BKTX = { runRat: runRat, runMA: runMA, O: O };
+  var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'bkt') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; if (!RDY && window.THS) window.THS.ready(function () { RDY = true; draw(); }); setTimeout(draw, 0); } };
   var _tt = window.toggleTheme; if (_tt) window.toggleTheme = function () { _tt.apply(this, arguments); if (isAct()) setTimeout(draw, 0); };
 })();
 </script>
