@@ -1099,6 +1099,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('trd')">Trade ideas</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('scr')">Screener</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cim')">CI vs 24 hs</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('spr')">Spreads vs Treasuries</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('fav')">Favoritos</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cal')">Calendario de cobros</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('alert')">Alertas</button>
@@ -1302,6 +1303,7 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="trd" class="tab-content"></div>
 <div id="scr" class="tab-content"></div>
 <div id="cim" class="tab-content"></div>
+<div id="spr" class="tab-content"></div>
 <div id="cal" class="tab-content"></div>
 <div id="alert" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
@@ -9850,7 +9852,7 @@ window.USTX = (function () {
     { g: 'pvs', t: 'Bonos provinciales', ic: 'pvs', it: [['pvs', 'Curva y tabla'], ['pvs', 'Por calificación', 'pvsRt'], ['pvsf', 'Flujos y total return']] },
     { h: 'Acciones' }, ['acc', 'Acciones'], { h: 'Dólar y tasas' }, ['dol', 'Dólar'], ['brc', 'Brecha y canje'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['carry', 'Carry trade'],
     { h: 'Mercado' }, ['macro', 'Calendario macro'], { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards'], ['expp', 'Probabilidad de default']] },
-    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], { sep: 1 }, ['cons', 'Consultame']];
+    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['spr', 'Spreads vs Treasuries'], { sep: 1 }, ['cons', 'Consultame']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
   sn.innerHTML = '<div class="sn-h"><img src="/favicon.svg?v=2" alt=""><b>BONERÍO LOCAL</b></div><nav>' +
     GR.map(function (g, i) { return g.h ? '<div class="sn-hd">' + g.h + '</div>' : g.sep ? '<div class="sn-sep"></div>' : (Array.isArray(g) ? item(g) : '<div class="sn-g" data-gr="' + g.g + '"><button class="sn-it" data-g="' + g.g + '" title="' + g.t + '">' + IC[g.ic] + '<span>' + g.t + '</span>' + CAR + '</button><div class="sn-sub">' + g.it.map(function (t) { return item(t, 1); }).join('') + '</div></div>'); }).join('') +
@@ -15861,6 +15863,87 @@ window.RATG = (function () {
   setInterval(function () { if (isAct() && !document.hidden) load(); }, 10000);
   window.CIMX = { rows: rows, days: days, list: list, O: O };
   var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'cim') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; if (window.VOLX) window.VOLX.ensure(function () { draw(); }); setTimeout(function () { draw(); load(); }, 0); } };
+})();
+</script>
+<script>
+/* ---------- Spreads vs Treasuries: G-spread y Z-spread de los bonos en dólares (soberanos, BOPREAL, provinciales y ONs) contra la curva de EE.UU. ----------
+   - G-spread: TIR del bono − rendimiento del Treasury al mismo plazo (interpolado), los dos en tasa efectiva anual
+   - Z-spread: el margen constante sobre la curva cupón cero del Treasury (armada por bootstrap de las tasas par de FRED) que descuenta los flujos al precio
+   - sin opciones en los soberanos, el OAS es igual al Z-spread; en las ONs con rescate anticipado el Z-spread lo sobreestima */
+(function () {
+  var root = document.getElementById('spr'); if (!root) return;
+  var $ = function (id) { return document.getElementById(id); };
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var GN = { loc: ['Soberanos ley local', '#ffc542'], ny: ['Soberanos ley NY', '#4ea8ff'], bop: ['BOPREAL', '#a78bfa'], pv: ['Provinciales', '#22c55e'], on: ['ONs', '#f472b6'] };
+  var K = 'blSpr1', O = { u: ['loc', 'ny', 'bop', 'pv'], y: 'z', q: '', s: 'z', dir: -1 }; try { Object.assign(O, JSON.parse(localStorage.getItem(K) || '{}')); } catch (e) {}
+  var save = function () { try { localStorage.setItem(K, JSON.stringify(O)); } catch (e) {} };
+  var CH = null, ZC = null, ZD = null;
+  var isAct = function () { return root.classList.contains('active'); };
+  var grp = function (r) { var t = r.tipo || ''; return /^BP/.test(r.k) && /BOPREAL/.test(t) ? 'bop' : /^Provincial/.test(t) ? 'pv' : /^ON/.test(t) ? 'on' : /Nueva York|Global/.test(t) ? 'ny' : /ley local|Bonar/.test(t) ? 'loc' : 'on'; };
+  var ea = function (c) { return Math.pow(1 + c / 2, 2) - 1; }; // tasa par semestral (FRED) a efectiva anual
+  function curve(s) { // descuento cupón cero del Treasury el día s: bootstrap semestral de las tasas par hasta 30 años
+    if (ZC && ZD === s) return ZC; var f = window.USTX && USTX.ok() ? USTX.at(s) : null; if (!f) return null;
+    var DF = [], sum = 0; for (var i = 1; i <= 60; i++) { var t = i / 2, c = f(t), d = t <= 1 ? Math.pow(1 + c / 2, -2 * t) : (1 - c / 2 * sum) / (1 + c / 2); DF.push(d); sum += d; }
+    var df = function (t) { if (t <= 0) return 1; if (t <= 0.5) return Math.pow(1 + f(Math.max(t, 1 / 12)) / 2, -2 * t); var i = Math.floor(t * 2); if (i >= 60) return Math.pow(DF[59], t / 30); var a = DF[i - 1], b = DF[i], w = t * 2 - i; return Math.exp(Math.log(a) * (1 - w) + Math.log(b) * w); };
+    ZC = { par: f, z: function (t) { return Math.pow(df(t), -1 / t) - 1; }, d: f.d }; ZD = s; return ZC;
+  }
+  function zsp(fl, s, P, C) { var lo = -0.5, hi = 3, pv = function (Z) { return fl.reduce(function (a, x) { var t = (x[0] - s) / 365; return a + x[1] * Math.pow(1 + C.z(t) + Z, -t); }, 0); };
+    if (pv(lo) < P || pv(hi) > P) return null; for (var i = 0; i < 70; i++) { var m = (lo + hi) / 2; if (pv(m) > P) lo = m; else hi = m; } return (lo + hi) / 2; }
+  function rows() {
+    var u = []; try { u = window.PFQ.universe() || []; } catch (e) {} var out = [];
+    u.forEach(function (r) {
+      if (r.grp !== 'usd' || !(r.P > 0) || r.tir == null || !(r.tir > -0.2 && r.tir < 1) || !(r.d >= 30) || !r.fl) return; var C = curve(r.s); if (!C) return;
+      var fl = r.fl.filter(function (x) { return x[0] > r.s; }); if (!fl.length) return; var T = (r.mat - r.s) / 365, uy = ea(C.par(T)), z = zsp(fl, r.s, r.P, C);
+      out.push({ k: r.k, g: grp(r), tipo: r.tipo || '', P: r.P, tir: r.tir, md: r.md, T: T, ust: uy, gs: r.tir - uy, z: z, zg: z != null ? z - (r.tir - uy) : null });
+    });
+    return out;
+  }
+  root.innerHTML = '<style>#spr .ch{display:flex;flex-wrap:wrap;gap:6px}#spr .ch button{background:none;border:1px solid var(--bd);color:var(--mu);border-radius:999px;padding:5px 11px;font:600 12.5px inherit;font-family:inherit;cursor:pointer}#spr .ch button.on{border-color:var(--ac);color:var(--tx);background:rgba(255,197,66,.08)}#spr .ch i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}' +
+    '#spr input{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:9px;padding:7px 9px;font:inherit;font-size:14px}#spr .kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px}#spr .kp div{border:1px solid var(--bd);border-radius:12px;padding:12px 14px}#spr .kp b{display:block;font-size:20px;margin-top:4px}#spr .kp span{font-size:12px;color:var(--mu)}' +
+    '#spr table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}#spr th,#spr td{padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--bd)}#spr th{font-size:11.5px;color:var(--mu);text-transform:uppercase;letter-spacing:.3px;cursor:pointer;user-select:none}#spr th.s{color:var(--ac)}#spr td:first-child,#spr th:first-child,#spr td:nth-child(2),#spr th:nth-child(2){text-align:left}#spr tbody tr{cursor:pointer}#spr tbody tr:hover{background:rgba(255,255,255,.03)}#spr td small{display:block;color:var(--mu);font-size:11.5px}#spr .wr{overflow-x:auto}</style>' +
+    '<div class="card sx"><div class="sxh"><div style="min-width:0"><p class="qh">Spreads contra Treasuries</p><p class="qs">Cuánto rinde cada bono en dólares por encima de EE.UU. El G-spread compara la TIR con el Treasury al mismo plazo. El Z-spread es el margen fijo que hay que sumarle a la curva cupón cero del Treasury para que los flujos del bono den su precio: tiene en cuenta cuándo paga cada cupón y cada amortización, así que es la medida justa para bonos que amortizan. Los soberanos no tienen opciones, así que su OAS es igual al Z-spread.</p></div></div>' +
+    '<div class="ch" id="spU" style="margin-top:12px">' + Object.keys(GN).map(function (g) { return '<button type="button" data-u="' + g + '"><i style="background:' + GN[g][1] + '"></i>' + GN[g][0] + '</button>'; }).join('') + '</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px"><span class="ch" id="spY"><button type="button" data-y="z">Z-spread</button><button type="button" data-y="gs">G-spread</button></span><input id="spQ" placeholder="Ticker o emisor" value="' + esc(O.q) + '"></div>' +
+    '<div class="kp" id="spK"></div><div style="position:relative;height:380px;margin-top:16px"><canvas id="spC"></canvas></div></div>' +
+    '<div class="card sx" style="margin-top:20px"><div class="sxh"><div style="min-width:0"><p class="qh">Ley local contra ley Nueva York</p><p class="qs">El mismo flujo con distinta ley: la diferencia de Z-spread es lo que el mercado cobra por la ley local.</p></div></div><div class="wr"><table id="spL"></table></div></div>' +
+    '<div class="card sx" style="margin-top:20px"><div class="sxh"><div style="min-width:0"><p class="qh" id="spN">Bonos</p><p class="qs" id="spS">Spreads en puntos básicos (pb).</p></div></div><div class="wr"><table id="spT"></table></div></div>';
+  var COLS = [['k', 'Bono'], ['g', 'Grupo'], ['P', 'Precio'], ['tir', 'TIR'], ['md', 'MD'], ['ust', 'Treasury al plazo'], ['gs', 'G-spread'], ['z', 'Z-spread'], ['zg', 'Z − G']];
+  var PAIRS = [['AL29', 'GD29'], ['AL30', 'GD30'], ['AL35', 'GD35'], ['AE38', 'GD38'], ['AL41', 'GD41']];
+  var bp = function (v) { return v == null ? '—' : nf(v * 1e4, 0); }, pc = function (v) { return v == null ? '—' : nf(v * 100, 2) + '%'; };
+  function med(a) { a = a.filter(function (x) { return x != null; }).sort(function (x, y) { return x - y; }); return a.length ? a[Math.floor(a.length / 2)] : null; }
+  function draw() {
+    if (!isAct()) return;
+    [].forEach.call(root.querySelectorAll('[data-u]'), function (b) { b.classList.toggle('on', O.u.indexOf(b.getAttribute('data-u')) >= 0); });
+    [].forEach.call(root.querySelectorAll('[data-y]'), function (b) { b.classList.toggle('on', b.getAttribute('data-y') === O.y); });
+    var A = rows(), q = O.q.trim().toLowerCase(), R = A.filter(function (r) { return O.u.indexOf(r.g) >= 0 && (!q || (r.k + ' ' + r.tipo).toLowerCase().indexOf(q) >= 0); }), C = ZC;
+    if (!A.length) { $('spK').innerHTML = '<div><span>Cargando la curva de EE.UU.…</span></div>'; return; }
+    $('spK').innerHTML = '<div><span>Curva de EE.UU. (FRED)</span><b>' + esc(C && C.d ? C.d.split('-').reverse().join('/') : '—') + '</b><span>2 a ' + pc(ea(C.par(2))) + ' · 10 a ' + pc(ea(C.par(10))) + '</span></div>' +
+      ['ny', 'loc', 'bop', 'pv'].map(function (g) { var m = med(A.filter(function (r) { return r.g === g; }).map(function (r) { return r.z; })); return '<div><span>Z-spread mediano · ' + GN[g][0] + '</span><b>' + (m == null ? '—' : bp(m) + ' pb') + '</b></div>'; }).join('');
+    var y = O.y, M = {}; A.forEach(function (r) { M[r.k] = r; });
+    $('spL').innerHTML = '<thead><tr><th>Par</th><th>TIR local</th><th>TIR NY</th><th>Z local</th><th>Z NY</th><th>Diferencia</th></tr></thead><tbody>' + PAIRS.filter(function (p) { return M[p[0]] && M[p[1]]; }).map(function (p) { var a = M[p[0]], b = M[p[1]];
+      return '<tr data-k="' + p[0] + '"><td><b>' + p[0] + ' / ' + p[1] + '</b></td><td>' + pc(a.tir) + '</td><td>' + pc(b.tir) + '</td><td>' + bp(a.z) + '</td><td>' + bp(b.z) + '</td><td><b>' + (a.z != null && b.z != null ? bp(a.z - b.z) + ' pb' : '—') + '</b></td></tr>'; }).join('') + '</tbody>';
+    var DS = Object.keys(GN).filter(function (g) { return O.u.indexOf(g) >= 0; }).map(function (g) { return { label: GN[g][0], data: R.filter(function (r) { return r.g === g && r[y] != null && r.md > 0; }).map(function (r) { return { x: r.md, y: r[y] * 1e4, k: r.k }; }), backgroundColor: GN[g][1], borderColor: GN[g][1], pointRadius: 4.5, pointHoverRadius: 7 }; });
+    var cs = getComputedStyle(document.documentElement), mu = (cs.getPropertyValue('--mu') || '#888').trim(), bd = (cs.getPropertyValue('--bd') || '#333').trim();
+    if (window.Chart) { if (CH) CH.destroy(); CH = new Chart($('spC'), { type: 'scatter', data: { datasets: DS }, options: { responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return c.raw.k + ': ' + nf(c.raw.y, 0) + ' pb · MD ' + nf(c.raw.x, 2); } } } },
+      scales: { x: { title: { display: true, text: 'Duración modificada (años)', color: mu }, ticks: { color: mu }, grid: { color: bd } }, y: { title: { display: true, text: (y === 'z' ? 'Z-spread' : 'G-spread') + ' (pb)', color: mu }, ticks: { color: mu }, grid: { color: bd } } },
+      onClick: function (e, el) { if (el && el.length && window.BONO) { var p = DS[el[0].datasetIndex].data[el[0].index]; window.BONO.open(p.k); } } } }); }
+    var s = O.s, dir = O.dir; R.sort(function (a, b) { var x = a[s], w = b[s]; if (x == null) return 1; if (w == null) return -1; return (x < w ? -1 : x > w ? 1 : 0) * dir; });
+    $('spN').textContent = R.length + ' bonos'; $('spS').textContent = 'Spreads en puntos básicos (pb), con precios de hoy y la curva del Treasury del ' + (C && C.d ? C.d.split('-').reverse().join('/') : '—') + '. Treasury al plazo: el rendimiento de EE.UU. al vencimiento del bono. Z − G grande: el bono amortiza o paga mucho antes del final.';
+    $('spT').innerHTML = '<thead><tr>' + COLS.map(function (c) { return '<th data-s="' + c[0] + '"' + (s === c[0] ? ' class="s"' : '') + '>' + c[1] + (s === c[0] ? (dir < 0 ? ' ▾' : ' ▴') : '') + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      R.slice(0, 400).map(function (r) { return '<tr data-k="' + esc(r.k) + '"><td><b>' + esc(r.k) + '</b><small>' + esc(r.tipo) + '</small></td><td>' + GN[r.g][0] + '</td><td>US$ ' + nf(r.P, 2) + '</td><td>' + pc(r.tir) + '</td><td>' + nf(r.md, 2) + '</td><td>' + pc(r.ust) + '</td><td>' + bp(r.gs) + '</td><td><b>' + bp(r.z) + '</b></td><td>' + bp(r.zg) + '</td></tr>'; }).join('') + '</tbody>';
+  }
+  root.addEventListener('click', function (e) {
+    var u = e.target.closest('[data-u]'); if (u) { var g = u.getAttribute('data-u'), i = O.u.indexOf(g); if (i >= 0) O.u.splice(i, 1); else O.u.push(g); save(); draw(); return; }
+    var yb = e.target.closest('[data-y]'); if (yb) { O.y = yb.getAttribute('data-y'); save(); draw(); return; }
+    var th = e.target.closest('th[data-s]'); if (th) { var k = th.getAttribute('data-s'); if (O.s === k) O.dir = -O.dir; else { O.s = k; O.dir = k === 'k' || k === 'g' ? 1 : -1; } save(); draw(); return; }
+    var tr = e.target.closest('tr[data-k]'); if (tr && window.BONO) window.BONO.open(tr.getAttribute('data-k'));
+  });
+  root.addEventListener('input', function (e) { if (e.target.id !== 'spQ') return; O.q = e.target.value; save(); draw(); });
+  window.SPRX = { rows: rows, curve: curve };
+  var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'spr') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; if (window.USTX) USTX.load(function () { ZC = null; draw(); }); setTimeout(draw, 0); } };
+  var _tt = window.toggleTheme; if (_tt) window.toggleTheme = function () { _tt.apply(this, arguments); if (isAct()) setTimeout(draw, 0); };
 })();
 </script>
 </body>
