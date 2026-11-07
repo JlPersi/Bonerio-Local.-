@@ -1100,6 +1100,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('scr')">Screener</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cim')">CI vs 24 hs</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('bkt')">Backtest</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('dsim')">Simulador de duales</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('fav')">Favoritos</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cal')">Calendario de cobros</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('alert')">Alertas</button>
@@ -1304,6 +1305,7 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="scr" class="tab-content"></div>
 <div id="cim" class="tab-content"></div>
 <div id="bkt" class="tab-content"></div>
+<div id="dsim" class="tab-content"></div>
 <div id="cal" class="tab-content"></div>
 <div id="alert" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
@@ -4405,6 +4407,17 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     fut.forEach(function (r, i) { var f = fl[i] ? fl[i][1] / r[1] : 1; am += r[2]; rows.push({ t: r[0], renta: r[4] * f, amort: (r[1] - r[4]) * f, total: r[1] * f, res: Math.max(0, 100 - am) }); }); // r = [fecha, pago, amortización (% del VN), tasa, renta, …]
     return { s: s, P: P, rows: rows, fl: fl, tea: P > 0 ? tirOf(fl, s, P) : null, cer: cer, pi: cer ? parseFloat(cardV(2, 'psPi')) : null, mat: ins.r[ins.r.length - 1][0], name: cer ? 'CER con cupones' : 'Tasa fija con cupones' };
   }
+  window.PSXD = { // para el Simulador de duales: TAMAR diaria y, por dual, lo necesario para calcular la pata TAMAR con cualquier camino futuro (la otra pata, con el escenario de Curva Pesos)
+    tamar: function () { var o = IDX.TAMAR; return { s: o.s, v: o.v }; },
+    biz: function (t) { return bxIsBiz(t) && !BANKH[t]; },
+    duals: function () { var base = scFor(5), today = bxToday(), o = IDX.TAMAR, lt = lastOf(o), out = [];
+      Object.keys(INST).forEach(function (k) { var ins = INST[k]; if (ins.k !== 'dual' && ins.k !== 'dualtf') return; var mat = ins.r[ins.r.length - 1][0]; if (mat <= today) return;
+        var bv = branchVals(ins, mat, base), rt = ins.k === 'dualtf' ? null : rowOf(ins, 'TAMAR'), rd = rowOf(ins, 'DOLLAR_LINKED'), t0 = bdBack(ins.iss, 10), t1 = bdBack(mat, 10), hs = 0, hn = 0, fut = [];
+        for (var t = t0; t <= t1; t++) { if (!bxIsBiz(t) || BANKH[t]) continue; if (t <= lt) { hs += o.v[t - o.s] / 100; hn++; } else fut.push(t); }
+        out.push({ k: k, tf: ins.k === 'dualtf', leg: ins.k === 'dualtf' ? 'fija' : rd ? 'dólar linked' : 'CER', iss: ins.iss, mat: mat, t0: t0, t1: t1, sp: rt ? rt[3] : TTD_M, n: rt ? rt[1] : 100, fx: rd ? fxAt(bdBack(ins.iss, 3), ZERO) : 1,
+          other: ins.k === 'dualtf' ? bv.fix : bv.cer != null ? bv.cer : bv.dl, m: m360(ins.iss, mat), hs: hs, hn: hn, fut: fut }); });
+      return out.sort(function (a, b) { return a.mat - b.mat; }); }
+  };
   window.PSX = { duo: function (k) { var s0 = day($('d0').value), S = snapshot(s0, scFor(5)), o = S.filter(function (x) { return x.k === k; })[0], L = dualLegs(o, S); if (!L) return null; L.o = o; L.teaX = (1 + o.tea) * Math.pow(o.P / L.mx, 365 / o.d) - 1; L.tem = tem(o.tea); L.temX = tem(L.teaX); return L; }, cerD: function (t) { var o = IDX.CER; return o && t >= o.s && t <= lastOf(o) ? o.v[t - o.s] : null; }, cerOrig: cerOrig, bondCF: bondCF, pvAt: bxPvPS, cfList: function () { var s = day($('d0').value); return Object.keys(INST).filter(function (k) { var ins = INST[k]; return ins.r.length > 1 && (ins.k === 'cerc' || ins.k === 'cpn') && ins.r[ins.r.length - 1][0] > s && PRICE[k] > 0; }).sort(function (a, b) { return INST[a].r[INST[a].r.length - 1][0] - INST[b].r[INST[b].r.length - 1][0]; }); }, snap: function (n) { var s0 = day($('d0').value), sc0 = scFor(n); return { s: s0, sc: sc0, S: snapshot(s0, sc0) }; }, INST: INST, ptsOf: ptsOf, yieldAt: yieldAt, durAt: durAt, yieldLab: yieldLab, famOf: famOf, FAM: FAM, paidFlows: paidFlows, LABELS: LABELS, fairFit: fairFit, css: css, fm: fm, sg: sg, rgba: rgba, bdBack: bdBack, mdOf: mdOf, flowsOf: flowsOf, mkSc: mkSc, fxAt: fxAt, ZERO: function () { return ZERO; }, idxOf: idxOf, ixProj: function (nm, t) { var T = nm === 'CER' ? bdBack(t, 10) : bdBack(t, 3), o = nm === 'CER' ? IDX.CER : IDX.FX; return { nm: nm, d: T, v: nm === 'CER' ? cerAt(T, scFor(2, 1)) : fxAt(T, scFor(4, 1)), fijo: T <= lastOf(o) }; }, ovr: OVR, ovrBase: function (n, id) { return cardV(n, id); }, views: function () { if (!window.PSV || !window.PSV.c1) window.renderPesos(); return window.PSV; }, hasPts: function (k) { return !!HIST[k]; } };
   window.addEventListener('load', function () {
     window.psLive = live; live(); setInterval(live, 30000); window.loadClosesARS();
@@ -9853,7 +9866,7 @@ window.USTX = (function () {
     { g: 'pvs', t: 'Bonos provinciales', ic: 'pvs', it: [['pvs', 'Curva y tabla'], ['pvs', 'Por calificación', 'pvsRt'], ['pvsf', 'Flujos y total return']] },
     { h: 'Acciones' }, ['acc', 'Acciones'], { h: 'Dólar y tasas' }, ['dol', 'Dólar'], ['brc', 'Brecha y canje'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['carry', 'Carry trade'],
     { h: 'Mercado' }, ['macro', 'Calendario macro'], { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards'], ['expp', 'Probabilidad de default']] },
-    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['bkt', 'Backtest'], { sep: 1 }, ['cons', 'Consultame']];
+    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['bkt', 'Backtest'], ['dsim', 'Simulador de duales'], { sep: 1 }, ['cons', 'Consultame']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
   sn.innerHTML = '<div class="sn-h"><img src="/favicon.svg?v=2" alt=""><b>BONERÍO LOCAL</b></div><nav>' +
     GR.map(function (g, i) { return g.h ? '<div class="sn-hd">' + g.h + '</div>' : g.sep ? '<div class="sn-sep"></div>' : (Array.isArray(g) ? item(g) : '<div class="sn-g" data-gr="' + g.g + '"><button class="sn-it" data-g="' + g.g + '" title="' + g.t + '">' + IC[g.ic] + '<span>' + g.t + '</span>' + CAR + '</button><div class="sn-sub">' + g.it.map(function (t) { return item(t, 1); }).join('') + '</div></div>'); }).join('') +
@@ -15976,6 +15989,122 @@ window.RATG = (function () {
   root.addEventListener('change', function (e) { var k = e.target.getAttribute && e.target.getAttribute('data-o'); if (!k) return; O[k] = e.target.value.trim(); save(); draw(); });
   form(); window.BKTX = { runRat: runRat, runMA: runMA, O: O };
   var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'bkt') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; if (!RDY && window.THS) window.THS.ready(function () { RDY = true; draw(); }); setTimeout(draw, 0); } };
+  var _tt = window.toggleTheme; if (_tt) window.toggleTheme = function () { _tt.apply(this, arguments); if (isAct()) setTimeout(draw, 0); };
+})();
+</script>
+<script>
+/* ---------- Simulador de duales: la pata TAMAR contra la otra (CER, fija o dólar linked) ----------
+   - escenarios: la TAMAR va en línea recta desde la última publicada hasta la TEM elegida en el plazo elegido y queda ahí
+   - CIR: dr = κ(θ − r)dt + σ√r dW, calibrado por mínimos cuadrados sobre la TAMAR diaria (Δt = 1/252) y simulado día hábil a día hábil (Euler con truncamiento)
+   - pata TAMAR como el prospecto: promedio simple de los días hábiles desde 10 hábiles antes de la emisión hasta 10 antes del pago, + margen; TEM = (1 + TNA·32/365)^(365/384) − 1
+   - la otra pata, con la inflación, el dólar o la tasa fija del escenario de Curva Pesos (no se simula) */
+(function () {
+  var root = document.getElementById('dsim'); if (!root) return; root.classList.add('blx');
+  var $ = function (id) { return document.getElementById(id); };
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var K = 'blDsim1', O = { h: '12', st: '0.25', w: '2a', n: '2000', k: '' }; try { Object.assign(O, JSON.parse(localStorage.getItem(K) || '{}')); } catch (e) {}
+  var save = function () { try { localStorage.setItem(K, JSON.stringify(O)); } catch (e) {} };
+  var CH1 = null, CH2 = null, CH3 = null, MC = null, isAct = function () { return root.classList.contains('active'); };
+  var tem = function (tna) { return Math.pow(1 + tna * 32 / 365, 365 / 384) - 1; }, tnaOf = function (t) { return (Math.pow(1 + t, 384 / 365) - 1) * 365 / 32; };
+  var COL = ['#ffc542', '#4ea8ff', '#34d399', '#f472b6', '#a78bfa', '#fb923c', '#94a3b8'];
+  var fd = function (t) { return new Date(t * 864e5).toLocaleDateString('es-AR', { timeZone: 'UTC' }); }, mlab = function (t) { var d = new Date(t * 864e5); return ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][d.getUTCMonth()] + '-' + String(d.getUTCFullYear()).slice(2); };
+  function px() { var u = []; try { u = window.PFQ.universe() || []; } catch (e) {} var m = {}; u.forEach(function (r) { m[r.k] = r; }); return m; }
+  function tamLeg(d, avg) { return d.n * d.fx * Math.pow(1 + (avg + d.sp) * 32 / 365, 365 / 384 * d.m); } // avg: TAMAR promedio (TNA)
+  function avgWith(d, f) { var s = d.hs; d.fut.forEach(function (t) { s += f(t); }); return s / (d.hn + d.fut.length); }
+  function last() { var T = window.PSXD.tamar(); return { t: T.s + T.v.length - 1, r: T.v[T.v.length - 1] / 100 }; }
+  function path(r1, H) { var L = last(), t1 = L.t + H; return function (t) { return t >= t1 ? r1 : L.r + (r1 - L.r) * (t - L.t) / H; }; }
+  function breakeven(d) { if (!(d.fut.length)) return null; var lo = 0, hi = 3; if (tamLeg(d, (d.hs + hi * d.fut.length) / (d.hn + d.fut.length)) < d.other) return null; // TAMAR constante para lo que falta que iguala las dos patas
+    for (var i = 0; i < 50; i++) { var m = (lo + hi) / 2; if (tamLeg(d, (d.hs + m * d.fut.length) / (d.hn + d.fut.length)) > d.other) hi = m; else lo = m; } return (lo + hi) / 2; }
+  function calib() { // CIR por mínimos cuadrados: Δr/√r = a/√r + b√r + e, con a = κθΔ, b = −κΔ, σ = sd(e)/√Δ
+    var T = window.PSXD.tamar(), W = { '6m': 182, '1a': 365, '2a': 730 }[O.w] || 365, r = [], i0 = Math.max(0, T.v.length - W);
+    for (var i = i0; i < T.v.length; i++) if (window.PSXD.biz(T.s + i) && T.v[i] > 0) r.push(T.v[i] / 100);
+    var D = 1 / 252, X1 = [], X2 = [], Y = []; for (i = 1; i < r.length; i++) { var q = Math.sqrt(r[i - 1]); X1.push(1 / q); X2.push(q); Y.push((r[i] - r[i - 1]) / q); }
+    var s11 = 0, s12 = 0, s22 = 0, y1 = 0, y2 = 0; for (i = 0; i < Y.length; i++) { s11 += X1[i] * X1[i]; s12 += X1[i] * X2[i]; s22 += X2[i] * X2[i]; y1 += X1[i] * Y[i]; y2 += X2[i] * Y[i]; }
+    var det = s11 * s22 - s12 * s12, a = (y1 * s22 - y2 * s12) / det, b = (y2 * s11 - y1 * s12) / det, e = 0; for (i = 0; i < Y.length; i++) { var z = Y[i] - a * X1[i] - b * X2[i]; e += z * z; }
+    var k = -b / D, th = k > 0 ? a / D / k : null, sg = Math.sqrt(e / Math.max(1, Y.length - 2)) / Math.sqrt(D), raw = { k: k, th: th };
+    var cl = !(k > 0.05) || !(th > 0.03 && th < 1.2); if (cl) { k = Math.max(0.05, Math.min(5, k > 0 ? k : 0.3)); th = th > 0.03 && th < 1.2 ? th : r.reduce(function (x, y) { return x + y; }, 0) / r.length; }
+    return { k: k, th: th, s: sg, r0: r[r.length - 1], n: r.length, cl: cl, raw: raw, fel: 2 * k * th / (sg * sg) };
+  }
+  function rng(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function simulate(D) { // N caminos día hábil a día hábil hasta el último pago; por dual: pagos de cada camino y su descuento con la propia TAMAR
+    var C = calib(), N = Math.max(200, Math.min(5000, parseInt(O.n, 10) || 2000)), L = last(), tEnd = 0; D.forEach(function (d) { tEnd = Math.max(tEnd, d.t1, d.mat); });
+    var days = []; for (var t = L.t + 1; t <= tEnd; t++) if (window.PSXD.biz(t)) days.push(t); var nd = days.length, R = new Float32Array(N * nd), U = rng(20261107), dt = 1 / 252, sq = Math.sqrt(dt);
+    var gs = function () { var u = 0, v = 0; while (u === 0) u = U(); v = U(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    for (var p = 0; p < N; p++) { var r = C.r0; for (var j = 0; j < nd; j++) { var rp = Math.max(r, 0); r = r + C.k * (C.th - rp) * dt + C.s * Math.sqrt(rp) * sq * gs(); R[p * nd + j] = Math.max(r, 0); } }
+    var pos = {}; days.forEach(function (t, j) { pos[t] = j; }); var Q = function (a, q) { return a[Math.min(a.length - 1, Math.max(0, Math.floor(q * (a.length - 1))))]; };
+    var fan = { t: [], p5: [], p25: [], p50: [], p75: [], p95: [] }; for (var j2 = 0; j2 < nd; j2 += 3) { var col = new Float32Array(N); for (p = 0; p < N; p++) col[p] = R[p * nd + j2]; col.sort(); fan.t.push(days[j2]); ['p5', 'p25', 'p50', 'p75', 'p95'].forEach(function (k, i) { fan[k].push(Q(col, [0.05, 0.25, 0.5, 0.75, 0.95][i])); }); }
+    var P = px(), out = {}; D.forEach(function (d) { var pr = P[d.k], s0 = pr && pr.s ? pr.s : L.t, pay = [], pv = [], win = 0, idx = d.fut.map(function (t) { return pos[t]; }).filter(function (j) { return j != null; });
+      for (var p2 = 0; p2 < N; p2++) { var sm = d.hs; for (var q = 0; q < idx.length; q++) sm += R[p2 * nd + idx[q]]; var tl = tamLeg(d, sm / (d.hn + idx.length)), v = Math.max(tl, d.other); if (tl > d.other) win++; pay.push(v);
+        var lg = 0, prev = s0; for (var j3 = 0; j3 < nd && days[j3] <= d.mat; j3++) { if (days[j3] <= s0) continue; lg += Math.log(1 + R[p2 * nd + j3] * (days[j3] - prev) / 365); prev = days[j3]; } pv.push(v * Math.exp(-lg)); }
+      var y = pr && pr.P > 0 ? pay.map(function (v) { return Math.pow(v / pr.P, 365 / Math.max(1, d.mat - s0)) - 1; }).sort(function (a, b) { return a - b; }) : [];
+      pay.sort(function (a, b) { return a - b; }); out[d.k] = { win: win / N, pay: [Q(pay, 0.05), Q(pay, 0.5), Q(pay, 0.95)], y: y, yq: y.length ? [Q(y, 0.05), Q(y, 0.5), Q(y, 0.95)] : null, fair: pv.reduce(function (a, b) { return a + b; }, 0) / N, P: pr ? pr.P : null, ty: pr ? pr.tir : null }; });
+    return { C: C, N: N, fan: fan, out: out };
+  }
+  root.innerHTML = '<div class="card sx" id="dsimC1"><div class="sxh"><div style="min-width:0"><p class="qh">Simulador de duales</p><p class="qs">Cada dual paga lo que más rinda entre su pata TAMAR y la otra (CER, tasa fija o dólar linked). Acá ves qué TAMAR hace falta para que gane la pata TAMAR y cuánto cambia el pago según el camino de la tasa. La otra pata usa la inflación, el dólar o la tasa fija del escenario de Curva Pesos.</p></div></div>' +
+    '<div class="ctl"><label>La TAMAR llega a su nivel en<span class="seg" id="dsH"><button type="button" data-h="6">6 meses</button><button type="button" data-h="12">12 meses</button><button type="button" data-h="24">24 meses</button></span></label><label>Distancia entre escenarios<span class="seg" id="dsS"><button type="button" data-st="0.25">0,25 pts</button><button type="button" data-st="0.5">0,5 pts</button></span></label></div>' +
+    '<div class="kp" id="dsK"></div></div>' +
+    '<div class="card sx" id="dsimC2" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Escenarios de TAMAR</p><p class="qs" id="dsTs"></p></div></div><div class="wrap"><table id="dsT"></table></div><p class="note" id="dsTn"></p></div>' +
+    '<div class="card sx" id="dsimC3" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">TAMAR promedio contra lo que hace falta</p><p class="qs">La TAMAR promedio que cobra cada dual (desde 10 hábiles antes de su emisión) en cada escenario, contra la TAMAR promedio que iguala a la otra pata (línea de color, hasta el vencimiento).</p></div></div><div style="position:relative;height:420px"><canvas id="dsG"></canvas></div></div>' +
+    '<div class="card sx" id="dsimC4" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Simulación con el modelo CIR</p><p class="qs">La TAMAR como un proceso que vuelve a su media (Cox-Ingersoll-Ross), calibrado con la TAMAR diaria. Con miles de caminos posibles sale la probabilidad de que gane la pata TAMAR, el rango de lo que cobrás y la TIR que te queda al precio de hoy.</p></div></div>' +
+    '<div class="ctl"><label>Calibrar con<span class="seg" id="dsW"><button type="button" data-w="6m">6 meses</button><button type="button" data-w="1a">1 año</button><button type="button" data-w="2a">2 años</button></span></label><label>Caminos<span class="seg" id="dsN"><button type="button" data-n="1000">1.000</button><button type="button" data-n="2000">2.000</button><button type="button" data-n="5000">5.000</button></span></label></div>' +
+    '<div class="kp" id="dsCK"></div><div style="position:relative;height:340px;margin-top:16px"><canvas id="dsF"></canvas></div><div class="wrap" style="margin-top:16px"><table id="dsM"></table></div>' +
+    '<div class="ctl"><label>Distribución de la TIR de<select id="dsB"></select></label></div><div style="position:relative;height:260px;margin-top:12px"><canvas id="dsHg"></canvas></div><p class="note" id="dsMn"></p></div>';
+  var pc = function (v, d) { return v == null || !isFinite(v) ? '—' : nf(v * 100, d == null ? 2 : d) + '%'; };
+  function heat(v, mx) { if (v == null || !isFinite(v)) return ''; var a = Math.min(1, Math.abs(v) / (mx || 0.2)) * 0.55; return v >= 0 ? 'background:rgba(52,211,153,' + a.toFixed(2) + ')' : 'background:rgba(255,107,139,' + a.toFixed(2) + ')'; }
+  function scen() { var L = last(), c = Math.round(tem(L.r) / (+O.st / 100)) * (+O.st / 100), st = +O.st / 100, A = []; for (var i = -2; i <= 2; i++) A.push(Math.max(0.001, c + i * st)); return A; }
+  function draw() {
+    if (!isAct()) return;
+    [['h', 'h'], ['st', 'st'], ['w', 'w'], ['n', 'n']].forEach(function (z) { [].forEach.call(root.querySelectorAll('[data-' + z[0] + ']'), function (b) { b.classList.toggle('on', b.getAttribute('data-' + z[0]) === O[z[1]]); }); });
+    if (!window.PSXD) { $('dsK').innerHTML = '<div><span>Cargando…</span></div>'; return; }
+    var D = window.PSXD.duals(), L = last(), H = Math.round(+O.h * 30.4), tEnd = L.t + H, SC = scen(), P = px();
+    if (!D.length) { $('dsK').innerHTML = '<div><span>No hay duales vigentes.</span></div>'; return; }
+    D.forEach(function (d, i) { d.c = COL[i % COL.length]; d.be = breakeven(d); d.cur = avgWith(d, function () { return L.r; }); });
+    $('dsK').innerHTML = '<div><span>TAMAR hoy</span><b>' + pc(tem(L.r)) + '</b><span>TEM · ' + pc(L.r) + ' TNA · ' + fd(L.t) + '</span></div>' + D.map(function (d) { var w = tamLeg(d, d.cur) > d.other;
+      return '<div><span>' + esc(d.k) + ' · TAMAR vs ' + d.leg + '</span><b class="' + (w ? 'up' : '') + '">' + (d.be == null ? '—' : pc(tem(d.be))) + '</b><span>TEM que hace falta de acá al pago · hoy gana ' + (w ? 'TAMAR' : d.leg) + '</span></div>'; }).join('');
+    $('dsTs').textContent = 'La TAMAR va en línea recta desde la de hoy (' + pc(tem(L.r)) + ' TEM) hasta el nivel de cada fila en ' + O.h + ' meses (' + mlab(tEnd) + ') y queda ahí. Positivo: gana la pata TAMAR.';
+    var R = SC.map(function (x) { var f = path(tnaOf(x), H); return D.map(function (d) { var tl = tamLeg(d, avgWith(d, f)), r = tl / d.other; return { dt: Math.pow(r, 1 / d.m) - 1, dp: r - 1 }; }); });
+    var mx = 0; R.forEach(function (row) { row.forEach(function (c) { mx = Math.max(mx, Math.abs(c.dp)); }); });
+    $('dsT').innerHTML = '<thead><tr><th rowspan="2">Escenario</th><th colspan="' + D.length + '">Diferencial TEM (TAMAR − otra pata)</th><th colspan="' + D.length + '">Diferencial al vencimiento</th></tr><tr>' + D.map(function (d) { return '<th>' + esc(d.k) + '</th>'; }).join('') + D.map(function (d) { return '<th>' + esc(d.k) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      SC.map(function (x, i) { return '<tr><td>TAMAR ' + nf(x * 100, 2) + '% TEM en ' + mlab(tEnd) + '</td>' + R[i].map(function (c) { return '<td style="' + heat(c.dt * 12, mx) + '">' + pc(c.dt) + '</td>'; }).join('') + R[i].map(function (c) { return '<td style="' + heat(c.dp, mx) + '">' + pc(c.dp) + '</td>'; }).join('') + '</tr>'; }).join('') +
+      '<tr><td><b>TEM que iguala las patas</b></td>' + D.map(function (d) { return '<td><b>' + (d.be == null ? '—' : pc(tem(d.be))) + '</b></td>'; }).join('') + D.map(function (d) { return '<td><small>' + d.leg + '</small></td>'; }).join('') + '</tr>' +
+      '<tr><td>Meses de pago</td>' + D.map(function (d) { return '<td>' + nf(d.m, 1) + '</td>'; }).join('') + D.map(function (d) { return '<td>' + fd(d.mat) + '</td>'; }).join('') + '</tr></tbody>';
+    $('dsTn').textContent = 'Diferencial TEM: cuánto rinde por mes la pata TAMAR por encima de la otra en toda la vida del dual. TEM que iguala las patas: la TAMAR constante que haría falta de hoy al pago (los días ya publicados quedan como están). Pata CER y dólar linked con el escenario de Curva Pesos.';
+    // gráfico: TAMAR diaria, promedio desde la emisión en cada escenario y lo que hace falta para cada dual
+    var cs = getComputedStyle(document.documentElement), mu = (cs.getPropertyValue('--mu') || '#888').trim(), bd = (cs.getPropertyValue('--bd') || '#333').trim(), tx = (cs.getPropertyValue('--tx') || '#eee').trim();
+    var T = window.PSXD.tamar(), s0 = Math.min.apply(null, D.map(function (d) { return d.t0; })), tMax = Math.max.apply(null, D.map(function (d) { return d.mat; })), ds = [];
+    var sp = []; for (var t = Math.max(T.s, s0 - 60); t <= L.t; t++) if (window.PSXD.biz(t)) sp.push({ x: t, y: tem(T.v[t - T.s] / 100) * 100 }); ds.push({ label: 'TAMAR del día (TEM)', data: sp, borderColor: mu, borderWidth: 1.2, borderDash: [2, 2], pointRadius: 0 });
+    var d0 = D.filter(function (d) { return !d.tf; })[0] || D[0];
+    SC.forEach(function (x, i) { var f = path(tnaOf(x), H), sm = 0, n = 0, pts = []; for (var t = d0.t0; t <= tMax; t++) { if (!window.PSXD.biz(t)) continue; sm += t <= L.t ? T.v[t - T.s] / 100 : f(t); n++; if (n % 2 === 0 || t === tMax) pts.push({ x: t, y: tem(sm / n) * 100 }); }
+      ds.push({ label: 'Promedio con TAMAR ' + nf(x * 100, 2) + '%', data: pts, borderColor: tx, borderWidth: i === 2 ? 2 : 1, pointRadius: 0, tension: 0 }); });
+    D.forEach(function (d) { if (d.be == null) return; var y = tem((d.hs + d.be * d.fut.length) / (d.hn + d.fut.length)) * 100; ds.push({ label: d.k + ' · iguala a ' + d.leg, data: [{ x: d.t0, y: y }, { x: d.mat, y: y }], borderColor: d.c, borderWidth: 1.8, pointRadius: [0, 4], pointBackgroundColor: d.c }); });
+    var xs = { type: 'linear', min: Math.max(T.s, s0 - 60), max: tMax + 10, ticks: { color: mu, maxTicksLimit: 10, callback: function (v) { return mlab(v); } }, grid: { color: bd } };
+    var tt = { callbacks: { title: function (c) { return fd(c[0].raw.x); }, label: function (c) { return c.dataset.label + ': ' + nf(c.raw.y, 2) + '%'; } } };
+    if (window.Chart) { if (CH1) CH1.destroy(); CH1 = new Chart($('dsG'), { type: 'line', data: { datasets: ds }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, plugins: { legend: { labels: { color: mu, boxWidth: 12, filter: function (it) { return !/^Promedio con/.test(it.text) || /TAMAR/.test(it.text) && it.datasetIndex === 3; } } }, tooltip: tt }, scales: { x: xs, y: { title: { display: true, text: 'TEM (%)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 2) + '%'; } }, grid: { color: bd } } } } }); }
+    drawMC(D, cs, mu, bd, xs, tt);
+  }
+  function drawMC(D, cs, mu, bd, xs0, tt) {
+    var key = O.w + '|' + O.n + '|' + D.map(function (d) { return d.k + d.other.toFixed(3); }).join(','); if (!MC || MC.key !== key) { MC = simulate(D); MC.key = key; }
+    var C = MC.C, T = window.PSXD.tamar(), L = last();
+    $('dsCK').innerHTML = '<div><span>κ · velocidad de vuelta</span><b>' + nf(C.k, 2) + '</b><span>vida media ' + nf(Math.log(2) / C.k * 12, 1) + ' meses</span></div><div><span>θ · media de largo plazo</span><b>' + pc(tem(C.th)) + '</b><span>TEM · ' + pc(C.th, 1) + ' TNA</span></div>' +
+      '<div><span>σ · volatilidad</span><b>' + nf(C.s, 3) + '</b><span>' + C.n + ' días hábiles</span></div><div><span>Condición de Feller</span><b class="' + (C.fel >= 1 ? 'up' : 'dn') + '">' + nf(C.fel, 2) + '</b><span>' + (C.fel >= 1 ? 'la tasa no llega a cero' : 'puede tocar cero') + '</span></div>';
+    var F = MC.fan, f = function (k) { return F.t.map(function (t, i) { return { x: t, y: tem(F[k][i]) * 100 }; }); }, h = []; for (var t = Math.max(T.s, L.t - 500); t <= L.t; t++) if (window.PSXD.biz(t)) h.push({ x: t, y: tem(T.v[t - T.s] / 100) * 100 });
+    var ds = [{ label: 'TAMAR histórica', data: h, borderColor: '#4ea8ff', borderWidth: 1.6, pointRadius: 0 }, { label: 'Percentil 95', data: f('p95'), borderColor: 'rgba(255,197,66,.6)', borderWidth: 1, pointRadius: 0, fill: '+4', backgroundColor: 'rgba(255,197,66,.10)' }, { label: 'Percentil 75', data: f('p75'), borderColor: 'rgba(255,197,66,.35)', borderWidth: 1, pointRadius: 0, fill: '+2', backgroundColor: 'rgba(255,197,66,.14)' }, { label: 'Mediana', data: f('p50'), borderColor: '#ffc542', borderWidth: 2.2, pointRadius: 0 }, { label: 'Percentil 25', data: f('p25'), borderColor: 'rgba(255,197,66,.35)', borderWidth: 1, pointRadius: 0 }, { label: 'Percentil 5', data: f('p5'), borderColor: 'rgba(255,197,66,.6)', borderWidth: 1, pointRadius: 0 }];
+    var xs = Object.assign({}, xs0, { min: Math.max(T.s, L.t - 500), max: F.t[F.t.length - 1] });
+    if (window.Chart) { if (CH2) CH2.destroy(); CH2 = new Chart($('dsF'), { type: 'line', data: { datasets: ds }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: mu, boxWidth: 12 } }, tooltip: tt, filler: { propagate: false } }, scales: { x: xs, y: { title: { display: true, text: 'TAMAR TEM (%)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } }); }
+    var O2 = MC.out;
+    $('dsM').innerHTML = '<thead><tr><th>Dual</th><th>Precio</th><th>TIR hoy</th><th>Gana TAMAR</th><th>Cobro 5%</th><th>Cobro mediano</th><th>Cobro 95%</th><th>TIR 5%</th><th>TIR mediana</th><th>TIR 95%</th></tr></thead><tbody>' +
+      D.map(function (d) { var o = O2[d.k], dg = d.fx > 1 ? 0 : 2; if (!o) return '';
+        return '<tr><td class="k">' + esc(d.k) + '<small>TAMAR vs ' + d.leg + ' · vence ' + fd(d.mat) + '</small></td><td>' + nf(o.P, dg) + '</td><td>' + pc(o.ty) + '</td><td><b>' + nf(o.win * 100, 0) + '%</b></td><td>' + nf(o.pay[0], dg) + '</td><td>' + nf(o.pay[1], dg) + '</td><td>' + nf(o.pay[2], dg) + '</td><td>' + pc(o.yq && o.yq[0]) + '</td><td>' + pc(o.yq && o.yq[1]) + '</td><td>' + pc(o.yq && o.yq[2]) + '</td></tr>'; }).join('') + '</tbody>';
+    var sel = $('dsB'); if (!O.k || !O2[O.k]) O.k = (D.filter(function (d) { return !d.tf; })[0] || D[0]).k; sel.innerHTML = D.map(function (d) { return '<option' + (d.k === O.k ? ' selected' : '') + '>' + esc(d.k) + '</option>'; }).join('');
+    var o = O2[O.k], B = []; if (o && o.y.length) { var lo = o.y[Math.floor(o.y.length * 0.005)], hi = o.y[Math.floor(o.y.length * 0.995)], nb = 40, w = (hi - lo) / nb || 0.001, cnt = new Array(nb).fill(0); o.y.forEach(function (v) { var i = Math.floor((v - lo) / w); if (i >= 0 && i < nb) cnt[i]++; }); B = cnt.map(function (c, i) { return { x: (lo + (i + 0.5) * w) * 100, y: c }; }); }
+    if (window.Chart) { if (CH3) CH3.destroy(); CH3 = new Chart($('dsHg'), { type: 'bar', data: { datasets: [{ label: 'Caminos', data: B, backgroundColor: 'rgba(78,168,255,.55)', borderColor: 'rgba(78,168,255,.9)', borderWidth: 1, barPercentage: 1, categoryPercentage: 1 }] }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, plugins: { legend: { display: false }, tooltip: { callbacks: { title: function (c) { return 'TIR ' + nf(c[0].raw.x, 1) + '%'; }, label: function (c) { return c.raw.y + ' caminos'; } } } }, scales: { x: { type: 'linear', title: { display: true, text: 'TIR al precio de hoy (TEA, %)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 0) + '%'; } }, grid: { color: bd } }, y: { ticks: { color: mu }, grid: { color: bd } } } } }); }
+    $('dsMn').textContent = MC.N.toLocaleString('es-AR') + ' caminos, día hábil a día hábil. ' + (C.cl ? 'La calibración daba parámetros fuera de rango con esta ventana, así que κ o θ se acotaron. ' : '') + 'Cobro: lo que paga el dual por 100 VN en cada camino (la pata que gane). TIR: la que te queda si comprás al precio de hoy y cobrás eso. La pata CER y la dólar linked no se simulan: salen del escenario de Curva Pesos. Es un modelo, no una predicción.';
+  }
+  root.addEventListener('click', function (e) { var b = e.target.closest('[data-h],[data-st],[data-w],[data-n]'); if (!b) return; ['h', 'st', 'w', 'n'].forEach(function (k) { var v = b.getAttribute('data-' + k); if (v != null) O[k] = v; }); save(); draw(); });
+  root.addEventListener('change', function (e) { if (e.target.id === 'dsB') { O.k = e.target.value; save(); draw(); } });
+  window.DSIMX = { draw: draw, O: O, sim: function () { return MC; } };
+  var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'dsim') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; setTimeout(draw, 0); } };
   var _tt = window.toggleTheme; if (_tt) window.toggleTheme = function () { _tt.apply(this, arguments); if (isAct()) setTimeout(draw, 0); };
 })();
 </script>
