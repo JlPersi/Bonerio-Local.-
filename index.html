@@ -7143,6 +7143,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         set.push(ds('Curva ajustada', cu, C_LEC, { pointRadius: 0, pointHoverRadius: 0, borderWidth: 2.2, tension: 0, noTip: true, backgroundColor: C_LEC, order: 4, pointStyle: 'line' }));
       }
       var lp = Lh.map(function (o) { var r = F ? F.res[o.k] : null; return { x: o.d, y: o.tnas * 100, s: o.k, k: o.k, r: r, fy: r != null ? o.tnas * 100 - r / 100 : null }; });
+      var lb = Math.max.apply(null, [0, S.pf[1] || 0, S.bad[1] || 0, S.tam[1] || 0].concat(lp.filter(function (p) { return p.x >= 15; }).map(function (p) { return p.y; }))); // una Lecap a días de vencer con una TNA absurda (un precio viejo) va arriba del todo con su valor real en el rótulo, como la caución: si no, aplasta la curva
+      if (lb > 0) lp.forEach(function (p) { if (p.x < 15 && p.y > lb + 15) { p.yv = p.y; p.y = lb + 6; p.k = p.s + ' · ' + nf(p.yv, 0) + '% ↑'; } });
       set.push(ds('Lecaps y Boncaps', lp, C_LEC, { type: 'scatter', showLine: false, pointRadius: 5.5, pointHoverRadius: 8, toFit: true, legCol: C_LEC, backgroundColor: lp.map(function (p) { return RESC(p.r); }), borderColor: lp.map(function (p) { return RESC(p.r); }), order: 1 }));
       var cx = (c && c.i && c.i.d === todayBA() && c.i.dias) || cd; // el plazo de la caución más corta: 1 día hábil (3 días un viernes)
       var ctop = Math.max.apply(null, [0, S.pf[1] || 0, S.bad[1] || 0, S.tam[1] || 0].concat(lp.map(function (p) { return p.y; }))), cfx = c && ctop > 0 && c.v > ctop + 15; // una caución fuera de escala (el 05/11 cerró a 190% antes del finde largo) va arriba del todo con su valor real en el rótulo: si no, aplasta la curva
@@ -7226,12 +7228,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         var sub = document.getElementById('tcSub');
         if (err) { sub.textContent = 'No se pudieron cargar los datos: ' + err; return; }
         if (!TJ) { sub.textContent = 'Cargando las tasas…'; load(render); return; }
-        S = getS(); var L = lecapsAll();
+        S = getS(); var L = lecapsAll(); LSIG = lsig(L);
         sub.innerHTML = 'Caución de A3 al cierre del ' + fr(S.dc) + (S.B ? (TJ.bcau && TJ.bcau[todayBA()] ? ', de BYMA al cierre de hoy' : ', de BYMA en la rueda de hoy (' + S.bts.slice(11, 16) + ')') : S.vivoOk ? ' y de BYMA en vivo por Primary (' + S.V.ts.slice(11, 16) + ')' : '') + ', plazo fijo, TAMAR y BADLAR del BCRA y las Lecaps de Curva Pesos.<span class="xp"> Tocá una tarjeta para ver su intradiario y su historia.</span>';
         lecFit(L); cards(L); curveChart(L); lecTable(L); cauTables(); history();
         if (!L.length && lTry++ < 20) setTimeout(function () { if (T.isAct()) render(); }, 1500); // Curva Pesos todavía no tiene precios
       } catch (x) { console.error('tcor', x); var s2 = document.getElementById('tcSub'); if (s2) s2.textContent = 'Error: ' + x.message; }
     }
+    var LSIG = '', lsig = function (L) { return L.map(function (o) { return o.k + ':' + Math.round(o.tnas * 1e4); }).join(','); };
+    setInterval(function () { if (!T.isAct() || !CH.a || !S) return; try { if (lsig(lecapsAll()) !== LSIG) render(); } catch (x) {} }, 5000); // si Curva Pesos cambió los precios de las Lecaps (el primer dibujo puede salir con un precio viejo, sobre todo en un widget del tablero), se redibuja la curva
     function live() { // dato nuevo de la caución: las tarjetas y el punto de la caución se mueven; la curva, las Lecaps y las tasas del BCRA quedan quietas
       if (!T.isAct()) return; if (!CH.a || !S) return render();
       try {
