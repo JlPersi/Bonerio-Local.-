@@ -1,5 +1,6 @@
 """Alta PRO: marca a un usuario (por mail) como PRO hasta una fecha, en app_metadata.pro_hasta de Supabase Auth.
    Se corre a mano desde Actions («Alta PRO»): mail y meses (1, 6 o 12; 0 = quitar PRO). Si ya era PRO, suma desde su vencimiento.
+   Opcional: desde (AAAA-MM-DD) = los meses cuentan desde esa fecha y pisan el vencimiento anterior (ej.: pagó durante la prueba gratis).
    Secret: SUPABASE_SERVICE_KEY."""
 import datetime as dt, json, os, sys, urllib.request
 
@@ -39,6 +40,7 @@ def sumar_meses(d, n):
 
 def main():
     mail, meses = sys.argv[1].strip().lower(), int(sys.argv[2] or 1)
+    desde = (sys.argv[3] if len(sys.argv) > 3 else "").strip()
     if not KEY:
         sys.exit("Falta SUPABASE_SERVICE_KEY")
     u = buscar(mail)
@@ -48,6 +50,8 @@ def main():
     am = u.get("app_metadata") or {}
     if meses <= 0:
         hasta = None
+    elif desde:
+        hasta = sumar_meses(dt.date.fromisoformat(desde), meses).isoformat()
     else:
         try:
             base = max(hoy, dt.date.fromisoformat(str(am.get("pro_hasta"))[:10]))
