@@ -377,6 +377,35 @@
   window.BLAUTH = function () { return sb && user ? { sb: sb, user: user } : null; };
 
   // arranque: quien ya entró ve la terminal directo; el resto, la portada
+  /* --- tus datos en tu cuenta: carteras, tableros, favoritos, trades y preferencias viajan con el mail (tabla preferencias de Supabase, cada uno ve solo la suya por RLS) ---
+     al entrar se trae lo de la cuenta; si es más nuevo que lo de este navegador, se aplica y la página se recarga una vez. Cada cambio se sube a los 3 segundos */
+  var SK = ['pfSets1', 'pfFav1', 'pfSt1', 'dbBoards1', 'dbFloat1', 'blTrades1', 'bnFav1', 'beProj1', 'beProjOn1', 'cerFix1', 'settle3', 'dlMode', 'psEsc', 'psOpt', 'calSt1'], SYN = { on: false, uid: null, t: null, no: false };
+  var lsT = function () { try { return +localStorage.getItem('blSyncT') || 0; } catch (e) { return 0; } };
+  function pack() { var o = {}; SK.forEach(function (k) { try { var v = localStorage.getItem(k); if (v != null) o[k] = v; } catch (e) { } }); return o; }
+  function push() { if (!sb || !user || SYN.no || !SYN.on) return; var t = lsT() || Date.now(); sb.from('preferencias').upsert({ user_id: user.id, datos: pack(), actualizado: new Date(t).toISOString() }, { onConflict: 'user_id' }).then(function (r) { if (r.error) { console.warn('preferencias', r.error.message); if (/does not exist|schema cache|relation/i.test(r.error.message)) SYN.no = true; } }, function () { }); }
+  (function () { try { var P = Storage.prototype, si = P.setItem, ri = P.removeItem, mark = function (st, k) { if (st !== localStorage || SK.indexOf(k) < 0) return; try { si.call(localStorage, 'blSyncT', String(Date.now())); } catch (e) { } clearTimeout(SYN.t); SYN.t = setTimeout(push, 3000); };
+    P.setItem = function (k, v) { var old = null; try { old = this === localStorage ? localStorage.getItem(k) : null; } catch (e) { } si.call(this, k, v); if (old !== String(v)) mark(this, k); };
+    P.removeItem = function (k) { ri.call(this, k); mark(this, k); }; } catch (e) { } })();
+  function mrg(a, b) { // lo de la cuenta manda; de este navegador se suma lo que falta (por id en las listas, por nombre en los objetos)
+    if (Array.isArray(a) && Array.isArray(b)) { var ids = {}, js = {}; a.forEach(function (x) { if (x && x.id != null) ids[x.id] = 1; js[JSON.stringify(x)] = 1; }); return a.concat(b.filter(function (x) { return x && x.id != null ? !ids[x.id] : !js[JSON.stringify(x)]; })); }
+    if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)) { var o = {}; Object.keys(a).forEach(function (k) { o[k] = a[k]; }); Object.keys(b).forEach(function (k) { o[k] = k in a ? mrg(a[k], b[k]) : b[k]; }); return o; }
+    return a; }
+  function sync() { // una vez por usuario y por página; los widgets del tablero (iframes) solo suben, no traen ni recargan
+    if (!sb || !user || SYN.uid === user.id) return; SYN.uid = user.id;
+    sb.from('preferencias').select('datos,actualizado').eq('user_id', user.id).maybeSingle().then(function (r) {
+      if (r.error) { console.warn('preferencias', r.error.message); SYN.no = true; return; }
+      SYN.on = true; var d = r.data, loc = lsT(), srv = d && d.actualizado ? Date.parse(d.actualizado) : 0, mine = pack();
+      if (!d || !d.datos) { if (Object.keys(mine).length) { try { localStorage.setItem('blSyncT', String(lsT() || Date.now())); } catch (e) { } clearTimeout(SYN.t); push(); } return; }
+      if (window.top !== window) return;
+      if (!loc && Object.keys(mine).length) { // primera vez en este navegador con datos propios: se juntan los dos (carteras, tableros y favoritos de las dos computadoras) y se sube la unión
+        var ch2 = false; SK.forEach(function (k) { var a = d.datos[k], b = mine[k]; if (a == null) return; var v = a; if (b != null && b !== a) { try { v = JSON.stringify(mrg(JSON.parse(a), JSON.parse(b))); } catch (e) { v = a; } } try { if (localStorage.getItem(k) !== v) { localStorage.setItem(k, v); ch2 = true; } } catch (e) { } });
+        clearTimeout(SYN.t); try { localStorage.setItem('blSyncT', String(Date.now())); } catch (e) { } push(); if (ch2) location.reload(); return; }
+      if (srv > loc || !Object.keys(mine).length) { var ch = false, si = Storage.prototype.setItem; SK.forEach(function (k) { var v = d.datos[k]; try { if (v != null && localStorage.getItem(k) !== v) { localStorage.setItem(k, v); ch = true; } } catch (e) { } });
+        try { localStorage.setItem('blSyncT', String(srv)); } catch (e) { } clearTimeout(SYN.t);
+        var once = false; try { once = sessionStorage.getItem('blSyncR') === String(srv); } catch (e) { } if (ch && !once) { try { sessionStorage.setItem('blSyncR', String(srv)); } catch (e) { } location.reload(); } }
+      else if (loc > srv) push();
+    }, function () { });
+  }
   if (RESET) { lock(); view('reset'); } else if (stored() || returning) document.documentElement.classList.remove('blg'); else lock();
   if (!ON) return;
   var s = document.createElement('script'); s.src = SB_JS; s.async = true;
@@ -385,7 +414,7 @@
     sb.auth.onAuthStateChange(function (ev, ses) {
       if (ses && /[?&](code|reset)=/.test(location.search)) history.replaceState(null, '', back() + location.hash);
       if (ses && ses.user && (RESET || ev === 'PASSWORD_RECOVERY')) { RESET = true; user = ses.user; lock(); if (V !== 'reset') view('reset'); return; } // primero elige la contraseña nueva
-      if (ses && ses.user) { user = ses.user; unlock(); try { document.dispatchEvent(new Event('bl-auth')); } catch (e) { } }
+      if (ses && ses.user) { user = ses.user; unlock(); try { document.dispatchEvent(new Event('bl-auth')); } catch (e) { } try { sync(); } catch (e) { } }
       else if ((ev === 'SIGNED_OUT' || ev === 'INITIAL_SESSION') && !RESET) { user = null; ['blUser', 'alBell'].forEach(function (i) { var c = document.getElementById(i); if (c) c.remove(); }); lock(); }
     });
   };
