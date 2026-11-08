@@ -11,6 +11,10 @@ on:
         type: choice
         options: ["1", "6", "12", "0"]
         default: "1"
+      desde:
+        description: "Fecha desde la que cuentan los meses (AAAA-MM-DD). Vacío = desde hoy o desde su vencimiento si ya era PRO"
+        required: false
+        default: ""
 permissions:
   contents: read
 jobs:
@@ -22,4 +26,5 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           MAIL: ${{ inputs.mail }}
           MESES: ${{ inputs.meses }}
-        run: python3 scripts/pro.py "$MAIL" "$MESES"
+          DESDE: ${{ inputs.desde }}
+        run: python3 scripts/pro.py "$MAIL" "$MESES" "$DESDE"
