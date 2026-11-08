@@ -11334,7 +11334,7 @@ window.USTX = (function () {
     var cv = document.getElementById('bnCvC'); if (!cv || typeof Chart === 'undefined') return; kill('cv');
     var usd = r.grp === 'usd', law = function (k) { return k.indexOf('GD') === 0 ? 'gd' : /^BP/.test(k) ? 'bp' : 'al'; };
     var cg = function (x) { return x.usdOn ? 'usd' : x.ty === 'cer' || x.ty === 'dl' ? x.ty : 'ars'; };
-    var peers = (r.corp ? CU.filter(function (x) { return cg(x) === cg(r) && !x.odd; }) : U).filter(function (x) { return (r.cfx ? x.grp === 'fija' || x === r : x.grp === r.grp && !x.cfx) && x.tir != null && isFinite(x.tir) && (usd ? x.md > 0.1 && (law(x.k) === law(r.k) || (law(r.k) === 'bp' && law(x.k) === 'al')) : x.d >= 15 && (x.tir > 0 || r.corp && r.ty === 'cer')); });
+    var peers = (r.corp ? CU.filter(function (x) { return cg(x) === cg(r) && !x.odd && (!x.old || x.k === r.k); }) : U).filter(function (x) { return (r.cfx ? x.grp === 'fija' || x === r : x.grp === r.grp && !x.cfx) && x.tir != null && isFinite(x.tir) && (usd ? x.md > 0.1 && (law(x.k) === law(r.k) || (law(r.k) === 'bp' && law(x.k) === 'al')) : x.d >= 15 && (x.tir > 0 || r.corp && r.ty === 'cer')); });
     var xOf = function (x) { return usd ? x.md : x.d; };
     var P = peers.map(function (x) { return { x: xOf(x), y: x.tir * 100, k: x.k }; }), f = usd ? null : fitLog(P), me = P.filter(function (p) { return p.k === r.k; })[0], fit = P;
     if (usd) { // el mismo ajuste que Globales / Bonares: modelo elegido ahí, sin los de menos de 1,1 de duración ni los Bonares nuevos (AO27, AO28, AO29, AN29)
@@ -11845,7 +11845,7 @@ window.RATG = (function () {
         if (e.tir != null && (e.tir > 3 || e.tir < -0.5)) e.odd = true; var du2 = e.tir != null ? bxDur(fl, s, e.tir) : null; e.md = du2 ? du2.md : null; e.mac = du2 ? du2.mac : null;
         if (fl.length && e.fm > 0) { var nx2 = fl[0], lc2 = dn(o.lc || o.iss); e.ai = nx2[2] > 0 && nx2[0] > lc2 ? nx2[2] * Math.max(0, s - lc2) / (nx2[0] - lc2) * e.fm : 0; e.vt = o.res * e.fm + e.ai; e.par = e.vt > 0 ? p / e.vt : null; } // en pesos: corridos y valor técnico (CER y dollar linked, con el índice de hoy)
       }
-      e.wal = fl.length ? wal(fl, s) : null; e.lq = liq(e);
+      e.wal = fl.length ? wal(fl, s) : null; e.lq = liq(e); if (e.tir != null && e.tir < (e.t === 'cer' || e.t === 'dl' ? -0.15 : 0)) e.odd = true; e.old = !e.live && !(e.v > 0) && e.n20 != null && e.n20 < 5; // TIR negativa = el precio supera lo que falta cobrar (precio de antes de un pago): fuera. Y los que operaron menos de 5 de las últimas 20 ruedas (precio viejo) no van a las curvas
       out.push(e);
     });
     return out;
@@ -11866,7 +11866,7 @@ window.RATG = (function () {
     var lvN = R.filter(function (e) { return e.live; }).length;
     $('onsSub').textContent = (usd ? 'ONs hard dollar en ' + (spG() === 'D' ? 'MEP (especie D)' : 'cable (especie C)') + ': TIR, duración y paridad con sus flujos y el precio de ' + (lvN ? 'ahora' : 'cierre') + '.' : 'ONs ' + TN[ST.tp] + ': precio en pesos y ' + tirTx() + '.') + (lvT && lvN ? ' En vivo: ' + lvT.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) + '.' : '');
     // indicadores
-    var P = R.filter(function (e) { return e.tir != null && !e.odd && e.d >= 45 && xOf(e) > 0 && yOf(e) != null; });
+    var P = R.filter(function (e) { return e.tir != null && !e.odd && !e.old && e.d >= 45 && xOf(e) > 0 && yOf(e) != null; });
     var tirs = P.map(function (e) { return e.tir; }), sprs = P.filter(function (e) { return e.spr != null; }).map(function (e) { return e.spr; }), vt = R.reduce(function (a, e) { return a + (e.v || 0); }, 0), best = P.slice().sort(function (a, b) { return b.tir - a.tir; })[0];
     $('onsK').innerHTML = '<div><small>ONs</small><b>' + R.length + '</b><span>' + (lvN ? lvN + ' con precio de hoy' : 'precio del cierre') + '</span></div>' +
       '<div><small>TIR mediana</small><b>' + (tirs.length ? nf(med(tirs) * 100, 2) + '%' : '—') + '</b><span>' + (usd ? 'en dólares, TEA' : ST.tp === 'dl' ? 'en dólares, A3500 constante' : 'en pesos, TEA') + '</span></div>' +
@@ -11935,7 +11935,7 @@ window.RATG = (function () {
     if (CAL == null) { CAL = 0; j('data/calificaciones.json').then(function (c) { CAL = c || {}; if (isAct()) draw(); }); }
     var G = window.RATG, U = [], NT = {}; RTF = {};
     ROWS.forEach(function (e) { e.rat = null; e.srt = null; var c = CAL && e.em && CAL[e.em], n = c && G.nt(c.cal); if (!n) return; e.rat = { n: n, b: G.br(n), t: c.cal + ' · ' + c.ag + ' · ' + fr(c.fecha) };
-      if (e.rat.b && e.t === 'usd' && e.tir != null && !e.odd && e.d >= 45 && e.md > 0 && (ST.liq === 'all' || e.v > 0)) U.push({ x: e.md, y: e.tir * 100, e: e }); });
+      if (e.rat.b && e.t === 'usd' && e.tir != null && !e.odd && !e.old && e.d >= 45 && e.md > 0 && (ST.liq === 'all' || e.v > 0)) U.push({ x: e.md, y: e.tir * 100, e: e }); });
     var fit = function (q) { q = q.filter(function (p) { return p.y > -5 && p.y < 40; }); if (q.length < 3) return null; var f = robFit(q); if (!f) return null; var xs = q.map(function (p) { return p.x; }); return { f: f.f, x0: Math.min.apply(null, xs), x1: Math.max.apply(null, xs), n: q.length }; };
     G.BK.forEach(function (b) { RTF[b] = fit(U.filter(function (p) { return p.e.rat.b === b; })); });
     U.forEach(function (p) { (NT[p.e.rat.n] = NT[p.e.rat.n] || []).push(p); });
@@ -11944,7 +11944,7 @@ window.RATG = (function () {
   }
   function chartRt() { // curvas por calificación, con las elegidas resaltadas
     var box = $('onsRt'); if (CHR) { CHR.destroy(); CHR = null; }
-    var G = window.RATG, U = ROWS.filter(function (e) { return e.t === 'usd' && e.rat && e.rat.b && e.tir != null && !e.odd && e.d >= 45 && e.md > 0 && (ST.liq === 'all' || e.v > 0); });
+    var G = window.RATG, U = ROWS.filter(function (e) { return e.t === 'usd' && e.rat && e.rat.b && e.tir != null && !e.odd && !e.old && e.d >= 45 && e.md > 0 && (ST.liq === 'all' || e.v > 0); });
     if (ST.tp !== 'usd' || U.length < 3 || !window.Chart) { box.hidden = true; return; } box.hidden = false;
     var mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), SE = ST.em, sets = [];
     G.BK.forEach(function (b) { var F = RTF[b], c = G.COL[b], q = U.filter(function (e) { return e.rat.b === b; }); if (!q.length) return;
@@ -11968,7 +11968,7 @@ window.RATG = (function () {
     var box = $('onsSv'); if (CHS) { CHS.destroy(); CHS = null; }
     var SV = sov(); if (ST.tp !== 'usd' || !SV || !window.Chart) { box.hidden = true; return; } box.hidden = false;
     var mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), cd = css('--card'), CO = css('--c-on') || '#f0abfc', CS = css('--c-usd') || '#b8e986', MU = ST.em.length >= 2;
-    var pts = R.filter(function (e) { return e.tir != null && !e.odd && e.d >= 45 && e.md > 0; }).map(function (e) { return { x: e.md * 365, y: e.tir * 100, k: e.k, e: e, c: emCol(e.em) || CO }; });
+    var pts = R.filter(function (e) { return e.tir != null && !e.odd && !e.old && e.d >= 45 && e.md > 0; }).map(function (e) { return { x: e.md * 365, y: e.tir * 100, k: e.k, e: e, c: emCol(e.em) || CO }; });
     var fo = MU ? null : robFit(pts), fO = fo && fo.f, sp = SV.pts.map(function (q) { return { x: q.x, y: q.y, k: q.k }; });
     var FO = MU ? ST.em.map(function (n) { var q = pts.filter(function (p) { return p.e.em === n; }), f = q.length >= 2 ? robFit(q, 0.5) : null; /* corrimiento mínimo: sin el gancho que exagera las ONs cortas de cada empresa */ if (!f) return null; var qx = q.map(function (p) { return p.x; }); return { n: n, c: emCol(n), f: f.f, x0: Math.min.apply(null, qx), x1: Math.max.apply(null, qx) }; }).filter(Boolean) : [];
     var xs = pts.map(function (p) { return p.x; }).concat(sp.map(function (p) { return p.x; })), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), G = [], O = [];
@@ -12022,7 +12022,7 @@ window.RATG = (function () {
   }
 
   /* ---------- ficha de una ON ---------- */
-  function pick(k) { SEL = k; ficha(); table(); if (CH) chart(ROWS.filter(vis).filter(function (e) { return e.tir != null && !e.odd && e.d >= 45 && xOf(e) > 0 && yOf(e) != null; })); setTimeout(function () { $('onsF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30); }
+  function pick(k) { SEL = k; ficha(); table(); if (CH) chart(ROWS.filter(vis).filter(function (e) { return e.tir != null && !e.odd && !e.old && e.d >= 45 && xOf(e) > 0 && yOf(e) != null; })); setTimeout(function () { $('onsF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30); }
   function ficha() {
     var box = $('onsF'); if (CHF) { CHF.destroy(); CHF = null; }
     var e = SEL && ROWS.filter(function (x) { return x.k === SEL; })[0];
@@ -12176,7 +12176,7 @@ window.RATG = (function () {
         var pfl = ix ? e.fl.map(function (f, i) { return [f[0], f[1] * FQ[i][0], f[2] * FQ[i][0]]; }) : e.fl; // CER y dollar linked: los flujos en pesos con el índice de cada pago; la TIR va con los de la base (krFl)
         var cfl = e.fl.map(function (f, i) { var m = ix ? FQ[i][0] : fm, am = Math.max(0, f[1] - f[2]), x = { t: f[0], renta: f[2] * m, amort: am * m, total: f[1] * m, res: Math.max(0, res - am), ix: FQ[i][1] }; res = x.res; return x; });
         return { k: e.k, grp: 'on', corp: 1, usdOn: usd, ty: e.t, al: e.sym, tipo: (usd ? 'hard dollar' : e.t === 'ars' || e.t === 'fija' ? 'tasa fija en pesos' : e.t === 'dl' ? 'dollar linked' : e.t.toUpperCase()) + (e.em ? ' · ' + e.em : ''), feat: [], tl: usd ? 'TIR en dólares' : e.t === 'cer' ? 'TIR real (sobre CER)' : e.t === 'dl' ? 'TIR en dólares (A3500 constante)' : 'TIR',
-          P: e.p, fl: pfl, fla: e.fla, krFl: ix ? e.fl : null, krP: ix ? e.p / fm : null, krY: ix ? e.tir : null, s: e.s, mat: dn(o.mat), d: e.d, tir: e.tir, tem: tem, tna: tem * 365 / 30, md: e.md, conv: e.cvx, odd: !!e.odd, cfl: cfl, paid: paidFl(o), res: o.res, vt: e.vt, ai: e.ai, iss: o.iss ? dn(o.iss) : null, cpn: o.r != null ? o.r / 100 : null,
+          P: e.p, fl: pfl, fla: e.fla, krFl: ix ? e.fl : null, krP: ix ? e.p / fm : null, krY: ix ? e.tir : null, s: e.s, mat: dn(o.mat), d: e.d, tir: e.tir, tem: tem, tna: tem * 365 / 30, md: e.md, conv: e.cvx, odd: !!e.odd, old: !!e.old, cfl: cfl, paid: paidFl(o), res: o.res, vt: e.vt, ai: e.ai, iss: o.iss ? dn(o.iss) : null, cpn: o.r != null ? o.r / 100 : null,
           q: function () { var L = LV[e.sym] || {}, u = L.c > 0 && L.c < 5 ? 100 : 1; return { c: L.c > 0 ? L.c * u : null, pct: L.pct, bid: L.bid > 0 ? L.bid * u : null, ask: L.ask > 0 ? L.ask * u : null, v: L.v, nop: L.n }; } };
       });
     },
@@ -12206,7 +12206,7 @@ window.RATG = (function () {
       if (!J) { load().then(function () { if (J && cb) cb(); }); return null; }
       if (!J.on[k]) return null;
       if ((!lvT || Date.now() - lvT > 30000) && Date.now() - vdAsk > 30000) { vdAsk = Date.now(); live().then(function () { if (lvT && cb) cb(); }); }
-      var e = rows().filter(function (r) { return r.k === k; })[0]; return e ? { em: e.em, tir: e.tir, md: e.md, odd: !!e.odd, t: e.t } : { em: EM[k] || '', tir: null };
+      var e = rows().filter(function (r) { return r.k === k; })[0]; return e ? { em: e.em, tir: e.tir, md: e.md, odd: !!e.odd, old: !!e.old, t: e.t } : { em: EM[k] || '', tir: null };
     },
     find: function (q) {
       if (!J) { load(); return []; }
@@ -12420,7 +12420,7 @@ window.RATG = (function () {
         if (e.tir != null && (e.tir > 3 || e.tir < -0.5)) e.odd = true; var du2 = e.tir != null ? bxDur(fl, s, e.tir) : null; e.md = du2 ? du2.md : null; e.mac = du2 ? du2.mac : null;
         if (fl.length && e.fm > 0) { var nx2 = fl[0], lc2 = dn(o.lc || o.iss); e.ai = nx2[2] > 0 && nx2[0] > lc2 ? nx2[2] * Math.max(0, s - lc2) / (nx2[0] - lc2) * e.fm : 0; e.vt = o.res * e.fm + e.ai; e.par = e.vt > 0 ? p / e.vt : null; } // en pesos: corridos y valor técnico (CER y dollar linked, con el índice de hoy)
       }
-      e.wal = fl.length ? wal(fl, s) : null; e.lq = liq(e);
+      e.wal = fl.length ? wal(fl, s) : null; e.lq = liq(e); if (e.tir != null && e.tir < (e.t === 'cer' || e.t === 'dl' ? -0.15 : 0)) e.odd = true; e.old = !e.live && !(e.v > 0) && e.n20 != null && e.n20 < 5; // TIR negativa = el precio supera lo que falta cobrar (precio de antes de un pago): fuera. Y los que operaron menos de 5 de las últimas 20 ruedas (precio viejo) no van a las curvas
       out.push(e);
     });
     return out;
@@ -12441,7 +12441,7 @@ window.RATG = (function () {
     var lvN = R.filter(function (e) { return e.live; }).length;
     $('pvsSub').textContent = (usd ? 'Provinciales hard dollar en ' + (spG() === 'D' ? 'MEP (especie D)' : 'cable (especie C)') + ': TIR, duración y paridad con sus flujos y el precio de ' + (lvN ? 'ahora' : 'cierre') + '.' : 'Provinciales ' + TN[ST.tp] + ': precio en pesos y ' + tirTx() + '.') + (lvT && lvN ? ' En vivo: ' + lvT.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) + '.' : '');
     // indicadores
-    var P = R.filter(function (e) { return e.tir != null && !e.odd && e.d >= 45 && xOf(e) > 0 && yOf(e) != null; });
+    var P = R.filter(function (e) { return e.tir != null && !e.odd && !e.old && e.d >= 45 && xOf(e) > 0 && yOf(e) != null; });
     var tirs = P.map(function (e) { return e.tir; }), sprs = P.filter(function (e) { return e.spr != null; }).map(function (e) { return e.spr; }), vt = R.reduce(function (a, e) { return a + (e.v || 0); }, 0), best = P.slice().sort(function (a, b) { return b.tir - a.tir; })[0];
     $('pvsK').innerHTML = '<div><small>Bonos</small><b>' + R.length + '</b><span>' + (lvN ? lvN + ' con precio de hoy' : 'precio del cierre') + '</span></div>' +
       '<div><small>TIR mediana</small><b>' + (tirs.length ? nf(med(tirs) * 100, 2) + '%' : '—') + '</b><span>' + (usd ? 'en dólares, TEA' : ST.tp === 'dl' ? 'en dólares, A3500 constante' : 'en pesos, TEA') + '</span></div>' +
@@ -12510,7 +12510,7 @@ window.RATG = (function () {
     if (CAL == null) { CAL = 0; j('data/calificaciones.json').then(function (c) { CAL = c || {}; if (isAct()) draw(); }); }
     var G = window.RATG, U = [], NT = {}; RTF = {};
     ROWS.forEach(function (e) { e.rat = null; e.srt = null; var c = CAL && e.em && CAL[e.em], n = c && G.nt(c.cal); if (!n) return; e.rat = { n: n, b: G.br(n), t: c.cal + ' · ' + c.ag + ' · ' + fr(c.fecha) };
-      if (e.rat.b && e.t === 'usd' && e.tir != null && !e.odd && e.d >= 45 && e.md > 0 && (ST.liq === 'all' || e.v > 0)) U.push({ x: e.md, y: e.tir * 100, e: e }); });
+      if (e.rat.b && e.t === 'usd' && e.tir != null && !e.odd && !e.old && e.d >= 45 && e.md > 0 && (ST.liq === 'all' || e.v > 0)) U.push({ x: e.md, y: e.tir * 100, e: e }); });
     var fit = function (q) { q = q.filter(function (p) { return p.y > -5 && p.y < 40; }); if (q.length < 3) return null; var f = robFit(q); if (!f) return null; var xs = q.map(function (p) { return p.x; }); return { f: f.f, x0: Math.min.apply(null, xs), x1: Math.max.apply(null, xs), n: q.length }; };
     G.BK.forEach(function (b) { RTF[b] = fit(U.filter(function (p) { return p.e.rat.b === b; })); });
     U.forEach(function (p) { (NT[p.e.rat.n] = NT[p.e.rat.n] || []).push(p); });
@@ -12519,7 +12519,7 @@ window.RATG = (function () {
   }
   function chartRt() { // curvas por calificación, con las elegidas resaltadas
     var box = $('pvsRt'); if (CHR) { CHR.destroy(); CHR = null; }
-    var G = window.RATG, U = ROWS.filter(function (e) { return e.t === 'usd' && e.rat && e.rat.b && e.tir != null && !e.odd && e.d >= 45 && e.md > 0 && (ST.liq === 'all' || e.v > 0); });
+    var G = window.RATG, U = ROWS.filter(function (e) { return e.t === 'usd' && e.rat && e.rat.b && e.tir != null && !e.odd && !e.old && e.d >= 45 && e.md > 0 && (ST.liq === 'all' || e.v > 0); });
     if (ST.tp !== 'usd' || U.length < 3 || !window.Chart) { box.hidden = true; return; } box.hidden = false;
     var mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), SE = ST.em, sets = [];
     G.BK.forEach(function (b) { var F = RTF[b], c = G.COL[b], q = U.filter(function (e) { return e.rat.b === b; }); if (!q.length) return;
@@ -12543,7 +12543,7 @@ window.RATG = (function () {
     var box = $('pvsSv'); if (CHS) { CHS.destroy(); CHS = null; }
     var SV = sov(); if (ST.tp !== 'usd' || !SV || !window.Chart) { box.hidden = true; return; } box.hidden = false;
     var mu = css('--mu'), bd = css('--bd'), tx = css('--tx'), cd = css('--card'), CO = css('--c-pv') || '#f0abfc', CS = css('--c-usd') || '#b8e986', MU = ST.em.length >= 2;
-    var pts = R.filter(function (e) { return e.tir != null && !e.odd && e.d >= 45 && e.md > 0; }).map(function (e) { return { x: e.md * 365, y: e.tir * 100, k: e.k, e: e, c: emCol(e.em) || CO }; });
+    var pts = R.filter(function (e) { return e.tir != null && !e.odd && !e.old && e.d >= 45 && e.md > 0; }).map(function (e) { return { x: e.md * 365, y: e.tir * 100, k: e.k, e: e, c: emCol(e.em) || CO }; });
     var fo = MU ? null : robFit(pts), fO = fo && fo.f, sp = SV.pts.map(function (q) { return { x: q.x, y: q.y, k: q.k }; });
     var FO = MU ? ST.em.map(function (n) { var q = pts.filter(function (p) { return p.e.em === n; }), f = q.length >= 2 ? robFit(q) : null; if (!f) return null; var qx = q.map(function (p) { return p.x; }); return { n: n, c: emCol(n), f: f.f, x0: Math.min.apply(null, qx), x1: Math.max.apply(null, qx) }; }).filter(Boolean) : [];
     var xs = pts.map(function (p) { return p.x; }).concat(sp.map(function (p) { return p.x; })), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), G = [], O = [];
@@ -12593,7 +12593,7 @@ window.RATG = (function () {
   }
 
   /* ---------- ficha de un bono ---------- */
-  function pick(k) { SEL = k; ficha(); table(); if (CH) chart(ROWS.filter(vis).filter(function (e) { return e.tir != null && !e.odd && e.d >= 45 && xOf(e) > 0 && yOf(e) != null; })); setTimeout(function () { $('pvsF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30); }
+  function pick(k) { SEL = k; ficha(); table(); if (CH) chart(ROWS.filter(vis).filter(function (e) { return e.tir != null && !e.odd && !e.old && e.d >= 45 && xOf(e) > 0 && yOf(e) != null; })); setTimeout(function () { $('pvsF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30); }
   function ficha() {
     var box = $('pvsF'); if (CHF) { CHF.destroy(); CHF = null; }
     var e = SEL && ROWS.filter(function (x) { return x.k === SEL; })[0];
@@ -12757,7 +12757,7 @@ window.RATG = (function () {
         var pfl = ix ? e.fl.map(function (f, i) { return [f[0], f[1] * FQ[i][0], f[2] * FQ[i][0]]; }) : e.fl; // CER y dollar linked: los flujos en pesos con el índice de cada pago; la TIR va con los de la base (krFl)
         var cfl = e.fl.map(function (f, i) { var m = ix ? FQ[i][0] : fm, am = Math.max(0, f[1] - f[2]), x = { t: f[0], renta: f[2] * m, amort: am * m, total: f[1] * m, res: Math.max(0, res - am), ix: FQ[i][1] }; res = x.res; return x; });
         return { k: e.k, grp: 'pv', corp: 1, usdOn: usd, ty: e.t, al: e.sym, tipo: (usd ? 'hard dollar' : e.t === 'ars' || e.t === 'fija' ? 'tasa fija en pesos' : e.t === 'dl' ? 'dollar linked' : e.t.toUpperCase()) + (e.em ? ' · ' + e.em : ''), feat: [], tl: usd ? 'TIR en dólares' : e.t === 'cer' ? 'TIR real (sobre CER)' : e.t === 'dl' ? 'TIR en dólares (A3500 constante)' : 'TIR',
-          xo: !!o.x, P: e.p, fl: pfl, fla: e.fla, krFl: ix ? e.fl : null, krP: ix ? e.p / fm : null, krY: ix ? e.tir : null, s: e.s, mat: dn(o.mat), d: e.d, tir: e.tir, tem: tem, tna: tem * 365 / 30, md: e.md, conv: e.cvx, odd: !!e.odd, cfl: cfl, paid: paidFl(o), res: o.res, vt: e.vt, ai: e.ai, iss: o.iss ? dn(o.iss) : null, cpn: o.r != null ? o.r / 100 : null,
+          xo: !!o.x, P: e.p, fl: pfl, fla: e.fla, krFl: ix ? e.fl : null, krP: ix ? e.p / fm : null, krY: ix ? e.tir : null, s: e.s, mat: dn(o.mat), d: e.d, tir: e.tir, tem: tem, tna: tem * 365 / 30, md: e.md, conv: e.cvx, odd: !!e.odd, old: !!e.old, cfl: cfl, paid: paidFl(o), res: o.res, vt: e.vt, ai: e.ai, iss: o.iss ? dn(o.iss) : null, cpn: o.r != null ? o.r / 100 : null,
           q: function () { var L = LV[e.sym] || {}, u = L.c > 0 && L.c < 5 ? 100 : 1; return { c: L.c > 0 ? L.c * u : null, pct: L.pct, bid: L.bid > 0 ? L.bid * u : null, ask: L.ask > 0 ? L.ask * u : null, v: L.v, nop: L.n }; } };
       });
     },
@@ -12792,7 +12792,7 @@ window.RATG = (function () {
       if (!J) { load().then(function () { if (J && cb) cb(); }); return null; }
       k = baseKey(k) || k; if (!J.on[k]) return null;
       if ((!lvT || Date.now() - lvT > 30000) && Date.now() - vdAsk > 30000) { vdAsk = Date.now(); live().then(function () { if (lvT && cb) cb(); }); }
-      var e = rows().filter(function (r) { return r.k === k; })[0]; return e ? { em: e.em, tir: e.tir, md: e.md, odd: !!e.odd, t: e.t } : { em: EM[k] || '', tir: null };
+      var e = rows().filter(function (r) { return r.k === k; })[0]; return e ? { em: e.em, tir: e.tir, md: e.md, odd: !!e.odd, old: !!e.old, t: e.t } : { em: EM[k] || '', tir: null };
     },
     find: function (q) {
       if (!J) { load(); return []; }
