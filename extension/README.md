@@ -14,9 +14,11 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 
 **Más instrumentos:** futuros de dólar (DLR/NOV26: TNA implícita y devaluación mensual contra el A3500) y acciones del panel (precio, rendimientos, beta, P/E, P/VL y EV/EBITDA).
 
-**A la boleta:** «→ Boleta» o un clic en un punto de un gráfico o en una fila de una tabla de la ventana escribe el ticker en «Instrumento» de Matriz y elige la sugerencia de 24 hs, en la moneda elegida en ⚙ (pesos, MEP «D» o CCL «C») para los bonos en dólares. Después completa «Precio» con el último (o el cierre anterior) del recuadro de ese ticker en Matriz o, si no hay recuadro, con el «Últ» del Mini-Panel de precios y «Cantidad» con la cantidad por defecto (⚙). No aprieta Comprar ni Vender: eso lo hace el usuario.
+**A la boleta:** «→ Boleta» o un clic en un punto de un gráfico o en una fila de una tabla de la ventana escribe el ticker en «Instrumento» de Matriz y elige la sugerencia de 24 hs, en la moneda elegida en ⚙ (pesos, MEP «D» o CCL «C») para los bonos en dólares. Después completa «Precio» con el último (o el cierre anterior) del recuadro de ese ticker en Matriz o, si no hay recuadro, con el «Últ» del Mini-Panel de precios (y, si tampoco está, con el cierre de Bonerío, avisando en el panel) y «Cantidad» con la cantidad por defecto (⚙). No aprieta Comprar ni Vender: eso lo hace el usuario.
 
 ## Instalar para probar
 1. `chrome://extensions` → activar «Modo de desarrollador» → «Cargar descomprimida» → elegir esta carpeta `extension/`.
 2. Entrar a Matriz: el panel aparece solo. El ícono de la extensión lo muestra u oculta.
 3. Si el panel lateral pide ingresar, usar mail y contraseña o el link por mail: Google no deja ingresar adentro de otra página.
+
+**Curva:** un desplegable arriba del gráfico elige cualquier curva (Soberanos USD, Lecaps, CER, TAMAR, Dollar linked, Duales, ONs, Provinciales, Futuros) sin tocar Matriz.

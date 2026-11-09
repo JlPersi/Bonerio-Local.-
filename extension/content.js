@@ -188,6 +188,8 @@
     cim: ['Pases', () => [['', 'cim', 'cimC1']]],
     exp: ['Expectativas', () => [['Inflación', 'expi', 'thBBi'], ['Devaluación', 'expd', 'thBBd'], ['Forwards', 'expf', 'thF']]],
   };
+  const NOM_CURVA = { usd: 'Soberanos USD', fija: 'Lecaps / Boncaps', cer: 'CER', tamar: 'TAMAR', dl: 'Dollar linked', dual: 'Duales', on: 'ONs', pv: 'Provinciales', fut: 'Futuros de dólar' };
+  let curvaG = null; // la curva elegida en el desplegable (null: la del bono activo)
   const SOLO_GRAF = { curva: 1, tfut: 1, sint: 1, exp: 1 };
   const SIGUE = { ficha: 1, curva: 1 }; // las que cambian con el bono
   let W = null, vista = 'curva', sub = 0, tamManual = false, LISTO = false;
@@ -201,13 +203,18 @@
       W.addEventListener('mouseup', (e) => { if (e.target === W) tamManual = true; }); // lo agrandó desde la esquina: no lo ajustamos más
     }
     if (!oculta) W.style.display = '';
-    const g = DB[activo] && DB[activo].grupo, L = VIS[vista][1](g), [, tab, id, sg] = L[sub] || L[0];
+    const g0 = DB[activo] && DB[activo].grupo, g = vista === 'curva' ? (curvaG || (CURVAS[g0] && g0 !== 'acc' ? g0 : 'usd')) : g0, L = VIS[vista][1](g), [, tab, id, sg] = L[sub] || L[0];
     W.querySelector('.tt').textContent = activo || '';
-    W.querySelector('.tabs').innerHTML = Object.keys(VIS).filter((x) => (x !== 'curva' || (CURVAS[g] && g !== 'acc')) && (x !== 'ficha' || g !== 'fut')).map((x) => `<button data-v="${x}" class="${x === vista ? 'on' : ''}">${VIS[x][0]}</button>`).join('');
+    W.querySelector('.tabs').innerHTML = Object.keys(VIS).filter((x) => x !== 'ficha' || g0 !== 'fut').map((x) => `<button data-v="${x}" class="${x === vista ? 'on' : ''}">${VIS[x][0]}</button>`).join('');
     W.querySelectorAll('.tabs button').forEach((x) => (x.onclick = () => ventana(x.dataset.v)));
-    const S = W.querySelector('.subs'); S.hidden = L.length < 2;
-    S.innerHTML = L.length < 2 ? '' : L.map((x, i) => `<button data-i="${i}" class="${i === sub ? 'on' : ''}">${x[0]}</button>`).join('');
-    S.querySelectorAll('button').forEach((x) => (x.onclick = () => ventana(vista, +x.dataset.i)));
+    const S = W.querySelector('.subs'); S.hidden = L.length < 2 && vista !== 'curva';
+    if (vista === 'curva') { // desplegable: cualquier curva sin tocar Matriz
+      S.innerHTML = `<select class="selc">${Object.keys(NOM_CURVA).map((x) => `<option value="${x}" ${x === g ? 'selected' : ''}>${NOM_CURVA[x]}</option>`).join('')}</select>`;
+      S.querySelector('select').onchange = (e) => { curvaG = e.target.value; ventana('curva'); };
+    } else {
+      S.innerHTML = L.length < 2 ? '' : L.map((x, i) => `<button data-i="${i}" class="${i === sub ? 'on' : ''}">${x[0]}</button>`).join('');
+      S.querySelectorAll('button').forEach((x) => (x.onclick = () => ventana(vista, +x.dataset.i)));
+    }
     const F = W.querySelector('iframe'), k = vista === 'ficha' && activo && g !== 'acc' ? activo : '';
     const cv = SOLO_GRAF[vista] ? 1 : 0; // en las curvas, solo el gráfico (como la curva USD)
     if (LISTO) { F.contentWindow.postMessage({ t: 'bnrSec', tab, id, g: sg || '', k, cv }, '*'); return; } // la página ya está cargada: solo cambia de sección
@@ -245,9 +252,11 @@
     setTimeout(() => {
       const r = tk(k), c = r && recuadros().find((x) => x.k === r[0] && x.suf === r[1]), [p] = c ? precioDe(c) : [NaN];
       const q = p > 0 ? String(p).replace('.', ',') : ultimoFila(k); // del recuadro con libro o, si no, del Mini-Panel de precios
-      if (q) poner(campo('precio'), q);
+      const b = !q && r && DB[r[0]], qc = b && b.precio > 0 && precioVale(r[0], r[1]) ? String(b.precio).replace('.', ',') : ''; // sin precio en pantalla: el cierre de Bonerío (BYMA), avisando
+      if (q || qc) poner(campo('precio'), q || qc);
       if (CFG.qty > 0) poner(campo('cantidad'), CFG.qty);
-      if (!q) aviso('Boleta: ' + k + ' cargado; sin precio en pantalla (no operó o no está en un recuadro ni en el Mini-Panel)');
+      if (qc) aviso('Boleta: ' + k + ' sin precio en pantalla; puse el cierre de Bonerío (' + (b.fecha || FECHA) + '): revisalo antes de mandar', 1);
+      else if (!q) aviso('Boleta: ' + k + ' cargado; sin precio en pantalla (no operó o no está en un recuadro ni en el Mini-Panel)');
     }, 500);
   }
   let tEst = 0;
@@ -294,7 +303,7 @@
   function pintar() {
     if (!activo) { B.innerHTML = '<span class="m">Abrí un bono en Matriz (o hacé clic en una fila) y aparece acá.</span>'; return; }
     const BT = (c) => `<div class="bt">${c ? '<button data-v="ficha">Ficha</button><button data-v="curva">Curva</button>' : '<button data-v="ficha">Ficha</button>'}<button data-v="mas">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
-    const enlazar = () => B.querySelectorAll('.bt button').forEach((x) => (x.onclick = () => (x.dataset.v === 'boleta' ? aBoleta(activo) : ventana(x.dataset.v === 'mas' ? (SIGUE[vista] ? 'vol' : vista) : x.dataset.v))));
+    const enlazar = () => B.querySelectorAll('.bt button').forEach((x) => (x.onclick = () => (x.dataset.v === 'boleta' ? aBoleta(activo) : (x.dataset.v === 'curva' && (curvaG = null), ventana(x.dataset.v === 'mas' ? (SIGUE[vista] ? 'vol' : vista) : x.dataset.v)))));
     const seguir = () => { if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana(null, null, W.style.display === 'none') : (W.querySelector('.tt').textContent = activo); }; // la ventana sigue al bono
     if (!DB[activo]) { B.innerHTML = `<div class="t">${activo}</div><div class="m">Sin datos en Bonerío para este ticker todavía; probá su ficha.</div>` + BT(false); enlazar(); if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana(null, null, W.style.display === 'none') : (W.querySelector('.tt').textContent = activo); return; }
     const b = DB[activo];
