@@ -241,7 +241,7 @@
     if (!oculta) W.style.display = '';
     const g0 = DB[activo] && DB[activo].grupo, g = vista === 'curva' ? (curvaG || (CURVAS[g0] && g0 !== 'acc' ? g0 : 'usd')) : g0, L = VIS[vista][1](g), [, tab, id, sg] = L[sub] || L[0];
     W.querySelector('.tt').textContent = activo || '';
-    W.querySelector('.tabs').innerHTML = Object.keys(VIS).filter((x) => (x !== 'ficha' || g0 !== 'fut') && x !== 'tfut') // futuros: están en el desplegable de Curva.map((x) => `<button data-v="${x}" class="${x === vista ? 'on' : ''}">${VIS[x][0]}</button>`).join('');
+    W.querySelector('.tabs').innerHTML = Object.keys(VIS).filter((x) => (x !== 'ficha' || g0 !== 'fut') && x !== 'tfut') /* futuros: están en el desplegable de Curva */.map((x) => `<button data-v="${x}" class="${x === vista ? 'on' : ''}">${VIS[x][0]}</button>`).join('');
     W.querySelectorAll('.tabs button').forEach((x) => (x.onclick = () => ventana(x.dataset.v)));
     const S = W.querySelector('.subs'); S.hidden = L.length < 2 && vista !== 'curva';
     if (vista === 'curva') { // desplegable: cualquier curva sin tocar Matriz
