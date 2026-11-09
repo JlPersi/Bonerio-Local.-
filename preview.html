@@ -4587,7 +4587,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var hist = ST.n > 1 || ST.b0 || ST.e1 || (typeof mktStarted === 'function' && !mktStarted()); // con varias ruedas (o sin rueda hoy): los cierres guardados en data/volumen.json
     try { if (ST.grp === 'on' && window.ONSQ) rows = rows.concat((hist ? corpHist(window.ONSQ, 'on') : window.ONSQ.vard ? window.ONSQ.vard(later) : []).map(finish)); } catch (e) { console.error('vard ons', e); }
     try { if (ST.grp === 'pv' && window.PVSQ) rows = rows.concat((hist ? corpHist(window.PVSQ, 'pv') : window.PVSQ.vard ? window.PVSQ.vard(later) : []).map(finish)); } catch (e) { console.error('vard pvs', e); } // las ONs se cargan solo si se eligen
-    return rows.filter(function (r) { return r.dpct != null && isFinite(r.dpct); });
+    return rows.filter(function (r) { return r.dpct != null && isFinite(r.dpct); }).map(fxOf);
+  }
+  function fxOf(r) { // efecto tasa: lo que explica el cambio de tasa (−duración modificada × Δ tasa); efecto tiempo: el resto (devengamiento por el paso del tiempo y, en CER, TAMAR y dólar linked, el ajuste del índice)
+    var md = r.md1 != null ? r.md1 : r.md0; r.eR = r.dpb != null && md != null && isFinite(md) ? -md * r.dpb / 100 : null; r.eT = r.eR != null ? r.dpct - r.eR : null; return r;
   }
 
   /* ---------- interfaz ---------- */
@@ -4613,6 +4616,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<label id="vdKL">Curva<select id="vdK"></select></label><label id="vdAxL">Eje X<select id="vdAx">' + xaxOpts('md') + '</select></label><label id="vdXL">Plazo máximo<select id="vdX"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000">1.000 días</option><option value="1500">1.500 días</option><option value="0" selected>Todos</option></select></label><label id="vdDL">Duales<select id="vdD"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' +
       '<label id="vdShL" title="Con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb (S16O6, a 3 días, 149 pb): su cambio de tasa no se compara con el del resto">Menos de 30 días<select id="vdSh"><option value="hide">Ocultar en el gráfico</option><option value="gray">Mostrar en gris</option></select></label>' +
       '<label id="vdBubL" title="El tamaño de cada punto es el monto operado en la rueda (todas las especies del bono, en pesos)">Burbujas de volumen<select id="vdBub"><option value="1">Mostrar</option><option value="0">Ocultar</option></select></label>' +
+      '<label id="vdFxL" title="Separa la variación de cada bono en efecto tiempo (el punto se corre a la izquierda: devenga y le baja la duración, con la tasa quieta) y efecto tasa (el punto sube o baja: cambia la tasa)">Efectos<select id="vdFx"><option value="0">Juntos (precio total)</option><option value="1">Separar tiempo y tasa</option></select></label>' +
       '<label id="vdTopL" style="display:none" title="Con muchas ONs el gráfico se llena: se destacan las que más movieron la tasa y el resto va tenue, sin la marca de antes">Destacar<select id="vdTop"><option value="12">Las 12 que más se movieron</option><option value="25">Las 25 que más se movieron</option><option value="0">Todas por igual</option></select></label>' +
       '</div>' +
       '<div class="vdchips" id="vdChips" style="margin-bottom:16px"></div>' +
@@ -4631,6 +4635,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     document.getElementById('vdD').onchange = function () { ST.dual = this.value; render(); };
     document.getElementById('vdSh').onchange = function () { ST.sh = this.value; render(); };
     document.getElementById('vdBub').onchange = function () { ST.bub = this.value === '1'; render(); };
+    document.getElementById('vdFx').onchange = function () { ST.fx = this.value === '1'; try { localStorage.setItem('vdFx', ST.fx ? '1' : '0'); } catch (e) {} render(); };
+    try { ST.fx = localStorage.getItem('vdFx') === '1'; } catch (e) {} document.getElementById('vdFx').value = ST.fx ? '1' : '0';
     document.getElementById('vdTop').onchange = function () { ST.top = this.value; render(); };
     document.getElementById('vdTable').onclick = function (e) { var th = e.target.closest ? e.target.closest('th[data-s]') : null; if (!th) return; var s = th.getAttribute('data-s'); if (ST.sort === s) ST.dir = -ST.dir; else { ST.sort = s; ST.dir = s === 'k' ? 1 : -1; } render(); };
     var det = document.getElementById('vdDet'); try { det.open = localStorage.getItem('vdDet') === '1'; } catch (e) { } det.addEventListener('toggle', function () { try { localStorage.setItem('vdDet', det.open ? '1' : '0'); } catch (e) { } });
@@ -4647,6 +4653,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       (mb ? c(mb.dpct >= 0 ? 'Mayor suba' : 'Menor baja', mb.k, sg(mb.dpct, 2) + '%', dcol(mb.dpct, 0.005)) : '') + (mw && mw !== mb ? c(mw.dpct > 0 ? 'Menor suba' : 'Mayor baja', mw.k, sg(mw.dpct, 2) + '%', dcol(mw.dpct, 0.005)) : '');
     var cr = rows.filter(function (r) { return (r.grp === 'fija' || r.grp === 'usd') && r.y0 != null; }).map(function (r) { var dd = bxSettle(r.t1) - bxSettle(r.t0); return { c: (Math.pow(1 + r.y0 / 100, dd / 365) - 1) * 100, d: dd }; });
     if (cr.length && cr.length === rows.length) { var dd0 = median(cr.map(function (x) { return x.d; })); h += c('Devengamiento', sg(median(cr.map(function (x) { return x.c; })), 2) + '%', 'lo que sube un bono con la tasa quieta (' + dd0 + ' día' + (dd0 === 1 ? '' : 's') + ' de liquidación)'); } // con T+1 y un feriado el salto puede ser de varios días
+    var fxr = rows.filter(function (r) { return r.eT != null && !isShort(r); }); if (ST.fx && fxr.length) {
+      var mT = median(fxr.map(function (r) { return r.eT; })), mR = median(fxr.map(function (r) { return r.eR; }));
+      h += c('Efecto tiempo', sg(mT, 2) + '%', 'mediana · el punto se corre a la izquierda', dcol(mT, 0.005)) + c('Efecto tasa', sg(mR, 2) + '%', 'mediana · el punto sube o baja', dcol(mR, 0.005));
+    }
     if (ST.grp === 'all') {
       h += ORDER.map(function (g) { var rs = rows.filter(function (r) { return r.grp === g; }); if (!rs.length) return ''; var a = mean(rs.map(function (r) { return r.dpct; })); return c(GN[g], sg(a, 2) + '%', rs.filter(function (r) { return r.dpct > 0.005; }).length + ' suben · ' + rs.filter(function (r) { return r.dpct < -0.005; }).length + ' bajan', dcol(a, 0.005)); }).join('');
     }
@@ -4662,7 +4672,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     });
     var mx = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.dpct); }).concat([0.05]));
     var th = function (s, t, l) { return '<th ' + (s ? 'data-s="' + s + '" ' : '') + 'class="' + (l ? 'l ' : '') + (ST.sort === s ? 'on' : '') + '">' + t + (ST.sort === s ? (ST.dir > 0 ? ' ▲' : ' ▼') : '') + '</th>'; };
-    var h = '<thead><tr>' + th('k', 'Bono', 1) + '<th class="l">Grupo</th>' + th('x1', 'Vence', 1) + '<th>Precio ' + AY() + '</th><th>Precio hoy</th>' + th('dpct', 'Δ % precio') + '<th style="min-width:160px"></th><th class="l">Tasa</th><th>Ayer</th><th>Hoy</th>' + th('dpb', 'Δ pb') + '</tr></thead><tbody>';
+    var h = '<thead><tr>' + th('k', 'Bono', 1) + '<th class="l">Grupo</th>' + th('x1', 'Vence', 1) + '<th>Precio ' + AY() + '</th><th>Precio hoy</th>' + th('dpct', 'Δ % precio') + (ST.fx ? th('eT', 'Efecto tiempo') + th('eR', 'Efecto tasa') : '') + '<th style="min-width:160px"></th><th class="l">Tasa</th><th>Ayer</th><th>Hoy</th>' + th('dpb', 'Δ pb') + '</tr></thead><tbody>';
     rows.forEach(function (r) {
       var col = dcol(r.dpct, 0.005), w = Math.abs(r.dpct) / mx * 50, bar = r.dpct >= 0 ? 'left:50%;width:' + w + '%;background:' + GR : 'right:50%;width:' + w + '%;background:' + RD;
       var flag = '', tip = '';
@@ -4673,7 +4683,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var gl = r.grp === 'on' ? 'ON · ' + (r.em || '—') : r.grp === 'pv' ? 'Provincial · ' + (r.em || '—') : r.grp === 'usd' ? 'USD · ' + (r.law === 'NY' ? 'Ley NY' : r.law === 'BOP' ? 'BOPREAL' : 'Ley local') : GN[r.grp] || r.grp;
       var dpb = r.dpb == null ? 'n/a' : sg(r.dpb, 0);
       h += '<tr><td class="k">' + r.k + (r.star ? ' *' : '') + '</td><td class="l" style="color:var(--mu)">' + gl + '</td><td class="l" style="color:var(--mu)">' + dfull(r.mat).slice(0, 5) + '/' + String(bxDayStr(r.mat).slice(2, 4)) + '</td>' +
-        '<td>' + fm(r.P0, 2) + common + '</td><td>' + fm(r.P1, 2) + '</td><td style="color:' + col + ';font-weight:700" title="' + tip + '">' + sg(r.dpct, 2) + '%' + flag + '</td>' +
+        '<td>' + fm(r.P0, 2) + common + '</td><td>' + fm(r.P1, 2) + '</td><td style="color:' + col + ';font-weight:700" title="' + tip + '">' + sg(r.dpct, 2) + '%' + flag + '</td>' + (ST.fx ? '<td style="color:' + dcol(r.eT, 0.005) + '">' + (r.eT == null ? 'n/a' : sg(r.eT, 2) + '%') + '</td><td style="color:' + dcol(r.eR, 0.005) + '">' + (r.eR == null ? 'n/a' : sg(r.eR, 2) + '%') + '</td>' : '') +
         '<td><div class="vdb"><i style="' + bar + '"></i></div></td><td class="l" style="color:var(--mu)">' + r.yl + '</td><td>' + (r.y0 == null ? 'n/a' : fm(r.y0, 2) + '%') + '</td><td>' + (r.y1 == null ? 'n/a' : fm(r.y1, 2) + '%') + '</td>' +
         '<td style="color:' + (r.dpb == null || isShort(r) ? 'var(--mu)' : dcol(-r.dpb, 0.5)) + ';font-weight:700"' + (isShort(r) ? ' title="Vence en ' + r.days + ' días: con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb; no se compara con el resto"' : '') + '>' + dpb + (isShort(r) ? '<span class="vdsup">&lt;30 d</span>' : '') + '</td></tr>';
     });
@@ -4716,7 +4726,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       }
       S.r.forEach(function (r, i) {
         var d = r.dpb == null ? 0 : r.dpb, sh = isShort(r), c = sh ? NE : d < -0.5 ? GR : d > 0.5 ? RD : NE;
-        var kn = r.k + (r.star ? ' *' : ''); hoy.push({ x: r.x1, y: r.y1, k: kn, y0: r.y0, dv: d / 100, p: r.dpct, sh: sh, m: BUB ? montoOf(r.k, BUB) : null }); hc.push(c); hs.push(r.star ? 'triangle' : S.st);
+        var kn = r.k + (r.star ? ' *' : ''); hoy.push({ x: r.x1, y: r.y1, k: kn, y0: r.y0, dv: d / 100, p: r.dpct, eT: r.eT, eR: r.eR, sh: sh, m: BUB ? montoOf(r.k, BUB) : null }); hc.push(c); hs.push(r.star ? 'triangle' : S.st);
         ayer.push({ x: r.x0, y: r.y0, k: kn, dv: d / 100, y0: r.y1 });
       });
     });
@@ -4729,17 +4739,23 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var LINK = { id: 'vdLink', beforeDatasetsDraw: function (ch) {
       var ia = -1, ih = -1; ch.data.datasets.forEach(function (d, i) { if (d.role === 'ayer') ia = i; if (d.role === 'hoy') ih = i; }); if (ia < 0 || ih < 0) return;
       var ma = ch.getDatasetMeta(ia).data, mh = ch.getDatasetMeta(ih).data, ctx = ch.ctx; ctx.save(); ctx.setLineDash([2, 3]); ctx.lineWidth = 1.3; ctx.strokeStyle = rgba(tx.charAt(0) === '#' ? tx : '#e4e4e7', 0.7);
-      var dh = ch.data.datasets[ih].data; mh.forEach(function (el, j) { var a = ma[j]; if (!a || (dh[j] && (dh[j].sh || dh[j].dim)) || Math.hypot(el.x - a.x, el.y - a.y) < 8) return; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(el.x, el.y); ctx.stroke(); }); ctx.restore(); } };
+      var dh = ch.data.datasets[ih].data; mh.forEach(function (el, j) { var a = ma[j]; if (!a || (dh[j] && (dh[j].sh || dh[j].dim)) || Math.hypot(el.x - a.x, el.y - a.y) < 8) return;
+        if (ST.fx) { // efecto tiempo: de la marca de antes hasta la duración de hoy, con la tasa quieta (horizontal); efecto tasa: de ahí al punto de hoy (vertical)
+          ctx.setLineDash([]); ctx.lineWidth = 2.2; ctx.strokeStyle = FXT; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(el.x, a.y); ctx.stroke();
+          ctx.strokeStyle = el.y < a.y ? RD : GR; ctx.beginPath(); ctx.moveTo(el.x, a.y); ctx.lineTo(el.x, el.y); ctx.stroke();
+          ctx.fillStyle = FXT; ctx.beginPath(); ctx.arc(el.x, a.y, 2.6, 0, 6.3); ctx.fill(); ctx.setLineDash([2, 3]); ctx.lineWidth = 1.3; ctx.strokeStyle = rgba(tx.charAt(0) === '#' ? tx : '#e4e4e7', 0.7); return; }
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(el.x, el.y); ctx.stroke(); }); ctx.restore(); } }, FXT = tx || '#e4e4e7'; // el tiempo en el color del texto: no se confunde con las curvas ni con verde y rojo
     var logTicks = function (a) { var set = [10, 20, 30, 60, 90, 180, 365, 540, 730, 1000, 1500, 2000, 3000, 5000, 7000, 10000]; a.ticks = set.filter(function (v) { return v >= a.min && v <= a.max; }).map(function (v) { return { value: v }; }); };
     CH = new Chart(document.getElementById('vdChart').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [X.LABELS, LINK], options: {
       responsive: true, maintainAspectRatio: false, animation: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2), layout: { padding: { right: 28, top: 6 } }, interaction: { mode: 'nearest', intersect: true },
-      plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.dataset.tip; }, callbacks: { label: function (c) { var r = c.raw; return [r.k + ': ' + fm(r.y, 2) + '% hoy · ' + fm(r.y0, 2) + '% ' + AY(), sg(r.dv * 100, 0) + ' pb · precio ' + sg(r.p, 2) + '%'].concat(r.m != null ? ['Operado: $ ' + fm(r.m / 1e6, r.m >= 1e8 ? 0 : 1) + ' M'] : []); } } } },
+      plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.dataset.tip; }, callbacks: { label: function (c) { var r = c.raw; return [r.k + ': ' + fm(r.y, 2) + '% hoy · ' + fm(r.y0, 2) + '% ' + AY(), sg(r.dv * 100, 0) + ' pb · precio ' + sg(r.p, 2) + '%'].concat(ST.fx && r.eT != null ? ['Efecto tiempo ' + sg(r.eT, 2) + '% · efecto tasa ' + sg(r.eR, 2) + '%'] : []).concat(r.m != null ? ['Operado: $ ' + fm(r.m / 1e6, r.m >= 1e8 ? 0 : 1) + ' M'] : []); } } } },
       scales: { x: useLog ? { type: 'logarithmic', title: { display: true, text: xaxTitle(ax, true), color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 0); } }, afterBuildTicks: logTicks, grid: { color: bd } }
         : { title: { display: true, text: xaxTitle(ax), color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, yrs ? 1 : 0); } }, grid: { color: bd }, min: 0, grace: '6%' },
         y: { title: { display: true, text: yl, color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd }, grace: '6%' } } } });
     var sh = function (c, ico) { return '<i style="width:' + (ico === 'ring' ? 10 : 12) + 'px;height:' + (ico === 'ring' ? 10 : 12) + 'px;border-radius:50%;background:' + (ico === 'ring' ? 'transparent' : c) + ';border:' + (ico === 'ring' ? '1.5px solid var(--mu)' : '0') + '"></i>'; };
     leg.innerHTML = (nTf.length ? '<span>' + nTf.map(function (r) { return r.k; }).join(', ') + ' (dual tasa fija / TAMAR) no va en el gráfico: se mide por TEA y no por margen sobre TAMAR; está en la tabla</span>' : '') + (mx > 0 ? '<span>Tamaño del punto: monto operado ' + (bxDayStr(REF1) === bxDayStr(bxToday()) && !(VJ && VJ.dates.indexOf(bxDayStr(REF1)) >= 0) ? 'hoy hasta ahora' : 'en la rueda') + '</span>' : '') + '<span>' + sh(GR) + 'La tasa bajó</span><span>' + sh(RD) + 'La tasa subió</span><span>' + sh(NE) + 'Sin cambio</span><span>' + sh('', 'ring') + AY(1) + '</span>' +
       SER.map(function (S) { return S.noFit ? '<span>◆ ' + S.n + ' (puntos, sin curva)</span>' : '<span><i style="width:22px;height:0;border-top:3px solid ' + S.c + '"></i>Curva hoy ' + (isUsd ? S.n + (S.st === 'triangle' ? ' (▲)' : ' (●)') : '') + '</span>'; }).join('') + '<span><i style="width:22px;height:0;border-top:2px dashed var(--mu)"></i>Curva ' + AY() + '</span>' + (nOut ? '<span>' + nOut + (grp === 'pv' ? (nOut === 1 ? ' provincial con TIR' : ' provinciales con TIR') : nOut === 1 ? ' ON con TIR' : ' ONs con TIR') + ' fuera de -5% a 30% no se grafican (precio sin referencia); están en la tabla</span>' : '') + (nShort ? '<span>No se muestran ' + nShort + (nShort === 1 ? ' bono que vence' : ' bonos que vencen') + ' en menos de 30 días: con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb</span>' : SER.some(function (S) { return S.nEx; }) ? '<span>En gris, los que vencen en menos de 30 días: no entran en la curva porque 0,01% de precio les mueve la tasa decenas o cientos de pb</span>' : '');
+    if (ST.fx) leg.innerHTML += '<span><i style="width:22px;height:0;border-top:2.5px solid ' + FXT + '"></i>Efecto tiempo (se corre a la izquierda, tasa quieta)</span><span><i style="width:0;height:14px;border-left:2.5px solid ' + GR + '"></i><i style="width:0;height:14px;border-left:2.5px solid ' + RD + '"></i>Efecto tasa (la tasa baja o sube)</span>';
     shift.innerHTML = shifts.map(function (s) {
       var mu = mean(s.rows.map(function (r) { return (r.h - r.a) * 100; }));
       return '<div><div style="font-weight:600;margin-bottom:6px;color:var(--tx)">' + s.n + ' · desplazamiento de la curva <span style="color:' + dcol(mu == null ? null : -mu, 0.5) + '">(promedio ' + sg(mu, 0) + ' pb)</span></div><table class="vdt"><thead><tr><th class="l" style="cursor:default">' + (ax === 'plazo' ? 'Plazo' : ax === 'mac' ? 'Duración' : 'Duración mod.') + '</th><th style="cursor:default">' + AY(1) + '</th><th style="cursor:default">Hoy</th><th style="cursor:default">Δ pb</th></tr></thead><tbody>' +
