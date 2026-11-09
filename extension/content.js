@@ -2,7 +2,10 @@
    El precio sale de la pantalla del propio usuario; Bonerío pone solo cierres, TIRs, duration y la curva (data/api/curvas.json). */
 (() => {
   if (window.__bnr) return; window.__bnr = 1;
-  const URL_CURVAS = 'https://boneriolocal.com.ar/data/api/curvas.json';
+  const URL_CURVAS = 'https://boneriolocal.com.ar/data/api/curvas.json', DATA = 'https://boneriolocal.com.ar/data/';
+  const TOK = /[A-Z]{3}\/[A-Z]{3}\d{2}|[A-Z0-9]{3,7}/g; // tickers: DLR/NOV26 o AL30, GGAL, TMVE8…
+  const MESES = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+  const diasA = (f) => Math.max(1, Math.round((new Date(f + 'T12:00:00') - new Date()) / 864e5));
   const CURVA = { usd: 'curva', fija: 'pesos', cer: 'pesos', tamar: 'pesos', dl: 'pesos', dual: 'dsim', on: 'ons', pv: 'pvs' }; // pestaña de Bonerío de cada grupo
   let DB = {}, GRP = {}, FECHA = '', activo = null, precioManual = false;
 
@@ -38,14 +41,14 @@
     const x = w.slice(-1); return (x === 'D' || x === 'C') && DB[w.slice(0, -1)] ? [w.slice(0, -1), x] : null;
   };
   const DOLAR = { usd: 1, on: 1, pv: 1 };
-  const precioVale = (k, suf) => !DOLAR[DB[k].grupo] || suf === 'D'; // en los de dólares Bonerío usa el precio MEP: solo sirve el recuadro de la especie D
+  const precioVale = (k, suf) => (DB[k].tipo === 'acc' ? !suf : !DOLAR[DB[k].grupo] || suf === 'D'); // en los de dólares Bonerío usa el precio MEP: solo sirve el recuadro de la especie D
 
   // ---------- lectura de la pantalla de Matriz (heurística: sin selectores fijos, porque Matriz cambia clases) ----------
   function tickerEn(el) {
     for (let i = 0; el && i < 5; i++, el = el.parentElement) {
       const t = (el.innerText || el.value || '').trim();
       if (!t || t.length > 80) continue;
-      const m = t.toUpperCase().match(/[A-Z0-9]{3,6}/g) || [];
+      const m = t.toUpperCase().match(TOK) || [];
       for (const w of m) { const r = tk(w); if (r) return r[0]; }
     }
     return null;
@@ -53,11 +56,12 @@
   function tickerBoleta() { for (const i of document.querySelectorAll('input')) { if (i.closest('#bnr-panel')) continue; const r = tk((i.value || '').trim().split(/\s|-/)[0]); if (r) return r[0]; } return null; }
   function tickerVisible() { // boleta "Instrumento" o encabezado del panel del bono
     const k = tickerBoleta(); if (k) return k;
+    let acc = null;
     for (const el of document.querySelectorAll('div,span,h1,h2,h3,td')) {
       if (el.children.length > 2 || el.closest('#bnr-panel')) continue;
-      const r = tk((el.textContent || '').trim()); if (r && el.offsetParent) return r[0];
+      const r = tk((el.textContent || '').trim()); if (r && el.offsetParent) { if (DB[r[0]].tipo !== 'acc') return r[0]; acc = acc || r[0]; }
     }
-    return null;
+    return acc; // una acción solo si no hay bonos ni futuros a la vista (BYMA también es un botón de Matriz)
   }
   function valorJunto(raiz, re) { // busca la etiqueta (p.ej. "Cierre Ant.:") y toma el número de la celda de al lado
     for (const el of raiz.querySelectorAll('div,span,td,th,label')) {
@@ -72,7 +76,7 @@
     for (const lab of document.querySelectorAll('body *')) {
       if (lab.children.length || !/^Cierre\s+Ant\.?\s*:?$/i.test((lab.textContent || '').trim()) || lab.closest('#bnr-panel,#bnr-win')) continue;
       let a = lab.parentElement, hit = null;
-      for (let i = 0; a && i < 16 && !hit; i++, a = a.parentElement) for (const w of (a.innerText || a.textContent || '').toUpperCase().match(/[A-Z0-9]{3,7}/g) || []) { const r = tk(w); if (r) { hit = { el: a, k: r[0], suf: r[1] }; break; } }
+      for (let i = 0; a && i < 16 && !hit; i++, a = a.parentElement) for (const w of (a.innerText || a.textContent || '').toUpperCase().match(TOK) || []) { const r = tk(w); if (r) { hit = { el: a, k: r[0], suf: r[1] }; break; } }
       if (hit && !out.some((o) => o.el === hit.el)) out.push(hit);
     }
     return out;
@@ -108,6 +112,18 @@
     const t = p > 0 ? tirA(b, p) : null, tir = t == null ? b.tir : t, f = ajuste(b.grupo, b.ley);
     return { tir, res: f && b.dias > 30 ? (tir - f(b.dias)) * 100 : null };
   }
+  function fut(b, p) { const r = (p > 0 ? p : b.precio) / b.spot, d = diasA(b.vto); return { tna: (r - 1) * 365 / d * 100, dev: (Math.pow(r, 30 / d) - 1) * 100, d }; }
+  function filas(b, p) {
+    if (b.tipo === 'fut') { const x = fut(b, p); return [['TNA impl.', fmt(x.tna) + '%'], ['Dev. mens.', fmt(x.dev) + '%'], ['Días', String(x.d)], ['A3500', fmt(b.spot)]]; }
+    if (b.tipo === 'acc') { ratios(); return [['P/E', fmt(b.pe)], ['P/VL', fmt(b.pvl)], ['EV/EBITDA', fmt(b.ev)], ['Beta', fmt(b.beta)]]; }
+    const x = calc(b, p); return CFG.m.map((m) => MET[m][1](b, x));
+  }
+  let RAT = null; function ratios() { // P/E, P/VL y EV/EBITDA: el archivo es grande, se trae solo cuando aparece una acción
+    if (RAT) return; RAT = fetch(DATA + 'acciones/ratios.json').then((r) => r.json()).then((d) => {
+      for (const [k, v] of Object.entries(d.t || {})) { const u = (v.serie || [])[v.serie.length - 1]; if (DB[k] && u) Object.assign(DB[k], { pe: u[1], pvl: u[2], ev: u[3] }); }
+      pintar(); inyectar();
+    }).catch(() => {});
+  }
   function inyectar() {
     for (const c of recuadros()) {
       const viejas = [...c.el.querySelectorAll('[data-bnr]')];
@@ -115,7 +131,8 @@
       const lab = [...c.el.querySelectorAll('*')].find((e) => !e.children.length && /^P\s*&\s*L\s*:?$/i.test((e.textContent || '').trim()) && !e.closest('[data-bnr]'));
       let row = lab && lab.parentElement; while (row && row !== c.el && !/Pos/.test(row.textContent || '')) row = row.parentElement;
       if (!row || row === c.el || /Cierre/.test(row.textContent || '')) continue; // la fila de Pos / P&L sola, no el recuadro entero
-      const b = DB[c.k], [p] = precioVale(c.k, c.suf) ? precioDe(c) : [NaN], x = calc(b, p), cel = CFG.m.map((m) => MET[m][1](b, x)), n = Math.ceil(cel.length / 2);
+      const b = DB[c.k], [p] = precioVale(c.k, c.suf) ? precioDe(c) : [NaN], cel = filas(b, p), n = Math.ceil(cel.length / 2);
+      if (!n) continue;
       if (viejas.length !== n) { viejas.forEach((r) => r.remove()); let ant = row; for (let i = 0; i < n; i++) { const r = row.cloneNode(true); r.setAttribute('data-bnr', '1'); r.title = 'Bonerío Local'; ant.after(r); ant = r; } }
       [...c.el.querySelectorAll('[data-bnr]')].forEach((r, i) => {
         const hojas = [...r.querySelectorAll('*')].filter((e) => !e.children.length); if (hojas.length < 4) return;
@@ -155,10 +172,10 @@
 
   // ---------- ventana flotante con la ficha, la curva o el portfolio de Bonerío (la sección sola, como en el Dashboard) ----------
   const SITE = 'https://boneriolocal.com.ar/';
-  const CURVAS = { usd: ['curva', 'yieldCurveContainer'], fija: ['pesos', 'pcard1'], cer: ['pesos', 'pcard3'], tamar: ['pesos', 'pcard4'], dl: ['pesos', 'pcard5'], dual: ['pesos', 'pcard6'], on: ['ons', 'onsC'], pv: ['pvs', 'pvsC'] };
+  const CURVAS = { fut: ['tfut', 'tfS1'], usd: ['curva', 'yieldCurveContainer'], fija: ['pesos', 'pcard1'], cer: ['pesos', 'pcard3'], tamar: ['pesos', 'pcard4'], dl: ['pesos', 'pcard5'], dual: ['pesos', 'pcard6'], on: ['ons', 'onsC'], pv: ['pvs', 'pvsC'] };
   // solapas de la ventana: [nombre, [[subsolapa, pestaña de Bonerío, sección]]]; la sección se muestra sola (modo ?emb=sec del Dashboard)
   const VIS = {
-    ficha: ['Ficha', () => [['', 'bono', 'bono']]],
+    ficha: ['Ficha', (g) => (g === 'acc' ? [['', 'acc', 'accT']] : [['', 'bono', 'bono']])],
     curva: ['Curva', (g) => [['', ...(CURVAS[g] || CURVAS.usd)]]],
     port: ['Portfolio', () => [['Portfolio', 'port', 'pfMine'], ['Trade ideas', 'trd', 'trOc']]],
     vol: ['Volumen', () => [['Dónde estuvo', 'vol', 'vlS1'], ['Ranking', 'vol', 'vlS2'], ['Puntas', 'vol', 'vlLq']]],
@@ -182,27 +199,66 @@
     }
     const g = DB[activo] && DB[activo].grupo, L = VIS[vista][1](g), [, tab, id] = L[sub] || L[0];
     W.querySelector('.tt').textContent = activo || '';
-    W.querySelector('.tabs').innerHTML = Object.keys(VIS).filter((x) => x !== 'curva' || g).map((x) => `<button data-v="${x}" class="${x === vista ? 'on' : ''}">${VIS[x][0]}</button>`).join('');
+    W.querySelector('.tabs').innerHTML = Object.keys(VIS).filter((x) => (x !== 'curva' || (CURVAS[g] && g !== 'acc')) && (x !== 'ficha' || g !== 'fut')).map((x) => `<button data-v="${x}" class="${x === vista ? 'on' : ''}">${VIS[x][0]}</button>`).join('');
     W.querySelectorAll('.tabs button').forEach((x) => (x.onclick = () => ventana(x.dataset.v)));
     const S = W.querySelector('.subs'); S.hidden = L.length < 2;
     S.innerHTML = L.length < 2 ? '' : L.map((x, i) => `<button data-i="${i}" class="${i === sub ? 'on' : ''}">${x[0]}</button>`).join('');
     S.querySelectorAll('button').forEach((x) => (x.onclick = () => ventana(vista, +x.dataset.i)));
     const F = W.querySelector('iframe'); F.style.height = '2600px'; W.dataset.v = vista;
-    const url = SITE + '?emb=sec&tab=' + tab + '&id=' + id + (vista === 'ficha' && activo ? '#ficha=' + activo + '&n=' + Date.now() : '');
+    const url = SITE + '?emb=sec&tab=' + tab + '&id=' + id + (vista === 'ficha' && activo && g !== 'acc' ? '#ficha=' + activo + '&n=' + Date.now() : '');
     F.src = chrome.runtime.getURL('frame.html') + '#' + encodeURIComponent(url); // Bonerío va adentro de una página de la extensión: así no la frena la regla frame-src de Matriz
   }
-  window.addEventListener('message', (e) => { // la página manda la altura de la sección: la ventana queda justa
-    if (!W || !e.data || e.data.t !== 'bnrH' || e.source !== W.querySelector('iframe').contentWindow) return;
+  // ---------- cargar un ticker en la boleta de Matriz (campo "Instrumento"); no manda ninguna orden ----------
+  function aBoleta(k) {
+    const lab = (i) => [i.previousElementSibling, i.parentElement && i.parentElement.previousElementSibling].some((x) => x && /^Instrumento$/i.test((x.textContent || '').trim()));
+    const inp = [...document.querySelectorAll('input')].find((i) => !i.closest('#bnr-panel,#bnr-win') && (/instrumento/i.test(i.placeholder || '') || lab(i)));
+    if (!inp) return false;
+    const cand = () => [...document.querySelectorAll('li,[role=option],mat-option,a,span,div')].filter((o) => !o.children.length && o.offsetParent && !o.closest('#bnr-panel,#bnr-win') && (o.textContent || '').trim().toUpperCase().startsWith(k));
+    const antes = new Set(cand()); // solo vale una sugerencia que aparezca después de escribir (no una fila del panel de precios)
+    inp.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, k);
+    inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: k.slice(-1) }));
+    let n = 0; const iv = setInterval(() => { // elige la primera sugerencia nueva (en 24 hs si la hay)
+      if (++n > 12) return clearInterval(iv);
+      const ops = cand().filter((o) => !antes.has(o)), o = ops.find((x) => /24/.test(x.textContent)) || ops[0];
+      if (o) { clearInterval(iv); o.click(); }
+    }, 250);
+    return true;
+  }
+  window.addEventListener('message', (e) => { // la página manda la altura de la sección (la ventana queda justa) o el bono que se tocó
+    if (!W || !e.data || e.source !== W.querySelector('iframe').contentWindow) return;
+    if (e.data.t === 'bnrTk') { const k = String(e.data.k).toUpperCase(); aBoleta(k); const r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } return; }
+    if (e.data.t !== 'bnrH') return;
     const h = Math.max(150, +e.data.h || 0); W.querySelector('iframe').style.height = h + 'px';
     if (!tamManual) W.style.height = Math.min(h + W.querySelector('.wb').offsetTop + 2, innerHeight - W.offsetTop - 10) + 'px';
   });
 
   function pintar() {
     if (!activo) { B.innerHTML = '<span class="m">Abrí un bono en Matriz (o hacé clic en una fila) y aparece acá.</span>'; return; }
-    const BT = (c) => `<div class="bt">${c ? '<button data-v="ficha">Ficha</button><button data-v="curva">Curva</button>' : '<button data-v="ficha">Ficha</button>'}<button data-v="port">Más…</button></div>`;
-    const enlazar = () => B.querySelectorAll('.bt button').forEach((x) => (x.onclick = () => ventana(x.dataset.v)));
-    if (!DB[activo]) { B.innerHTML = `<div class="t">${activo}</div><div class="m">Sin datos de curva para este bono: abrí su ficha.</div>` + BT(false); enlazar(); if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana() : (W.querySelector('.tt').textContent = activo); return; }
-    const b = DB[activo], f = ajuste(b.grupo, b.ley);
+    const BT = (c) => `<div class="bt">${c ? '<button data-v="ficha">Ficha</button><button data-v="curva">Curva</button>' : '<button data-v="ficha">Ficha</button>'}<button data-v="port">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">→ Boleta</button></div>`;
+    const enlazar = () => B.querySelectorAll('.bt button').forEach((x) => (x.onclick = () => (x.dataset.v === 'boleta' ? aBoleta(activo) : ventana(x.dataset.v))));
+    const seguir = () => { if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana() : (W.querySelector('.tt').textContent = activo); }; // la ventana sigue al bono
+    if (!DB[activo]) { B.innerHTML = `<div class="t">${activo}</div><div class="m">Sin datos en Bonerío para este ticker todavía; probá su ficha.</div>` + BT(false); enlazar(); if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana() : (W.querySelector('.tt').textContent = activo); return; }
+    const b = DB[activo];
+    if (b.tipo === 'acc') {
+      ratios(); const r = b.ret || {}, pc = (x) => (x == null ? '-' : fmt(x * 100) + '%');
+      B.innerHTML = `<div class="t">${activo}</div><div class="m">Acción · cierre ${b.fecha}</div>
+        <div class="g"><span>Precio</span><span>$ ${fmt(b.precio)}</span><span>Var. día</span><span>${pc(r['1d'])}</span><span>1 mes</span><span>${pc(r['1m'])}</span><span>En el año</span><span>${pc(r.ytd)}</span>
+        <span>P/E</span><span>${fmt(b.pe)}</span><span>P/VL</span><span>${fmt(b.pvl)}</span><span>EV/EBITDA</span><span>${fmt(b.ev)}</span><span>Beta</span><span>${fmt(b.beta)}</span></div>
+        <div class="bt"><button data-v="ficha">Acciones</button><button data-v="port">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">→ Boleta</button></div>`;
+      enlazar(); seguir(); return;
+    }
+    if (b.tipo === 'fut') {
+      const inp = B.querySelector('input'); let p = precioManual && inp ? num(inp.value) : NaN, fuente = 'manual';
+      if (!(p > 0)) { [p, fuente] = precioPantalla(activo); precioManual = false; }
+      const x = fut(b, p);
+      B.innerHTML = `<div class="t">${activo}</div><div class="m">Futuro de dólar · vence ${b.vto.split('-').reverse().join('/')}</div>
+        <div class="g"><span>Cierre</span><span>$ ${fmt(b.precio)}</span><span>A3500 (${b.fspot.slice(5).split('-').reverse().join('/')})</span><span>$ ${fmt(b.spot)}</span>
+        <span>TNA implícita</span><span>${fmt(x.tna)}%</span><span>Devaluación mensual</span><span>${fmt(x.dev)}%</span><span>Días al vto.</span><span>${x.d}</span></div>
+        <label class="m">Precio (${fuente || 'cierre'}): si compro a…</label><input value="${p > 0 ? fmt(p, 2) : ''}" placeholder="Precio">
+        <div class="bt"><button data-v="curva">Curva</button><button data-v="port">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">→ Boleta</button></div>`;
+      enlazar(); seguir(); B.querySelector('input').onchange = () => { precioManual = true; pintar(); }; return;
+    }
+    const f = ajuste(b.grupo, b.ley);
     const inp = B.querySelector('input'); let p = precioManual && inp ? num(inp.value) : NaN, fuente = 'manual';
     if (!(p > 0)) { [p, fuente] = precioPantalla(activo); precioManual = false; }
     const t0 = p > 0 ? tirA(b, p) : null, tir = t0 == null ? b.tir : t0, res = f && b.dias > 30 ? (tir - f(b.dias)) * 100 : null;
@@ -238,6 +294,20 @@
   fetch(URL_CURVAS).then((r) => r.json()).then((d) => {
     FECHA = d.fecha;
     for (const [g, l] of Object.entries(d.grupos)) { GRP[g] = l; l.forEach((b) => (DB[b.ticker] = Object.assign({ grupo: g }, b))); }
+    return Promise.all([
+      fetch(DATA + 'tasas.json').then((r) => r.json()).then((t) => { // futuros de dólar: último cierre y el A3500
+        const fs = Object.keys(t.fut || {}).sort().pop(), as = Object.keys(t.a3500 || {}).sort().pop(); if (!fs || !as) return;
+        for (const r of t.fut[fs]) {
+          const m = /^DLR(\d\d)(\d{4})$/.exec(r[0]); if (!m || !(r[2] > 0) || r[1] < new Date().toISOString().slice(0, 10)) continue;
+          const e = { tipo: 'fut', grupo: 'fut', ticker: r[0], vto: r[1], precio: r[2], spot: t.a3500[as], fspot: as };
+          DB[r[0]] = e; DB['DLR/' + MESES[+m[1] - 1] + m[2].slice(2)] = e; // Matriz los llama DLR/NOV26
+        }
+      }).catch(() => {}),
+      fetch(DATA + 'acciones/metricas.json').then((r) => r.json()).then((d) => { // acciones: precio, rendimientos y beta
+        for (const [k, v] of Object.entries(d.t || {})) if (v.ars && !DB[k]) DB[k] = { tipo: 'acc', grupo: 'acc', ticker: k, precio: v.ars.precio, fecha: v.ars.fecha, ret: v.ars.ret, beta: v.ars.beta };
+      }).catch(() => {}),
+    ]);
+  }).then(() => {
     P.querySelector('#bnr-tk').innerHTML = Object.keys(DB).sort().map((k) => `<option value="${k}">`).join('');
     activo = tickerVisible(); pintar(); inyectar();
     new MutationObserver(revisar).observe(document.body, { childList: true, subtree: true, characterData: true });

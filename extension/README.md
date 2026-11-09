@@ -13,6 +13,10 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 
 **Datos adentro de los recuadros de Matriz:** debajo de «Pos / P&L» de cada recuadro con libro se agregan filas con el mismo estilo (TIR, DM, contra la curva, días…). Con ⚙ en el panel se eligen cuáles o se apagan. En los bonos en dólares la TIR usa el precio solo en el recuadro de la especie D (MEP), que es el que toma Bonerío.
 
+**Más instrumentos:** futuros de dólar (DLR/NOV26: TNA implícita y devaluación mensual contra el A3500) y acciones del panel (precio, rendimientos, beta, P/E, P/VL y EV/EBITDA).
+
+**A la boleta:** «→ Boleta» o un clic en un punto de un gráfico o en una fila de una tabla de la ventana escribe el ticker en «Instrumento» de Matriz y elige la sugerencia de 24 hs. No manda ninguna orden.
+
 ## Instalar para probar
 1. `chrome://extensions` → activar «Modo de desarrollador» → «Cargar descomprimida» → elegir esta carpeta `extension/`.
 2. Entrar a Matriz y tocar el ícono de la extensión (conviene fijarlo en la barra con el alfiler) para abrir Bonerío al costado.

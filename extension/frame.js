@@ -3,6 +3,7 @@ const F = document.getElementById('f');
 const ir = () => { const u = decodeURIComponent(location.hash.slice(1)); if (u.startsWith('https://boneriolocal.com.ar/')) F.src = u; };
 addEventListener('hashchange', ir); ir();
 addEventListener('message', (e) => {
-  if (e.source !== F.contentWindow || !e.data || e.data.t !== 'bnrH') return;
-  F.style.height = e.data.h + 'px'; parent.postMessage({ t: 'bnrH', h: e.data.h }, '*');
+  if (e.source !== F.contentWindow || !e.data) return;
+  if (e.data.t === 'bnrH') { F.style.height = e.data.h + 'px'; parent.postMessage({ t: 'bnrH', h: e.data.h }, '*'); }
+  if (e.data.t === 'bnrTk' && /^[A-Z0-9\/]{3,10}$/.test(e.data.k)) parent.postMessage({ t: 'bnrTk', k: e.data.k }, '*'); // tocó un bono en Bonerío
 });
