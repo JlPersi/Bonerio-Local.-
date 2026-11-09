@@ -214,7 +214,7 @@
     curva: ['Curva', (g) => [['', ...(CURVAS[g] || CURVAS.usd)]]],
     brc: ['Brecha y canje', () => [['Ratios', 'brc', 'brA'], ['Todos ahora', 'brc', 'brB']]],
     cim: ['Pases', () => [['', 'cim', 'cimC1']]],
-    exp: ['Expectativas', () => [['Inflación', 'expi', 'thBBi'], ['Devaluación', 'expd', 'thBBd'], ['Forwards', 'expf', 'thF']]],
+    exp: ['Expectativas', () => [['Inflación', 'expi', 'thBBi'], ['Devaluación', 'expd', 'thBBd'], ['Fwd tasa fija', 'expf', 'expfW1'], ['Fwd CER', 'expf', 'expfW2'], ['Fwd TAMAR', 'expf', 'expfW3'], ['Fwd DL', 'expf', 'expfW4']]],
   };
   const NOM_CURVA = { usd: 'Soberanos USD', fija: 'Lecaps / Boncaps', cer: 'CER', tamar: 'TAMAR', dl: 'Dollar linked', dual: 'Duales', on: 'ONs', pv: 'Provinciales', fut: 'Futuros de dólar' };
   let curvaG = null; // la curva elegida en el desplegable (null: la del bono activo)
@@ -247,7 +247,7 @@
       S.querySelectorAll('button').forEach((x) => (x.onclick = () => ventana(vista, +x.dataset.i)));
     }
     const F = W.querySelector('iframe'), k = vista === 'ficha' && activo && g !== 'acc' ? activo : '';
-    const cv = SOLO_GRAF[vista] ? 1 : 0; // en las curvas, solo el gráfico (como la curva USD)
+    const cv = SOLO_GRAF[vista] && !/^expfW/.test(id) ? 1 : 0; // en las curvas, solo el gráfico (como la curva USD)
     const clave = [tab, id, sg, k, cv].join('|');
     if (LISTO && clave === W.dataset.sec) return; // ya muestra eso (por ejemplo, tocaste otro punto de la misma curva): no se vuelve a dibujar
     W.dataset.sec = clave;

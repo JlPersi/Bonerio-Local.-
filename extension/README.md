@@ -1,6 +1,6 @@
 # Bonerío Inside (prototipo)
 
-Los botones *Curva* y *Más…* del panel flotante abren una ventana con cuatro solapas: Curva, Brecha y canje, Pases y Expectativas. La página se carga una sola vez (empieza al acercar el mouse al panel) y después cambia de sección por mensaje, sin recargar. Cada una muestra su sección sola en una ventana adentro de Matriz (se mueve desde el encabezado y se agranda desde la esquina), con el modo `?emb=sec` del Dashboard. El bono se elige haciendo clic en Matriz o escribiéndolo en el buscador del panel.
+Los botones *Curva* y *Más…* del panel flotante abren una ventana con cuatro solapas: Curva, Brecha y canje, Pases y Expectativas (inflación y devaluación implícitas, y las forwards de tasa fija, CER, TAMAR y dollar linked). La página se carga una sola vez (empieza al acercar el mouse al panel) y después cambia de sección por mensaje, sin recargar. Cada una muestra su sección sola en una ventana adentro de Matriz (se mueve desde el encabezado y se agranda desde la esquina), con el modo `?emb=sec` del Dashboard. El bono se elige haciendo clic en Matriz o escribiéndolo en el buscador del panel.
 
 Extensión de Chrome que muestra, al lado de Matriz, los datos de Bonerío Local para el bono que tenés abierto:
 TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, días al vencimiento y un semáforo contra la curva
