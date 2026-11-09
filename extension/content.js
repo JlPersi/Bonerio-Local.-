@@ -3,6 +3,7 @@
 (() => {
   if (window.__bnr) return; window.__bnr = 1;
   const URL_CURVAS = 'https://boneriolocal.com.ar/data/api/curvas.json';
+  const CURVA = { usd: 'curva', fija: 'pesos', cer: 'pesos', tamar: 'pesos', dl: 'pesos', dual: 'dsim', on: 'ons', pv: 'pvs' }; // pestaña de Bonerío de cada grupo
   let DB = {}, GRP = {}, FECHA = '', activo = null, precioManual = false;
 
   const fmt = (x, d = 2) => (x == null || isNaN(x) ? '-' : x.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }));
@@ -102,7 +103,9 @@
       ${sem ? `<div class="sem ${sem[0]}">${sem[1]}: ${fmt(Math.abs(res), 0)} pb ${res > 0 ? 'arriba' : 'abajo'} de la curva</div>` : ''}
       <label class="m">Precio (${fuente || 'sin precio en pantalla'}): si salgo a…</label>
       <input value="${p > 0 ? fmt(p, 3) : ''}" placeholder="Precio">
-      <div class="m" style="margin-top:6px">Estimado con la duration (sin convexidad). <a href="https://boneriolocal.com.ar/#${activo}" target="_blank">Ver en Bonerío</a></div>`;
+      <div class="m" style="margin-top:4px">Estimado con la duration (sin convexidad).</div>
+      <div class="bt"><button data-h="ficha=${activo}">Ficha</button><button data-h="tab=${CURVA[b.grupo] || 'curva'}">Curva</button><button data-h="tab=port">Portfolio</button></div>`;
+    B.querySelectorAll('.bt button').forEach((x) => (x.onclick = () => chrome.runtime.sendMessage({ t: 'ir', hash: x.dataset.h })));
     const ni = B.querySelector('input');
     ni.onchange = () => { precioManual = true; pintar(); };
   }
