@@ -184,16 +184,19 @@
     return `<div class="g"><span>Precio</span><span>${p > 0 ? fmt(p, 3) : '-'}</span><span>${b.unidad} a este precio</span><span>${fmt(tir)}%</span><span>${b.unidad} al cierre</span><span>${fmt(b.tir)}%</span><span>Duration mod.</span><span>${fmt(b.md)}</span>` +
       (res == null ? '' : `<span>vs curva</span><span style="color:${Math.abs(res) < 25 ? 'inherit' : res > 0 ? '#3ddc84' : '#ff6b6b'}">${res > 0 ? '+' : ''}${fmt(res, 0)} pb</span>`) + '</div>';
   }
-  function fijar(k) {
+  const guardarPins = () => { try { localStorage.setItem('bnrPins', JSON.stringify([...PINS].map(([k, D]) => ({ k, q: +D.querySelector('.pq').value || 0, l: D.offsetLeft, t: D.offsetTop })))); } catch (er) { } };
+  function fijar(k, q, pos) {
     if (!k) return; if (PINS.has(k)) { PINS.get(k).style.outline = '2px solid #ffc107'; setTimeout(() => (PINS.get(k).style.outline = ''), 600); return; }
     const D = document.createElement('div'), n = PINS.size; D.className = 'bnr-pin';
     D.style.top = 70 + (n % 6) * 28 + 'px'; D.style.right = 280 + (n % 6) * 24 + 'px';
-    D.innerHTML = `<header><span class="pk" title="Ver en el panel">${k}</span><button class="x" title="Cerrar">✕</button></header><div class="pb"></div><div class="bt"><button data-v="curva">Curva</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
-    document.body.appendChild(D); arrastrar(D); PINS.set(k, D);
+    D.innerHTML = `<header><span class="pk" title="Ver en el panel">${k}</span><button class="x" title="Cerrar">✕</button></header><div class="pb"></div><label class="pql">Nominales <input class="pq" type="number" min="0" step="1" value="${q != null ? q : CFG.qty || ''}"></label><div class="bt"><button data-v="curva">Curva</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
+    if (pos) Object.assign(D.style, { left: pos.l + 'px', top: pos.t + 'px', right: 'auto' });
+    document.body.appendChild(D); arrastrar(D); PINS.set(k, D); guardarPins();
+    D.querySelector('.pq').onchange = guardarPins; D.addEventListener('mouseup', guardarPins);
     D.querySelector('.pb').innerHTML = fichaHTML(k);
-    D.querySelector('.x').onclick = () => { D.remove(); PINS.delete(k); };
+    D.querySelector('.x').onclick = () => { D.remove(); PINS.delete(k); guardarPins(); };
     D.querySelector('.pk').onclick = () => { activo = k; precioManual = false; pintar(); };
-    D.querySelector('[data-v=boleta]').onclick = () => aBoleta(k);
+    D.querySelector('[data-v=boleta]').onclick = () => aBoleta(k, +D.querySelector('.pq').value || 0); // con los nominales de esta ficha
     D.querySelector('[data-v=curva]').onclick = () => { activo = k; precioManual = false; curvaG = null; pintar(); ventana('curva'); };
   }
   const refrescarPins = () => PINS.forEach((D, k) => { const h = fichaHTML(k), pb = D.querySelector('.pb'); if (pb.innerHTML !== h) pb.innerHTML = h; });
@@ -250,9 +253,12 @@
     }
     const F = W.querySelector('iframe'), k = vista === 'ficha' && activo && g !== 'acc' ? activo : '';
     const cv = SOLO_GRAF[vista] ? 1 : 0; // en las curvas, solo el gráfico (como la curva USD)
-    if (LISTO) { F.contentWindow.postMessage({ t: 'bnrSec', tab, id, g: sg || '', k, cv }, '*'); return; } // la página ya está cargada: solo cambia de sección
+    const clave = [tab, id, sg, k, cv].join('|');
+    if (LISTO && clave === W.dataset.sec) return; // ya muestra eso (por ejemplo, tocaste otro punto de la misma curva): no se vuelve a dibujar
+    W.dataset.sec = clave;
+    if (LISTO) { F.contentWindow.postMessage({ t: 'bnrSec', tab, id, g: sg || '', k, cv, cmp: 1 }, '*'); return; } // la página ya está cargada: solo cambia de sección
     F.style.height = '2600px';
-    const url = SITE + '?emb=sec&tab=' + tab + '&id=' + id + (sg ? '&g=' + sg : '') + (cv ? '&cv=1' : '') + (k ? '#ficha=' + k + '&n=' + Date.now() : '');
+    const url = SITE + '?emb=sec&cmp=1&tab=' + tab + '&id=' + id + (sg ? '&g=' + sg : '') + (cv ? '&cv=1' : '') + (k ? '#ficha=' + k + '&n=' + Date.now() : '');
     F.src = chrome.runtime.getURL('frame.html') + '#' + encodeURIComponent(url); // Bonerío va adentro de una página de la extensión: así no la frena la regla frame-src de Matriz
   }
   P.addEventListener('mouseenter', () => { if (!W && activo) ventana(null, null, true); }, { once: true }); // la carga empieza al acercarse al panel: cuando tocás, ya está
@@ -281,23 +287,23 @@
     const r = tk(k); if (!r || r[1] || !CFG.mon || !DOLAR[DB[r[0]].grupo]) return k;
     return DB[r[0]].grupo === 'on' && /O$/.test(k) ? k.slice(0, -1) + CFG.mon : k + CFG.mon;
   };
-  function completar(k) { // después de elegir el instrumento: precio de mercado que muestra Matriz y la cantidad por defecto (si hay). Comprar/Vender lo aprieta el usuario.
+  function completar(k, cant) { // después de elegir el instrumento: precio de mercado que muestra Matriz y la cantidad por defecto (si hay). Comprar/Vender lo aprieta el usuario.
     setTimeout(() => {
       const r = tk(k), c = r && recuadros().find((x) => x.k === r[0] && x.suf === r[1]), [p] = c ? precioDe(c) : [NaN];
       const q = p > 0 ? String(p).replace('.', ',') : ultimoFila(k); // del recuadro con libro o, si no, del Mini-Panel de precios
       const b = !q && r && DB[r[0]], qc = b && b.precio > 0 && precioVale(r[0], r[1]) ? String(b.precio).replace('.', ',') : ''; // sin precio en pantalla: el cierre de Bonerío (BYMA), avisando
       if (q || qc) poner(campo('precio'), q || qc);
-      if (CFG.qty > 0) poner(campo('cantidad'), CFG.qty);
+      const n = cant > 0 ? cant : CFG.qty; if (n > 0) poner(campo('cantidad'), n);
       if (qc) aviso('Boleta: ' + k + ' sin precio en pantalla; puse el cierre de Bonerío (' + (b.fecha || FECHA) + '): revisalo antes de mandar', 1);
       else if (!q) aviso('Boleta: ' + k + ' cargado; sin precio en pantalla (no operó o no está en un recuadro ni en el Mini-Panel)');
     }, 500);
   }
   let tEst = 0;
   function aviso(t, mal) { const E = P.querySelector('.est'); E.textContent = t; E.className = 'est' + (mal ? ' mal' : ''); E.hidden = false; console.log('[Bonerío Inside]', t); clearTimeout(tEst); tEst = setTimeout(() => (E.hidden = true), 8000); }
-  function aBoleta(k) {
-    try { return aBoleta1(k); } catch (er) { aviso('Boleta: error ' + er.message, 1); }
+  function aBoleta(k, cant) {
+    try { return aBoleta1(k, cant); } catch (er) { aviso('Boleta: error ' + er.message, 1); }
   }
-  function aBoleta1(k) {
+  function aBoleta1(k, cant) {
     k = especie(aMatriz(k)); aviso('Boleta: buscando ' + k + '…');
     const vis = (e) => e && e.offsetParent && !e.closest('#bnr-panel,#bnr-win,.bnr-pin');
     let inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || ''));
@@ -315,9 +321,9 @@
     inp.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, k);
     inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); inp.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: k.slice(-1) }));
     let n = 0; const iv = setInterval(() => { // elige la primera sugerencia nueva (en 24 hs si la hay)
-      if (++n > 16) { clearInterval(iv); ['ArrowDown', 'Enter'].forEach((key) => inp.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key, code: key, keyCode: key === 'Enter' ? 13 : 40 }))); aviso('Boleta: escribí ' + k + ' pero no vi la lista de sugerencias (probé con Enter)', 1); completar(k); return; } // sin sugerencia reconocible: Enter elige la primera
+      if (++n > 16) { clearInterval(iv); ['ArrowDown', 'Enter'].forEach((key) => inp.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key, code: key, keyCode: key === 'Enter' ? 13 : 40 }))); aviso('Boleta: escribí ' + k + ' pero no vi la lista de sugerencias (probé con Enter)', 1); completar(k, cant); return; } // sin sugerencia reconocible: Enter elige la primera
       const ops = cand().filter((o) => !antes.has(o)), t = (x) => (x.textContent || '').trim().toUpperCase(), o = ops.find((x) => t(x) === k) || ops.find((x) => /24/.test(t(x))) || ops.find((x) => !/\(CI\)|\bCI\b/.test(t(x))) || ops[0]; // 24 hs: el ticker solo (Matriz pone «(CI)» al contado)
-      if (o) { clearInterval(iv); const tg = o.closest('li,[role=option],mat-option') || o; ['pointerover', 'mouseover', 'mousemove', 'pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((ev) => tg.dispatchEvent(new (ev.startsWith('pointer') ? PointerEvent : MouseEvent)(ev, { bubbles: true, cancelable: true, view: window, button: 0 }))); aviso('Boleta: elegí ' + t(o)); completar(k); }
+      if (o) { clearInterval(iv); const tg = o.closest('li,[role=option],mat-option') || o; ['pointerover', 'mouseover', 'mousemove', 'pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((ev) => tg.dispatchEvent(new (ev.startsWith('pointer') ? PointerEvent : MouseEvent)(ev, { bubbles: true, cancelable: true, view: window, button: 0 }))); aviso('Boleta: elegí ' + t(o)); completar(k, cant); }
     }, 250);
     return true;
   }
@@ -422,6 +428,7 @@
   }).then(() => {
     P.querySelector('#bnr-tk').innerHTML = Object.keys(DB).sort().map((k) => `<option value="${k}">`).join('');
     activo = tickerVisible(); pintar(); inyectar();
+    try { (JSON.parse(localStorage.getItem('bnrPins') || '[]') || []).forEach((x) => fijar(x.k, x.q, x)); } catch (er) { } // las fichas fijas quedan de una vez para la otra
     new MutationObserver(revisar).observe(document.body, { childList: true, subtree: true, characterData: true });
   }).catch(() => (B.textContent = 'No pude traer las curvas de Bonerío.'));
 })();
