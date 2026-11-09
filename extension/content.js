@@ -155,9 +155,10 @@
   function pintarCfg() {
     CF.innerHTML = `<label><input type="checkbox" data-on ${CFG.on ? 'checked' : ''}> Mostrar en los recuadros de Matriz</label>` +
       Object.keys(MET).map((k) => `<label><input type="checkbox" data-m="${k}" ${CFG.m.includes(k) ? 'checked' : ''}> ${MET[k][0]}</label>`).join('') +
-      `<label style="margin-top:4px">Cantidad por defecto en la boleta <input type="number" min="0" data-q value="${CFG.qty || ''}" style="width:90px;margin-left:auto"></label>`;
-    CF.querySelectorAll('input').forEach((i) => (i.onchange = () => {
-      if (i.hasAttribute('data-q')) CFG.qty = +i.value || 0; else if (i.hasAttribute('data-on')) CFG.on = i.checked; else CFG.m = Object.keys(MET).filter((k) => CF.querySelector(`[data-m="${k}"]`).checked);
+      `<label style="margin-top:4px">Cantidad por defecto en la boleta <input type="number" min="0" data-q value="${CFG.qty || ''}" style="width:90px;margin-left:auto"></label>` +
+      `<label>Moneda en la boleta (bonos en dólares) <select data-mon style="margin-left:auto">${[['', 'Pesos'], ['D', 'MEP (D)'], ['C', 'CCL (C)']].map(([v, t]) => `<option value="${v}" ${(CFG.mon || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>`;
+    CF.querySelectorAll('input,select').forEach((i) => (i.onchange = () => {
+      if (i.hasAttribute('data-mon')) CFG.mon = i.value; else if (i.hasAttribute('data-q')) CFG.qty = +i.value || 0; else if (i.hasAttribute('data-on')) CFG.on = i.checked; else CFG.m = Object.keys(MET).filter((k) => CF.querySelector(`[data-m="${k}"]`).checked);
       guardar(); inyectar();
     }));
   }
@@ -223,14 +224,31 @@
     return null;
   }
   function poner(inp, v) { if (!inp || v == null || v === '') return; inp.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, String(v)); ['input', 'change'].forEach((t) => inp.dispatchEvent(new Event(t, { bubbles: true }))); inp.dispatchEvent(new Event('blur', { bubbles: true })); }
+  function ultimoFila(k) { // Mini-Panel de precios: la fila «GD35D … Últ Var.%» (el número tal cual lo muestra Matriz; «-» si no operó)
+    for (const el of document.querySelectorAll('body *')) {
+      if (el.children.length || (el.textContent || '').trim().toUpperCase() !== k || !el.getClientRects().length || el.closest('#bnr-panel,#bnr-win,[role=listbox],[role=option]')) continue;
+      for (let a = el.parentElement, i = 0; a && i < 5; i++, a = a.parentElement) {
+        const t = (a.innerText || '').trim().split(/\s+/), j = t.findIndex((x) => x.toUpperCase() === k);
+        if (j < 0 || t.some((x, m) => m !== j && /^[A-Z]{2,}\d/.test(x))) break; // ya abarca otra fila
+        const n = t.slice(j + 1).find((x) => /^\d{1,3}(\.\d{3})*(,\d+)?$|^\d+([.,]\d+)?$/.test(x)); if (n) return n;
+      }
+    }
+    return '';
+  }
+  const especie = (k) => { // la especie que se carga en la boleta según la moneda elegida en ⚙ (pesos, MEP o CCL)
+    const r = tk(k); if (!r || r[1] || !CFG.mon || !DOLAR[DB[r[0]].grupo]) return k;
+    return DB[r[0]].grupo === 'on' && /O$/.test(k) ? k.slice(0, -1) + CFG.mon : k + CFG.mon;
+  };
   function completar(k) { // después de elegir el instrumento: precio de mercado que muestra Matriz y la cantidad por defecto (si hay). Comprar/Vender lo aprieta el usuario.
     setTimeout(() => {
       const r = tk(k), c = r && recuadros().find((x) => x.k === r[0] && x.suf === r[1]), [p] = c ? precioDe(c) : [NaN];
-      if (p > 0) poner(campo('precio'), String(p).replace('.', ','));
+      const q = p > 0 ? String(p).replace('.', ',') : ultimoFila(k); // del recuadro con libro o, si no, del Mini-Panel de precios
+      if (q) poner(campo('precio'), q);
       if (CFG.qty > 0) poner(campo('cantidad'), CFG.qty);
     }, 500);
   }
   function aBoleta(k) {
+    k = especie(k);
     const vis = (e) => e && e.offsetParent && !e.closest('#bnr-panel,#bnr-win');
     let inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || ''));
     if (!inp) for (const el of document.querySelectorAll('body *')) { // el texto "Buscar instrumento" o la etiqueta "Instrumento" suelen ser un div aparte (selectores tipo react-select): el input está en el mismo bloque
@@ -238,7 +256,9 @@
       for (let a = el.parentElement, i = 0; a && i < 4 && !inp; i++, a = a.parentElement) inp = [...a.querySelectorAll('input')].find((x) => vis(x) && x.type !== 'hidden' && x.type !== 'checkbox');
       if (inp) break;
     }
-    const cand = () => [...document.querySelectorAll('li,[role=option],mat-option,a,span,div')].filter((o) => !o.children.length && o.getClientRects().length && !o.closest('#bnr-panel,#bnr-win') && (o.textContent || '').trim().toUpperCase().startsWith(k));
+    const propio = inp.parentElement && inp.parentElement.parentElement; // el propio campo (los buscadores tipo react-select repiten el texto en un div invisible para medirlo)
+    const seve = (o) => { const r = o.getBoundingClientRect(); return r.width > 4 && r.height > 4 && getComputedStyle(o).visibility !== 'hidden'; };
+    const cand = () => [...document.querySelectorAll('li,[role=option],mat-option,a,span,div')].filter((o) => !o.children.length && (o.textContent || '').trim().toUpperCase().startsWith(k) && seve(o) && !(propio && propio.contains(o)) && !o.closest('#bnr-panel,#bnr-win'));
     const antes = new Set(cand()); // solo vale una sugerencia que aparezca después de escribir (no una fila del panel de precios)
     const box = inp.closest('div') || inp; ['mousedown', 'mouseup', 'click'].forEach((t) => box.dispatchEvent(new MouseEvent(t, { bubbles: true }))); // abre el buscador
     inp.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, k);
@@ -246,7 +266,7 @@
     let n = 0; const iv = setInterval(() => { // elige la primera sugerencia nueva (en 24 hs si la hay)
       if (++n > 16) { clearInterval(iv); ['ArrowDown', 'Enter'].forEach((key) => inp.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key, code: key, keyCode: key === 'Enter' ? 13 : 40 }))); completar(k); return; } // sin sugerencia reconocible: Enter elige la primera
       const ops = cand().filter((o) => !antes.has(o)), t = (x) => (x.textContent || '').trim().toUpperCase(), o = ops.find((x) => t(x) === k) || ops.find((x) => /24/.test(t(x))) || ops.find((x) => !/\(CI\)|\bCI\b/.test(t(x))) || ops[0]; // 24 hs: el ticker solo (Matriz pone «(CI)» al contado)
-      if (o) { clearInterval(iv); const tg = o.closest('li,[role=option],mat-option') || o; ['mousedown', 'mouseup', 'click'].forEach((ev) => tg.dispatchEvent(new MouseEvent(ev, { bubbles: true, cancelable: true, view: window }))); completar(k); }
+      if (o) { clearInterval(iv); const tg = o.closest('li,[role=option],mat-option') || o; ['pointerover', 'mouseover', 'mousemove', 'pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((ev) => tg.dispatchEvent(new (ev.startsWith('pointer') ? PointerEvent : MouseEvent)(ev, { bubbles: true, cancelable: true, view: window, button: 0 }))); completar(k); }
     }, 250);
     return true;
   }
