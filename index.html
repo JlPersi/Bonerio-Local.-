@@ -14830,7 +14830,7 @@ window.RATG = (function () {
   var col = function (v, inv) { return v == null || !isFinite(v) || Math.abs(v) < 1e-9 ? '' : ((v > 0) !== !!inv ? ' style="color:var(--up,#4ade80)"' : ' style="color:var(--dn,#f87171)"'); };
   var fr = function (s) { return s ? s.slice(8, 10) + '/' + s.slice(5, 7) + (s.slice(0, 4) !== hoyS().slice(0, 4) ? '/' + s.slice(2, 4) : '') : '—'; }, fr2 = function (s) { return s ? s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(0, 4) : '—'; };
   var mny = function (v) { return v == null ? '—' : v >= 1e12 ? '$' + nf(v / 1e12, 2) + ' B' : v >= 1e9 ? '$' + nf(v / 1e9, 1) + ' mil M' : v >= 1e7 ? '$' + nf(v / 1e6, 0) + ' M' : v >= 1e6 ? '$' + nf(v / 1e6, 1) + ' M' : '$' + nf(v / 1e3, 0) + ' mil'; };
-  var PER = [['1', 'Diario'], ['5', '1 semana'], ['10', '2 semanas'], ['21', 'Mensual'], ['c', 'Fechas']];
+  var PER = [['1', 'Diario'], ['5', '1 semana'], ['10', '2 semanas'], ['21', 'Mensual'], ['y', 'En el año'], ['c', 'Fechas']];
   var ST = { n: '1', a1: '', a2: '', cmp: '', c1: '', c2: '' }; try { Object.assign(ST, JSON.parse(localStorage.getItem('blRes2') || '{}')); } catch (e) {}
   var save = function () { try { localStorage.setItem('blRes2', JSON.stringify(ST)); } catch (e) {} };
   var VD = null, DA = null, RP = null, A35 = null, CH = {}, busy = false;
@@ -14850,6 +14850,7 @@ window.RATG = (function () {
     '#res .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px 26px}#res .g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 26px}@media(max-width:1100px){#res .g3{grid-template-columns:1fr 1fr}}@media(max-width:760px){#res .g3,#res .g2{grid-template-columns:1fr}}' +
     '#res .vdt th{cursor:default;position:static}#res .vdt td small{color:var(--mu);font-size:11.5px;margin-left:6px;font-weight:400}#res .vdt td,#res .vdt th{text-align:right}#res .vdt td:first-child,#res .vdt th:first-child{text-align:left}#res .wrap{overflow:auto}' +
     '#res .ctl{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:flex-end;margin:4px 0 16px}#res .ctl label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mu)}#res .ctl input,#res .ctl select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:9px;padding:7px 9px;font:inherit;font-size:13.5px}' +
+    '#res .rcmp{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:flex-end;border:1px dashed var(--bd);border-radius:12px;padding:8px 12px 10px}#res .rcmp select{min-width:230px;max-width:100%}' +
     '#res .nar{font-size:15px;line-height:1.7;margin:16px 0 0;color:var(--tx)}#res .nar b{color:var(--tx)}' +
     '#res .rsf{display:inline-flex;flex-wrap:wrap;max-width:100%;margin:0 0 20px}#res .bars{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px 34px}@media(max-width:900px){#res .bars{grid-template-columns:1fr}}' +
     '#res .br{display:grid;grid-template-columns:minmax(96px,190px) minmax(0,1fr) 92px;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid var(--bd);font-size:14px;font-variant-numeric:tabular-nums}#res .br:last-child{border-bottom:0}' +
@@ -14860,7 +14861,7 @@ window.RATG = (function () {
     '<div class="card sx" id="resTop"><div class="sxh"><div style="min-width:0"><p class="qh">Resumen de mercado</p><p class="qs keep" id="resSub">Cargando…</p></div>' + RDL('resTop', 'Resumen_de_mercado') + '</div>' +
     '<div class="ctl" id="resCtl"><div style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mu)">Período<span class="seg" id="resPer" style="flex-wrap:wrap;max-width:100%">' + PER.map(function (p) { return '<button data-v="' + p[0] + '">' + p[1] + '</button>'; }).join('') + '</span></div>' +
     '<label>Desde<input type="date" id="resA1"></label><label>Hasta<input type="date" id="resA2"></label>' +
-    '<label>Comparar con<select id="resCm"><option value="">Nada</option><option value="prev">El período anterior</option><option value="c">Otras fechas</option></select></label><label>Desde<input type="date" id="resC1"></label><label>Hasta<input type="date" id="resC2"></label></div>' +
+    '<div class="rcmp"><label>Comparar contra<select id="resCm"><option value="">No comparar</option><option value="prev">El período anterior</option><option value="c">Otro período (elegí las fechas)</option></select></label><label>Comparación desde<input type="date" id="resC1"></label><label>Comparación hasta<input type="date" id="resC2"></label></div></div>' +
     '<div class="rkps" id="resKp"></div><p class="nar" id="resNar">Calculando…</p>' +
     '<p class="note">El período va del cierre de la rueda de base al de la última (o al precio de ahora, con la rueda abierta). Riesgo país de ArgentinaDatos; MEP y CCL de AL30; brecha contra el A3500. Amplitud: cuántas especies de renta fija soberana subieron y cuántas bajaron de precio. Volumen diario: promedio por rueda del período, contra el de las 60 ruedas anteriores.</p></div>' +
     '<div class="card sx" id="resCmp" style="display:none;margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Comparación de períodos</p><p class="qs keep">Lo mismo para los dos períodos, lado a lado.</p></div>' + RDL('resCmp', 'Resumen_comparacion') + '</div><div class="wrap" id="resCmpT"></div>' +
@@ -14931,6 +14932,7 @@ window.RATG = (function () {
     var ds = VD.dates, L = ds.length - 1, hoy = hoyS(), lv = typeof mktStarted === 'function' && mktStarted() && !(typeof mktOpen === 'function' && mktOpen()) && ds[L] < hoy; // es el resumen del día: la rueda de hoy entra recién cuando terminó (a las 17); mientras opera, está Variación diaria
     if (n === 'c') { if (!d1s || !d2s || d2s <= d1s) return null; var ix = function (d) { var k = -1; for (var q = 0; q <= L; q++) if (ds[q] <= d) k = q; return k; };
       var b0 = ix(d1s), e0 = ix(d2s); if (b0 < 1 || e0 <= b0 && !(lv && d2s >= hoy)) return null; var live = lv && d2s >= hoy && e0 === L; return { b0: b0, e0: e0, live: live, N: live ? e0 - b0 + 1 : e0 - b0 }; }
+    if (n === 'y') { var y0 = String(+hoy.slice(0, 4) - 1) + '-12-31', yb = -1; for (var q2 = 0; q2 <= L; q2++) if (ds[q2] <= y0) yb = q2; if (yb < 1) return null; return { b0: yb, e0: L, live: lv, N: lv ? L - yb + 1 : L - yb }; } // en el año: desde el último cierre del año pasado
     var N = +n; return { b0: lv ? L - N + 1 : L - N, e0: L, live: lv, N: N };
   }
   var SINK = {}, DRAW = true, $o = function (id) { return (DRAW && $(id)) || SINK; };
@@ -14952,7 +14954,7 @@ window.RATG = (function () {
     var Bq = null; if (ST.cmp === 'prev') Bq = { b0: A.b0 - A.N, e0: A.live ? A.b0 - 1 : A.b0, live: false, N: A.N }; else if (ST.cmp === 'c') Bq = rng('c', ST.c1, ST.c2);
     var box = $('resCmp'); if (!Bq || Bq.b0 < 1) { box.style.display = 'none'; return; }
     DRAW = false; var SB = null; try { SB = core(Bq); } finally { DRAW = true; }
-    if (SB) { box.style.display = ''; cmpPaint(SA, SB); } else box.style.display = 'none';
+    if (SB) { box.style.display = ''; cmpPaint(SA, SB); var sb = $('resSub'); if (sb) sb.textContent += ' · comparado con ' + fr2(SB.d0) + ' → ' + fr2(SB.d1) + ' en la tarjeta de abajo'; } else box.style.display = 'none';
   }
   function core(Rg) {
     var N = Rg.N, ds = VD.dates, L = ds.length - 1, hoy = hoyS(), live = Rg.live, b0 = Rg.b0, e0 = Rg.e0;
@@ -15087,7 +15089,7 @@ window.RATG = (function () {
       (N >= 5 ? '<h5 style="margin-top:16px">Volatilidad del período (anualizada)</h5><table><tbody><tr><td>Dólar MEP</td><td>' + (vol(MEP) != null ? nf(vol(MEP) * 100, 1) + '%' : '—') + '</td></tr><tr><td>Dólar CCL</td><td>' + (vol(CCL) != null ? nf(vol(CCL) * 100, 1) + '%' : '—') + '</td></tr><tr><td>AL30D</td><td>' + (vol(alArr) != null ? nf(vol(alArr) * 100, 1) + '%' : '—') + '</td></tr></tbody></table>' : '<p class="nt">La volatilidad del período aparece desde 1 semana.</p>');
 
     // narrativa
-    var per = ST.n === 'c' && DRAW ? 'Del ' + fr(d0) + ' al ' + fr(d1) : N === 1 ? 'En la rueda' : N === 5 ? 'En la semana' : N === 10 ? 'En las últimas dos semanas' : 'En el mes';
+    var per = ST.n === 'c' && DRAW ? 'Del ' + fr(d0) + ' al ' + fr(d1) : ST.n === 'y' && DRAW ? 'En lo que va del año' : N === 1 ? 'En la rueda' : N === 5 ? 'En la semana' : N === 10 ? 'En las últimas dos semanas' : 'En el mes';
     var tx2 = [];
     if (CU.lvl != null) tx2.push('la curva <b>hard dollar</b> ' + (CU.lvl < 0 ? 'comprimió' : 'subió') + ' <b>' + nf(Math.abs(CU.lvl), 0) + ' pb</b> en promedio' + (shp(CU) ? ' y ' + shp(CU) : '') + (CU.best ? ' (lo mejor, ' + CU.best.k + ' ' + bp(CU.best.dy) + ')' : ''));
     if (CF.lvl != null) tx2.push('la de <b>tasa fija</b> ' + (CF.lvl < 0 ? 'bajó' : 'subió') + ' <b>' + nf(Math.abs(CF.lvl), 0) + ' pb</b>' + (shp(CF) ? ' y ' + shp(CF) : ''));
