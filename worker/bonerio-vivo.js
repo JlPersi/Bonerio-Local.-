@@ -318,6 +318,70 @@ async function cauByma() {
   return out;
 }
 
+/* ---------- API REST (/v1) y servidor MCP (/mcp): solo datos propios (cierres, TIRs y curvas que publica la página), nada en vivo de Primary ----------
+   La key va en X-API-Key o en Authorization: Bearer. Se guarda solo su SHA-256 en Supabase (tabla api_keys) y la valida la función api_key_uso,
+   que además cuenta el uso del día y devuelve la cuota (PRO 1.000 por día, el resto 50; app_metadata.api_cuota la cambia). */
+const SITE = 'https://boneriolocal.com.ar/';
+const API_H = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, X-API-Key, Content-Type, Mcp-Session-Id, MCP-Protocol-Version', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' };
+const GRUPOS = ['usd', 'fija', 'cer', 'tamar', 'dl', 'dual', 'on', 'pv'];
+const ajson = (o, st, x) => new Response(JSON.stringify(o), { status: st || 200, headers: Object.assign({}, API_H, x || {}) });
+async function sha256(t) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join(''); }
+async function keyUso(key, contar) { // {ok, scopes, cuota, usados} o null si la función todavía no existe en Supabase
+  const r = await fetch(SB + '/rest/v1/rpc/api_key_uso', { method: 'POST', headers: { apikey: SBK, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_hash: await sha256(key), p_contar: contar }) });
+  if (r.status === 404) return null; if (!r.ok) throw new Error('supabase ' + r.status); return r.json();
+}
+async function sitio(path) { const k = 'site:' + path, m = MEM[k]; if (m && Date.now() - m.t < 10 * 60e3) return m.b; const r = await fetch(SITE + path); if (!r.ok) throw new Error(path + ' ' + r.status); const b = await r.json(); MEM[k] = { t: Date.now(), b }; return b; }
+const desdeOk = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(d || '') ? d : null);
+const API = { // cada consulta: [scope, función(parámetros)]
+  curvas: ['curvas', async (q) => { const c = await sitio('data/api/curvas.json'), g = (q.grupo || '').toLowerCase(); if (g && !GRUPOS.includes(g)) throw { st: 400, m: 'grupo: ' + GRUPOS.join(', ') };
+    return g ? { fecha: c.fecha, grupo: g, bonos: c.grupos[g] || [] } : c; }],
+  bono: ['curvas', async (q) => { const t = String(q.ticker || '').toUpperCase(), c = await sitio('data/api/curvas.json'), H = await sitio('data/api/tir_hist.json'); let row = null, grupo = null;
+    GRUPOS.forEach((g) => (c.grupos[g] || []).forEach((r) => { if (r.ticker === t) { row = r; grupo = g; } })); const h = H.t[t];
+    if (!row && !h) throw { st: 404, m: 'No tenemos ' + t + ' en las curvas (probá /v1/curvas para ver los tickers)' };
+    return { ticker: t, fecha: c.fecha, grupo, ultimo: row, historial_tir: h ? H.fechas.map((f, i) => [f, h[i]]).filter((x) => x[1] != null) : [] }; }],
+  cierres: ['cierres', async (q) => { const t = String(q.ticker || '').toUpperCase(), U = await sitio('data/closes.json'), A = await sitio('data/closes_ars.json'), ser = (o, k) => Object.keys(o || {}).sort().filter((f) => o[f][k] != null).map((f) => [f, o[f][k]]);
+    const out = { ticker: t, pesos: ser(A, t), mep: ser(U.D, t), cable: ser(U.C, t) }; if (!out.pesos.length && !out.mep.length && !out.cable.length) throw { st: 404, m: 'Sin cierres de ' + t }; return out; }],
+  riesgo_pais: ['mercado', async (q) => { const R = (await sitio('data/riesgo_pais.json')).d, d0 = desdeOk(q.desde) || new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10); return { unidad: 'pb', serie: Object.keys(R).sort().filter((f) => f >= d0).map((f) => [f, R[f]]) }; }],
+  dolar: ['mercado', async (q) => { const J = await sitio('data/dolar.json'), d0 = desdeOk(q.desde) || new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10), x = (o, a) => (o && o[a] && o[a].close) || null;
+    return { serie: Object.keys(J.d || {}).sort().filter((f) => f >= d0).map((f) => ({ fecha: f, a3500: (J.A3500 || {})[f] || null, mep_al30: x(J.d[f].mep, 'AL30'), ccl: (J.d[f].ccl && (J.d[f].ccl.vw || J.d[f].ccl.med)) || null })) }; }],
+};
+const TOOLS = [
+  { name: 'curvas', description: 'Curvas de bonos argentinos al último cierre: TIR, duración modificada, días al vencimiento y precio de cada bono. Grupos: usd (hard dollar), fija (Lecaps/Boncaps), cer, tamar, dl (dólar linked), dual, on (ONs), pv (provinciales).', inputSchema: { type: 'object', properties: { grupo: { type: 'string', enum: GRUPOS } } } },
+  { name: 'bono', description: 'Un bono: su último cierre en la curva (TIR, duración, precio) y el historial de su TIR.', inputSchema: { type: 'object', properties: { ticker: { type: 'string', description: 'Ej.: AL30, GD30, S30N6, TZX27' } }, required: ['ticker'] } },
+  { name: 'cierres', description: 'Precios de cierre recientes de una especie en pesos, MEP (D) y cable (C).', inputSchema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] } },
+  { name: 'riesgo_pais', description: 'Serie diaria del riesgo país en puntos básicos.', inputSchema: { type: 'object', properties: { desde: { type: 'string', description: 'AAAA-MM-DD (por defecto, un año atrás)' } } } },
+  { name: 'dolar', description: 'Dólar oficial A3500, MEP de AL30 y CCL (promedio de acciones ponderado por volumen) al cierre de cada día.', inputSchema: { type: 'object', properties: { desde: { type: 'string', description: 'AAAA-MM-DD (por defecto, 90 días atrás)' } } } },
+];
+async function api(req, u) {
+  if (req.method === 'OPTIONS') return new Response(null, { headers: API_H });
+  const ah = req.headers.get('Authorization') || '', key = (req.headers.get('X-API-Key') || (/^Bearer\s+(.+)$/i.exec(ah) || [])[1] || u.searchParams.get('key') || '').trim();
+  if (u.pathname === '/v1' || u.pathname === '/v1/') return ajson({ api: 'Bonerío Local', docs: SITE + '#api', rutas: ['/v1/curvas?grupo=', '/v1/bonos/{ticker}', '/v1/cierres/{ticker}', '/v1/riesgo-pais?desde=', '/v1/dolar?desde=', '/mcp'] });
+  if (!/^bl_[A-Za-z0-9_-]{20,80}$/.test(key)) return ajson({ error: 'Falta la API key (header X-API-Key o Authorization: Bearer). La generás en boneriolocal.com.ar › API y MCP.' }, 401);
+  const rpc = u.pathname === '/mcp' && req.method === 'POST' ? await req.json().catch(() => null) : null, cuenta = u.pathname !== '/mcp' || (rpc && rpc.method === 'tools/call');
+  let K; try { K = await keyUso(key, cuenta); } catch (e) { return ajson({ error: 'No se pudo validar la key' }, 503); }
+  if (K === null) return ajson({ error: 'La API todavía no está activada' }, 503);
+  if (!K.ok) return ajson({ error: 'API key inválida o revocada' }, 401);
+  const lim = { 'X-RateLimit-Limit': String(K.cuota), 'X-RateLimit-Remaining': String(Math.max(0, K.cuota - K.usados)) };
+  if (K.usados > K.cuota) return ajson({ error: 'Llegaste a la cuota del día (' + K.cuota + ' consultas). Se renueva a las 0 hs de Buenos Aires.' }, 429, lim);
+  const run = async (n, q) => { const f = API[n]; if (!f) throw { st: 404, m: 'No existe ' + n }; if (!(K.scopes || []).includes(f[0])) throw { st: 403, m: 'La key no tiene el permiso «' + f[0] + '»' }; return f[1](q || {}); };
+  if (u.pathname === '/mcp') { // MCP por HTTP (JSON-RPC 2.0, sin streaming)
+    if (req.method !== 'POST') return ajson({ error: 'Usá POST' }, 405);
+    if (!rpc || rpc.jsonrpc !== '2.0') return ajson({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'JSON-RPC inválido' } }, 400);
+    const ok = (result) => ajson({ jsonrpc: '2.0', id: rpc.id, result }, 200, lim), er = (code, message) => ajson({ jsonrpc: '2.0', id: rpc.id, error: { code, message } }, 200, lim);
+    if (rpc.id === undefined) return new Response(null, { status: 202, headers: API_H }); // notificaciones (notifications/initialized)
+    if (rpc.method === 'initialize') return ok({ protocolVersion: (rpc.params && rpc.params.protocolVersion) || '2025-03-26', capabilities: { tools: {} }, serverInfo: { name: 'bonerio-local', version: '1.0.0' }, instructions: 'Datos de renta fija argentina de Bonerío Local: curvas, TIRs y cierres. No son precios en vivo ni recomendaciones de inversión.' });
+    if (rpc.method === 'ping') return ok({});
+    if (rpc.method === 'tools/list') return ok({ tools: TOOLS.filter((t) => (K.scopes || []).includes(API[t.name][0])) });
+    if (rpc.method === 'tools/call') { const p = rpc.params || {}; try { return ok({ content: [{ type: 'text', text: JSON.stringify(await run(p.name, p.arguments)) }] }); } catch (e) { return ok({ content: [{ type: 'text', text: e.m || String(e.message || e) }], isError: true }); } }
+    return er(-32601, 'Método no soportado: ' + rpc.method);
+  }
+  const m = /^\/v1\/(curvas|bonos|cierres|riesgo-pais|dolar)(?:\/([A-Za-z0-9]{2,12}))?\/?$/.exec(u.pathname); if (!m) return ajson({ error: 'Ruta desconocida: mirá /v1' }, 404, lim);
+  const q = Object.fromEntries(u.searchParams); if (m[2]) q.ticker = m[2];
+  const n = { curvas: 'curvas', bonos: 'bono', cierres: 'cierres', 'riesgo-pais': 'riesgo_pais', dolar: 'dolar' }[m[1]];
+  if ((n === 'bono' || n === 'cierres') && !q.ticker) return ajson({ error: 'Falta el ticker: /v1/' + m[1] + '/AL30' }, 400, lim);
+  try { return ajson(await run(n, q), 200, lim); } catch (e) { return ajson({ error: e.m || String(e.message || e) }, e.st || 502, lim); }
+}
+
 function cors(req, env) {
   const o = req.headers.get('Origin') || '', ok = (env.ORIGINS || 'https://boneriolocal.com.ar').split(',').map((s) => s.trim());
   return { 'Access-Control-Allow-Origin': ok.includes(o) || /^http:\/\/localhost(:\d+)?$/.test(o) ? o : ok[0], Vary: 'Origin', 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=' + TTL };
@@ -326,6 +390,7 @@ function cors(req, env) {
 export default {
   async fetch(req, env) {
     const u = new URL(req.url), h = cors(req, env);
+    if (u.pathname === '/v1' || u.pathname.startsWith('/v1/') || u.pathname === '/mcp') return api(req, u); // API pública con key (ver arriba)
     if (req.method === 'OPTIONS') return new Response(null, { headers: h });
     if (u.pathname === '/diag') { // chequeo: login, websocket y una foto de AL30 y GD30 (no muestra la clave)
       const d = { usuario: !!env.ROFEX_USER, clave: !!env.ROFEX_PASS, url: base(env), ultimoError: LASTERR };

@@ -532,6 +532,11 @@ def armar(en_vivo=False, web=None):
     if not W:
         print("no se pudo leer la página")
         return None, None, None
+    if not en_vivo:
+        try:
+            api_export(W, L)
+        except Exception as e:
+            print("no se pudo exportar la API:", e)
     PX, PSD, _ = RC.datos()
     IMG = {}
 
@@ -809,6 +814,34 @@ def armar(en_vivo=False, web=None):
 
 ULT = {}
 ARCH = os.path.join(D, "newsletter")
+
+
+def api_export(W, fecha, keep=260):
+    """Curvas del día para la API (/v1 del Worker): data/api/curvas.json (último cierre, por grupo) y data/api/tir_hist.json
+    (TIR de cada bono por fecha, las últimas `keep` ruedas). Solo datos propios: cierres y lo calculado por la página, nada en vivo de Primary."""
+    os.makedirs(os.path.join(D, "api"), exist_ok=True)
+    r2 = lambda v, d=4: None if v is None else round(v, d)
+    G = {}
+    for g, c in (W.get("cur") or {}).items():
+        G[g] = [{"ticker": r["k"], "emisor": r.get("em") or None, "ley": r.get("law") or None, "dias": r.get("d"), "md": r2(r.get("md")), "tir": r2(r.get("y1")),
+                 "unidad": r.get("yl") or "TIR", "precio": r2(r.get("P1")), "var_pct": r2(r.get("dpct")), "var_tir_pb": r2(r.get("dpb"), 1)} for r in (c.get("rows") or []) if r.get("y1") is not None]
+    json.dump({"fecha": fecha, "fuente": "Bonerío Local: cierres de BYMA y cálculos propios", "grupos": G}, open(os.path.join(D, "api", "curvas.json"), "w"), ensure_ascii=False, separators=(",", ":"))
+    H = load("api/tir_hist.json") or {"fechas": [], "t": {}}
+    if fecha not in H["fechas"]:
+        H["fechas"].append(fecha)
+    i = H["fechas"].index(fecha)
+    for g in G.values():
+        for r in g:
+            a = H["t"].setdefault(r["ticker"], [])
+            a += [None] * (len(H["fechas"]) - len(a))
+            a[i] = r["tir"]
+    for k in H["t"]:
+        H["t"][k] += [None] * (len(H["fechas"]) - len(H["t"][k]))
+    if len(H["fechas"]) > keep:
+        H["fechas"] = H["fechas"][-keep:]
+        H["t"] = {k: v[-keep:] for k, v in H["t"].items()}
+    H["t"] = {k: v for k, v in H["t"].items() if any(x is not None for x in v)}
+    json.dump(H, open(os.path.join(D, "api", "tir_hist.json"), "w"), separators=(",", ":"))
 
 
 def archivar(hoy, asunto, html, img, keep=30):
