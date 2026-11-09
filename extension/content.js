@@ -251,8 +251,9 @@
     const clave = [tab, id, sg, k, cv].join('|');
     if (LISTO && clave === W.dataset.sec) return; // ya muestra eso (por ejemplo, tocaste otro punto de la misma curva): no se vuelve a dibujar
     W.dataset.sec = clave;
-    if (LISTO) { F.contentWindow.postMessage({ t: 'bnrSec', tab, id, g: sg || '', k, cv, cmp: 1 }, '*'); return; } // la página ya está cargada: solo cambia de sección
-    F.style.height = '2600px';
+    cargando(true);
+    if (LISTO) { setTimeout(() => { esperaH = Date.now(); F.contentWindow.postMessage({ t: 'bnrSec', tab, id, g: sg || '', k, cv, cmp: 1 }, '*'); }, 110); return; } // la página ya está cargada: solo cambia de sección (primero se desvanece lo anterior, así no se ve el cambio)
+    esperaH = 0; F.style.height = '2600px';
     const url = SITE + '?emb=sec&cmp=1&tab=' + tab + '&id=' + id + (sg ? '&g=' + sg : '') + (cv ? '&cv=1' : '') + (k ? '#ficha=' + k + '&n=' + Date.now() : '');
     F.src = chrome.runtime.getURL('frame.html') + '#' + encodeURIComponent(url); // Bonerío va adentro de una página de la extensión: así no la frena la regla frame-src de Matriz
   }
@@ -332,8 +333,13 @@
     if (e.data.t === 'bnrTk') { const k = aMatriz(e.data.k), r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } aBoleta(k); return; }
     if (e.data.t !== 'bnrH') return;
     LISTO = true; encajar(Math.max(150, +e.data.h || 0));
+    if (Date.now() - esperaH > 40) setTimeout(() => cargando(false), 50); // la sección nueva ya está: aparece con un fundido
   });
-  let ultH = 0, FIJ = null;
+  let ultH = 0, FIJ = null, esperaH = 0, cgT = 0;
+  function cargando(si) { // fundido entre secciones y una barrita dorada mientras carga
+    if (!W) return; const Z = W.querySelector('.zs'); clearTimeout(cgT);
+    Z.classList.toggle('cg', si); if (si) esperaH = 1e15, cgT = setTimeout(() => Z.classList.remove('cg'), 3000);
+  }
   function encajar(h) { // la sección entra justa: se escala (como un zoom) para llenar el ancho sin dejar hueco abajo
     if (h) ultH = h; h = ultH; if (!W || !h) return;
     const F = W.querySelector('iframe'), Z = W.querySelector('.zs'), wb = W.querySelector('.wb'), top = wb.offsetTop + 2, aw = wb.clientWidth;
@@ -345,7 +351,7 @@
     z = FIJ.z = Math.min(FIJ.z, z);
     Object.assign(F.style, { width: aw / z + 'px', height: h + 'px', transform: z !== 1 ? `scale(${z})` : '' });
     Object.assign(Z.style, { width: aw + 'px', height: Math.ceil(h * z) + 'px' });
-    if (!tamManual) { FIJ.hw = Math.max(FIJ.hw, Math.min(cap, Math.ceil(h * z) + top)); W.style.height = FIJ.hw + 'px'; }
+    if (!tamManual && W.style.height !== Math.max(FIJ.hw, Math.min(cap, Math.ceil(h * z) + top)) + 'px') { FIJ.hw = Math.max(FIJ.hw, Math.min(cap, Math.ceil(h * z) + top)); W.classList.add('anim'); W.style.height = FIJ.hw + 'px'; setTimeout(() => W.classList.remove('anim'), 260); } // el alto cambia suave
   }
   function recordar() { try { localStorage.setItem('bnrWin', JSON.stringify({ l: W.offsetLeft, t: W.offsetTop, w: W.offsetWidth, h: W.offsetHeight, m: tamManual, f: W.classList.contains('fijo') })); } catch (er) { } }
 
