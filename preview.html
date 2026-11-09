@@ -16526,5 +16526,20 @@ body.sn-mini #sideNav .sn-u{justify-content:center;padding:12px 0}body.sn-mini #
   if (root.classList.contains('active')) { draw(); load(); }
 })();
 </script>
+<script>
+  (function () { // links directos (los usa la extensión de Matriz): #tab=dsim abre una pestaña, #ficha=TMVE8 la ficha del bono; se pueden juntar
+    function go() {
+      var h = new URLSearchParams(location.hash.slice(1)), t = h.get('tab'), k = (h.get('ficha') || '').toUpperCase(), n = 0;
+      if (!t && !k) return;
+      var iv = setInterval(function () {
+        if (++n > 60) return clearInterval(iv);
+        if (!window.switchTab || (k && !(window.BONO && window.BONO.open))) return;
+        clearInterval(iv); if (t) window.switchTab(t); if (k) window.BONO.open(k);
+      }, 250);
+    }
+    window.addEventListener('hashchange', go);
+    setTimeout(go, 1500); // después de que la página arma su pestaña inicial
+  })();
+</script>
 </body>
 </html>
