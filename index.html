@@ -1102,6 +1102,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('fav')">Favoritos</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cal')">Calendario de cobros</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('alert')">Alertas</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('news')">Newsletter</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('vard')">Variación diaria</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('rot')">Rotación</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('macro')">Calendario macro</button>
@@ -1305,6 +1306,7 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="dsim" class="tab-content"></div>
 <div id="cal" class="tab-content"></div>
 <div id="alert" class="tab-content"></div>
+<div id="news" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
 <div id="deuda" class="tab-content"><div id="outW"></div></div>
 
@@ -4584,7 +4586,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var hist = ST.n > 1 || ST.b0 || ST.e1 || (typeof mktStarted === 'function' && !mktStarted()); // con varias ruedas (o sin rueda hoy): los cierres guardados en data/volumen.json
     try { if (ST.grp === 'on' && window.ONSQ) rows = rows.concat((hist ? corpHist(window.ONSQ, 'on') : window.ONSQ.vard ? window.ONSQ.vard(later) : []).map(finish)); } catch (e) { console.error('vard ons', e); }
     try { if (ST.grp === 'pv' && window.PVSQ) rows = rows.concat((hist ? corpHist(window.PVSQ, 'pv') : window.PVSQ.vard ? window.PVSQ.vard(later) : []).map(finish)); } catch (e) { console.error('vard pvs', e); } // las ONs se cargan solo si se eligen
-    return rows.filter(function (r) { return r.dpct != null && isFinite(r.dpct); });
+    return rows.filter(function (r) { return r.dpct != null && isFinite(r.dpct); }).map(fxOf);
+  }
+  function fxOf(r) { // efecto tasa: lo que explica el cambio de tasa (−duración modificada × Δ tasa); efecto tiempo: el resto (devengamiento por el paso del tiempo y, en CER, TAMAR y dólar linked, el ajuste del índice)
+    var md = r.md1 != null ? r.md1 : r.md0; r.eR = r.dpb != null && md != null && isFinite(md) ? -md * r.dpb / 100 : null; r.eT = r.eR != null ? r.dpct - r.eR : null; return r;
   }
 
   /* ---------- interfaz ---------- */
@@ -4610,6 +4615,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<label id="vdKL">Curva<select id="vdK"></select></label><label id="vdAxL">Eje X<select id="vdAx">' + xaxOpts('md') + '</select></label><label id="vdXL">Plazo máximo<select id="vdX"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000">1.000 días</option><option value="1500">1.500 días</option><option value="0" selected>Todos</option></select></label><label id="vdDL">Duales<select id="vdD"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' +
       '<label id="vdShL" title="Con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb (S16O6, a 3 días, 149 pb): su cambio de tasa no se compara con el del resto">Menos de 30 días<select id="vdSh"><option value="hide">Ocultar en el gráfico</option><option value="gray">Mostrar en gris</option></select></label>' +
       '<label id="vdBubL" title="El tamaño de cada punto es el monto operado en la rueda (todas las especies del bono, en pesos)">Burbujas de volumen<select id="vdBub"><option value="1">Mostrar</option><option value="0">Ocultar</option></select></label>' +
+      '<label id="vdFxL" title="Separa la variación de cada bono en efecto tiempo (el punto se corre a la izquierda: devenga y le baja la duración, con la tasa quieta) y efecto tasa (el punto sube o baja: cambia la tasa)">Efectos<select id="vdFx"><option value="0">Juntos (precio total)</option><option value="1">Separar tiempo y tasa</option></select></label>' +
       '<label id="vdTopL" style="display:none" title="Con muchas ONs el gráfico se llena: se destacan las que más movieron la tasa y el resto va tenue, sin la marca de antes">Destacar<select id="vdTop"><option value="12">Las 12 que más se movieron</option><option value="25">Las 25 que más se movieron</option><option value="0">Todas por igual</option></select></label>' +
       '</div>' +
       '<div class="vdchips" id="vdChips" style="margin-bottom:16px"></div>' +
@@ -4628,6 +4634,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     document.getElementById('vdD').onchange = function () { ST.dual = this.value; render(); };
     document.getElementById('vdSh').onchange = function () { ST.sh = this.value; render(); };
     document.getElementById('vdBub').onchange = function () { ST.bub = this.value === '1'; render(); };
+    document.getElementById('vdFx').onchange = function () { ST.fx = this.value === '1'; try { localStorage.setItem('vdFx', ST.fx ? '1' : '0'); } catch (e) {} render(); };
+    try { ST.fx = localStorage.getItem('vdFx') === '1'; } catch (e) {} document.getElementById('vdFx').value = ST.fx ? '1' : '0';
     document.getElementById('vdTop').onchange = function () { ST.top = this.value; render(); };
     document.getElementById('vdTable').onclick = function (e) { var th = e.target.closest ? e.target.closest('th[data-s]') : null; if (!th) return; var s = th.getAttribute('data-s'); if (ST.sort === s) ST.dir = -ST.dir; else { ST.sort = s; ST.dir = s === 'k' ? 1 : -1; } render(); };
     var det = document.getElementById('vdDet'); try { det.open = localStorage.getItem('vdDet') === '1'; } catch (e) { } det.addEventListener('toggle', function () { try { localStorage.setItem('vdDet', det.open ? '1' : '0'); } catch (e) { } });
@@ -4644,6 +4652,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       (mb ? c(mb.dpct >= 0 ? 'Mayor suba' : 'Menor baja', mb.k, sg(mb.dpct, 2) + '%', dcol(mb.dpct, 0.005)) : '') + (mw && mw !== mb ? c(mw.dpct > 0 ? 'Menor suba' : 'Mayor baja', mw.k, sg(mw.dpct, 2) + '%', dcol(mw.dpct, 0.005)) : '');
     var cr = rows.filter(function (r) { return (r.grp === 'fija' || r.grp === 'usd') && r.y0 != null; }).map(function (r) { var dd = bxSettle(r.t1) - bxSettle(r.t0); return { c: (Math.pow(1 + r.y0 / 100, dd / 365) - 1) * 100, d: dd }; });
     if (cr.length && cr.length === rows.length) { var dd0 = median(cr.map(function (x) { return x.d; })); h += c('Devengamiento', sg(median(cr.map(function (x) { return x.c; })), 2) + '%', 'lo que sube un bono con la tasa quieta (' + dd0 + ' día' + (dd0 === 1 ? '' : 's') + ' de liquidación)'); } // con T+1 y un feriado el salto puede ser de varios días
+    var fxr = rows.filter(function (r) { return r.eT != null && !isShort(r); }); if (ST.fx && fxr.length) {
+      var mT = median(fxr.map(function (r) { return r.eT; })), mR = median(fxr.map(function (r) { return r.eR; }));
+      h += c('Efecto tiempo', sg(mT, 2) + '%', 'mediana · el punto se corre a la izquierda', dcol(mT, 0.005)) + c('Efecto tasa', sg(mR, 2) + '%', 'mediana · el punto sube o baja', dcol(mR, 0.005));
+    }
     if (ST.grp === 'all') {
       h += ORDER.map(function (g) { var rs = rows.filter(function (r) { return r.grp === g; }); if (!rs.length) return ''; var a = mean(rs.map(function (r) { return r.dpct; })); return c(GN[g], sg(a, 2) + '%', rs.filter(function (r) { return r.dpct > 0.005; }).length + ' suben · ' + rs.filter(function (r) { return r.dpct < -0.005; }).length + ' bajan', dcol(a, 0.005)); }).join('');
     }
@@ -4659,7 +4671,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     });
     var mx = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.dpct); }).concat([0.05]));
     var th = function (s, t, l) { return '<th ' + (s ? 'data-s="' + s + '" ' : '') + 'class="' + (l ? 'l ' : '') + (ST.sort === s ? 'on' : '') + '">' + t + (ST.sort === s ? (ST.dir > 0 ? ' ▲' : ' ▼') : '') + '</th>'; };
-    var h = '<thead><tr>' + th('k', 'Bono', 1) + '<th class="l">Grupo</th>' + th('x1', 'Vence', 1) + '<th>Precio ' + AY() + '</th><th>Precio hoy</th>' + th('dpct', 'Δ % precio') + '<th style="min-width:160px"></th><th class="l">Tasa</th><th>Ayer</th><th>Hoy</th>' + th('dpb', 'Δ pb') + '</tr></thead><tbody>';
+    var h = '<thead><tr>' + th('k', 'Bono', 1) + '<th class="l">Grupo</th>' + th('x1', 'Vence', 1) + '<th>Precio ' + AY() + '</th><th>Precio hoy</th>' + th('dpct', 'Δ % precio') + (ST.fx ? th('eT', 'Efecto tiempo') + th('eR', 'Efecto tasa') : '') + '<th style="min-width:160px"></th><th class="l">Tasa</th><th>Ayer</th><th>Hoy</th>' + th('dpb', 'Δ pb') + '</tr></thead><tbody>';
     rows.forEach(function (r) {
       var col = dcol(r.dpct, 0.005), w = Math.abs(r.dpct) / mx * 50, bar = r.dpct >= 0 ? 'left:50%;width:' + w + '%;background:' + GR : 'right:50%;width:' + w + '%;background:' + RD;
       var flag = '', tip = '';
@@ -4670,7 +4682,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var gl = r.grp === 'on' ? 'ON · ' + (r.em || '—') : r.grp === 'pv' ? 'Provincial · ' + (r.em || '—') : r.grp === 'usd' ? 'USD · ' + (r.law === 'NY' ? 'Ley NY' : r.law === 'BOP' ? 'BOPREAL' : 'Ley local') : GN[r.grp] || r.grp;
       var dpb = r.dpb == null ? 'n/a' : sg(r.dpb, 0);
       h += '<tr><td class="k">' + r.k + (r.star ? ' *' : '') + '</td><td class="l" style="color:var(--mu)">' + gl + '</td><td class="l" style="color:var(--mu)">' + dfull(r.mat).slice(0, 5) + '/' + String(bxDayStr(r.mat).slice(2, 4)) + '</td>' +
-        '<td>' + fm(r.P0, 2) + common + '</td><td>' + fm(r.P1, 2) + '</td><td style="color:' + col + ';font-weight:700" title="' + tip + '">' + sg(r.dpct, 2) + '%' + flag + '</td>' +
+        '<td>' + fm(r.P0, 2) + common + '</td><td>' + fm(r.P1, 2) + '</td><td style="color:' + col + ';font-weight:700" title="' + tip + '">' + sg(r.dpct, 2) + '%' + flag + '</td>' + (ST.fx ? '<td style="color:' + dcol(r.eT, 0.005) + '">' + (r.eT == null ? 'n/a' : sg(r.eT, 2) + '%') + '</td><td style="color:' + dcol(r.eR, 0.005) + '">' + (r.eR == null ? 'n/a' : sg(r.eR, 2) + '%') + '</td>' : '') +
         '<td><div class="vdb"><i style="' + bar + '"></i></div></td><td class="l" style="color:var(--mu)">' + r.yl + '</td><td>' + (r.y0 == null ? 'n/a' : fm(r.y0, 2) + '%') + '</td><td>' + (r.y1 == null ? 'n/a' : fm(r.y1, 2) + '%') + '</td>' +
         '<td style="color:' + (r.dpb == null || isShort(r) ? 'var(--mu)' : dcol(-r.dpb, 0.5)) + ';font-weight:700"' + (isShort(r) ? ' title="Vence en ' + r.days + ' días: con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb; no se compara con el resto"' : '') + '>' + dpb + (isShort(r) ? '<span class="vdsup">&lt;30 d</span>' : '') + '</td></tr>';
     });
@@ -4713,7 +4725,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       }
       S.r.forEach(function (r, i) {
         var d = r.dpb == null ? 0 : r.dpb, sh = isShort(r), c = sh ? NE : d < -0.5 ? GR : d > 0.5 ? RD : NE;
-        var kn = r.k + (r.star ? ' *' : ''); hoy.push({ x: r.x1, y: r.y1, k: kn, y0: r.y0, dv: d / 100, p: r.dpct, sh: sh, m: BUB ? montoOf(r.k, BUB) : null }); hc.push(c); hs.push(r.star ? 'triangle' : S.st);
+        var kn = r.k + (r.star ? ' *' : ''); hoy.push({ x: r.x1, y: r.y1, k: kn, y0: r.y0, dv: d / 100, p: r.dpct, eT: r.eT, eR: r.eR, sh: sh, m: BUB ? montoOf(r.k, BUB) : null }); hc.push(c); hs.push(r.star ? 'triangle' : S.st);
         ayer.push({ x: r.x0, y: r.y0, k: kn, dv: d / 100, y0: r.y1 });
       });
     });
@@ -4726,17 +4738,23 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var LINK = { id: 'vdLink', beforeDatasetsDraw: function (ch) {
       var ia = -1, ih = -1; ch.data.datasets.forEach(function (d, i) { if (d.role === 'ayer') ia = i; if (d.role === 'hoy') ih = i; }); if (ia < 0 || ih < 0) return;
       var ma = ch.getDatasetMeta(ia).data, mh = ch.getDatasetMeta(ih).data, ctx = ch.ctx; ctx.save(); ctx.setLineDash([2, 3]); ctx.lineWidth = 1.3; ctx.strokeStyle = rgba(tx.charAt(0) === '#' ? tx : '#e4e4e7', 0.7);
-      var dh = ch.data.datasets[ih].data; mh.forEach(function (el, j) { var a = ma[j]; if (!a || (dh[j] && (dh[j].sh || dh[j].dim)) || Math.hypot(el.x - a.x, el.y - a.y) < 8) return; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(el.x, el.y); ctx.stroke(); }); ctx.restore(); } };
+      var dh = ch.data.datasets[ih].data; mh.forEach(function (el, j) { var a = ma[j]; if (!a || (dh[j] && (dh[j].sh || dh[j].dim)) || Math.hypot(el.x - a.x, el.y - a.y) < 8) return;
+        if (ST.fx) { // efecto tiempo: de la marca de antes hasta la duración de hoy, con la tasa quieta (horizontal); efecto tasa: de ahí al punto de hoy (vertical)
+          ctx.setLineDash([]); ctx.lineWidth = 2.2; ctx.strokeStyle = FXT; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(el.x, a.y); ctx.stroke();
+          ctx.strokeStyle = el.y < a.y ? RD : GR; ctx.beginPath(); ctx.moveTo(el.x, a.y); ctx.lineTo(el.x, el.y); ctx.stroke();
+          ctx.fillStyle = FXT; ctx.beginPath(); ctx.arc(el.x, a.y, 2.6, 0, 6.3); ctx.fill(); ctx.setLineDash([2, 3]); ctx.lineWidth = 1.3; ctx.strokeStyle = rgba(tx.charAt(0) === '#' ? tx : '#e4e4e7', 0.7); return; }
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(el.x, el.y); ctx.stroke(); }); ctx.restore(); } }, FXT = tx || '#e4e4e7'; // el tiempo en el color del texto: no se confunde con las curvas ni con verde y rojo
     var logTicks = function (a) { var set = [10, 20, 30, 60, 90, 180, 365, 540, 730, 1000, 1500, 2000, 3000, 5000, 7000, 10000]; a.ticks = set.filter(function (v) { return v >= a.min && v <= a.max; }).map(function (v) { return { value: v }; }); };
     CH = new Chart(document.getElementById('vdChart').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [X.LABELS, LINK], options: {
       responsive: true, maintainAspectRatio: false, animation: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2), layout: { padding: { right: 28, top: 6 } }, interaction: { mode: 'nearest', intersect: true },
-      plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.dataset.tip; }, callbacks: { label: function (c) { var r = c.raw; return [r.k + ': ' + fm(r.y, 2) + '% hoy · ' + fm(r.y0, 2) + '% ' + AY(), sg(r.dv * 100, 0) + ' pb · precio ' + sg(r.p, 2) + '%'].concat(r.m != null ? ['Operado: $ ' + fm(r.m / 1e6, r.m >= 1e8 ? 0 : 1) + ' M'] : []); } } } },
+      plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.dataset.tip; }, callbacks: { label: function (c) { var r = c.raw; return [r.k + ': ' + fm(r.y, 2) + '% hoy · ' + fm(r.y0, 2) + '% ' + AY(), sg(r.dv * 100, 0) + ' pb · precio ' + sg(r.p, 2) + '%'].concat(ST.fx && r.eT != null ? ['Efecto tiempo ' + sg(r.eT, 2) + '% · efecto tasa ' + sg(r.eR, 2) + '%'] : []).concat(r.m != null ? ['Operado: $ ' + fm(r.m / 1e6, r.m >= 1e8 ? 0 : 1) + ' M'] : []); } } } },
       scales: { x: useLog ? { type: 'logarithmic', title: { display: true, text: xaxTitle(ax, true), color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 0); } }, afterBuildTicks: logTicks, grid: { color: bd } }
         : { title: { display: true, text: xaxTitle(ax), color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, yrs ? 1 : 0); } }, grid: { color: bd }, min: 0, grace: '6%' },
         y: { title: { display: true, text: yl, color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd }, grace: '6%' } } } });
     var sh = function (c, ico) { return '<i style="width:' + (ico === 'ring' ? 10 : 12) + 'px;height:' + (ico === 'ring' ? 10 : 12) + 'px;border-radius:50%;background:' + (ico === 'ring' ? 'transparent' : c) + ';border:' + (ico === 'ring' ? '1.5px solid var(--mu)' : '0') + '"></i>'; };
     leg.innerHTML = (nTf.length ? '<span>' + nTf.map(function (r) { return r.k; }).join(', ') + ' (dual tasa fija / TAMAR) no va en el gráfico: se mide por TEA y no por margen sobre TAMAR; está en la tabla</span>' : '') + (mx > 0 ? '<span>Tamaño del punto: monto operado ' + (bxDayStr(REF1) === bxDayStr(bxToday()) && !(VJ && VJ.dates.indexOf(bxDayStr(REF1)) >= 0) ? 'hoy hasta ahora' : 'en la rueda') + '</span>' : '') + '<span>' + sh(GR) + 'La tasa bajó</span><span>' + sh(RD) + 'La tasa subió</span><span>' + sh(NE) + 'Sin cambio</span><span>' + sh('', 'ring') + AY(1) + '</span>' +
       SER.map(function (S) { return S.noFit ? '<span>◆ ' + S.n + ' (puntos, sin curva)</span>' : '<span><i style="width:22px;height:0;border-top:3px solid ' + S.c + '"></i>Curva hoy ' + (isUsd ? S.n + (S.st === 'triangle' ? ' (▲)' : ' (●)') : '') + '</span>'; }).join('') + '<span><i style="width:22px;height:0;border-top:2px dashed var(--mu)"></i>Curva ' + AY() + '</span>' + (nOut ? '<span>' + nOut + (grp === 'pv' ? (nOut === 1 ? ' provincial con TIR' : ' provinciales con TIR') : nOut === 1 ? ' ON con TIR' : ' ONs con TIR') + ' fuera de -5% a 30% no se grafican (precio sin referencia); están en la tabla</span>' : '') + (nShort ? '<span>No se muestran ' + nShort + (nShort === 1 ? ' bono que vence' : ' bonos que vencen') + ' en menos de 30 días: con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb</span>' : SER.some(function (S) { return S.nEx; }) ? '<span>En gris, los que vencen en menos de 30 días: no entran en la curva porque 0,01% de precio les mueve la tasa decenas o cientos de pb</span>' : '');
+    if (ST.fx) leg.innerHTML += '<span><i style="width:22px;height:0;border-top:2.5px solid ' + FXT + '"></i>Efecto tiempo (se corre a la izquierda, tasa quieta)</span><span><i style="width:0;height:14px;border-left:2.5px solid ' + GR + '"></i><i style="width:0;height:14px;border-left:2.5px solid ' + RD + '"></i>Efecto tasa (la tasa baja o sube)</span>';
     shift.innerHTML = shifts.map(function (s) {
       var mu = mean(s.rows.map(function (r) { return (r.h - r.a) * 100; }));
       return '<div><div style="font-weight:600;margin-bottom:6px;color:var(--tx)">' + s.n + ' · desplazamiento de la curva <span style="color:' + dcol(mu == null ? null : -mu, 0.5) + '">(promedio ' + sg(mu, 0) + ' pb)</span></div><table class="vdt"><thead><tr><th class="l" style="cursor:default">' + (ax === 'plazo' ? 'Plazo' : ax === 'mac' ? 'Duración' : 'Duración mod.') + '</th><th style="cursor:default">' + AY(1) + '</th><th style="cursor:default">Hoy</th><th style="cursor:default">Δ pb</th></tr></thead><tbody>' +
@@ -9887,7 +9905,7 @@ window.USTX = (function () {
     { g: 'pvs', t: 'Bonos provinciales', ic: 'pvs', it: [['pvs', 'Curva y tabla'], ['pvs', 'Por calificación', 'pvsRt'], ['pvsf', 'Flujos y total return']] },
     { h: 'Acciones' }, ['acc', 'Acciones'], { h: 'Dólar y tasas' }, ['dol', 'Dólar'], ['brc', 'Brecha y canje'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['carry', 'Carry trade'],
     { h: 'Mercado' }, ['macro', 'Calendario macro'], { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards'], ['expp', 'Probabilidad de default']] },
-    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['dsim', 'Duales'], { h: 'Más' }, ['alert', 'Newsletter', 'alRep', 'news'], ['alert', 'Alertas'], ['cons', 'Consultame']];
+    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['dsim', 'Duales'], { h: 'Más' }, ['news', 'Newsletter'], ['alert', 'Alertas'], ['cons', 'Consultame']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[3] || t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
   sn.innerHTML = '<div class="sn-h"><img src="/favicon.svg?v=2" alt=""><b>BONERÍO LOCAL</b></div><nav>' +
     GR.map(function (g, i) { return g.h ? '<div class="sn-hd">' + g.h + '</div>' : g.sep ? '<div class="sn-sep"></div>' : (Array.isArray(g) ? item(g) : '<div class="sn-g" data-gr="' + g.g + '"><button class="sn-it" data-g="' + g.g + '" title="' + g.t + '">' + IC[g.ic] + '<span>' + g.t + '</span>' + CAR + '</button><div class="sn-sub">' + g.it.map(function (t) { return item(t, 1); }).join('') + '</div></div>'); }).join('') +
@@ -16168,6 +16186,114 @@ body.sn-mini #sideNav .sn-u{justify-content:center;padding:12px 0}body.sn-mini #
   };
   b.onclick = function () { var a = window.BLAUTH && window.BLAUTH(), u = a && a.user; if (u && plan(u)[0] === 'PRO') { var m = document.querySelector('#blUser > button'); if (m) m.click(); return; } if (window.BLPROPOP) window.BLPROPOP(); }; // gratis o en prueba: los planes; PRO: el menú de la cuenta
   draw(); setInterval(draw, 2000);
+})();
+</script>
+<style>
+#news .nwH{text-align:center;padding:34px 18px 26px}
+#news .nwChip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--bd);background:var(--bg);color:var(--ac);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:700}
+#news .nwH h2{margin:16px auto 8px;font-size:clamp(28px,4.2vw,44px);line-height:1.08;letter-spacing:-.025em;max-width:760px;color:var(--tx)}#news .nwH h2 span{color:var(--ac)}
+#news .nwH p.s{margin:0 auto;max-width:640px;color:var(--mu);font-size:15.5px;line-height:1.6}
+#news .nwSub{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;margin-top:22px}
+#news .nwSub select,#news .nwSub button,#news .nwBtn{font:inherit;font-size:14px;border-radius:10px;padding:10px 16px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);cursor:pointer}
+#news .nwSub button.pr,#news .nwBtn.pr{background:var(--tx);color:var(--bg);border-color:var(--tx);font-weight:700}
+#news .nwSt{display:inline-flex;align-items:center;gap:8px;border-radius:10px;padding:10px 14px;font-size:14px;border:1px solid var(--bd);color:var(--mu)}#news .nwSt.ok{color:#34d399;border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.08)}
+#news .nwMsg{min-height:18px;margin-top:10px;font-size:13px;color:var(--mu)}
+#news .nwEd{text-align:center;margin:8px 0 14px;color:var(--mu);font-size:13px;font-weight:600}
+#news .nwTabs{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:0 auto 18px;max-width:100%}
+#news .nwTabs button{font:inherit;font-size:13.5px;border:1px solid transparent;background:none;color:var(--mu);border-radius:9px;padding:8px 13px;cursor:pointer}#news .nwTabs button.on{background:var(--card);border-color:var(--bd);color:var(--tx);font-weight:700}
+#news .nwF{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:0 0 12px}#news .nwF button{font:inherit;font-size:12.5px;border:1px solid var(--bd);background:none;color:var(--mu);border-radius:999px;padding:5px 12px;cursor:pointer}#news .nwF button.on{color:var(--tx);border-color:var(--tx)}
+#news .nwBox{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);border:1px solid var(--bd);border-radius:20px;overflow:hidden;max-width:1080px;margin:0 auto;background:var(--card)}
+#news .nwL{position:relative;padding:26px;background:linear-gradient(150deg,rgba(var(--acr,255,197,66),.20),rgba(var(--acr,255,197,66),.05) 70%);border-right:1px solid var(--bd);display:flex;flex-direction:column;min-height:340px;overflow:hidden}
+#news .nwL .tg{align-self:flex-start;font-size:12px;font-weight:700;border-radius:999px;padding:4px 11px;background:var(--bg);border:1px solid var(--bd);color:var(--ac)}
+#news .nwL h3{margin:14px 0 10px;font-size:23px;line-height:1.2;letter-spacing:-.015em;color:var(--tx)}
+#news .nwL ul{margin:0;padding-left:18px;color:var(--tx);opacity:.9;font-size:14.5px;line-height:1.6}#news .nwL li{margin-bottom:6px}
+#news .nwL .ft{margin-top:auto;padding-top:16px;color:var(--mu);font-size:12.5px}
+#news .nwR{padding:26px;display:flex;flex-direction:column}#news .nwR h4{margin:0 0 14px;font-size:16px;color:var(--tx)}
+#news .nwI{display:flex;gap:12px;margin-bottom:14px}#news .nwI i{flex:none;width:34px;height:34px;border-radius:9px;border:1px solid var(--bd);display:grid;place-items:center;color:var(--ac)}#news .nwI b{display:block;font-size:14px;color:var(--tx)}#news .nwI span{font-size:13px;color:var(--mu);line-height:1.45}
+#news .nwR .nwBtn{margin-top:auto;width:100%;padding:13px}
+#news .nwNo{max-width:1080px;margin:0 auto;padding:30px;text-align:center;color:var(--mu);border:1px dashed var(--bd);border-radius:16px}
+#nwM{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);display:none;align-items:stretch;justify-content:center;padding:18px}#nwM.on{display:flex}
+#nwM .bx{width:min(720px,100%);display:flex;flex-direction:column;background:#0b0b0c;border:1px solid var(--bd);border-radius:14px;overflow:hidden}
+#nwM .hd{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--bd);color:var(--tx);font-size:13.5px}#nwM .hd b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#nwM .hd a,#nwM .hd button{font:inherit;font-size:13px;color:var(--tx);background:none;border:1px solid var(--bd);border-radius:8px;padding:6px 10px;cursor:pointer;text-decoration:none;white-space:nowrap}
+#nwM iframe{flex:1;width:100%;border:0;background:#0b0b0c}
+@media(max-width:820px){#news .nwBox{grid-template-columns:1fr}#news .nwL{border-right:0;border-bottom:1px solid var(--bd);min-height:0}#news .nwH{padding:22px 4px 18px}#nwM{padding:0}#nwM .bx{border-radius:0}}
+</style>
+<script>
+/* ---------- Newsletter: suscripción y ediciones publicadas (data/newsletter, las guarda scripts/reporte.py al mandar cada edición) ---------- */
+(function () {
+  var root = document.getElementById('news'); if (!root) return;
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  var TIPO = { dia: 'Informe de cierre', semana: 'Cierre semanal', mes: 'Edición de fin de mes' };
+  var FQ = { diario: 'al cierre de cada rueda', semanal: 'los viernes, con el balance de la semana', mensual: 'la última rueda de cada mes' };
+  var fe = function (f) { return +f.slice(8, 10) + ' de ' + MES[+f.slice(5, 7) - 1]; };
+  var ic = function (d) { return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>'; };
+  var QUE = [[ic('<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'), 'Dólares y riesgo país', 'MEP, CCL, oficial, brecha y canje; el riesgo país y cómo se movieron los Globales y Bonares.'],
+    [ic('<path d="M3 3v18h18"/><path d="m7 15 4-5 4 3 5-7"/>'), 'Las curvas', 'Hard dollar, Lecaps, CER, TAMAR, duales, dólar linked, ONs y provinciales, con el gráfico de cada curva contra el cierre anterior.'],
+    [ic('<path d="m3 17 6-6 4 4 8-8"/><path d="M14 7h7v7"/>'), 'Lo que más se movió', 'Las acciones del panel líder, el volumen, los futuros de dólar y las tasas implícitas (inflación y devaluación).'],
+    [ic('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'), 'Lo que viene', 'Licitaciones, datos y vencimientos de la semana. Los viernes y a fin de mes, el balance del período.']];
+  var IDX = null, SEL = 0, FIL = '', REP = null, REPF = 'diario';
+  root.innerHTML = '<div class="nwH"><span class="nwChip">' + ic('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>') + 'Newsletter · Research</span>' +
+    '<h2>Lo que pasó en el mercado,<br><span>en un mail al cierre</span></h2>' +
+    '<p class="s">Dólares, riesgo país, curvas, lo que más se movió y lo que viene, con los mismos datos y gráficos de la terminal. Elegí si lo querés todos los días, los viernes o una vez por mes. Gratis.</p>' +
+    '<div class="nwSub" id="nwSub"></div><div class="nwMsg" id="nwMsg"></div></div>' +
+    '<p class="nwEd">Ediciones publicadas</p><div class="nwF" id="nwF"></div><div class="nwTabs" id="nwT"></div><div id="nwB"></div>';
+  var M = document.createElement('div'); M.id = 'nwM'; M.innerHTML = '<div class="bx"><div class="hd"><b id="nwMt"></b><a id="nwMa" target="_blank" rel="noopener">Abrir aparte</a><button type="button" id="nwMx">Cerrar</button></div><iframe id="nwMf" title="Edición del newsletter"></iframe></div>';
+  document.body.appendChild(M);
+  var close = function () { M.classList.remove('on'); $('nwMf').src = 'about:blank'; document.body.style.overflow = ''; };
+  M.addEventListener('click', function (e) { if (e.target === M || e.target.id === 'nwMx') close(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && M.classList.contains('on')) close(); });
+  function open(e) { var u = 'data/newsletter/' + e.f + '/index.html'; $('nwMt').textContent = TIPO[e.tipo] + ' · ' + fe(e.f); $('nwMa').href = u; $('nwMf').src = u; M.classList.add('on'); document.body.style.overflow = 'hidden'; }
+
+  function sub() {
+    var A = window.BLAUTH && window.BLAUTH(), el = $('nwSub'); if (!el) return;
+    if (!A) { el.innerHTML = '<span class="nwSt">Entrá con tu cuenta para suscribirte</span>'; return; }
+    if (REP == null) { el.innerHTML = '<span class="nwSt">Cargando…</span>'; return; }
+    el.innerHTML = (REP ? '<span class="nwSt ok">✓ Ya estás suscripto: te llega ' + FQ[REPF] + '</span>' : '') +
+      '<select id="nwFq" aria-label="Frecuencia">' + ['diario', 'semanal', 'mensual'].map(function (f) { return '<option value="' + f + '"' + (f === REPF ? ' selected' : '') + '>' + f.charAt(0).toUpperCase() + f.slice(1) + '</option>'; }).join('') + '</select>' +
+      '<button type="button" id="nwGo" class="' + (REP ? '' : 'pr') + '">' + (REP ? 'Desuscribirme' : 'Suscribirme gratis') + '</button>';
+  }
+  function load() {
+    var A = window.BLAUTH && window.BLAUTH(); if (!A) { REP = null; sub(); return; }
+    A.sb.from('reporte').select('activo,frecuencia').eq('user_id', A.user.id).maybeSingle().then(function (r) { if (r.error) return A.sb.from('reporte').select('activo').eq('user_id', A.user.id).maybeSingle(); REPF = (r.data && r.data.frecuencia) || 'diario'; return r; })
+      .then(function (r) { REP = !r.error && r.data ? !!r.data.activo : false; sub(); }, function () { REP = false; sub(); });
+  }
+  function save(on) {
+    var A = window.BLAUTH && window.BLAUTH(); if (!A) return; var f = ($('nwFq') && $('nwFq').value) || REPF, row = { user_id: A.user.id, email: A.user.email, activo: on, frecuencia: f }, msg = $('nwMsg');
+    msg.textContent = 'Guardando…';
+    var fin = function (r, sinF) { if (r.error) { msg.textContent = 'No se pudo guardar: ' + r.error.message; return; } REP = on; if (!sinF) REPF = f; msg.textContent = on ? 'Listo: te llega ' + FQ[sinF ? 'diario' : f] + ' a ' + A.user.email + '.' : 'Listo: no te llega más.'; sub(); };
+    A.sb.from('reporte').upsert(row, { onConflict: 'user_id' }).then(function (r) { if (r.error && /frecuencia/i.test(r.error.message || '')) { delete row.frecuencia; A.sb.from('reporte').upsert(row, { onConflict: 'user_id' }).then(function (r2) { fin(r2, true); }); return; } fin(r); });
+  }
+  root.addEventListener('click', function (e) {
+    var t = e.target.closest('button'); if (!t) return;
+    if (t.id === 'nwGo') save(!REP);
+    else if (t.hasAttribute('data-i')) { SEL = +t.getAttribute('data-i'); draw(); }
+    else if (t.hasAttribute('data-f')) { FIL = t.getAttribute('data-f'); SEL = 0; draw(); }
+    else if (t.id === 'nwRd') { var L = list(); if (L[SEL]) open(L[SEL]); }
+  });
+  root.addEventListener('change', function (e) { if (e.target.id === 'nwFq' && REP) save(true); });
+  var list = function () { return (IDX || []).filter(function (e) { return !FIL || e.tipo === FIL; }); };
+  function draw() {
+    if (!IDX) return; var L = list(), e = L[SEL] || L[0];
+    var has = {}; IDX.forEach(function (x) { has[x.tipo] = 1; });
+    $('nwF').innerHTML = [['', 'Todas'], ['dia', 'Diarias'], ['semana', 'Semanales'], ['mes', 'Mensuales']].filter(function (x) { return !x[0] || has[x[0]]; }).map(function (x) { return '<button type="button" data-f="' + x[0] + '" class="' + (x[0] === FIL ? 'on' : '') + '">' + x[1] + '</button>'; }).join('');
+    $('nwT').innerHTML = L.slice(0, 8).map(function (x, i) { return '<button type="button" data-i="' + i + '" class="' + (i === SEL ? 'on' : '') + '">' + (x.tipo === 'mes' ? MES[+x.f.slice(5, 7) - 1].replace(/^./, function (c) { return c.toUpperCase(); }) + ' ' + x.f.slice(0, 4) : fe(x.f)) + '</button>'; }).join('');
+    if (!e) { $('nwB').innerHTML = '<div class="nwNo">Todavía no hay ediciones de este tipo.</div>'; return; }
+    var pts = (e.pts || []).slice(0, 4);
+    $('nwB').innerHTML = '<div class="nwBox"><div class="nwL"><span class="tg">' + TIPO[e.tipo] + ' · ' + fe(e.f) + '</span><h3>' + esc(e.asunto.replace(/^[^:]*:\s*/, '')) + '</h3><ul>' +
+      pts.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul><div class="ft">' + (e.secs ? e.secs + ' secciones · ' : '') + 'lectura de ' + (e.min || 5) + ' minutos</div></div>' +
+      '<div class="nwR"><h4>Qué trae cada edición</h4>' + QUE.map(function (q) { return '<div class="nwI"><i>' + q[0] + '</i><div><b>' + q[1] + '</b><span>' + q[2] + '</span></div></div>'; }).join('') +
+      '<button type="button" class="nwBtn pr" id="nwRd">Leer esta edición →</button></div></div>';
+  }
+  function render() {
+    if (IDX == null) { IDX = []; fetch('data/newsletter/index.json?v=' + Math.floor(Date.now() / 6e5)).then(function (r) { return r.ok ? r.json() : []; }).catch(function () { return []; }).then(function (j) { IDX = Array.isArray(j) ? j : []; if (!IDX.length) $('nwB').innerHTML = '<div class="nwNo">La primera edición aparece acá apenas salga el próximo informe.</div>'; draw(); }); }
+    try { load(); } catch (e) { REP = false; } sub();
+  }
+  document.addEventListener('bl-auth', function () { if (root.classList.contains('active')) load(); });
+  var _sw = window.switchTab; window.switchTab = function (id) { var r = _sw.apply(this, arguments); if (id === 'news') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; render(); } return r; };
+  if (root.classList.contains('active')) render();
 })();
 </script>
 </body>
