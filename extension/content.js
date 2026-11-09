@@ -166,6 +166,7 @@
     h.onmousedown = (e) => { if (e.target.tagName === 'BUTTON') return; dx = e.clientX - W.offsetLeft; dy = e.clientY - W.offsetTop; document.onmousemove = (m) => { W.style.left = m.clientX - dx + 'px'; W.style.top = m.clientY - dy + 'px'; W.style.right = W.style.bottom = 'auto'; }; document.onmouseup = () => (document.onmousemove = null); };
   };
   arrastrar(P);
+  if (chrome.runtime && chrome.runtime.onMessage) chrome.runtime.onMessage.addListener((m) => { if (m && m.t === 'toggle') { const v = P.style.display === 'none'; P.style.display = v ? '' : 'none'; if (W && !v) W.style.display = 'none'; } }); // el ícono de la extensión
   const BUS = P.querySelector('.bus');
   BUS.onkeydown = (e) => { if (e.key === 'Enter') BUS.onchange(); };
   BUS.onchange = () => { const k = BUS.value.toUpperCase().trim(); if (!k) return; activo = k; precioManual = false; BUS.value = ''; pintar(); };
@@ -238,8 +239,11 @@
     if (e.data.t === 'bnrTk') { const k = String(e.data.k).toUpperCase(); aBoleta(k); const r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } return; }
     if (e.data.t !== 'bnrH') return;
     LISTO = true;
-    const h = Math.max(150, +e.data.h || 0); W.querySelector('iframe').style.height = h + 'px';
-    if (!tamManual) W.style.height = Math.min(h + W.querySelector('.wb').offsetTop + 2, Math.round(innerHeight * 0.55), innerHeight - W.offsetTop - 10) + 'px'; // justa, y como mucho media pantalla: no tapa la operatoria
+    const h = Math.max(150, +e.data.h || 0), F = W.querySelector('iframe'), top = W.querySelector('.wb').offsetTop + 2;
+    const max = tamManual ? W.clientHeight - top : Math.min(Math.round(innerHeight * 0.55), innerHeight - W.offsetTop - 10) - top; // como mucho media pantalla: no tapa la operatoria
+    const z = Math.max(0.6, Math.min(1, max / h)); // si no entra, se achica entera (como un zoom) en vez de cortarse
+    Object.assign(F.style, { height: h + 'px', width: 100 / z + '%', transform: z < 1 ? `scale(${z})` : '', transformOrigin: '0 0' });
+    if (!tamManual) W.style.height = Math.ceil(h * z) + top + 'px';
   });
 
   function pintar() {
