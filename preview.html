@@ -16124,5 +16124,36 @@ body.sn-mini #sideNav .sn-u{justify-content:center;padding:12px 0}body.sn-mini #
   draw(); setInterval(draw, 2000);
 })();
 </script>
+<style>
+/* Duales: las curvas de Curva Pesos (duales, TAMAR y CER con los duales) arriba de la valuación; es la misma tarjeta, que se trae acá mientras la pestaña está abierta */
+#dsPsH{display:none}#dsPsH.on{display:block;margin-bottom:24px}
+#dsPsH #pesos{display:flex!important;flex-direction:column;gap:24px}
+#dsPsH #pesos>*:not(.dsK):not(.psPjM){display:none!important}
+#dsPsH #pesos>.card{margin:0!important}#dsPsH #pesos .qh .no{display:none}
+#dsPsH .dsHd{margin:0 0 14px}#dsPsH .dsHd p{margin:4px 0 0;color:var(--mu);font-size:14px;line-height:1.5}
+</style>
+<script>
+(function () {
+  var P = document.getElementById('pesos'), D = document.getElementById('dsim'); if (!P || !D) return;
+  var H = document.createElement('div'); H.id = 'dsPsH'; H.innerHTML = '<div class="card dsHd"><p class="qh" style="margin:0">Duales: curvas, valuación y proyección</p><p>Arriba, las curvas: los duales solos, TAMAR con los duales y CER con los duales, cada una con su proyección (inflación, TAMAR y devaluación mes a mes). Abajo, la valuación con el modelo bivariado y el simulador.</p></div>';
+  D.parentNode.insertBefore(H, D); var mark = document.createComment('pesos'), here = false, OLD = {};
+  var CARDS = [['psC5', 1], ['psC3', 2, 'psD3', '1'], ['psC2', 3, 'psD2', '1']]; // [gráfico, orden, selector de duales, valor: duales contra la curva pura]
+  var fire = function (el) { el.dispatchEvent(new Event('change', { bubbles: true })); };
+  function bring() {
+    if (!here) { P.parentNode.insertBefore(mark, P); H.appendChild(P); here = true; }
+    CARDS.forEach(function (c) { var cv = document.getElementById(c[0]), cd = cv && cv.closest('.card'); if (!cd) return; cd.classList.add('dsK'); cd.style.order = c[1];
+      var s = c[2] && document.getElementById(c[2]); if (s && s.value === '0' && [].some.call(s.options, function (o) { return o.value === c[3]; })) { OLD[c[2]] = s.value; s.value = c[3]; fire(s); } });
+    H.classList.add('on'); if (window.renderPesos) setTimeout(window.renderPesos, 0);
+  }
+  function back() {
+    H.classList.remove('on'); if (!here) return;
+    Object.keys(OLD).forEach(function (id) { var s = document.getElementById(id); if (s) { s.value = OLD[id]; fire(s); } }); OLD = {};
+    [].forEach.call(P.querySelectorAll('.dsK'), function (cd) { cd.classList.remove('dsK'); cd.style.order = ''; });
+    mark.parentNode.insertBefore(P, mark); mark.remove(); here = false;
+  }
+  var _sw = window.switchTab; window.switchTab = function (id) { if (id !== 'dsim') back(); var r = _sw.apply(this, arguments); if (id === 'dsim') bring(); return r; };
+  if (D.classList.contains('active')) bring();
+})();
+</script>
 </body>
 </html>
