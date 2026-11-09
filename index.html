@@ -10322,13 +10322,24 @@ window.USTX = (function () {
       setTimeout(next, 600);
     } else if (mode === 'sec') {
       var tab = Q.get('tab'), id = Q.get('id') || tab;
+      var CV = Q.get('cv') === '1', CVI = null;
+      var chartOnly = function () { // solo el gráfico principal de la sección (las curvas de la extensión de Matriz): el primer canvas grande y su recuadro, sin textos ni tablas
+        clearInterval(CVI); if (!CV) return; var t = '';
+        CVI = setInterval(function () {
+          var cur = t && document.getElementById(t); if (cur && cur.getClientRects().length) return;
+          if (t) { t = ''; only(id); return; } // se volvió a dibujar: se muestra la sección y se busca de nuevo
+          var S = document.getElementById(id), c = S && [].slice.call(S.querySelectorAll('canvas')).filter(function (x) { var r = x.getBoundingClientRect(); return r.width > 150 && r.height > 80; })[0]; if (!c) return;
+          var w = c.parentElement; if (!w.id) { var o = document.getElementById('embCv'); if (o) o.removeAttribute('id'); w.id = 'embCv'; }
+          t = w.id; only(t); watch(t);
+        }, 300);
+      };
       var subTab = function (t, g) { if (!g) return; var n = 0, iv = setInterval(function () { var b = document.querySelector('#' + t + ' [data-g="' + g + '"]'); if (b || ++n > 30) { clearInterval(iv); if (b) b.click(); } }, 200); }; // subpestaña interna (Acciones → Pares)
-      only(id); setTimeout(function () { goTab(tab, Q.get('sec') || ''); subTab(tab, Q.get('g')); window.scrollTo(0, 0); watch(id); }, 300);
+      only(id); setTimeout(function () { goTab(tab, Q.get('sec') || ''); subTab(tab, Q.get('g')); window.scrollTo(0, 0); watch(id); chartOnly(); }, 300);
       window.addEventListener('message', function (e) { // extensión de Matriz: cambia de sección sin recargar la página (mucho más rápido)
         var d = e.data; if (e.source !== parent || !d || d.t !== 'bnrSec' || !/^[\w-]+$/.test(d.tab || '') || !/^[\w-]+$/.test(d.id || '')) return;
-        tab = d.tab; id = d.id; only(id); goTab(tab, ''); subTab(tab, d.g);
+        tab = d.tab; id = d.id; CV = !!d.cv; only(id); goTab(tab, ''); subTab(tab, d.g);
         if (d.k && window.BONO && window.BONO.open) window.BONO.open(String(d.k).toUpperCase());
-        window.scrollTo(0, 0); watch(id);
+        window.scrollTo(0, 0); watch(id); chartOnly();
       });
       // cada tabla larga de la sección se puede ocultar (por ejemplo, las cotizaciones debajo de una curva); el tablero lo recuerda
       var HT = {}; (Q.get('ht') || '').split(',').forEach(function (x) { if (x !== '') HT[x] = 1; });

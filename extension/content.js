@@ -188,6 +188,7 @@
     cim: ['Pases', () => [['', 'cim', 'cimC1']]],
     exp: ['Expectativas', () => [['Inflación', 'expi', 'thBBi'], ['Devaluación', 'expd', 'thBBd'], ['Forwards', 'expf', 'thF']]],
   };
+  const SOLO_GRAF = { curva: 1, tfut: 1, sint: 1, exp: 1 };
   const SIGUE = { ficha: 1, curva: 1 }; // las que cambian con el bono
   let W = null, vista = 'curva', sub = 0, tamManual = false, LISTO = false;
   function ventana(v, j, oculta) {
@@ -208,9 +209,10 @@
     S.innerHTML = L.length < 2 ? '' : L.map((x, i) => `<button data-i="${i}" class="${i === sub ? 'on' : ''}">${x[0]}</button>`).join('');
     S.querySelectorAll('button').forEach((x) => (x.onclick = () => ventana(vista, +x.dataset.i)));
     const F = W.querySelector('iframe'), k = vista === 'ficha' && activo && g !== 'acc' ? activo : '';
-    if (LISTO) { F.contentWindow.postMessage({ t: 'bnrSec', tab, id, g: sg || '', k }, '*'); return; } // la página ya está cargada: solo cambia de sección
+    const cv = SOLO_GRAF[vista] ? 1 : 0; // en las curvas, solo el gráfico (como la curva USD)
+    if (LISTO) { F.contentWindow.postMessage({ t: 'bnrSec', tab, id, g: sg || '', k, cv }, '*'); return; } // la página ya está cargada: solo cambia de sección
     F.style.height = '2600px';
-    const url = SITE + '?emb=sec&ht=*&tab=' + tab + '&id=' + id + (sg ? '&g=' + sg : '') + (k ? '#ficha=' + k + '&n=' + Date.now() : '');
+    const url = SITE + '?emb=sec&ht=*&tab=' + tab + '&id=' + id + (sg ? '&g=' + sg : '') + (cv ? '&cv=1' : '') + (k ? '#ficha=' + k + '&n=' + Date.now() : '');
     F.src = chrome.runtime.getURL('frame.html') + '#' + encodeURIComponent(url); // Bonerío va adentro de una página de la extensión: así no la frena la regla frame-src de Matriz
   }
   P.addEventListener('mouseenter', () => { if (!W && activo) ventana(null, null, true); }, { once: true }); // la carga empieza al acercarse al panel: cuando tocás, ya está
