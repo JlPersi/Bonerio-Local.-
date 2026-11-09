@@ -1104,6 +1104,7 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cal')">Calendario de cobros</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('alert')">Alertas</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('news')">Newsletter</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('planes')">Planes</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('vard')">Variación diaria</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('rot')">Rotación</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('macro')">Calendario macro</button>
@@ -1308,6 +1309,7 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="cal" class="tab-content"></div>
 <div id="alert" class="tab-content"></div>
 <div id="news" class="tab-content"></div>
+<div id="planes" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
 <div id="deuda" class="tab-content"><div id="outW"></div></div>
 
@@ -9896,7 +9898,7 @@ window.USTX = (function () {
   IC.acc = P('<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 6-7"/><path d="M16 7h4v4"/>');
   IC.res = P('<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>'); IC.trd = P('<path d="M7 17L17 7"/><path d="M8 7h9v9"/>'); IC.dash = P('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>');
   IC.cal = P('<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 13v5M10 14.5h3a1.2 1.2 0 0 1 0 2.4h-2a1.2 1.2 0 0 0 0 2.4" transform="translate(0 -.6) scale(1 .85)"/>'); DESC.cal = 'Cuándo cobrás cupones y amortizaciones de tus bonos, día por día.';
-  IC.cons = P('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'); IC.news = P('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>');
+  IC.cons = P('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'); IC.planes = P('<path d="M12 2 15 8.5l7 1-5 4.9 1.2 7L12 18l-6.2 3.4 1.2-7-5-4.9 7-1z"/>'); IC.news = P('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>');
   IC.exp = P('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'); IC.expi = IC.exp; IC.expd = IC.dol; IC.expf = IC.curva; IC.expp = IC.exp;
   DESC.expp = 'La probabilidad de default que descuentan los Bonares y Globales, hoy y en el tiempo, con el recupero que elijas.'; DESC.expi = 'La inflación que descuentan los bonos CER contra la tasa fija, bono por bono y en el tiempo, contra el REM.'; DESC.expd = 'La devaluación que descuentan los dólar linked contra la tasa fija, bono por bono y en el tiempo, contra el REM.'; DESC.expf = 'La tasa de cada tramo entre vencimientos de cada familia y las forwards entre pares en el tiempo.'; DESC.thist = 'La tasa de cada bono día por día y su precio relativo contra la curva.';
   var CAR = P('<path d="m9 6 6 6-6 6"/>').replace('<svg ', '<svg class="sn-car" '), has = function (id) { return id === 'home' || TB.some(function (t) { return t[0] === id; }); };
@@ -9906,7 +9908,7 @@ window.USTX = (function () {
     { g: 'pvs', t: 'Bonos provinciales', ic: 'pvs', it: [['pvs', 'Curva y tabla'], ['pvs', 'Por calificación', 'pvsRt'], ['pvsf', 'Flujos y total return']] },
     { h: 'Acciones' }, ['acc', 'Acciones'], { h: 'Dólar y tasas' }, ['dol', 'Dólar'], ['brc', 'Brecha y canje'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['carry', 'Carry trade'],
     { h: 'Mercado' }, ['macro', 'Calendario macro'], { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards'], ['expp', 'Probabilidad de default']] },
-    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['dsim', 'Duales'], { h: 'Más' }, ['news', 'Newsletter'], ['alert', 'Alertas'], ['cons', 'Consultame']];
+    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['dsim', 'Duales'], { h: 'Más' }, ['news', 'Newsletter'], ['alert', 'Alertas'], ['cons', 'Consultame'], ['planes', 'Planes']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[3] || t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
   sn.innerHTML = '<div class="sn-h"><img src="/favicon.svg?v=2" alt=""><b>BONERÍO LOCAL</b></div><nav>' +
     GR.map(function (g, i) { return g.h ? '<div class="sn-hd">' + g.h + '</div>' : g.sep ? '<div class="sn-sep"></div>' : (Array.isArray(g) ? item(g) : '<div class="sn-g" data-gr="' + g.g + '"><button class="sn-it" data-g="' + g.g + '" title="' + g.t + '">' + IC[g.ic] + '<span>' + g.t + '</span>' + CAR + '</button><div class="sn-sub">' + g.it.map(function (t) { return item(t, 1); }).join('') + '</div></div>'); }).join('') +
@@ -15409,7 +15411,7 @@ window.RATG = (function () {
    PRO = app_metadata.pro_hasta (AAAA-MM-DD) del usuario en Supabase, que se carga con el workflow «Alta PRO».
    Hasta FREE_HASTA (fin de la prueba gratis) está todo abierto; después, cada cuenta nueva tiene 7 días de prueba desde que se registra. */
 (function () {
-  var FREE_HASTA = '2026-11-13', FREE = /^(home|tabla|curva|pesos|dol|macro|lic|cons|res)$/;
+  var FREE_HASTA = '2026-11-13', FREE = /^(home|tabla|curva|pesos|dol|macro|lic|cons|res|news|planes)$/;
   var PLANES = [['Mensual', '$ 15.000', 'por mes', 'https://mpago.la/1QLNzfC'], ['6 meses', '$ 80.000', 'ahorrás 11%', 'https://mpago.la/1kaGQJu'], ['12 meses', '$ 145.000', 'ahorrás 19%', 'https://mpago.la/1CTcAqa']]; // [nombre, precio, nota, link de Mercado Pago]
   var U = null, hoy = function () { return new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10); };
   var WA = function (t) { var a = window.BLAUTH && window.BLAUTH(), u = U || (a && a.user), m = u && u.email ? ' Mi mail de la cuenta: ' + u.email : ''; return 'https://wa.me/5493772529368?text=' + encodeURIComponent(t + m); }; // transferencia e institucional: por WhatsApp
@@ -16326,6 +16328,76 @@ body.sn-mini #sideNav .sn-u{justify-content:center;padding:12px 0}body.sn-mini #
   document.addEventListener('bl-auth', function () { if (root.classList.contains('active')) load(); });
   var _sw = window.switchTab; window.switchTab = function (id) { var r = _sw.apply(this, arguments); if (id === 'news') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; render(); } return r; };
   if (root.classList.contains('active')) render();
+})();
+</script>
+<style>
+#planes .plH{text-align:center;padding:30px 12px 24px}
+#planes .plChip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--bd);background:var(--bg);color:var(--ac);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+#planes .plChip:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ac)}
+#planes .plH h2{margin:16px auto 10px;font-size:clamp(28px,4.2vw,44px);line-height:1.08;letter-spacing:-.025em;color:var(--tx)}#planes .plH h2 span{color:var(--ac)}
+#planes .plH p{margin:0 auto;max-width:680px;color:var(--mu);font-size:15.5px;line-height:1.6}
+#planes .plSt{display:flex;flex-wrap:wrap;gap:6px 22px;justify-content:center;margin-top:16px;font-size:13px;color:var(--mu)}#planes .plSt b{color:var(--tx)}
+#planes .plG{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;max-width:900px;margin:8px auto 0}
+#planes .plC{position:relative;display:flex;flex-direction:column;border:1px solid var(--bd);border-radius:20px;padding:26px;background:var(--card)}
+#planes .plC.pro{border-color:rgba(255,197,66,.55);background:linear-gradient(160deg,rgba(255,197,66,.16),rgba(255,197,66,.03) 60%),var(--card);box-shadow:0 20px 60px rgba(255,197,66,.08)}
+#planes .plC .rec{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--ac);color:#141414;font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;border-radius:999px;padding:4px 12px;white-space:nowrap}
+#planes .plC small.k{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu)}
+#planes .plC .pr{margin:6px 0 2px;font-size:34px;font-weight:800;letter-spacing:-.02em;color:var(--tx)}#planes .plC .pr span{font-size:15px;font-weight:600;color:var(--mu)}
+#planes .plC .sb{font-size:13px;color:var(--mu)}
+#planes .plC ul{list-style:none;margin:18px 0 22px;padding:0;display:flex;flex-direction:column;gap:9px;font-size:14.5px;color:var(--tx)}
+#planes .plC li{display:flex;gap:9px;align-items:flex-start;line-height:1.4}#planes .plC li:before{content:"✓";flex:none;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;background:rgba(52,211,153,.15);color:#34d399;margin-top:1px}
+#planes .plC.pro li:before{background:rgba(255,197,66,.18);color:var(--ac)}
+#planes .plB{margin-top:auto;display:block;text-align:center;font:inherit;font-size:14px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;text-decoration:none;border-radius:12px;padding:14px;border:1px solid var(--bd);color:var(--tx);background:none;cursor:pointer}
+#planes .plC.pro .plB{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+#planes .plN{margin-top:10px;text-align:center;font-size:12.5px;color:var(--mu);line-height:1.6}#planes .plN a{color:var(--tx)}
+#planes .plI{max-width:900px;margin:22px auto 0;border:1px solid var(--bd);border-radius:20px;padding:24px 26px;background:var(--card)}
+#planes .plI .hd{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}#planes .plI .hd small{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu)}#planes .plI h3{margin:4px 0 4px;font-size:21px;color:var(--tx)}#planes .plI .hd p{margin:0;color:var(--mu);font-size:13.5px;max-width:520px}
+#planes .plI .am{text-align:right}#planes .plI .am b{display:block;font-size:24px;color:var(--tx)}#planes .plI .am span{font-size:12px;color:var(--mu)}
+#planes .plI .bx{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0}#planes .plI .bx div{border:1px solid var(--bd);border-radius:14px;padding:14px 16px;font-size:13.5px;color:var(--mu);line-height:1.5}#planes .plI .bx b{display:block;color:var(--tx);font-size:14.5px;margin-bottom:4px}
+#planes .plI ul{list-style:none;margin:0 0 18px;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;font-size:13.5px;color:var(--tx)}#planes .plI li:before{content:"✓";color:#34d399;font-weight:800;margin-right:8px}
+#planes .plI .ct{display:flex;align-items:center;gap:14px;flex-wrap:wrap}#planes .plI .ct a{background:var(--tx);color:var(--bg);text-decoration:none;font-weight:800;font-size:13.5px;letter-spacing:.04em;text-transform:uppercase;border-radius:12px;padding:12px 18px}#planes .plI .ct span{font-size:12.5px;color:var(--mu)}
+#planes .plT{max-width:900px;margin:22px auto 0;border:1px solid var(--bd);border-radius:20px;background:var(--card);overflow:hidden}
+#planes .plT h4{margin:0;padding:18px 22px;font-size:16px;color:var(--tx);border-bottom:1px solid var(--bd)}
+#planes .plT .w{overflow-x:auto}#planes .plT table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:560px}
+#planes .plT th,#planes .plT td{padding:11px 16px;border-bottom:1px solid var(--bd);text-align:center;color:var(--tx)}#planes .plT th{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);font-weight:700}
+#planes .plT td:first-child,#planes .plT th:first-child{text-align:left}#planes .plT td:nth-child(3),#planes .plT th:nth-child(3){background:rgba(255,197,66,.07)}
+#planes .plT td.y{color:#34d399;font-weight:800}#planes .plT td.n{color:var(--mu)}#planes .plT td i{font-style:italic;color:var(--mu);font-size:12.5px}#planes .plT tr.pz td{font-weight:800;border-bottom:0}
+@media(max-width:760px){#planes .plG,#planes .plI .bx,#planes .plI ul{grid-template-columns:1fr}#planes .plH{padding:20px 0 18px}#planes .plI .am{text-align:left}}
+</style>
+<script>
+/* ---------- Planes: Gratis, PRO e Institucional, con la comparativa ---------- */
+(function () {
+  var root = document.getElementById('planes'); if (!root) return;
+  var MP = ['https://mpago.la/1QLNzfC', 'https://mpago.la/1kaGQJu', 'https://mpago.la/1CTcAqa']; // mensual, 6 y 12 meses (los mismos del popup PRO)
+  var WA = function (t) { var a = window.BLAUTH && window.BLAUTH(), m = a && a.user && a.user.email ? ' Mi mail de la cuenta: ' + a.user.email : ''; return 'https://wa.me/5493772529368?text=' + encodeURIComponent(t + m); };
+  var FREE = ['Tabla de retornos de bonos en dólares', 'Curvas hard dollar y en pesos', 'Dólar, brecha y canje', 'Licitaciones y calendario macro', 'Resumen de mercado', 'Newsletter por mail', 'Precios con 20 minutos de demora'];
+  var PRO = ['Todo lo del plan Gratis, con precios en vivo', 'Caja de puntas, carry, sintéticos y forwards', 'Duales: curvas, valuación y proyección', 'CI vs 24 hs y Screener', 'ONs, provinciales y acciones', 'Portfolio, trade ideas y alertas', 'Variación diaria con efecto tiempo y tasa'];
+  var CMP = [['Tabla de retornos y curvas', 1, 1, 1], ['Dólar, brecha, licitaciones y calendario', 1, 1, 1], ['Resumen de mercado y newsletter', 1, 1, 1], ['Precios', 'con 20 min de demora', 'en vivo', 'en vivo'],
+    ['Caja de puntas, carry, sintéticos y forwards', 0, 1, 1], ['Duales, CER y TAMAR: valuación y proyección', 0, 1, 1], ['CI vs 24 hs y Screener', 0, 1, 1], ['ONs, provinciales y acciones', 0, 1, 1],
+    ['Portfolio, trade ideas y favoritos', 0, 1, 1], ['Alertas por notificación y mail', 0, 1, 1], ['Historia de tasas y señales', 0, 1, 1], ['PRO para todo el equipo (por dominio de mail)', 0, 0, 1],
+    ['Series históricas en Excel', 0, 0, 1], ['API REST + servidor MCP', 0, 0, 'próximo'], ['Soporte', 0, 'por WhatsApp', 'directo, en el día']];
+  var cell = function (v) { return v === 1 ? '<td class="y">✓</td>' : v === 0 ? '<td class="n">—</td>' : '<td><i>' + v + '</i></td>'; };
+  function draw() {
+    var a = window.BLAUTH && window.BLAUTH(), md = a && a.user && a.user.app_metadata || {}, hoy = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10), esPro = md.pro_hasta && String(md.pro_hasta).slice(0, 10) >= hoy;
+    root.innerHTML = '<div class="plH"><span class="plChip">Bonerío PRO · para inversores, asesores y mesas</span><h2>Toda la renta fija argentina,<br><span>en una sola terminal.</span></h2>' +
+      '<p>Curvas, duales, CER, TAMAR, dólar linked, ONs y acciones con precios en vivo. Valuá, proyectá y armá trades con los mismos datos que usa el mercado, todos los días.</p>' +
+      '<div class="plSt"><span><b>Precios en vivo</b> de BYMA</span><span>·</span><span>Datos del <b>BCRA</b> e <b>INDEC</b></span><span>·</span><span><b>7 días</b> de prueba con todo abierto</span></div></div>' +
+      '<div class="plG"><div class="plC"><small class="k">Free</small><div class="pr">Gratis</div><div class="sb">Sin tarjeta y sin vencimiento</div><ul>' + FREE.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' +
+      (a ? '<span class="plB" style="cursor:default;opacity:.7">' + (esPro ? 'Incluido en tu plan' : 'Tu plan actual') + '</span>' : '<button type="button" class="plB" data-login="up">Crear cuenta gratis</button>') + '</div>' +
+      '<div class="plC pro"><span class="rec">Recomendado</span><small class="k">PRO</small><div class="pr">$ 15.000 <span>/mes</span></div><div class="sb">o $ 145.000 por año (ahorrás 19%) · precio fundador</div><ul>' + PRO.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' +
+      (esPro ? '<span class="plB" style="cursor:default">Ya sos PRO hasta el ' + String(md.pro_hasta).slice(8, 10) + '/' + String(md.pro_hasta).slice(5, 7) + '</span>' : '<a class="plB" href="' + MP[0] + '" target="_blank" rel="noopener">Empezar PRO ahora</a>') +
+      '<div class="plN">Pagás con Mercado Pago · sin permanencia · cancelás cuando quieras<br><a href="' + MP[1] + '" target="_blank" rel="noopener">6 meses ($ 80.000)</a> · <a href="' + MP[2] + '" target="_blank" rel="noopener">12 meses ($ 145.000)</a> · <a href="' + WA('Hola, quiero pagar Bonerío PRO por transferencia. Plan:') + '" target="_blank" rel="noopener">Pagar por transferencia</a></div></div></div>' +
+      '<div class="plI"><div class="hd"><div><small>Para organizaciones</small><h3>Licencia institucional</h3><p>ALyCs, fondos, family offices y equipos de research. Una licencia por firma en vez de una suscripción por persona.</p></div><div class="am"><b>A medida</b><span>Escribinos y te pasamos la propuesta</span></div></div>' +
+      '<div class="bx"><div><b>PRO para todo el equipo</b>Cualquiera que entre con el mail de la organización tiene el plan completo, sin pagar aparte y sin que nadie lo dé de alta.</div><div><b>API REST + MCP · próximamente</b>Nuestros cierres, TIRs y curvas en Excel, Python o Claude, con keys por organización.</div></div>' +
+      '<ul><li>Series históricas de precios y tasas por bono</li><li>Curvas ajustadas por familia, con historia</li><li>Reportes a medida para clientes</li><li>Factura por Mercado Pago o transferencia</li></ul>' +
+      '<div class="ct"><a href="' + WA('Hola, quiero cotizar el plan Institucional de Bonerío. Necesito:') + '" target="_blank" rel="noopener">Contactanos →</a><span>Te respondemos en el día.</span></div></div>' +
+      '<div class="plT"><h4>Comparativa completa</h4><div class="w"><table><thead><tr><th>Función</th><th>Free</th><th>PRO</th><th>Institucional</th></tr></thead><tbody>' +
+      CMP.map(function (r) { return '<tr><td>' + r[0] + '</td>' + cell(r[1]) + cell(r[2]) + cell(r[3]) + '</tr>'; }).join('') +
+      '<tr class="pz"><td>Precio</td><td>$ 0</td><td>$ 15.000/mes</td><td>Consultar</td></tr></tbody></table></div></div>';
+  }
+  document.addEventListener('bl-auth', function () { if (root.classList.contains('active')) draw(); });
+  var _sw = window.switchTab; window.switchTab = function (id) { var r = _sw.apply(this, arguments); if (id === 'planes') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; draw(); } return r; };
+  if (root.classList.contains('active')) draw();
 })();
 </script>
 </body>
