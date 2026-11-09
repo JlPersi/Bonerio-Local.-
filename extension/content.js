@@ -133,7 +133,7 @@
       if (!row || row === c.el || /Cierre/.test(row.textContent || '')) continue; // la fila de Pos / P&L sola, no el recuadro entero
       const b = DB[c.k], [p] = precioVale(c.k, c.suf) ? precioDe(c) : [NaN], cel = filas(b, p), n = Math.ceil(cel.length / 2);
       if (!n) continue;
-      if (viejas.length !== n) { viejas.forEach((r) => r.remove()); let ant = row; for (let i = 0; i < n; i++) { const r = row.cloneNode(true); r.setAttribute('data-bnr', '1'); r.title = 'Bonerío Local'; ant.after(r); ant = r; } }
+      if (viejas.length !== n) { viejas.forEach((r) => r.remove()); let ant = row; for (let i = 0; i < n; i++) { const r = row.cloneNode(true); r.setAttribute('data-bnr', '1'); r.style.borderTop = '1px solid rgba(255,255,255,.45)'; r.title = 'Bonerío Local'; ant.after(r); ant = r; } }
       [...c.el.querySelectorAll('[data-bnr]')].forEach((r, i) => {
         const hojas = [...r.querySelectorAll('*')].filter((e) => !e.children.length); if (hojas.length < 4) return;
         [cel[2 * i], cel[2 * i + 1]].forEach((v, j) => {
