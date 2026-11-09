@@ -786,6 +786,7 @@ def armar(en_vivo=False, web=None):
         if body:
             i += 1
             cuerpo += sec(f"{i:02d}", rub, tit, body, col)
+    ULT.update(tipo=tipo or "dia", pts=pts, secs=i)  # para el archivo de ediciones (archivar)
     h = (
         f'<div style="background:{BG};padding:16px 0;font-family:{FONT};color:{TX}"><table role="presentation" bgcolor="{BG}" style="max-width:640px;width:100%;margin:auto;border-collapse:collapse;background:{BG}">'
         + (f'<tr><td style="padding:6px 16px"><div style="padding:10px 14px;background:#2a2410;border:1px solid #4d3f12;border-radius:10px;color:{AC};font-size:12.5px">Prueba con los precios de ahora contra el último cierre. El informe de verdad sale al cierre, con los cierres de hoy contra los de la rueda anterior.</div></td></tr>' if en_vivo else "")
@@ -804,6 +805,39 @@ def armar(en_vivo=False, web=None):
     )
     asunto = ("[Prueba] " if en_vivo else "") + f"{ {'semana': 'Cierre semanal', 'mes': 'Fin de ' + MES[hoy.month - 1]}.get(tipo, 'Informe de cierre') } {hoy.day}/{hoy.month}: MEP $ {n(mep)} ({sg(mep_d, 2, '%')}), riesgo país {n(rp, 0)} pb"
     return asunto, h, IMG
+
+
+ULT = {}
+ARCH = os.path.join(D, "newsletter")
+
+
+def archivar(hoy, asunto, html, img, keep=30):
+    """Guarda la edición enviada en data/newsletter/<fecha>/ (HTML + gráficos en WebP) y la suma a data/newsletter/index.json,
+    para la sección Newsletter de la página. Quedan las últimas `keep` ediciones."""
+    import shutil
+    out = os.path.join(ARCH, hoy)
+    os.makedirs(out, exist_ok=True)
+    for k, v in (img or {}).items():
+        fn = k + ".png"
+        try:
+            from PIL import Image
+            import io
+            Image.open(io.BytesIO(v)).save(os.path.join(out, k + ".webp"), "WEBP", quality=78, method=6)
+            fn = k + ".webp"
+        except Exception:
+            open(os.path.join(out, fn), "wb").write(v)
+        html = html.replace("cid:" + k, fn)
+    html = html.replace("Te llega porque te suscribiste al reporte diario: lo podés dar de baja en Alertas.", "")
+    open(os.path.join(out, "index.html"), "w", encoding="utf-8").write('<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+                                                                     '<meta name="robots" content="noindex"><title>' + asunto + '</title><style>body{margin:0;background:#0b0b0c}img{max-width:100%;height:auto}</style></head><body>' + html + "</body></html>")
+    txt = lambda h: re.sub(r"\s+([:;,.)])", r"\1", re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", h))).strip()
+    pal = len(txt(html).split())
+    idx = [e for e in (load("newsletter/index.json") or []) if e.get("f") != hoy]
+    idx.insert(0, {"f": hoy, "tipo": ULT.get("tipo", "dia"), "asunto": asunto, "pts": [txt(x) for x in ULT.get("pts", [])][:6], "secs": ULT.get("secs"), "min": max(2, round(pal / 220))})
+    idx.sort(key=lambda e: e["f"], reverse=True)
+    for e in idx[keep:]:
+        shutil.rmtree(os.path.join(ARCH, e["f"]), ignore_errors=True)
+    json.dump(idx[:keep], open(os.path.join(ARCH, "index.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
 
 
 def enviar(asunto, html, img, mails):
@@ -859,6 +893,10 @@ def main(prueba=False):
     if not prueba and ok:
         with open(os.path.join(D, "reporte_enviado.json"), "w") as f:
             json.dump({"f": hoy, "n": ok}, f)
+        try:
+            archivar(hoy, asunto, html, img)
+        except Exception as e:
+            print("no se pudo archivar la edición:", e)
 
 
 if __name__ == "__main__":
