@@ -818,12 +818,20 @@ def enviar(asunto, html, img, mails):
     return ok
 
 
-def suscriptos():
+def suscriptos(tipo=None, viernes=False):
+    """Los que reciben esta edición según su frecuencia (columna frecuencia: diario, semanal o mensual; sin la columna, todos diario).
+    Diario: todas las ruedas. Semanal: los viernes (edición de la semana, o la de fin de mes si cae viernes). Mensual: la última rueda del mes."""
     h = {"apikey": KEY, "User-Agent": "bonerio-reporte/1.0"}  # Supabase rechaza la clave secret (401) si el User-Agent parece de un navegador
     if KEY.startswith("eyJ"):
         h["Authorization"] = "Bearer " + KEY
-    subs = http(SB + "/rest/v1/reporte?activo=eq.true&select=email", headers=h) or []
-    return sorted({s["email"] for s in subs if s.get("email")})
+    try:
+        subs = http(SB + "/rest/v1/reporte?activo=eq.true&select=email,frecuencia", headers=h) or []
+    except urllib.error.HTTPError as e:
+        if e.code != 400:
+            raise
+        subs = http(SB + "/rest/v1/reporte?activo=eq.true&select=email", headers=h) or []  # todavía sin la columna frecuencia
+    quiere = {"diario": True, "semanal": tipo == "semana" or (tipo == "mes" and viernes), "mensual": tipo == "mes"}
+    return sorted({s["email"] for s in subs if s.get("email") and quiere.get(s.get("frecuencia") or "diario", True)})
 
 
 def main(prueba=False):
@@ -838,7 +846,8 @@ def main(prueba=False):
     if not html:
         return
     try:
-        mails = suscriptos()
+        d0 = dt.date.fromisoformat(hoy)
+        mails = suscriptos("mes", True) if prueba else suscriptos(os.environ.get("REPORTE_EDICION") or edicion(d0), d0.weekday() == 4)  # la prueba va a todos
     except Exception as e:
         print("supabase", e, "| clave:", "sb_secret" if KEY.startswith("sb_secret_") else "JWT service_role/anon" if KEY.startswith("eyJ") else "sb_publishable (no sirve)" if KEY.startswith("sb_publishable_") else "formato desconocido", len(KEY), "caracteres")  # para ver qué se cargó sin mostrarla
         return

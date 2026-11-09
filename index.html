@@ -8011,7 +8011,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<div class="card"><p style="margin:0;color:var(--tx);font-size:18px;font-weight:700">Alertas</p><p class="note" style="margin-top:4px">Te avisamos cuando un precio, el volumen, una TIR, TNA o paridad, el spread entre dos bonos, cualquier dólar, el canje, la brecha, un futuro y su tasa implícita, la caución, un ratio o el riesgo país cruzan el valor que elijas. Se revisan durante la rueda cada 3 minutos; cada alerta salta una vez y queda pausada hasta que la reactives.</p>' +
       '<div id="alNo" style="display:none" class="hl"><p>Para armar alertas tenés que entrar con tu cuenta.</p></div><div id="alIn">' +
       '<div class="ag"><div class="bx"><h4>Notificaciones en este dispositivo</h4><p>Llegan aunque tengas la página cerrada. En el iPhone primero hay que instalarla (abajo te mostramos cómo).</p><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="alPs"></span><button class="ab sec" id="alPb">Activar</button></div><div class="msg" id="alPm"></div></div>' +
-      '<div class="bx"><h4>Reporte diario por mail</h4><p>Al cierre de cada rueda: dólares, riesgo país, lo que más se movió y lo que viene en el calendario.</p><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="alRs"></span><button class="ab sec" id="alRb">Suscribirme</button></div><div class="msg" id="alRm"></div></div></div>' +
+      '<div class="bx" id="alRep"><h4>Newsletter: resumen de mercado por mail</h4><p>Dólares, riesgo país, curvas, lo que más se movió y lo que viene en el calendario. Elegí cada cuánto: diario (al cierre de cada rueda), semanal (los viernes, con el balance de la semana) o mensual (la última rueda del mes, con el balance del mes).</p><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="alRs"></span><select id="alRf" style="min-width:0;width:auto"><option value="diario">Diario</option><option value="semanal">Semanal</option><option value="mensual">Mensual</option></select><button class="ab sec" id="alRb">Suscribirme</button></div><div class="msg" id="alRm"></div></div></div>' +
       '<div class="rs"><h4 style="margin:0 0 12px">Nueva alerta</h4><div class="rc"><label>Qué mirar<select id="alM">' + GRP.map(function (g) { return '<optgroup label="' + g + '">' + Object.keys(M).filter(function (k) { return M[k][5] === g; }).map(function (k) { return '<option value="' + k + '">' + M[k][0] + '</option>'; }).join('') + '</optgroup>'; }).join('') + '</select></label>' +
       '<label id="alT1l"><span>Especie</span><input class="tk" id="alT1" list="alDl" placeholder="AL30"></label><label id="alT2l">Contra<input class="tk" id="alT2" list="alDl" placeholder="AL30"></label>' +
       '<label>Cuando<select id="alOp" style="width:200px"><option value=">">sube por encima de</option><option value="<">baja por debajo de</option></select></label><label>Valor<input id="alV" type="number" step="any"></label>' +
@@ -8021,7 +8021,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<div class="card" style="margin-top:16px"><p style="margin:0 0 4px;color:var(--tx);font-size:16px;font-weight:700">Instalala en el celular</p><p class="note" style="margin:0 0 14px">Queda como una app más en la pantalla de inicio, abre en pantalla completa y recibe las notificaciones de las alertas.</p><div class="inst">' +
       '<div class="bx">' + phone('ios') + '<div><h4>iPhone (Safari)</h4><ol><li>Abrí boneriolocal.com.ar en <b>Safari</b>.</li><li>Tocá <b>Compartir</b> (el cuadrado con la flecha, abajo).</li><li>Elegí <b>Agregar a inicio</b> y después <b>Agregar</b>.</li><li>Abrila desde el ícono y activá las notificaciones acá.</li></ol><p style="margin-top:8px">Las notificaciones en iPhone necesitan iOS 16.4 o posterior y la página instalada.</p></div></div>' +
       '<div class="bx">' + phone('and') + '<div><h4>Android (Chrome)</h4><ol><li>Abrí boneriolocal.com.ar en <b>Chrome</b>.</li><li>Tocá el menú <b>⋮</b> (arriba a la derecha).</li><li>Elegí <b>Instalar app</b> o <b>Agregar a la pantalla principal</b>.</li><li>Activá las notificaciones acá (también funcionan sin instalarla).</li></ol></div></div></div></div>';
-    root.addEventListener('change', function (e) { if (e.target.id === 'alM') form(); if (/^alT[12]$|^alM$/.test(e.target.id)) now(); });
+    root.addEventListener('change', function (e) { if (e.target.id === 'alRf' && REP) repSave(true); if (e.target.id === 'alM') form(); if (/^alT[12]$|^alM$/.test(e.target.id)) now(); });
     root.addEventListener('input', function (e) { if (/^alT[12]$/.test(e.target.id)) now(); });
     root.addEventListener('click', function (e) {
       var sv = e.target.closest('[data-see]'); if (sv) { var x = (AL || []).filter(function (y) { return y.id === sv.getAttribute('data-see'); })[0]; if (x) { $('alM').value = x.metrica; $('alT1').value = x.ticker || ''; $('alT2').value = x.ticker2 || ''; form(); $('alCard').scrollIntoView({ behavior: 'smooth', block: 'center' }); } return; }
@@ -8070,7 +8070,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function fetchAll() {
     var A = auth(); if (!A) return;
     A.sb.from('alertas').select('*').order('creada_en', { ascending: false }).then(function (r) { AL = r.error ? [] : r.data || []; if (r.error) msg('alNow', 'No se pudieron leer las alertas: ' + r.error.message, false); draw(); });
-    A.sb.from('reporte').select('activo').eq('user_id', A.user.id).maybeSingle().then(function (r) { REP = !r.error && r.data ? !!r.data.activo : false; draw(); });
+    A.sb.from('reporte').select('activo,frecuencia').eq('user_id', A.user.id).maybeSingle().then(function (r) { if (r.error) return A.sb.from('reporte').select('activo').eq('user_id', A.user.id).maybeSingle(); REPF = (r.data && r.data.frecuencia) || 'diario'; return r; }).then(function (r) { REP = !r.error && r.data ? !!r.data.activo : false; draw(); }); // frecuencia: columna nueva; sin ella, diario
   }
   function add() {
     var A = auth(); if (!A || busy) return; var m = $('alM').value, t1 = $('alT1').value.trim().toUpperCase(), t2 = $('alT2').value.trim().toUpperCase(), v = parseFloat($('alV').value);
@@ -8103,14 +8103,19 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
   function repToggle() {
     var A = auth(); if (!A || REP == null) return; var on = !REP;
-    A.sb.from('reporte').upsert({ user_id: A.user.id, email: A.user.email, activo: on }, { onConflict: 'user_id' }).then(function (r) { if (r.error) return msg('alRm', 'No se pudo guardar: ' + r.error.message, false); REP = on; msg('alRm', on ? 'Listo: te llega al cierre de cada rueda a ' + A.user.email + '.' : 'Listo: no te llega más.'); draw(); });
+    repSave(on); }
+  var REPF = 'diario', REPT = { diario: 'al cierre de cada rueda', semanal: 'los viernes', mensual: 'la última rueda de cada mes' };
+  function repSave(on) {
+    var A = auth(); if (!A) return; var f = ($('alRf') && $('alRf').value) || REPF, row = { user_id: A.user.id, email: A.user.email, activo: on, frecuencia: f };
+    var fin = function (r, sinF) { if (r.error) return msg('alRm', 'No se pudo guardar: ' + r.error.message, false); REP = on; if (!sinF) REPF = f; msg('alRm', on ? 'Listo: te llega ' + (sinF ? REPT.diario : REPT[f]) + ' a ' + A.user.email + '.' + (sinF && f !== 'diario' ? ' Por ahora sale todos los días: falta activar la opción semanal y mensual.' : '') : 'Listo: no te llega más.'); draw(); };
+    A.sb.from('reporte').upsert(row, { onConflict: 'user_id' }).then(function (r) { if (r.error && /frecuencia/i.test(r.error.message || '')) { delete row.frecuencia; A.sb.from('reporte').upsert(row, { onConflict: 'user_id' }).then(function (r2) { fin(r2, true); }); return; } fin(r); });
   }
   function draw() {
     if (!isAct() || !$('alL')) return; var A = auth();
     $('alNo').style.display = A ? 'none' : ''; $('alIn').style.display = A ? '' : 'none'; if (!A) return;
     var pg = 'Notification' in window && Notification.permission === 'granted';
     $('alPs').innerHTML = '<span class="st ' + (pg ? 'ok' : 'no') + '">' + (pg ? 'Activadas' : 'Desactivadas') + '</span>'; $('alPb').textContent = pg ? 'Volver a registrar' : 'Activar';
-    $('alRs').innerHTML = REP == null ? '' : '<span class="st ' + (REP ? 'ok' : 'no') + '">' + (REP ? 'Suscripto' : 'No suscripto') + '</span>'; $('alRb').textContent = REP ? 'Desuscribirme' : 'Suscribirme';
+    $('alRs').innerHTML = REP == null ? '' : '<span class="st ' + (REP ? 'ok' : 'no') + '">' + (REP ? 'Suscripto' : 'No suscripto') + '</span>'; $('alRb').textContent = REP ? 'Desuscribirme' : 'Suscribirme'; if ($('alRf') && document.activeElement !== $('alRf')) $('alRf').value = REPF;
     if (AL == null) return;
     $('alL').innerHTML = AL.length ? AL.map(function (a) {
       var v = val(a), dis = a.disparada_en ? new Date(a.disparada_en).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : null;
@@ -9872,7 +9877,7 @@ window.USTX = (function () {
   IC.acc = P('<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 6-7"/><path d="M16 7h4v4"/>');
   IC.res = P('<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>'); IC.trd = P('<path d="M7 17L17 7"/><path d="M8 7h9v9"/>'); IC.dash = P('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>');
   IC.cal = P('<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 13v5M10 14.5h3a1.2 1.2 0 0 1 0 2.4h-2a1.2 1.2 0 0 0 0 2.4" transform="translate(0 -.6) scale(1 .85)"/>'); DESC.cal = 'Cuándo cobrás cupones y amortizaciones de tus bonos, día por día.';
-  IC.cons = P('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>');
+  IC.cons = P('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'); IC.news = P('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>');
   IC.exp = P('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'); IC.expi = IC.exp; IC.expd = IC.dol; IC.expf = IC.curva; IC.expp = IC.exp;
   DESC.expp = 'La probabilidad de default que descuentan los Bonares y Globales, hoy y en el tiempo, con el recupero que elijas.'; DESC.expi = 'La inflación que descuentan los bonos CER contra la tasa fija, bono por bono y en el tiempo, contra el REM.'; DESC.expd = 'La devaluación que descuentan los dólar linked contra la tasa fija, bono por bono y en el tiempo, contra el REM.'; DESC.expf = 'La tasa de cada tramo entre vencimientos de cada familia y las forwards entre pares en el tiempo.'; DESC.thist = 'La tasa de cada bono día por día y su precio relativo contra la curva.';
   var CAR = P('<path d="m9 6 6 6-6 6"/>').replace('<svg ', '<svg class="sn-car" '), has = function (id) { return id === 'home' || TB.some(function (t) { return t[0] === id; }); };
@@ -9882,8 +9887,8 @@ window.USTX = (function () {
     { g: 'pvs', t: 'Bonos provinciales', ic: 'pvs', it: [['pvs', 'Curva y tabla'], ['pvs', 'Por calificación', 'pvsRt'], ['pvsf', 'Flujos y total return']] },
     { h: 'Acciones' }, ['acc', 'Acciones'], { h: 'Dólar y tasas' }, ['dol', 'Dólar'], ['brc', 'Brecha y canje'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['carry', 'Carry trade'],
     { h: 'Mercado' }, ['macro', 'Calendario macro'], { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards'], ['expp', 'Probabilidad de default']] },
-    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['dsim', 'Duales'], { sep: 1 }, ['cons', 'Consultame']];
-  var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
+    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['dsim', 'Duales'], { h: 'Más' }, ['alert', 'Newsletter', 'alRep', 'news'], ['alert', 'Alertas'], ['cons', 'Consultame']];
+  var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[3] || t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
   sn.innerHTML = '<div class="sn-h"><img src="/favicon.svg?v=2" alt=""><b>BONERÍO LOCAL</b></div><nav>' +
     GR.map(function (g, i) { return g.h ? '<div class="sn-hd">' + g.h + '</div>' : g.sep ? '<div class="sn-sep"></div>' : (Array.isArray(g) ? item(g) : '<div class="sn-g" data-gr="' + g.g + '"><button class="sn-it" data-g="' + g.g + '" title="' + g.t + '">' + IC[g.ic] + '<span>' + g.t + '</span>' + CAR + '</button><div class="sn-sub">' + g.it.map(function (t) { return item(t, 1); }).join('') + '</div></div>'); }).join('') +
     '</nav><div class="sn-f"><button class="sn-it sn-col" data-col title="Achicar o agrandar el menú">' + IC.col + '<span>Achicar menú</span></button></div>';
@@ -16074,6 +16079,46 @@ window.RATG = (function () {
   var was = new WeakSet(); document.querySelectorAll('.tab-content.active').forEach(function (el) { was.add(el); on(el); });
   new MutationObserver(function (ms) { ms.forEach(function (m) { var el = m.target; if (!el.classList || !el.classList.contains('tab-content')) return; var a = el.classList.contains('active'); if (a && !was.has(el)) on(el); if (a) was.add(el); else was.delete(el); }); })
     .observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+})();
+</script>
+<style>
+/* menú lateral: abajo, el usuario y su plan */
+#sideNav .sn-u{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;border:0;border-top:1px solid var(--bd);background:none;padding:12px 14px;color:var(--tx);font:inherit;text-align:left;cursor:pointer}
+#sideNav .sn-u:hover{background:rgba(128,128,128,.08)}
+#sideNav .sn-u i{flex:none;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:700 14px/1 inherit;font-style:normal;color:#0b0b0c;background:var(--ac,#ffc542);overflow:hidden}
+#sideNav .sn-u i img{width:100%;height:100%;object-fit:cover}
+#sideNav .sn-u span{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+#sideNav .sn-u b{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sideNav .sn-u small{font-size:12px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sideNav .sn-u em{flex:none;font-style:normal;font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:999px;border:1px solid var(--bd);color:var(--mu)}
+#sideNav .sn-u em.pro{border-color:#ffc542;color:#ffc542}
+body.sn-mini #sideNav .sn-u{justify-content:center;padding:12px 0}body.sn-mini #sideNav .sn-u span,body.sn-mini #sideNav .sn-u em{display:none}
+@media (max-width:900px){body.sn-mini #sideNav .sn-u{justify-content:flex-start;padding:12px 14px}body.sn-mini #sideNav .sn-u span,body.sn-mini #sideNav .sn-u em{display:flex}}
+</style>
+<script>
+(function () {
+  var sn = document.getElementById('sideNav'); if (!sn) return;
+  var b = document.createElement('button'); b.type = 'button'; b.className = 'sn-u'; b.style.display = 'none'; var nav = sn.querySelector('nav'); sn.insertBefore(b, nav ? nav.nextSibling : null);
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var hoy = function () { return new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10); }, fd = function (s) { return s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(2, 4); };
+  var plan = function (u) { // PRO pago (pro_hasta), prueba gratis (los 7 días de la cuenta nueva o hasta el 13/11) o gratis
+    var m = u.app_metadata || {}, ph = m.pro_hasta ? String(m.pro_hasta).slice(0, 10) : '';
+    if (ph && ph >= hoy()) return ['PRO', 'hasta el ' + fd(ph), 1];
+    var tr = u.created_at ? Date.parse(u.created_at) + 7 * 864e5 : 0, fh = '2026-11-13';
+    if (Date.now() < tr || hoy() < fh) { var f = new Date(Math.max(tr, Date.parse(fh + 'T03:00:00Z')) - 3 * 3600e3).toISOString().slice(0, 10); return ['Prueba', 'prueba hasta el ' + fd(f), 1]; }
+    return ['Free', 'plan gratis', 0];
+  };
+  var sig = '';
+  var draw = function () {
+    var a = window.BLAUTH && window.BLAUTH(), u = a && a.user; if (!u) { if (sig) { sig = ''; b.style.display = 'none'; } return; }
+    var md = u.user_metadata || {}, nm = md.full_name || md.name || (u.email || '').split('@')[0], av = md.avatar_url || md.picture || '', p = plan(u), s = [u.id, nm, av, p.join()].join('|');
+    if (s === sig) return; sig = s;
+    b.title = (u.email || '') + ' · ' + (p[0] === 'Free' ? 'Ver planes PRO' : p[1]);
+    b.innerHTML = '<i>' + (av ? '<img src="' + esc(av) + '" alt="" referrerpolicy="no-referrer">' : esc((nm || '?').charAt(0).toUpperCase())) + '</i><span><b>' + esc(nm) + '</b><small>' + esc(p[1]) + '</small></span><em' + (p[0] === 'PRO' ? ' class="pro"' : '') + '>' + p[0] + '</em>';
+    b.style.display = '';
+  };
+  b.onclick = function () { var a = window.BLAUTH && window.BLAUTH(), u = a && a.user; if (u && plan(u)[0] === 'PRO') { var m = document.querySelector('#blUser > button'); if (m) m.click(); return; } if (window.BLPROPOP) window.BLPROPOP(); }; // gratis o en prueba: los planes; PRO: el menú de la cuenta
+  draw(); setInterval(draw, 2000);
 })();
 </script>
 </body>
