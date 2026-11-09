@@ -14889,7 +14889,7 @@ window.RATG = (function () {
   var col = function (v, inv) { return v == null || !isFinite(v) || Math.abs(v) < 1e-9 ? '' : ((v > 0) !== !!inv ? ' style="color:var(--up,#4ade80)"' : ' style="color:var(--dn,#f87171)"'); };
   var fr = function (s) { return s ? s.slice(8, 10) + '/' + s.slice(5, 7) + (s.slice(0, 4) !== hoyS().slice(0, 4) ? '/' + s.slice(2, 4) : '') : '—'; }, fr2 = function (s) { return s ? s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(0, 4) : '—'; };
   var mny = function (v) { return v == null ? '—' : v >= 1e12 ? '$' + nf(v / 1e12, 2) + ' B' : v >= 1e9 ? '$' + nf(v / 1e9, 1) + ' mil M' : v >= 1e7 ? '$' + nf(v / 1e6, 0) + ' M' : v >= 1e6 ? '$' + nf(v / 1e6, 1) + ' M' : '$' + nf(v / 1e3, 0) + ' mil'; };
-  var PER = [['1', 'Diario'], ['5', '1 semana'], ['10', '2 semanas'], ['21', 'Mensual'], ['y', 'En el año'], ['c', 'Fechas']];
+  var PER = [['1', 'Diario'], ['h', 'Hoy en vivo'], ['5', '1 semana'], ['10', '2 semanas'], ['21', 'Mensual'], ['y', 'En el año'], ['c', 'Fechas']];
   var ST = { n: '1', a1: '', a2: '', cmp: '', c1: '', c2: '' }; try { Object.assign(ST, JSON.parse(localStorage.getItem('blRes2') || '{}')); } catch (e) {}
   var save = function () { try { localStorage.setItem('blRes2', JSON.stringify(ST)); } catch (e) {} };
   var VD = null, DA = null, RP = null, A35 = null, CH = {}, busy = false;
@@ -15023,6 +15023,7 @@ window.RATG = (function () {
   var hoyS = function () { return new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10); };
   function rng(n, d1s, d2s) { // {b0, e0, live, N}: el período que se elige
     var ds = VD.dates, L = ds.length - 1, hoy = hoyS(), lv = typeof mktStarted === 'function' && mktStarted() && !(typeof mktOpen === 'function' && mktOpen()) && ds[L] < hoy; // es el resumen del día: la rueda de hoy entra recién cuando terminó (a las 17); mientras opera, está Variación diaria
+    if (n === 'h') { if (typeof mktStarted === 'function' && mktStarted() && ds[L] < hoy) return { b0: L, e0: L, live: true, N: 1, h: 1 }; var r1 = rng('1'); if (r1) r1.h0 = 1; return r1; } // hoy en vivo: el último cierre contra lo operado hasta ahora (sin rueda hoy: la última cerrada)
     if (n === 'c') { if (!d1s || !d2s || d2s <= d1s) return null; var ix = function (d) { var k = -1; for (var q = 0; q <= L; q++) if (ds[q] <= d) k = q; return k; };
       var b0 = ix(d1s), e0 = ix(d2s); if (b0 < 1 || e0 <= b0 && !(lv && d2s >= hoy)) return null; var live = lv && d2s >= hoy && e0 === L; return { b0: b0, e0: e0, live: live, N: live ? e0 - b0 + 1 : e0 - b0 }; }
     if (n === 'y') { var y0 = String(+hoy.slice(0, 4) - 1) + '-12-31', yb = -1; for (var q2 = 0; q2 <= L; q2++) if (ds[q2] <= y0) yb = q2; if (yb < 1) return null; return { b0: yb, e0: L, live: lv, N: lv ? L - yb + 1 : L - yb }; } // en el año: desde el último cierre del año pasado
@@ -15053,7 +15054,8 @@ window.RATG = (function () {
     var N = Rg.N, ds = VD.dates, L = ds.length - 1, hoy = hoyS(), live = Rg.live, b0 = Rg.b0, e0 = Rg.e0;
     var d0 = ds[b0], d1 = live ? hoy : ds[e0], s0 = bxSettle(day(d0)), s1 = live ? bxSettle(day(hoy)) : bxSettle(day(ds[e0]));
     var v0 = live ? e0 - N + 2 : b0 + 1; // volumen: las ruedas cerradas del período
-    $o('resSub').textContent = 'Del ' + fr(d0) + ' al ' + fr(d1) + (live ? ' (hoy, rueda terminada)' : typeof mktOpen === 'function' && mktOpen() ? ' · la rueda de hoy se suma cuando termine (17 hs); en curso, mirá Variación diaria' : '') + ' · ' + (N === 1 ? '1 rueda' : N + ' ruedas');
+    var HV = !!Rg.h, LQ = window.PXQ || {}, lvE = function (t, fx) { var q = HV && LQ[t]; return q && q.v > 0 && q.c > 0 ? q.v * q.c / 100 * (fx ? fx[e0] || 0 : 1) : 0; }; // en vivo: lo operado hoy hasta ahora (monto = nominales × precio)
+    $o('resSub').textContent = HV ? 'Hoy en vivo: cierre del ' + fr(d0) + ' contra los precios y el volumen de ahora · se actualiza solo' : Rg.h0 ? 'Hoy no hay rueda abierta: muestra la última rueda cerrada (' + fr(d0) + ' → ' + fr(d1) + ')' : 'Del ' + fr(d0) + ' al ' + fr(d1) + (live ? ' (hoy, rueda terminada)' : typeof mktOpen === 'function' && mktOpen() ? ' · la rueda de hoy se suma cuando termine (17 hs); en curso, mirá Variación diaria' : '') + ' · ' + (N === 1 ? '1 rueda' : N + ' ruedas');
     // dólares por fecha
     var a = ser('AL30'), ad = ser('AL30D'), ac = ser('AL30C'), MEP = [], CCL = [];
     for (var q = 0; q <= L; q++) { var p = pxAt(a, q), pd = pxAt(ad, q), pcc = pxAt(ac, q); MEP[q] = p && pd ? p / pd : null; CCL[q] = p && pcc ? p / pcc : null; }
@@ -15069,18 +15071,18 @@ window.RATG = (function () {
         var r = { k: o.k, fam: f, grp: o.grp, P0: P0, P1: P1, ret: P1 / P0 - 1, mat: o.mat };
         if (f === 'usd' || f === 'fija') { var fl = f === 'usd' && BB[o.k] ? bxFullFlows(BB[o.k]) : o.fl; r.cp = (fl || []).reduce(function (z, x) { return x[0] > s0 && x[0] <= s1 ? z + x[1] : z; }, 0); if (r.cp > 0) r.ret = (P1 + r.cp) / P0 - 1; /* retorno total: el precio más lo que cobró (cupón y amortización); sin esto, el que pagó en el período parece que bajó */ r.y0 = ytm(fl, s0, P0); r.y1 = ytm(fl, s1, P1); if (r.y1 == null && live) r.y1 = o.tea; r.yrs = (o.mat - s1) / 365; if (r.y0 != null && r.y1 != null) r.dy = (r.y1 - r.y0) * 1e4; }
         var base = o.k, tot = 0;
-        [[base, null], [base + 'D', MEP], [base + 'C', CCL]].forEach(function (x) { var sx = ser(x[0]); if (sx) tot += sumE(sx, v0, e0, x[1]); });
+        [[base, null], [base + 'D', MEP], [base + 'C', CCL]].forEach(function (x) { var sx = ser(x[0]); if (sx) tot += sumE(sx, v0, e0, x[1]); tot += lvE(x[0], x[1]); });
         var pre = 0; [[base, null], [base + 'D', MEP], [base + 'C', CCL]].forEach(function (x) { var sx = ser(x[0]); if (sx) pre += sumE(sx, Math.max(0, v0 - 60), v0 - 1, x[1]); });
         r.vol = tot; r.adv = tot / N; r.pre = pre / 60; r.unu = r.pre > 0 && pxAt(s, Math.max(0, v0 - 60)) > 0 ? r.adv / r.pre : null;
         rows.push(r);
       });
     });
     // acciones
-    var acc = [], BLS = window.BLS && window.BLS.by;
-    Object.keys(DA).forEach(function (t) { var s = ser(t, 1), P0 = pxAt(s, b0), lv = BLS && BLS[t] && BLS[t].c, P1 = live && lv > 0 ? lv : pxAt(s, e0); if (!(P0 > 0) || !(P1 > 0)) return; var tot = sumE(s, v0, e0), pre = sumE(s, Math.max(0, v0 - 60), v0 - 1) / 60; acc.push({ k: t, fam: 'acc', ret: P1 / P0 - 1, vol: tot, adv: tot / N, pre: pre, unu: pre > 0 ? tot / N / pre : null }); });
+    var acc = [], BLS = window.BLS && window.BLS.by, LQA = HV && window.ACCQ && window.ACCQ.lv ? window.ACCQ.lv() || {} : {};
+    Object.keys(DA).forEach(function (t) { var s = ser(t, 1), P0 = pxAt(s, b0), lv = BLS && BLS[t] && BLS[t].c, P1 = live && lv > 0 ? lv : pxAt(s, e0); if (!(P0 > 0) || !(P1 > 0)) return; var la = HV && LQA[t], tot = sumE(s, v0, e0) + (la && la.v > 0 && la.c > 0 ? la.v * la.c : 0), pre = sumE(s, Math.max(0, v0 - 60), v0 - 1) / 60; acc.push({ k: t, fam: 'acc', ret: P1 / P0 - 1, vol: tot, adv: tot / N, pre: pre, unu: pre > 0 ? tot / N / pre : null }); });
     var xl = [], XS = []; // ONs y provinciales hard dollar: cierres guardados en data/volumen.json (historia de BYMA)
     [['on', window.ONSQ], ['pv', window.PVSQ]].forEach(function (z) { var Q = z[1], H = []; if (!Q || !Q.hist) return; try { H = Q.hist(function () { if (isAct()) paint(); }) || []; } catch (e) { H = []; }
-      H.forEach(function (o) { var s = ser(o.sym); if (!s) return; XS.push([z[0], o.sym]); var P0 = pxAt(s, b0), P1 = pxAt(s, e0); if (!(P0 > 0) || !(P1 > 0) || Math.abs(P1 / P0 - 1) > Math.min(0.5, 0.15 * Math.sqrt(N))) return; /* saltos raros de un cierre (precio mal cargado) afuera */ var FX = o.sym.slice(-1) === 'C' ? CCL : MEP, tot = sumE(s, v0, e0, FX), pre = sumE(s, Math.max(0, v0 - 60), v0 - 1, FX) / 60;
+      H.forEach(function (o) { var s = ser(o.sym); if (!s) return; XS.push([z[0], o.sym]); var lqo = HV && LQ[o.sym], P0 = pxAt(s, b0), P1 = lqo && lqo.c > 0 ? lqo.c : pxAt(s, e0); if (!(P0 > 0) || !(P1 > 0) || Math.abs(P1 / P0 - 1) > Math.min(0.5, 0.15 * Math.sqrt(N))) return; /* saltos raros de un cierre (precio mal cargado) afuera */ var FX = o.sym.slice(-1) === 'C' ? CCL : MEP, tot = sumE(s, v0, e0, FX) + lvE(o.sym, FX), pre = sumE(s, Math.max(0, v0 - 60), v0 - 1, FX) / 60;
         if (tot > 0) xl.push({ k: o.k, fam: z[0], ret: P1 / P0 - 1, vol: tot, adv: tot / N, pre: pre, unu: pre > 0 ? tot / N / pre : null }); }); });
     var liq = rows.filter(function (r) { return r.vol > 0; }), accL = acc.filter(function (r) { return r.vol > 0; });
     try { mixCalc(U, XS, MEP, CCL); } catch (e) { MIX = null; }
@@ -15199,6 +15201,7 @@ window.RATG = (function () {
   var isAct = function () { return root.classList.contains('active') || root.style.display === 'block'; };
   var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'res') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; draw(); } };
   setInterval(function () { if (isAct() && VD && typeof mktOpen === 'function' && mktOpen()) paint(); }, 60000);
+  setInterval(function () { if (isAct() && VD && ST.n === 'h' && !document.hidden && typeof mktOpen === 'function' && mktOpen()) paint(); }, 20000); // hoy en vivo: cada 20 s
 })();
 </script>
 <script>
