@@ -135,7 +135,7 @@
 
     '<div class="cat"><h3 class="sh"><span class="dm">' + (NUM[TABS.length] || TABS.length) + ' pantallas,</span> un mismo mercado.</h3><p class="shp">Pasá por cada una para ver qué hay adentro.</p><div class="cg"><div class="ls">' +
     TABS.map(function (t, i) { return '<button data-tab="' + i + '"' + (i ? '' : ' class="on"') + '><i>' + (i < 9 ? '0' : '') + (i + 1) + '</i><b>' + t[0] + '</b><span>' + t[1] + '</span></button>'; }).join('') +
-    '</div><figure class="pv" style="margin:0"><img data-pv src="/intro/' + TABS[0][2] + '.webp?v=1" alt="' + TABS[0][0] + '" decoding="async"><figcaption><span data-pvn>01 · ' + TABS[0][0] + '</span><span>captura de la terminal</span></figcaption></figure></div></div>' +
+    '</div><figure class="pv" style="margin:0"><img data-pv src="/intro/' + TABS[0][2] + '.webp?v=2" alt="' + TABS[0][0] + '" decoding="async"><figcaption><span data-pvn>01 · ' + TABS[0][0] + '</span><span>captura de la terminal</span></figcaption></figure></div></div>' +
 
     '<footer><span>© ' + new Date().getFullYear() + ' Bonerío Local. Todos los derechos reservados. <a href="/terminos.html" target="_blank" rel="noopener">Términos</a> · <a href="/privacidad.html" target="_blank" rel="noopener">Privacidad</a> · <a href="/terminos.html#arrepentimiento" target="_blank" rel="noopener">Botón de arrepentimiento</a></span><span>Herramienta de análisis; no constituye recomendación de inversión.</span></footer></div>';
 
@@ -158,7 +158,8 @@
     ov.querySelector('[data-go]').onclick = function () { view('forgot'); };
     ov.querySelector('[data-alt]').onclick = function () { if (V === 'reset') { RESET = false; if (user) { view('in'); unlock(); return; } } view(V === 'link' || V === 'forgot' || V === 'reset' ? 'in' : 'link'); };
     view('in');
-    TABS.forEach(function (t) { var im = new Image(); im.src = '/intro/' + t[2] + '.webp?v=2'; }); // las capturas quedan listas para el cambio
+    var pre = function () { if (pre.d) return; pre.d = 1; TABS.forEach(function (t) { var im = new Image(); im.src = '/intro/' + t[2] + '.webp?v=2'; }); }; // las capturas se bajan cuando el visitante se mueve por la lista (o a los 6 s), no todas de entrada
+    ov.querySelectorAll('[data-tab]').forEach(function (b) { b.addEventListener('mouseenter', pre); }); setTimeout(pre, 6000);
     market();
     return ov;
   }
