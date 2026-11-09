@@ -133,7 +133,7 @@
       if (!row || row === c.el || /Cierre/.test(row.textContent || '')) continue; // la fila de Pos / P&L sola, no el recuadro entero
       const b = DB[c.k], [p] = precioVale(c.k, c.suf) ? precioDe(c) : [NaN], cel = filas(b, p), n = Math.ceil(cel.length / 2);
       if (!n) continue;
-      if (viejas.length !== n) { viejas.forEach((r) => r.remove()); let ant = row; for (let i = 0; i < n; i++) { const r = row.cloneNode(true); r.setAttribute('data-bnr', '1'); r.title = 'Bonerío Local'; ant.after(r); ant = r; } }
+      if (viejas.length !== n) { viejas.forEach((r) => r.remove()); let ant = row; for (let i = 0; i < n; i++) { const r = row.cloneNode(true); r.setAttribute('data-bnr', '1'); r.style.borderTop = '1px solid rgba(255,255,255,.45)'; r.title = 'Bonerío Local'; ant.after(r); ant = r; } }
       [...c.el.querySelectorAll('[data-bnr]')].forEach((r, i) => {
         const hojas = [...r.querySelectorAll('*')].filter((e) => !e.children.length); if (hojas.length < 4) return;
         [cel[2 * i], cel[2 * i + 1]].forEach((v, j) => {
@@ -234,7 +234,7 @@
 
   function pintar() {
     if (!activo) { B.innerHTML = '<span class="m">Abrí un bono en Matriz (o hacé clic en una fila) y aparece acá.</span>'; return; }
-    const BT = (c) => `<div class="bt">${c ? '<button data-v="ficha">Ficha</button><button data-v="curva">Curva</button>' : '<button data-v="ficha">Ficha</button>'}<button data-v="port">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">→ Boleta</button></div>`;
+    const BT = (c) => `<div class="bt">${c ? '<button data-v="ficha">Ficha</button><button data-v="curva">Curva</button>' : '<button data-v="ficha">Ficha</button>'}<button data-v="port">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
     const enlazar = () => B.querySelectorAll('.bt button').forEach((x) => (x.onclick = () => (x.dataset.v === 'boleta' ? aBoleta(activo) : ventana(x.dataset.v))));
     const seguir = () => { if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana() : (W.querySelector('.tt').textContent = activo); }; // la ventana sigue al bono
     if (!DB[activo]) { B.innerHTML = `<div class="t">${activo}</div><div class="m">Sin datos en Bonerío para este ticker todavía; probá su ficha.</div>` + BT(false); enlazar(); if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana() : (W.querySelector('.tt').textContent = activo); return; }
@@ -244,7 +244,7 @@
       B.innerHTML = `<div class="t">${activo}</div><div class="m">Acción · cierre ${b.fecha}</div>
         <div class="g"><span>Precio</span><span>$ ${fmt(b.precio)}</span><span>Var. día</span><span>${pc(r['1d'])}</span><span>1 mes</span><span>${pc(r['1m'])}</span><span>En el año</span><span>${pc(r.ytd)}</span>
         <span>P/E</span><span>${fmt(b.pe)}</span><span>P/VL</span><span>${fmt(b.pvl)}</span><span>EV/EBITDA</span><span>${fmt(b.ev)}</span><span>Beta</span><span>${fmt(b.beta)}</span></div>
-        <div class="bt"><button data-v="ficha">Acciones</button><button data-v="port">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">→ Boleta</button></div>`;
+        <div class="bt"><button data-v="ficha">Acciones</button><button data-v="port">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
       enlazar(); seguir(); return;
     }
     if (b.tipo === 'fut') {
@@ -255,7 +255,7 @@
         <div class="g"><span>Cierre</span><span>$ ${fmt(b.precio)}</span><span>A3500 (${b.fspot.slice(5).split('-').reverse().join('/')})</span><span>$ ${fmt(b.spot)}</span>
         <span>TNA implícita</span><span>${fmt(x.tna)}%</span><span>Devaluación mensual</span><span>${fmt(x.dev)}%</span><span>Días al vto.</span><span>${x.d}</span></div>
         <label class="m">Precio (${fuente || 'cierre'}): si compro a…</label><input value="${p > 0 ? fmt(p, 2) : ''}" placeholder="Precio">
-        <div class="bt"><button data-v="curva">Curva</button><button data-v="port">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">→ Boleta</button></div>`;
+        <div class="bt"><button data-v="curva">Curva</button><button data-v="port">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
       enlazar(); seguir(); B.querySelector('input').onchange = () => { precioManual = true; pintar(); }; return;
     }
     const f = ajuste(b.grupo, b.ley);
