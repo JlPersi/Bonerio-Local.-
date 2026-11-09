@@ -10283,6 +10283,10 @@ window.USTX = (function () {
   if (EMB) {
     var mode = Q.get('emb'), wid = Q.get('wid') || '';
     var post = window.DBPOST = function (o) { o.wid = wid; try { parent.postMessage(o, location.origin); } catch (e) { } if (o.t === 'dbH') try { parent.postMessage({ t: 'bnrH', h: o.h }, '*'); } catch (e) { } }; // la altura también para la extensión de Matriz (solo el número)
+    window.addEventListener('message', function (e) { // extensión de Matriz: pide los datos de un bono para la calculadora del panel
+      var d = e.data; if (e.source !== parent || !d || d.t !== 'bnrDatos' || !/^[A-Z0-9]{3,10}$/.test(d.k || '')) return;
+      var r = window.BONO && window.BONO.datos ? window.BONO.datos(d.k) : null; try { parent.postMessage({ t: 'bnrDat', k: d.k, d: r }, '*'); } catch (er) { }
+    });
     document.addEventListener('click', function (e) { // extensión de Matriz: el ticker del punto del gráfico o de la fila que se tocó, para cargarlo en la boleta
       var k = null, c = e.target.closest && e.target.closest('canvas'), ch = c && window.Chart && Chart.getChart && Chart.getChart(c);
       if (ch) { var pos = Chart.helpers.getRelativePosition(e, ch), L = [].concat(ch.getElementsAtEventForMode(e, 'nearest', { intersect: true }, false), ch.tooltip && ch.tooltip.getActiveElements ? ch.tooltip.getActiveElements() : [], (function () { var o = []; ch.data.datasets.forEach(function (d, i) { if (!ch.isDatasetVisible(i)) return; ch.getDatasetMeta(i).data.forEach(function (p, j) { var r = Math.hypot(p.x - pos.x, p.y - pos.y); if (r < 22) o.push({ datasetIndex: i, index: j, r: r }); }); }); return o.sort(function (a, b) { return a.r - b.r; }); })()); // el punto tocado, el del tooltip o el más cercano a menos de 22 px (las líneas de la curva no tienen ticker y se saltean)
@@ -11170,7 +11174,10 @@ window.USTX = (function () {
     window.scrollTo(0, 0);
     if (root.classList.contains('active')) render(); else window.switchTab('bono');
   }
-  window.BONO = { open: open, vt: function (k) { try { uni(); var r = MAP[k]; if (!r) return null; var T = tech(r); return T.vt; } catch (e) { return null; } }, cf: function (k) { // pagos (ya cobrados y por cobrar) por 100 VN originales: [[día, total]]; para Trade ideas
+  window.BONO = { open: open, datos: function (k) { // extensión de Matriz: lo de «Rendimiento y riesgo» y los flujos para su calculadora (mismos cálculos que la ficha)
+    try { uni(); var r = MAP[k]; if (!r) return null; var T = tech(r), s = r.s, fl = (r.krFl || r.fl).filter(function (x) { return x[0] > s; }), nom = r.fl.filter(function (x) { return x[0] > s; }), kq = r.krP > 0 && r.P > 0 ? r.P / r.krP : 1, y = r.krY != null ? r.krY : r.tir, du = y != null ? durAt(fl, s, y) : null;
+      return { k: k, usd: r.grp === 'usd' || !!r.usdOn, yl: r.yl || 'TIR', s: s, P: r.P, y: y, kq: kq, fl: fl, nom: nom, vt: T.vt, acc: T.acc, res: T.res, cpn: T.cpn, cpnL: T.cpnL || '', md: du && du.md, mac: du && du.mac, cx: r.conv != null ? r.conv : (y != null ? cvxAt(fl, s, y) : null) }; } catch (e) { return null; } },
+    vt: function (k) { try { uni(); var r = MAP[k]; if (!r) return null; var T = tech(r); return T.vt; } catch (e) { return null; } }, cf: function (k) { // pagos (ya cobrados y por cobrar) por 100 VN originales: [[día, total]]; para Trade ideas
     try { uni(); var r = MAP[k]; if (!r) return null; var T = tech(r); return { usd: r.grp === 'usd' || !!r.usdOn, f: (T.paid || []).concat(T.rows || []).filter(function (x) { return x.total > 0; }).map(function (x) { return [x.t, x.total]; }) }; } catch (e) { return null; } } };
 
   /* ---------- cronograma: valor técnico, intereses corridos, residual y flujos por 100 VN ---------- */

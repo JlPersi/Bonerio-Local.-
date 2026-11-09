@@ -1,6 +1,6 @@
 # Bonerío Inside (prototipo)
 
-Los botones *Ficha*, *Curva* y *Más…* del panel flotante abren una ventana con solapas (Ficha, Curva del grupo del bono, Volumen, Acciones → Pares, Brecha y canje, Futuros, Sintéticos, Pases CI vs 24 hs y Expectativas). La página se carga una sola vez (empieza al acercar el mouse al panel) y después cambia de sección por mensaje, sin recargar. Cada una muestra su sección sola en una ventana adentro de Matriz (se mueve desde el encabezado y se agranda desde la esquina), con el modo `?emb=sec` del Dashboard. El bono se elige haciendo clic en Matriz o escribiéndolo en el buscador del panel.
+Los botones *Curva* y *Más…* del panel flotante abren una ventana con cuatro solapas: Curva, Brecha y canje, Pases y Expectativas. La página se carga una sola vez (empieza al acercar el mouse al panel) y después cambia de sección por mensaje, sin recargar. Cada una muestra su sección sola en una ventana adentro de Matriz (se mueve desde el encabezado y se agranda desde la esquina), con el modo `?emb=sec` del Dashboard. El bono se elige haciendo clic en Matriz o escribiéndolo en el buscador del panel.
 
 Extensión de Chrome que muestra, al lado de Matriz, los datos de Bonerío Local para el bono que tenés abierto:
 TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, días al vencimiento y un semáforo contra la curva
@@ -27,6 +27,7 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 
 **Ventana:** abre con el tamaño justo de cada sección. Si la agrandás o achicás desde la esquina, el contenido se acomoda a ese tamaño; doble clic en el encabezado vuelve al tamaño justo. 🔓/🔒 la fija (no se mueve ni cambia de tamaño). Recuerda dónde la dejaste.
 
-**Volumen:** la tarjeta «Volumen operado» de Resumen, en «Hoy en vivo».
 
-**Compacto:** la Ficha muestra encabezado, rendimiento y curva, calculadora y sensibilidad; Acciones (pares) muestra las acciones, el período, las bandas y el gráfico.
+**Datos:** el botón *Datos ▾* del panel y de cada ficha fija despliega todos los datos de la ficha del bono (TIR, duraciones, convexidad, valor técnico, intereses corridos, paridad, cupón) y una calculadora de precio ↔ TIR con nominales. Son datos de cierre de Bonerío.
+
+**Colores:** panel, fichas y ventana usan el estilo oscuro de Bonerío Local (negro y dorado) para no confundirse con Matriz.
