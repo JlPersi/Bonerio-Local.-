@@ -139,4 +139,15 @@ for t, o in sorted(cur.items()):
     if I: l_out[t] = {"s": o["s"], "i": I, "v": V, "e": E, "c": C}
 with open(LITE, "w") as f:
     json.dump({"dates": ld, "t": l_out, "on": sorted(ons & set(l_out))}, f, separators=(",", ":"))
+# solo cierres desde 2025 (las forwards del Inicio y Oportunidades): mismo formato sin v ni e, ~300 KB comprimido en vez de 1,4 MB
+CL = os.path.join(HERE, "..", "data", "volumen_c.json")
+cd = [d for d in alld if d >= "2025-01-01"]; cidx = {d: i for i, d in enumerate(cd)}; c_out = {}
+for t, o in sorted(cur.items()):
+    prev, I, C = 0, [], []
+    for d in sorted(o["d"]):
+        if d not in cidx: continue
+        I.append(cidx[d] - prev); prev = cidx[d]; C.append(o["d"][d][2])
+    if I: c_out[t] = {"s": o["s"], "i": I, "c": C}
+with open(CL, "w") as f:
+    json.dump({"dates": cd, "t": c_out, "on": sorted(ons & set(c_out))}, f, separators=(",", ":"))
 print("guardado %s: %d tickers con volumen (%d nuevos), %d ruedas en el historial" % (ds, len(live), n_new, len(alld)))
