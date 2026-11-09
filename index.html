@@ -10305,12 +10305,13 @@ window.USTX = (function () {
     };
     var WI = null, watch = function (id) { // avisa la altura al tablero mientras cambie (un solo reloj: al cambiar de sección se reemplaza)
       var last = -1, t0 = Date.now(), ok = false; clearInterval(WI);
-      WI = setInterval(function () {
+      var tick = function () {
         var el = document.getElementById(id);
         if (!el || !el.getClientRects().length) { if (!ok && Date.now() - t0 > 25000) { ok = true; post({ t: 'dbH', miss: 1 }); } return; }
         if (!ok) { ok = true; H.classList.add('embok'); }
         var h = Math.ceil(el.getBoundingClientRect().bottom + window.scrollY + 2); if (h !== last) { last = h; post({ t: 'dbH', h: h }); }
-      }, 400);
+      };
+      WI = setInterval(tick, 400); requestAnimationFrame(tick); // la primera altura sale en el siguiente cuadro, sin esperar el reloj
     };
     if (mode === 'cat') { // recorre las pestañas y manda las secciones de cada una
       var list = (Q.get('tabs') || '').split(',').filter(Boolean), i = 0;
@@ -10328,6 +10329,7 @@ window.USTX = (function () {
       var tab = Q.get('tab'), id = Q.get('id') || tab;
       css('html.emb.embWait body{visibility:hidden}');
       var CV = Q.get('cv') === '1', CVI = null, CMP = Q.get('cmp') === '1';
+      if (CMP) { var noAn = setInterval(function () { if (window.Chart) { clearInterval(noAn); Chart.defaults.animation = false; } }, 50); setTimeout(function () { clearInterval(noAn); }, 30000); } // extensión: los gráficos aparecen de una (la ventana hace el fundido)
       var COMPACTO = { // extensión de Matriz: lo esencial de cada sección (el resto se oculta)
         bono: '#bono>:not(#bnCHe):not(.bnG2)', // ficha: encabezado, rendimiento y curva, calculadora y sensibilidad
         accP: '#accP>.sxh,#accPk2,#accPn2,#accP label:has(#accMon5),#accP label:has(#accPd)' // pares: acciones, período, bandas y el gráfico
@@ -10336,13 +10338,14 @@ window.USTX = (function () {
       var chartOnly = function () { // solo el gráfico principal de la sección (las curvas de la extensión de Matriz): el primer canvas grande y su recuadro, sin textos ni tablas
         clearInterval(CVI); H.classList.toggle('embWait', CV); if (!CV) return; var t = ''; // invisible hasta que quede solo el gráfico (no se ve la sección entera al cambiar de curva)
         clearTimeout(window.__cvT); window.__cvT = setTimeout(function () { H.classList.remove('embWait'); }, 6000); // por las dudas: si no aparece el gráfico, se muestra la sección
-        CVI = setInterval(function () {
+        var cvTick = function () {
           var cur = t && document.getElementById(t); if (cur && cur.getClientRects().length) return;
           if (t) { t = ''; only(id); return; } // se volvió a dibujar: se muestra la sección y se busca de nuevo
           var S = document.getElementById(id), c = S && [].slice.call(S.querySelectorAll('canvas')).filter(function (x) { var r = x.getBoundingClientRect(); return r.width > 150 && r.height > 80; })[0]; if (!c) return;
           var w = c.parentElement; if (!w.id) { var o = document.getElementById('embCv'); if (o) o.removeAttribute('id'); w.id = 'embCv'; }
           t = w.id; only(t); watch(t); H.classList.remove('embWait');
-        }, 150);
+        };
+        CVI = setInterval(cvTick, 100); requestAnimationFrame(cvTick);
       };
       var subTab = function (t, g) { if (!g || !/^[\w=,-]+$/.test(g)) return; g.split(',').forEach(function (x) { var q = x.indexOf('=') > 0 ? '[data-' + x.split('=')[0] + '="' + x.split('=')[1] + '"]' : '[data-g="' + x + '"]', n = 0, iv = setInterval(function () { var b = document.querySelector('#' + t + ' ' + q); if (b || ++n > 30) { clearInterval(iv); if (b && !b.classList.contains('on')) b.click(); } }, 200); }); }; // subpestañas internas: «vol» es data-g="vol"; «v=1» es data-v="1" (Resumen: período diario) // subpestaña interna (Acciones → Pares)
       only(id); setTimeout(function () { goTab(tab, Q.get('sec') || ''); subTab(tab, Q.get('g')); window.scrollTo(0, 0); if (!CV) watch(id); chartOnly(); }, 300); compacto();
