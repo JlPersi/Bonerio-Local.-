@@ -41,6 +41,11 @@
     const x = w.slice(-1); return (x === 'D' || x === 'C') && DB[w.slice(0, -1)] ? [w.slice(0, -1), x] : null;
   };
   const DOLAR = { usd: 1, on: 1, pv: 1 };
+  const aMatriz = (k) => { // futuros con el nombre de Matriz: DLR/NOV26 (el gráfico de Bonerío dice «NOV26» o «DLR NOV26»; el archivo, DLR112026)
+    k = String(k || '').toUpperCase().trim(); let m = /^(?:DLR[ \/])?([A-Z]{3})(\d{2})$/.exec(k);
+    if (m && MESES.includes(m[1]) && !DB[k]) return 'DLR/' + m[1] + m[2];
+    m = /^DLR(\d\d)(\d{4})$/.exec(k); return m && +m[1] >= 1 && +m[1] <= 12 ? 'DLR/' + MESES[+m[1] - 1] + m[2].slice(2) : k;
+  };
   const precioVale = (k, suf) => (DB[k].tipo === 'acc' ? !suf : !DOLAR[DB[k].grupo] || suf === 'D'); // en los de dólares Bonerío usa el precio MEP: solo sirve el recuadro de la especie D
 
   // ---------- lectura de la pantalla de Matriz (heurística: sin selectores fijos, porque Matriz cambia clases) ----------
@@ -265,7 +270,7 @@
     try { return aBoleta1(k); } catch (er) { aviso('Boleta: error ' + er.message, 1); }
   }
   function aBoleta1(k) {
-    k = especie(k); aviso('Boleta: buscando ' + k + '…');
+    k = especie(aMatriz(k)); aviso('Boleta: buscando ' + k + '…');
     const vis = (e) => e && e.offsetParent && !e.closest('#bnr-panel,#bnr-win');
     let inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || ''));
     if (!inp) for (const el of document.querySelectorAll('body *')) { // el texto "Buscar instrumento" o la etiqueta "Instrumento" suelen ser un div aparte (selectores tipo react-select): el input está en el mismo bloque
@@ -290,7 +295,7 @@
   }
   window.addEventListener('message', (e) => { // la página manda la altura de la sección (la ventana queda justa) o el bono que se tocó
     if (!W || !e.data || e.source !== W.querySelector('iframe').contentWindow) return;
-    if (e.data.t === 'bnrTk') { const k = String(e.data.k).toUpperCase(), r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } aBoleta(k); return; }
+    if (e.data.t === 'bnrTk') { const k = aMatriz(e.data.k), r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } aBoleta(k); return; }
     if (e.data.t !== 'bnrH') return;
     LISTO = true;
     const h = Math.max(150, +e.data.h || 0), F = W.querySelector('iframe'), top = W.querySelector('.wb').offsetTop + 2;
