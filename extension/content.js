@@ -80,17 +80,42 @@
 
   // ---------- panel ----------
   const P = document.createElement('div'); P.id = 'bnr-panel';
-  P.innerHTML = '<header><span>Bonerío Inside</span><button title="Minimizar">–</button></header><div class="b">Cargando curvas…</div>';
+  P.innerHTML = '<header><span>Bonerío Inside</span><button title="Minimizar">–</button></header><div class="q"><input class="bus" placeholder="Escribí un bono (AL30, TMVE8…)" list="bnr-tk"><datalist id="bnr-tk"></datalist></div><div class="b">Cargando curvas…</div>';
   document.body.appendChild(P);
   const B = P.querySelector('.b');
   P.querySelector('button').onclick = () => P.classList.toggle('min');
-  (() => { // arrastrar desde el encabezado
-    const h = P.querySelector('header'); let dx, dy;
-    h.onmousedown = (e) => { dx = e.clientX - P.offsetLeft; dy = e.clientY - P.offsetTop; document.onmousemove = (m) => { P.style.left = m.clientX - dx + 'px'; P.style.top = m.clientY - dy + 'px'; P.style.right = P.style.bottom = 'auto'; }; document.onmouseup = () => (document.onmousemove = null); };
-  })();
+  const arrastrar = (W) => { // mover desde el encabezado
+    const h = W.querySelector('header'); let dx, dy;
+    h.onmousedown = (e) => { if (e.target.tagName === 'BUTTON') return; dx = e.clientX - W.offsetLeft; dy = e.clientY - W.offsetTop; document.onmousemove = (m) => { W.style.left = m.clientX - dx + 'px'; W.style.top = m.clientY - dy + 'px'; W.style.right = W.style.bottom = 'auto'; }; document.onmouseup = () => (document.onmousemove = null); };
+  };
+  arrastrar(P);
+  const BUS = P.querySelector('.bus');
+  BUS.onkeydown = (e) => { if (e.key === 'Enter') BUS.onchange(); };
+  BUS.onchange = () => { const k = BUS.value.toUpperCase().trim(); if (!k) return; activo = k; precioManual = false; BUS.value = ''; pintar(); };
+
+  // ---------- ventana flotante con la ficha, la curva o el portfolio de Bonerío (la sección sola, como en el Dashboard) ----------
+  const SITE = 'https://boneriolocal.com.ar/', VIS = { ficha: 'Ficha', curva: 'Curva', port: 'Portfolio' };
+  let W = null, vista = 'ficha';
+  function ventana(v) {
+    vista = v || vista;
+    if (!W) {
+      W = document.createElement('div'); W.id = 'bnr-win';
+      W.innerHTML = '<header><span class="tt"></span><span class="tabs"></span><button class="x" title="Cerrar">✕</button></header><div class="wb"><iframe allow="clipboard-write"></iframe></div>';
+      document.body.appendChild(W); arrastrar(W);
+      W.querySelector('.x').onclick = () => { W.remove(); W = null; };
+    }
+    const g = DB[activo] && DB[activo].grupo, tab = vista === 'ficha' ? 'bono' : vista === 'curva' ? CURVA[g] || 'curva' : 'port';
+    W.querySelector('.tt').textContent = activo || '';
+    W.querySelector('.tabs').innerHTML = Object.keys(VIS).filter((x) => x !== 'curva' || g).map((x) => `<button data-v="${x}" class="${x === vista ? 'on' : ''}">${VIS[x]}</button>`).join('');
+    W.querySelectorAll('.tabs button').forEach((x) => (x.onclick = () => ventana(x.dataset.v)));
+    W.querySelector('iframe').src = SITE + '?emb=sec&tab=' + tab + '&id=' + tab + (vista === 'ficha' && activo ? '#ficha=' + activo + '&n=' + Date.now() : '');
+  }
 
   function pintar() {
     if (!activo) { B.innerHTML = '<span class="m">Abrí un bono en Matriz (o hacé clic en una fila) y aparece acá.</span>'; return; }
+    const BT = (c) => `<div class="bt">${c ? '<button data-v="ficha">Ficha</button><button data-v="curva">Curva</button>' : '<button data-v="ficha">Ficha</button>'}<button data-v="port">Portfolio</button></div>`;
+    const enlazar = () => B.querySelectorAll('.bt button').forEach((x) => (x.onclick = () => ventana(x.dataset.v)));
+    if (!DB[activo]) { B.innerHTML = `<div class="t">${activo}</div><div class="m">Sin datos de curva para este bono: abrí su ficha.</div>` + BT(false); enlazar(); if (W && W.querySelector('.tt').textContent !== activo) ventana(); return; }
     const b = DB[activo], f = ajuste(b.grupo, b.ley);
     const inp = B.querySelector('input'); let p = precioManual && inp ? num(inp.value) : NaN, fuente = 'manual';
     if (!(p > 0)) { [p, fuente] = precioPantalla(activo); precioManual = false; }
@@ -104,8 +129,9 @@
       <label class="m">Precio (${fuente || 'sin precio en pantalla'}): si salgo a…</label>
       <input value="${p > 0 ? fmt(p, 3) : ''}" placeholder="Precio">
       <div class="m" style="margin-top:4px">Estimado con la duration (sin convexidad).</div>
-      <div class="bt"><button data-h="ficha=${activo}">Ficha</button><button data-h="tab=${CURVA[b.grupo] || 'curva'}">Curva</button><button data-h="tab=port">Portfolio</button></div>`;
-    B.querySelectorAll('.bt button').forEach((x) => (x.onclick = () => chrome.runtime.sendMessage({ t: 'ir', hash: x.dataset.h })));
+      ${BT(true)}`;
+    enlazar();
+    if (W && W.querySelector('.tt').textContent !== activo) ventana(); // la ventana sigue al bono
     const ni = B.querySelector('input');
     ni.onchange = () => { precioManual = true; pintar(); };
   }
@@ -124,6 +150,7 @@
   fetch(URL_CURVAS).then((r) => r.json()).then((d) => {
     FECHA = d.fecha;
     for (const [g, l] of Object.entries(d.grupos)) { GRP[g] = l; l.forEach((b) => (DB[b.ticker] = Object.assign({ grupo: g }, b))); }
+    P.querySelector('#bnr-tk').innerHTML = Object.keys(DB).sort().map((k) => `<option value="${k}">`).join('');
     activo = tickerVisible(); pintar();
     new MutationObserver(revisar).observe(document.body, { childList: true, subtree: true, characterData: true });
   }).catch(() => (B.textContent = 'No pude traer las curvas de Bonerío.'));
