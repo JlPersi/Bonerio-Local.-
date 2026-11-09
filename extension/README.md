@@ -1,7 +1,7 @@
 # Bonerío Inside (prototipo)
 
 **Bonerío entero al costado de Matriz:** el ícono de la extensión abre boneriolocal.com.ar en el panel lateral de Chrome, con el mismo menú y la misma cuenta.
-Los botones *Ficha*, *Curva* y *Más…* del panel flotante abren una ventana con solapas (Ficha, Curva del grupo del bono, Portfolio + Trade ideas, Volumen, Acciones, Brecha y canje, Futuros, Sintéticos, Pases CI vs 24 hs y Expectativas). Cada una muestra su sección sola en una ventana adentro de Matriz (se mueve desde el encabezado y se agranda desde la esquina), con el modo `?emb=sec` del Dashboard. El bono se elige haciendo clic en Matriz o escribiéndolo en el buscador del panel.
+Los botones *Ficha*, *Curva* y *Más…* del panel flotante abren una ventana con solapas (Ficha, Curva del grupo del bono, Volumen, Acciones → Pares, Brecha y canje, Futuros, Sintéticos, Pases CI vs 24 hs y Expectativas). La página se carga una sola vez (empieza al acercar el mouse al panel) y después cambia de sección por mensaje, sin recargar. Cada una muestra su sección sola en una ventana adentro de Matriz (se mueve desde el encabezado y se agranda desde la esquina), con el modo `?emb=sec` del Dashboard. El bono se elige haciendo clic en Matriz o escribiéndolo en el buscador del panel.
 
 Extensión de Chrome que muestra, al lado de Matriz, los datos de Bonerío Local para el bono que tenés abierto:
 TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, días al vencimiento y un semáforo contra la curva

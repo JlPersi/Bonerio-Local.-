@@ -10295,12 +10295,12 @@ window.USTX = (function () {
       if (e.data.t === 'dbTheme' && (H.getAttribute('data-theme') === 'light' ? 'light' : 'dark') !== e.data.th && window.toggleTheme) window.toggleTheme();
       if (e.data.t === 'dbSp') { var bb = document.getElementById(e.data.sp === 'C' ? 'bccl' : 'bmep'); if (bb && !bb.classList.contains('on')) bb.click(); }
     });
-    var only = function (id) { // todo lo que no sea la sección, ni la contiene ni está adentro, se oculta (y sigue oculto aunque la pestaña se vuelva a dibujar)
-      css('html.emb body *:not(:has(#' + id + ')):not(#' + id + '):not(#' + id + ' *):not(#ampOv):not(#ampOv *){display:none!important}html.emb #' + id + '{margin:0!important}');
+    var only = function (id) { // todo lo que no sea la sección, ni la contiene ni está adentro, se oculta (y sigue oculto aunque la pestaña se vuelva a dibujar); una sola regla, así se puede cambiar de sección sin recargar
+      var st = document.getElementById('embOnly'); if (!st) { st = document.createElement('style'); st.id = 'embOnly'; document.head.appendChild(st); } st.textContent = ('html.emb body *:not(:has(#' + id + ')):not(#' + id + '):not(#' + id + ' *):not(#ampOv):not(#ampOv *){display:none!important}html.emb #' + id + '{margin:0!important}');
     };
-    var watch = function (id) { // avisa la altura al tablero mientras cambie
-      var last = -1, t0 = Date.now(), ok = false;
-      setInterval(function () {
+    var WI = null, watch = function (id) { // avisa la altura al tablero mientras cambie (un solo reloj: al cambiar de sección se reemplaza)
+      var last = -1, t0 = Date.now(), ok = false; clearInterval(WI);
+      WI = setInterval(function () {
         var el = document.getElementById(id);
         if (!el || !el.getClientRects().length) { if (!ok && Date.now() - t0 > 25000) { ok = true; post({ t: 'dbH', miss: 1 }); } return; }
         if (!ok) { ok = true; H.classList.add('embok'); }
@@ -10321,7 +10321,14 @@ window.USTX = (function () {
       setTimeout(next, 600);
     } else if (mode === 'sec') {
       var tab = Q.get('tab'), id = Q.get('id') || tab;
-      only(id); setTimeout(function () { goTab(tab, Q.get('sec') || ''); window.scrollTo(0, 0); watch(id); }, 300);
+      var subTab = function (t, g) { if (!g) return; var n = 0, iv = setInterval(function () { var b = document.querySelector('#' + t + ' [data-g="' + g + '"]'); if (b || ++n > 30) { clearInterval(iv); if (b) b.click(); } }, 200); }; // subpestaña interna (Acciones → Pares)
+      only(id); setTimeout(function () { goTab(tab, Q.get('sec') || ''); subTab(tab, Q.get('g')); window.scrollTo(0, 0); watch(id); }, 300);
+      window.addEventListener('message', function (e) { // extensión de Matriz: cambia de sección sin recargar la página (mucho más rápido)
+        var d = e.data; if (e.source !== parent || !d || d.t !== 'bnrSec' || !/^[\w-]+$/.test(d.tab || '') || !/^[\w-]+$/.test(d.id || '')) return;
+        tab = d.tab; id = d.id; only(id); goTab(tab, ''); subTab(tab, d.g);
+        if (d.k && window.BONO && window.BONO.open) window.BONO.open(String(d.k).toUpperCase());
+        window.scrollTo(0, 0); watch(id);
+      });
       // cada tabla larga de la sección se puede ocultar (por ejemplo, las cotizaciones debajo de una curva); el tablero lo recuerda
       var HT = {}; (Q.get('ht') || '').split(',').forEach(function (x) { if (x !== '') HT[x] = 1; });
       css('html.emb .dbTg{display:flex;justify-content:flex-end;margin:8px 0 6px}html.emb .dbTg button{font:inherit;font-size:12px;font-weight:600;padding:4px 11px;border-radius:99px;border:1px solid var(--bd);background:transparent;color:var(--mu);cursor:pointer}html.emb .dbTg button:hover{color:var(--ac);border-color:var(--ac)}html.emb .dbHid{display:none!important}');
@@ -10334,7 +10341,7 @@ window.USTX = (function () {
             pv = document.createElement('div'); pv.className = 'dbTg'; pv.setAttribute('data-html2canvas-ignore', 'true'); pv.innerHTML = '<button type="button"></button>'; box.parentNode.insertBefore(pv, box);
             pv.firstChild.onclick = function () { var k = pv.getAttribute('data-i'); if (HT[k]) delete HT[k]; else HT[k] = 1; post({ t: 'dbCfg', o: { ht: Object.keys(HT).join(',') } }); tbl(); };
           }
-          var ky = t.id || 't' + i; pv.setAttribute('data-i', ky); var h = !!HT[ky]; box.classList.toggle('dbHid', h); pv.firstChild.textContent = h ? 'Mostrar la tabla (' + (t.rows.length - 1) + ' filas)' : 'Ocultar la tabla';
+          var ky = t.id || 't' + i; pv.setAttribute('data-i', ky); var h = !!HT[ky]; box.classList.toggle('dbHid', h || !!HT['*']); pv.firstChild.textContent = h ? 'Mostrar la tabla (' + (t.rows.length - 1) + ' filas)' : 'Ocultar la tabla';
         });
       };
       setInterval(tbl, 700);

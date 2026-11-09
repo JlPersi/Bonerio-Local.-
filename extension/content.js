@@ -173,41 +173,45 @@
   // ---------- ventana flotante con la ficha, la curva o el portfolio de Bonerío (la sección sola, como en el Dashboard) ----------
   const SITE = 'https://boneriolocal.com.ar/';
   const CURVAS = { fut: ['tfut', 'tfS1'], usd: ['curva', 'yieldCurveContainer'], fija: ['pesos', 'pcard1'], cer: ['pesos', 'pcard3'], tamar: ['pesos', 'pcard4'], dl: ['pesos', 'pcard5'], dual: ['pesos', 'pcard6'], on: ['ons', 'onsC'], pv: ['pvs', 'pvsC'] };
-  // solapas de la ventana: [nombre, [[subsolapa, pestaña de Bonerío, sección]]]; la sección se muestra sola (modo ?emb=sec del Dashboard)
+  // solapas de la ventana: [nombre, [[subsolapa, pestaña de Bonerío, sección, subpestaña interna]]]; la sección se muestra sola (modo ?emb=sec del Dashboard)
   const VIS = {
-    ficha: ['Ficha', (g) => (g === 'acc' ? [['', 'acc', 'accT']] : [['', 'bono', 'bono']])],
+    ficha: ['Ficha', (g) => (g === 'acc' ? [['', 'acc', 'accF', 'ficha']] : [['', 'bono', 'bono']])],
     curva: ['Curva', (g) => [['', ...(CURVAS[g] || CURVAS.usd)]]],
-    port: ['Portfolio', () => [['Portfolio', 'port', 'pfMine'], ['Trade ideas', 'trd', 'trOc']]],
-    vol: ['Volumen', () => [['Dónde estuvo', 'vol', 'vlS1'], ['Ranking', 'vol', 'vlS2'], ['Puntas', 'vol', 'vlLq']]],
-    acc: ['Acciones', () => [['Acciones', 'acc', 'accT'], ['ADRs', 'acc', 'accA']]],
+    vol: ['Volumen', () => [['', 'vol', 'vlS1']]],
+    acc: ['Acciones', () => [['', 'acc', 'accP', 'pares']]],
     brc: ['Brecha y canje', () => [['Ratios', 'brc', 'brA'], ['Todos ahora', 'brc', 'brB']]],
     tfut: ['Futuros', () => [['', 'tfut', 'tfS1']]],
-    sint: ['Sintéticos', () => [['', 'sint', 'syS']]],
+    sint: ['Sintéticos', () => [['', 'sint', 'syA']]],
     cim: ['Pases', () => [['', 'cim', 'cimC1']]],
     exp: ['Expectativas', () => [['Inflación', 'expi', 'thBBi'], ['Devaluación', 'expd', 'thBBd'], ['Forwards', 'expf', 'thF']]],
   };
   const SIGUE = { ficha: 1, curva: 1 }; // las que cambian con el bono
-  let W = null, vista = 'ficha', sub = 0, tamManual = false;
-  function ventana(v, j) {
+  let W = null, vista = 'curva', sub = 0, tamManual = false, LISTO = false;
+  function ventana(v, j, oculta) {
     if (v && v !== vista) sub = 0; vista = v || vista; if (j != null) sub = j;
     if (!W) {
-      W = document.createElement('div'); W.id = 'bnr-win'; tamManual = false;
+      W = document.createElement('div'); W.id = 'bnr-win'; tamManual = false; LISTO = false;
       W.innerHTML = '<header><span class="tt"></span><span class="tabs"></span><button class="x" title="Cerrar">✕</button></header><div class="subs"></div><div class="wb"><iframe allow="clipboard-write"></iframe></div>';
       document.body.appendChild(W); arrastrar(W);
-      W.querySelector('.x').onclick = () => { W.remove(); W = null; };
+      W.querySelector('.x').onclick = () => (W.style.display = 'none'); // se oculta, no se cierra: la próxima vez abre al instante
       W.addEventListener('mouseup', (e) => { if (e.target === W) tamManual = true; }); // lo agrandó desde la esquina: no lo ajustamos más
     }
-    const g = DB[activo] && DB[activo].grupo, L = VIS[vista][1](g), [, tab, id] = L[sub] || L[0];
+    if (!oculta) W.style.display = '';
+    const g = DB[activo] && DB[activo].grupo, L = VIS[vista][1](g), [, tab, id, sg] = L[sub] || L[0];
     W.querySelector('.tt').textContent = activo || '';
     W.querySelector('.tabs').innerHTML = Object.keys(VIS).filter((x) => (x !== 'curva' || (CURVAS[g] && g !== 'acc')) && (x !== 'ficha' || g !== 'fut')).map((x) => `<button data-v="${x}" class="${x === vista ? 'on' : ''}">${VIS[x][0]}</button>`).join('');
     W.querySelectorAll('.tabs button').forEach((x) => (x.onclick = () => ventana(x.dataset.v)));
     const S = W.querySelector('.subs'); S.hidden = L.length < 2;
     S.innerHTML = L.length < 2 ? '' : L.map((x, i) => `<button data-i="${i}" class="${i === sub ? 'on' : ''}">${x[0]}</button>`).join('');
     S.querySelectorAll('button').forEach((x) => (x.onclick = () => ventana(vista, +x.dataset.i)));
-    const F = W.querySelector('iframe'); F.style.height = '2600px'; W.dataset.v = vista;
-    const url = SITE + '?emb=sec&tab=' + tab + '&id=' + id + (vista === 'ficha' && activo && g !== 'acc' ? '#ficha=' + activo + '&n=' + Date.now() : '');
+    const F = W.querySelector('iframe'), k = vista === 'ficha' && activo && g !== 'acc' ? activo : '';
+    if (LISTO) { F.contentWindow.postMessage({ t: 'bnrSec', tab, id, g: sg || '', k }, '*'); return; } // la página ya está cargada: solo cambia de sección
+    F.style.height = '2600px';
+    const url = SITE + '?emb=sec&ht=*&tab=' + tab + '&id=' + id + (sg ? '&g=' + sg : '') + (k ? '#ficha=' + k + '&n=' + Date.now() : '');
     F.src = chrome.runtime.getURL('frame.html') + '#' + encodeURIComponent(url); // Bonerío va adentro de una página de la extensión: así no la frena la regla frame-src de Matriz
   }
+  P.addEventListener('mouseenter', () => { if (!W && activo) ventana(null, null, true); }, { once: true }); // la carga empieza al acercarse al panel: cuando tocás, ya está
+
   // ---------- cargar un ticker en la boleta de Matriz (campo "Instrumento"); no manda ninguna orden ----------
   function aBoleta(k) {
     const lab = (i) => [i.previousElementSibling, i.parentElement && i.parentElement.previousElementSibling].some((x) => x && /^Instrumento$/i.test((x.textContent || '').trim()));
@@ -228,23 +232,24 @@
     if (!W || !e.data || e.source !== W.querySelector('iframe').contentWindow) return;
     if (e.data.t === 'bnrTk') { const k = String(e.data.k).toUpperCase(); aBoleta(k); const r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } return; }
     if (e.data.t !== 'bnrH') return;
+    LISTO = true;
     const h = Math.max(150, +e.data.h || 0); W.querySelector('iframe').style.height = h + 'px';
     if (!tamManual) W.style.height = Math.min(h + W.querySelector('.wb').offsetTop + 2, innerHeight - W.offsetTop - 10) + 'px';
   });
 
   function pintar() {
     if (!activo) { B.innerHTML = '<span class="m">Abrí un bono en Matriz (o hacé clic en una fila) y aparece acá.</span>'; return; }
-    const BT = (c) => `<div class="bt">${c ? '<button data-v="ficha">Ficha</button><button data-v="curva">Curva</button>' : '<button data-v="ficha">Ficha</button>'}<button data-v="port">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
-    const enlazar = () => B.querySelectorAll('.bt button').forEach((x) => (x.onclick = () => (x.dataset.v === 'boleta' ? aBoleta(activo) : ventana(x.dataset.v))));
-    const seguir = () => { if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana() : (W.querySelector('.tt').textContent = activo); }; // la ventana sigue al bono
-    if (!DB[activo]) { B.innerHTML = `<div class="t">${activo}</div><div class="m">Sin datos en Bonerío para este ticker todavía; probá su ficha.</div>` + BT(false); enlazar(); if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana() : (W.querySelector('.tt').textContent = activo); return; }
+    const BT = (c) => `<div class="bt">${c ? '<button data-v="ficha">Ficha</button><button data-v="curva">Curva</button>' : '<button data-v="ficha">Ficha</button>'}<button data-v="mas">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
+    const enlazar = () => B.querySelectorAll('.bt button').forEach((x) => (x.onclick = () => (x.dataset.v === 'boleta' ? aBoleta(activo) : ventana(x.dataset.v === 'mas' ? (SIGUE[vista] ? 'vol' : vista) : x.dataset.v))));
+    const seguir = () => { if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana(null, null, W.style.display === 'none') : (W.querySelector('.tt').textContent = activo); }; // la ventana sigue al bono
+    if (!DB[activo]) { B.innerHTML = `<div class="t">${activo}</div><div class="m">Sin datos en Bonerío para este ticker todavía; probá su ficha.</div>` + BT(false); enlazar(); if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana(null, null, W.style.display === 'none') : (W.querySelector('.tt').textContent = activo); return; }
     const b = DB[activo];
     if (b.tipo === 'acc') {
       ratios(); const r = b.ret || {}, pc = (x) => (x == null ? '-' : fmt(x * 100) + '%');
       B.innerHTML = `<div class="t">${activo}</div><div class="m">Acción · cierre ${b.fecha}</div>
         <div class="g"><span>Precio</span><span>$ ${fmt(b.precio)}</span><span>Var. día</span><span>${pc(r['1d'])}</span><span>1 mes</span><span>${pc(r['1m'])}</span><span>En el año</span><span>${pc(r.ytd)}</span>
         <span>P/E</span><span>${fmt(b.pe)}</span><span>P/VL</span><span>${fmt(b.pvl)}</span><span>EV/EBITDA</span><span>${fmt(b.ev)}</span><span>Beta</span><span>${fmt(b.beta)}</span></div>
-        <div class="bt"><button data-v="ficha">Acciones</button><button data-v="port">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
+        <div class="bt"><button data-v="ficha">Acciones</button><button data-v="mas">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
       enlazar(); seguir(); return;
     }
     if (b.tipo === 'fut') {
@@ -255,7 +260,7 @@
         <div class="g"><span>Cierre</span><span>$ ${fmt(b.precio)}</span><span>A3500 (${b.fspot.slice(5).split('-').reverse().join('/')})</span><span>$ ${fmt(b.spot)}</span>
         <span>TNA implícita</span><span>${fmt(x.tna)}%</span><span>Devaluación mensual</span><span>${fmt(x.dev)}%</span><span>Días al vto.</span><span>${x.d}</span></div>
         <label class="m">Precio (${fuente || 'cierre'}): si compro a…</label><input value="${p > 0 ? fmt(p, 2) : ''}" placeholder="Precio">
-        <div class="bt"><button data-v="curva">Curva</button><button data-v="port">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
+        <div class="bt"><button data-v="curva">Curva</button><button data-v="mas">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
       enlazar(); seguir(); B.querySelector('input').onchange = () => { precioManual = true; pintar(); }; return;
     }
     const f = ajuste(b.grupo, b.ley);
@@ -273,7 +278,7 @@
       <div class="m" style="margin-top:4px">Estimado con la duration (sin convexidad).</div>
       ${BT(true)}`;
     enlazar();
-    if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana() : (W.querySelector('.tt').textContent = activo); // la ventana sigue al bono
+    if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana(null, null, W.style.display === 'none') : (W.querySelector('.tt').textContent = activo); // la ventana sigue al bono
     const ni = B.querySelector('input');
     ni.onchange = () => { precioManual = true; pintar(); };
   }
