@@ -14788,11 +14788,12 @@ window.RATG = (function () {
     $('trL').innerHTML = Object.keys(LV).sort().map(function (t) { return '<option value="' + t + '">'; }).join('');
   }
   /* ---------- ideas sugeridas ---------- */
-  var PAR = 'GGAL/BMA GGAL/BBAR BMA/SUPV YPFD/PAMP VIST/YPFD CEPU/PAMP TGSU2/TGNO4 EDN/TRAN TXAR/ALUA IRSA/CRES BBAR/SUPV'.split(' '), PZ = null, PZt = 0;
+  var PAR = 'GGAL/BMA GGAL/BBAR BMA/SUPV YPFD/PAMP VIST/YPFD CEPU/PAMP TGSU2/TGNO4 EDN/TRAN TXAR/ALUA IRSA/CRES BBAR/SUPV'.split(' '), PZ = null, PZt = 0, PZp = null;
   function pairsZ() { // z del ratio contra sus últimas 60 ruedas, con los cierres de data/acciones
     if (PZ && Date.now() - PZt < 6e5) return Promise.resolve(PZ); var tk = {}; PAR.forEach(function (q) { q.split('/').forEach(function (t) { tk[t] = 1; }); });
-    return Promise.all(Object.keys(tk).map(function (t) { return fetch('data/acciones/' + t + '.json').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (d) { var m = {}; ((d && d.r) || []).forEach(function (x) { if (x[4] > 0) m[x[0]] = x[4]; }); tk[t] = m; }); })).then(function () {
-      PZ = []; PZt = Date.now();
+    if (PZp) return PZp; return PZp = fetch('data/acciones/recientes.json?v=' + Math.floor(Date.now() / 6e5)).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (d) { var rc = (d && d.t) || {}; // un solo archivo liviano con las últimas 130 ruedas de cada acción (antes bajaba 17 historiales completos)
+      Object.keys(tk).forEach(function (t) { var m = {}; (rc[t] || []).forEach(function (x) { if (x[2] > 0) m[x[0]] = x[2]; }); tk[t] = m; });
+      PZ = []; PZt = Date.now(); PZp = null;
       PAR.forEach(function (q) { var a = q.split('/'), A = tk[a[0]], B = tk[a[1]]; if (!A || !B) return; var ds = Object.keys(A).filter(function (d) { return B[d] > 0; }).sort().slice(-61); if (ds.length < 40) return;
         var lr = ds.map(function (d) { return Math.log(A[d] / B[d]); }), pa = LV[a[0]], pb = LV[a[1]], now = pa && pb ? Math.log(pa.c / pb.c) : lr[lr.length - 1], h = lr.slice(0, -1), m = h.reduce(function (x, y) { return x + y; }, 0) / h.length, sd = Math.sqrt(h.reduce(function (x, y) { return x + (y - m) * (y - m); }, 0) / (h.length - 1)), z = sd > 0 ? (now - m) / sd : 0;
         if (Math.abs(z) >= 1.8) PZ.push({ a: a[0], b: a[1], z: z }); });
@@ -14812,7 +14813,7 @@ window.RATG = (function () {
   root.addEventListener('click', function (e) { var b = e.target.closest('[data-load]'); if (!b) return; var v = b.getAttribute('data-load').split('|');
     $('trT').value = v[0] ? 'rot' : 'buy'; $('trA').value = v[0]; $('trB').value = v[1]; $('trD').value = hoy(); showA(); try { root.querySelector('.card').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) {} $('trM').focus(); });
   var act = function () { return root.classList.contains('active'); };
-  var go = function () { live().then(base).then(function () { draw(); preview(); ideas(); }); };
+  var go = function () { ideas(); live().then(base).then(function () { draw(); preview(); ideas(); }); }; // las ideas salen enseguida y se rehacen con los precios en vivo
   var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'trd') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; lvT = 0; go(); } };
   setInterval(function () { if (act() && !document.hidden) { lvT = 0; go(); } }, 30000);
   showA(); draw();
