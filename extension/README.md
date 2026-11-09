@@ -27,6 +27,6 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 
 **Ventana:** abre con el tamaño justo de cada sección. Si la agrandás o achicás desde la esquina, el contenido se acomoda a ese tamaño; doble clic en el encabezado vuelve al tamaño justo. 🔓/🔒 la fija (no se mueve ni cambia de tamaño). Recuerda dónde la dejaste.
 
-**Volumen:** «Dónde estuvo» y «Operado hoy» (la tarjeta de Resumen, período diario).
+**Volumen:** la tarjeta «Volumen operado» de Resumen, en «Hoy en vivo».
 
 **Compacto:** la Ficha muestra encabezado, rendimiento y curva, calculadora y sensibilidad; Acciones (pares) muestra las acciones, el período, las bandas y el gráfico.

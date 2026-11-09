@@ -10322,6 +10322,7 @@ window.USTX = (function () {
       setTimeout(next, 600);
     } else if (mode === 'sec') {
       var tab = Q.get('tab'), id = Q.get('id') || tab;
+      css('html.emb.embWait body{visibility:hidden}');
       var CV = Q.get('cv') === '1', CVI = null, CMP = Q.get('cmp') === '1';
       var COMPACTO = { // extensión de Matriz: lo esencial de cada sección (el resto se oculta)
         bono: '#bono>:not(#bnCHe):not(.bnG2)', // ficha: encabezado, rendimiento y curva, calculadora y sensibilidad
@@ -10329,22 +10330,23 @@ window.USTX = (function () {
       };
       var compacto = function () { var st = document.getElementById('embCmp'); if (!st) { st = document.createElement('style'); st.id = 'embCmp'; document.head.appendChild(st); } st.textContent = CMP && COMPACTO[id] ? 'html.emb ' + COMPACTO[id].split(',').join(',html.emb ') + '{display:none!important}' : ''; };
       var chartOnly = function () { // solo el gráfico principal de la sección (las curvas de la extensión de Matriz): el primer canvas grande y su recuadro, sin textos ni tablas
-        clearInterval(CVI); if (!CV) return; var t = '';
+        clearInterval(CVI); H.classList.toggle('embWait', CV); if (!CV) return; var t = ''; // invisible hasta que quede solo el gráfico (no se ve la sección entera al cambiar de curva)
+        clearTimeout(window.__cvT); window.__cvT = setTimeout(function () { H.classList.remove('embWait'); }, 6000); // por las dudas: si no aparece el gráfico, se muestra la sección
         CVI = setInterval(function () {
           var cur = t && document.getElementById(t); if (cur && cur.getClientRects().length) return;
           if (t) { t = ''; only(id); return; } // se volvió a dibujar: se muestra la sección y se busca de nuevo
           var S = document.getElementById(id), c = S && [].slice.call(S.querySelectorAll('canvas')).filter(function (x) { var r = x.getBoundingClientRect(); return r.width > 150 && r.height > 80; })[0]; if (!c) return;
           var w = c.parentElement; if (!w.id) { var o = document.getElementById('embCv'); if (o) o.removeAttribute('id'); w.id = 'embCv'; }
-          t = w.id; only(t); watch(t);
-        }, 300);
+          t = w.id; only(t); watch(t); H.classList.remove('embWait');
+        }, 150);
       };
       var subTab = function (t, g) { if (!g || !/^[\w=,-]+$/.test(g)) return; g.split(',').forEach(function (x) { var q = x.indexOf('=') > 0 ? '[data-' + x.split('=')[0] + '="' + x.split('=')[1] + '"]' : '[data-g="' + x + '"]', n = 0, iv = setInterval(function () { var b = document.querySelector('#' + t + ' ' + q); if (b || ++n > 30) { clearInterval(iv); if (b && !b.classList.contains('on')) b.click(); } }, 200); }); }; // subpestañas internas: «vol» es data-g="vol"; «v=1» es data-v="1" (Resumen: período diario) // subpestaña interna (Acciones → Pares)
-      only(id); setTimeout(function () { goTab(tab, Q.get('sec') || ''); subTab(tab, Q.get('g')); window.scrollTo(0, 0); watch(id); chartOnly(); }, 300); compacto();
+      only(id); setTimeout(function () { goTab(tab, Q.get('sec') || ''); subTab(tab, Q.get('g')); window.scrollTo(0, 0); if (!CV) watch(id); chartOnly(); }, 300); compacto();
       window.addEventListener('message', function (e) { // extensión de Matriz: cambia de sección sin recargar la página (mucho más rápido)
         var d = e.data; if (e.source !== parent || !d || d.t !== 'bnrSec' || !/^[\w-]+$/.test(d.tab || '') || !/^[\w-]+$/.test(d.id || '')) return;
         tab = d.tab; id = d.id; CV = !!d.cv; CMP = !!d.cmp; only(id); compacto(); goTab(tab, ''); subTab(tab, d.g);
         if (d.k && window.BONO && window.BONO.open) window.BONO.open(String(d.k).toUpperCase());
-        window.scrollTo(0, 0); watch(id); chartOnly();
+        window.scrollTo(0, 0); if (!CV) watch(id); chartOnly();
       });
       // cada tabla larga de la sección se puede ocultar (por ejemplo, las cotizaciones debajo de una curva); el tablero lo recuerda
       var HT = {}; (Q.get('ht') || '').split(',').forEach(function (x) { if (x !== '') HT[x] = 1; });
