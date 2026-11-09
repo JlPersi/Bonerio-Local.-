@@ -396,7 +396,12 @@
     }, 400);
   };
   document.addEventListener('input', (e) => { if (!P.contains(e.target)) revisar([{ target: e.target }]); }, true);
-  document.addEventListener('click', (e) => { if (e.target.closest('#bnr-panel')) return; const k = tickerEn(e.target); if (k) { activo = k; precioManual = false; pintar(); } }, true);
+  let pIni = null; document.addEventListener('mousedown', (e) => (pIni = [e.clientX, e.clientY]), true);
+  const tickerClic = (el) => { // solo si se tocó el ticker mismo (su texto), no cualquier parte del recuadro: así mover la tarjeta no cambia el bono
+    for (let i = 0; el && i < 2; i++, el = el.parentElement) { const t = (el.innerText || '').trim().toUpperCase(); if (!t || t.length > 14) return null; const r = /^[A-Z]{3}\/[A-Z]{3}\d{2}$|^[A-Z0-9]{3,7}$/.test(t) && tk(t); if (r) return r[0]; }
+    return null;
+  };
+  document.addEventListener('click', (e) => { if (e.target.closest('#bnr-panel,#bnr-win,.bnr-pin') || (pIni && Math.hypot(e.clientX - pIni[0], e.clientY - pIni[1]) > 4)) return; const k = tickerClic(e.target); if (k) { activo = k; precioManual = false; pintar(); } }, true);
 
   fetch(URL_CURVAS).then((r) => r.json()).then((d) => {
     FECHA = d.fecha;
