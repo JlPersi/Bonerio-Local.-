@@ -154,9 +154,10 @@
   const CF = P.querySelector('.cfg');
   function pintarCfg() {
     CF.innerHTML = `<label><input type="checkbox" data-on ${CFG.on ? 'checked' : ''}> Mostrar en los recuadros de Matriz</label>` +
-      Object.keys(MET).map((k) => `<label><input type="checkbox" data-m="${k}" ${CFG.m.includes(k) ? 'checked' : ''}> ${MET[k][0]}</label>`).join('');
+      Object.keys(MET).map((k) => `<label><input type="checkbox" data-m="${k}" ${CFG.m.includes(k) ? 'checked' : ''}> ${MET[k][0]}</label>`).join('') +
+      `<label style="margin-top:4px">Cantidad por defecto en la boleta <input type="number" min="0" data-q value="${CFG.qty || ''}" style="width:90px;margin-left:auto"></label>`;
     CF.querySelectorAll('input').forEach((i) => (i.onchange = () => {
-      if (i.hasAttribute('data-on')) CFG.on = i.checked; else CFG.m = Object.keys(MET).filter((k) => CF.querySelector(`[data-m="${k}"]`).checked);
+      if (i.hasAttribute('data-q')) CFG.qty = +i.value || 0; else if (i.hasAttribute('data-on')) CFG.on = i.checked; else CFG.m = Object.keys(MET).filter((k) => CF.querySelector(`[data-m="${k}"]`).checked);
       guardar(); inyectar();
     }));
   }
@@ -214,6 +215,21 @@
   P.addEventListener('mouseenter', () => { if (!W && activo) ventana(null, null, true); }, { once: true }); // la carga empieza al acercarse al panel: cuando tocás, ya está
 
   // ---------- cargar un ticker en la boleta de Matriz (campo "Instrumento"); no manda ninguna orden ----------
+  function campo(nombre) { // el input de la boleta que está bajo la etiqueta "Precio" o "Cantidad"
+    for (const el of document.querySelectorAll('body *')) {
+      if (el.children.length || !el.getClientRects().length || el.closest('#bnr-panel,#bnr-win') || (el.textContent || '').trim().toLowerCase() !== nombre) continue;
+      for (let a = el.parentElement, i = 0; a && i < 3; i++, a = a.parentElement) { const x = [...a.querySelectorAll('input')].find((n) => n.getClientRects().length && n.type !== 'hidden'); if (x) return x; }
+    }
+    return null;
+  }
+  function poner(inp, v) { if (!inp || v == null || v === '') return; inp.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, String(v)); ['input', 'change'].forEach((t) => inp.dispatchEvent(new Event(t, { bubbles: true }))); inp.dispatchEvent(new Event('blur', { bubbles: true })); }
+  function completar(k) { // después de elegir el instrumento: precio de mercado que muestra Matriz y la cantidad por defecto (si hay). Comprar/Vender lo aprieta el usuario.
+    setTimeout(() => {
+      const r = tk(k), c = r && recuadros().find((x) => x.k === r[0] && x.suf === r[1]), [p] = c ? precioDe(c) : [NaN];
+      if (p > 0) poner(campo('precio'), String(p).replace('.', ','));
+      if (CFG.qty > 0) poner(campo('cantidad'), CFG.qty);
+    }, 500);
+  }
   function aBoleta(k) {
     const vis = (e) => e && e.offsetParent && !e.closest('#bnr-panel,#bnr-win');
     let inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || ''));
@@ -228,9 +244,9 @@
     inp.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, k);
     inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); inp.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: k.slice(-1) }));
     let n = 0; const iv = setInterval(() => { // elige la primera sugerencia nueva (en 24 hs si la hay)
-      if (++n > 16) { clearInterval(iv); ['ArrowDown', 'Enter'].forEach((key) => inp.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key, code: key, keyCode: key === 'Enter' ? 13 : 40 }))); return; } // sin sugerencia reconocible: Enter elige la primera
+      if (++n > 16) { clearInterval(iv); ['ArrowDown', 'Enter'].forEach((key) => inp.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key, code: key, keyCode: key === 'Enter' ? 13 : 40 }))); completar(k); return; } // sin sugerencia reconocible: Enter elige la primera
       const ops = cand().filter((o) => !antes.has(o)), t = (x) => (x.textContent || '').trim().toUpperCase(), o = ops.find((x) => t(x) === k) || ops.find((x) => /24/.test(t(x))) || ops.find((x) => !/\(CI\)|\bCI\b/.test(t(x))) || ops[0]; // 24 hs: el ticker solo (Matriz pone «(CI)» al contado)
-      if (o) { clearInterval(iv); const tg = o.closest('li,[role=option],mat-option') || o; ['mousedown', 'mouseup', 'click'].forEach((ev) => tg.dispatchEvent(new MouseEvent(ev, { bubbles: true, cancelable: true, view: window }))); }
+      if (o) { clearInterval(iv); const tg = o.closest('li,[role=option],mat-option') || o; ['mousedown', 'mouseup', 'click'].forEach((ev) => tg.dispatchEvent(new MouseEvent(ev, { bubbles: true, cancelable: true, view: window }))); completar(k); }
     }, 250);
     return true;
   }
