@@ -29,8 +29,16 @@
   function tirA(bono, p) {
     if (!(p > 0) || !(bono.md > 0)) return null;
     let r = p / bono.precio; while (r > 3) r /= 10; while (r < 0.3) r *= 10;
+    if (Math.abs(r - 1) > 0.2) return null; // muy lejos del cierre: otra especie u otra unidad, no se estima
     return bono.tir - ((r - 1) / bono.md) * 100;
   }
+
+  const tk = (w) => { // AL30D / GD30C de Matriz -> [AL30, 'D']
+    w = (w || '').toUpperCase(); if (DB[w]) return [w, ''];
+    const x = w.slice(-1); return (x === 'D' || x === 'C') && DB[w.slice(0, -1)] ? [w.slice(0, -1), x] : null;
+  };
+  const DOLAR = { usd: 1, on: 1, pv: 1 };
+  const precioVale = (k, suf) => !DOLAR[DB[k].grupo] || suf === 'D'; // en los de dólares Bonerío usa el precio MEP: solo sirve el recuadro de la especie D
 
   // ---------- lectura de la pantalla de Matriz (heurística: sin selectores fijos, porque Matriz cambia clases) ----------
   function tickerEn(el) {
@@ -38,16 +46,16 @@
       const t = (el.innerText || el.value || '').trim();
       if (!t || t.length > 80) continue;
       const m = t.toUpperCase().match(/[A-Z0-9]{3,6}/g) || [];
-      const k = m.find((w) => DB[w]); if (k) return k;
+      for (const w of m) { const r = tk(w); if (r) return r[0]; }
     }
     return null;
   }
-  function tickerBoleta() { for (const i of document.querySelectorAll('input')) { if (i.closest('#bnr-panel')) continue; const v = (i.value || '').toUpperCase().trim().split(/\s|-/)[0]; if (DB[v]) return v; } return null; }
+  function tickerBoleta() { for (const i of document.querySelectorAll('input')) { if (i.closest('#bnr-panel')) continue; const r = tk((i.value || '').trim().split(/\s|-/)[0]); if (r) return r[0]; } return null; }
   function tickerVisible() { // boleta "Instrumento" o encabezado del panel del bono
     const k = tickerBoleta(); if (k) return k;
     for (const el of document.querySelectorAll('div,span,h1,h2,h3,td')) {
       if (el.children.length > 2 || el.closest('#bnr-panel')) continue;
-      const t = (el.textContent || '').trim().toUpperCase(); if (DB[t] && el.offsetParent) return t;
+      const r = tk((el.textContent || '').trim()); if (r && el.offsetParent) return r[0];
     }
     return null;
   }
@@ -59,12 +67,20 @@
     }
     return NaN;
   }
-  function libroDe(k) { // el recuadro del bono: el ancestro del título que también tiene "Cierre Ant."
-    for (const el of document.querySelectorAll('div,span,td,h1,h2,h3')) {
-      if (el.children.length > 2 || el.closest('#bnr-panel') || !(el.textContent || '').trim().toUpperCase().startsWith(k)) continue;
-      let a = el; for (let i = 0; a && i < 6; i++, a = a.parentElement) { const t = a.textContent || ''; if (((t.toUpperCase().match(/[A-Z0-9]{3,6}/g) || []).filter((w) => DB[w] && w !== k)).length) break; if (/Cierre Ant/.test(t)) return a; }
+  function recuadros() { // cada recuadro de Matriz con libro ("Cierre Ant."): el primer ticker que aparece al subir es su título
+    const out = [];
+    for (const lab of document.querySelectorAll('div,span,td,th')) {
+      if (lab.children.length || !/^Cierre Ant\.?:?$/.test((lab.textContent || '').trim()) || lab.closest('#bnr-panel,#bnr-win')) continue;
+      let a = lab.parentElement, hit = null;
+      for (let i = 0; a && i < 8 && !hit; i++, a = a.parentElement) for (const w of (a.innerText || a.textContent || '').toUpperCase().match(/[A-Z0-9]{3,7}/g) || []) { const r = tk(w); if (r) { hit = { el: a, k: r[0], suf: r[1] }; break; } }
+      if (hit && !out.some((o) => o.el === hit.el)) out.push(hit);
     }
-    return null;
+    return out;
+  }
+  function precioDe(c) {
+    const u = valorJunto(c.el, /^Cierre:?$/); if (u > 0) return [u, 'último'];
+    const v = valorJunto(c.el, /^Cierre Ant\.?:?$/); if (v > 0) return [v, 'cierre anterior'];
+    return [NaN, ''];
   }
   function precioPantalla(k) {
     if (tickerBoleta() === k) for (const lab of document.querySelectorAll('label,div,span')) { // boleta: campo "Precio" con valor cargado
@@ -72,18 +88,62 @@
       const inp = lab.parentElement && lab.parentElement.querySelector('input'); const v = inp && num(inp.value);
       if (v > 0) return [v, 'boleta'];
     }
-    const L = libroDe(k); if (!L) return [NaN, ''];
-    const u = valorJunto(L, /^Cierre:?$/); if (u > 0) return [u, 'último'];
-    const c = valorJunto(L, /^Cierre Ant\.?:?$/); if (c > 0) return [c, 'cierre anterior'];
-    return [NaN, ''];
+    const c = recuadros().find((r) => r.k === k && precioVale(k, r.suf));
+    return c ? precioDe(c) : [NaN, ''];
+  }
+
+  // ---------- filas de Bonerío adentro de cada recuadro de Matriz, debajo de "Pos / P&L" (copian su estilo) ----------
+  const CORTA = { TIR: 'TIR', TEA: 'TEA', 'TNA real': 'TIR real', 'Margen s/ TAMAR': 'Margen', 'TNA USD': 'TNA USD' };
+  const MET = {
+    tir: ['TIR a este precio', (b, x) => [CORTA[b.unidad] || 'TIR', fmt(x.tir) + '%']],
+    tirc: ['TIR al cierre', (b) => [(CORTA[b.unidad] || 'TIR') + ' cierre', fmt(b.tir) + '%']],
+    md: ['Duration modificada', (b) => ['DM', fmt(b.md)]],
+    curva: ['Contra la curva (pb)', (b, x) => ['vs curva', x.res == null ? '-' : (x.res > 0 ? '+' : '') + fmt(x.res, 0) + ' pb', x.res == null || Math.abs(x.res) < 25 ? '' : x.res > 0 ? '#3ddc84' : '#ff6b6b']],
+    dias: ['Días al vencimiento', (b) => ['Días', String(b.dias)]],
+  };
+  let CFG = { on: true, m: ['tir', 'md', 'curva', 'dias'] };
+  try { CFG = Object.assign(CFG, JSON.parse(localStorage.getItem('bnrCfg') || '{}')); } catch (e) { }
+  const guardar = () => { try { localStorage.setItem('bnrCfg', JSON.stringify(CFG)); } catch (e) { } };
+  function calc(b, p) {
+    const t = p > 0 ? tirA(b, p) : null, tir = t == null ? b.tir : t, f = ajuste(b.grupo, b.ley);
+    return { tir, res: f && b.dias > 30 ? (tir - f(b.dias)) * 100 : null };
+  }
+  function inyectar() {
+    for (const c of recuadros()) {
+      const viejas = [...c.el.querySelectorAll('[data-bnr]')];
+      if (!CFG.on || !CFG.m.length) { viejas.forEach((r) => r.remove()); continue; }
+      const lab = [...c.el.querySelectorAll('div,span,td')].find((e) => !e.children.length && /^P&L:?$/.test((e.textContent || '').trim()) && !e.closest('[data-bnr]'));
+      let row = lab && lab.parentElement; while (row && row !== c.el && !/Pos/.test(row.textContent || '')) row = row.parentElement;
+      if (!row || row === c.el) continue;
+      const b = DB[c.k], [p] = precioVale(c.k, c.suf) ? precioDe(c) : [NaN], x = calc(b, p), cel = CFG.m.map((m) => MET[m][1](b, x)), n = Math.ceil(cel.length / 2);
+      if (viejas.length !== n) { viejas.forEach((r) => r.remove()); let ant = row; for (let i = 0; i < n; i++) { const r = row.cloneNode(true); r.setAttribute('data-bnr', '1'); r.title = 'Bonerío Local'; ant.after(r); ant = r; } }
+      [...c.el.querySelectorAll('[data-bnr]')].forEach((r, i) => {
+        const hojas = [...r.querySelectorAll('*')].filter((e) => !e.children.length); if (hojas.length < 4) return;
+        [cel[2 * i], cel[2 * i + 1]].forEach((v, j) => {
+          const [l, val, col] = v || ['', '']; const L = hojas[2 * j], V = hojas[2 * j + 1];
+          if (L.textContent !== (l ? l + ':' : '')) L.textContent = l ? l + ':' : '';
+          if (V.textContent !== val) V.textContent = val; if (V.style.color !== (col || '')) V.style.color = col || '';
+        });
+      });
+    }
   }
 
   // ---------- panel ----------
   const P = document.createElement('div'); P.id = 'bnr-panel';
-  P.innerHTML = '<header><span>Bonerío Inside</span><button title="Minimizar">–</button></header><div class="q"><input class="bus" placeholder="Escribí un bono (AL30, TMVE8…)" list="bnr-tk"><datalist id="bnr-tk"></datalist></div><div class="b">Cargando curvas…</div>';
+  P.innerHTML = '<header><span>Bonerío Inside</span><span><button class="cf" title="Datos en los recuadros de Matriz">⚙</button><button class="mn" title="Minimizar">–</button></span></header><div class="cfg" hidden></div><div class="q"><input class="bus" placeholder="Escribí un bono (AL30, TMVE8…)" list="bnr-tk"><datalist id="bnr-tk"></datalist></div><div class="b">Cargando curvas…</div>';
   document.body.appendChild(P);
   const B = P.querySelector('.b');
-  P.querySelector('button').onclick = () => P.classList.toggle('min');
+  P.querySelector('.mn').onclick = () => P.classList.toggle('min');
+  const CF = P.querySelector('.cfg');
+  function pintarCfg() {
+    CF.innerHTML = `<label><input type="checkbox" data-on ${CFG.on ? 'checked' : ''}> Mostrar en los recuadros de Matriz</label>` +
+      Object.keys(MET).map((k) => `<label><input type="checkbox" data-m="${k}" ${CFG.m.includes(k) ? 'checked' : ''}> ${MET[k][0]}</label>`).join('');
+    CF.querySelectorAll('input').forEach((i) => (i.onchange = () => {
+      if (i.hasAttribute('data-on')) CFG.on = i.checked; else CFG.m = Object.keys(MET).filter((k) => CF.querySelector(`[data-m="${k}"]`).checked);
+      guardar(); inyectar();
+    }));
+  }
+  P.querySelector('.cf').onclick = () => { CF.hidden = !CF.hidden; if (!CF.hidden) pintarCfg(); };
   const arrastrar = (W) => { // mover desde el encabezado
     const h = W.querySelector('header'); let dx, dy;
     h.onmousedown = (e) => { if (e.target.tagName === 'BUTTON') return; dx = e.clientX - W.offsetLeft; dy = e.clientY - W.offsetTop; document.onmousemove = (m) => { W.style.left = m.clientX - dx + 'px'; W.style.top = m.clientY - dy + 'px'; W.style.right = W.style.bottom = 'auto'; }; document.onmouseup = () => (document.onmousemove = null); };
@@ -119,7 +179,7 @@
     const b = DB[activo], f = ajuste(b.grupo, b.ley);
     const inp = B.querySelector('input'); let p = precioManual && inp ? num(inp.value) : NaN, fuente = 'manual';
     if (!(p > 0)) { [p, fuente] = precioPantalla(activo); precioManual = false; }
-    const tir = p > 0 ? tirA(b, p) : b.tir, res = f && b.dias > 30 ? (tir - f(b.dias)) * 100 : null;
+    const t0 = p > 0 ? tirA(b, p) : null, tir = t0 == null ? b.tir : t0, res = f && b.dias > 30 ? (tir - f(b.dias)) * 100 : null;
     const sem = res == null ? '' : Math.abs(res) < 25 ? ['neutral', 'En línea con la curva'] : res > 0 ? ['cheap', 'Barato'] : ['rich', 'Caro'];
     B.innerHTML = `<div class="t">${activo}</div><div class="m">${b.unidad} · cierre Bonerío ${FECHA}</div>
       <div class="g"><span>${b.unidad} al cierre</span><span>${fmt(b.tir)}%</span>
@@ -137,11 +197,13 @@
   }
 
   let t, ultBoleta = null; const revisar = (muts) => {
-    if (muts.every((m) => P.contains(m.target))) return; // cambios del propio panel
+    const nuestro = (m) => { const e = m.target.nodeType === 1 ? m.target : m.target.parentElement; return !e || P.contains(e) || (W && W.contains(e)) || e.closest('[data-bnr]'); };
+    if (muts.every(nuestro)) return; // cambios del propio panel o de nuestras filas
     clearTimeout(t); t = setTimeout(() => {
       const k = tickerBoleta(); if (k && k !== ultBoleta) { ultBoleta = activo = k; precioManual = false; } // cargó otro bono en la boleta
       if (!activo) activo = tickerVisible();
       if (!precioManual && document.activeElement !== B.querySelector('input')) pintar();
+      inyectar();
     }, 400);
   };
   document.addEventListener('input', (e) => { if (!P.contains(e.target)) revisar([{ target: e.target }]); }, true);
@@ -151,7 +213,7 @@
     FECHA = d.fecha;
     for (const [g, l] of Object.entries(d.grupos)) { GRP[g] = l; l.forEach((b) => (DB[b.ticker] = Object.assign({ grupo: g }, b))); }
     P.querySelector('#bnr-tk').innerHTML = Object.keys(DB).sort().map((k) => `<option value="${k}">`).join('');
-    activo = tickerVisible(); pintar();
+    activo = tickerVisible(); pintar(); inyectar();
     new MutationObserver(revisar).observe(document.body, { childList: true, subtree: true, characterData: true });
   }).catch(() => (B.textContent = 'No pude traer las curvas de Bonerío.'));
 })();
