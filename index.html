@@ -10282,6 +10282,12 @@ window.USTX = (function () {
   if (EMB) {
     var mode = Q.get('emb'), wid = Q.get('wid') || '';
     var post = window.DBPOST = function (o) { o.wid = wid; try { parent.postMessage(o, location.origin); } catch (e) { } if (o.t === 'dbH') try { parent.postMessage({ t: 'bnrH', h: o.h }, '*'); } catch (e) { } }; // la altura también para la extensión de Matriz (solo el número)
+    document.addEventListener('click', function (e) { // extensión de Matriz: el ticker del punto del gráfico o de la fila que se tocó, para cargarlo en la boleta
+      var k = null, c = e.target.closest && e.target.closest('canvas'), ch = c && window.Chart && Chart.getChart && Chart.getChart(c);
+      if (ch) { var el = ch.getElementsAtEventForMode(e, 'nearest', { intersect: true }, false)[0]; if (el) { var raw = ch.data.datasets[el.datasetIndex].data[el.index]; if (raw && typeof raw === 'object') { ['k', 'bono', 'ticker', 'tk', 't', 'sym'].some(function (p) { return typeof raw[p] === 'string' && (k = raw[p]); }); if (!k) for (var p in raw) if (typeof raw[p] === 'string' && /^[A-Z][A-Z0-9]{2,6}$/.test(raw[p])) { k = raw[p]; break; } } if (!k && ch.data.labels) k = ch.data.labels[el.index]; } }
+      if (!k) { var tr = e.target.closest && e.target.closest('tbody tr'); if (tr) for (var i = 0; i < Math.min(3, tr.cells.length) && !k; i++) { var x = (tr.cells[i].textContent || '').trim().split(/\s/)[0]; if (/^[A-Z][A-Z0-9]{2,5}[A-Z]?$/.test(x)) k = x; } }
+      if (typeof k === 'string' && /^[A-Z0-9\/]{3,10}$/.test(k)) try { parent.postMessage({ t: 'bnrTk', k: k }, '*'); } catch (er) { }
+    }, true);
     css('html.emb,html.emb body{background:transparent!important}html.emb body{padding:0!important;margin:0!important;overflow-y:hidden}html.emb main{max-width:none!important;margin:0!important;padding:0!important}' +
       'html.emb #sideNav,html.emb #snShade,html.emb #qvB,html.emb #qvM,html.emb footer{display:none!important}');
     window.addEventListener('message', function (e) {
