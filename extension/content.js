@@ -107,7 +107,7 @@
     tir: ['TIR a este precio', (b, x) => [CORTA[b.unidad] || 'TIR', fmt(x.tir) + '%']],
     tirc: ['TIR al cierre', (b) => [(CORTA[b.unidad] || 'TIR') + ' cierre', fmt(b.tir) + '%']],
     md: ['Duration modificada', (b) => ['DM', fmt(b.md)]],
-    curva: ['Contra la curva (pb)', (b, x) => ['vs curva', x.res == null ? '-' : (x.res > 0 ? '+' : '') + fmt(x.res, 0) + ' pb', x.res == null || Math.abs(x.res) < 25 ? '' : x.res > 0 ? '#3ddc84' : '#ff6b6b']],
+    curva: ['Contra la curva (pb)', (b, x) => ['vs curva', x.res == null ? '-' : (x.res > 0 ? '+' : '') + fmt(x.res, 0) + ' pb', '']], // solo el dato: caro o barato depende de la curva que uno tome
     dias: ['Días al vencimiento', (b) => ['Días', String(b.dias)]],
   };
   let CFG = { on: true, m: ['tir', 'md', 'curva', 'dias'] };
@@ -182,7 +182,7 @@
     if (b.tipo === 'fut') { const x = fut(b, p); return `<div class="g"><span>Precio</span><span>${p > 0 ? fmt(p, 2) : '-'}</span><span>TNA impl.</span><span>${fmt(x.tna)}%</span><span>Dev. mens.</span><span>${fmt(x.dev)}%</span><span>Días</span><span>${x.d}</span></div>`; }
     const f = ajuste(b.grupo, b.ley), t0 = p > 0 ? tirA(b, p) : null, tir = t0 == null ? b.tir : t0, res = f && b.dias > 30 ? (tir - f(b.dias)) * 100 : null;
     return `<div class="g"><span>Precio</span><span>${p > 0 ? fmt(p, 3) : '-'}</span><span>${b.unidad} a este precio</span><span>${fmt(tir)}%</span><span>${b.unidad} al cierre</span><span>${fmt(b.tir)}%</span><span>Duration mod.</span><span>${fmt(b.md)}</span>` +
-      (res == null ? '' : `<span>vs curva</span><span style="color:${Math.abs(res) < 25 ? 'inherit' : res > 0 ? '#3ddc84' : '#ff6b6b'}">${res > 0 ? '+' : ''}${fmt(res, 0)} pb</span>`) + '</div>';
+      (res == null ? '' : `<span>vs curva</span><span>${res > 0 ? '+' : ''}${fmt(res, 0)} pb</span>`) + '</div>';
   }
   const guardarPins = () => { try { localStorage.setItem('bnrPins', JSON.stringify([...PINS].map(([k, D]) => ({ k, q: +D.querySelector('.pq').value || 0, l: D.offsetLeft, t: D.offsetTop })))); } catch (er) { } };
   function fijar(k, q, pos) {
@@ -272,17 +272,20 @@
     return null;
   }
   function poner(inp, v) { if (!inp || v == null || v === '') return; inp.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, String(v)); ['input', 'change'].forEach((t) => inp.dispatchEvent(new Event(t, { bubbles: true }))); inp.dispatchEvent(new Event('blur', { bubbles: true })); }
-  function ultimoFila(k) { // Mini-Panel de precios: la fila «GD35D … Últ Var.%» (el número tal cual lo muestra Matriz; «-» si no operó)
+  function ultimoFila(k) { // Mini-Panel de precios: la fila «AL30 … Últ Var.%»; devuelve el «Últ» como lo pide la boleta (81250,5), o '' si no operó
     for (const el of document.querySelectorAll('body *')) {
-      if (el.children.length || (el.textContent || '').trim().toUpperCase() !== k || !el.getClientRects().length || el.closest('#bnr-panel,#bnr-win,[role=listbox],[role=option]')) continue;
+      if (el.children.length || (el.textContent || '').trim().toUpperCase() !== k || !el.getClientRects().length || el.closest('#bnr-panel,#bnr-win,.bnr-pin,[data-bnr],[role=listbox],[role=option]')) continue;
       for (let a = el.parentElement, i = 0; a && i < 5; i++, a = a.parentElement) {
-        const t = (a.innerText || '').trim().split(/\s+/), j = t.findIndex((x) => x.toUpperCase() === k);
+        const tx = a.innerText || ''; if (/Cierre/i.test(tx)) break; // un recuadro con libro: su precio lo lee precioDe
+        const t = tx.trim().split(/\s+/), j = t.findIndex((x) => x.toUpperCase() === k);
         if (j < 0 || t.some((x, m) => m !== j && /^[A-Z]{2,}\d/.test(x))) break; // ya abarca otra fila
-        const n = t.slice(j + 1).find((x) => /^\d{1,3}(\.\d{3})*(,\d+)?$|^\d+([.,]\d+)?$/.test(x)); if (n) return n;
+        const n = t[j + 1]; if (n == null) continue; // la columna que sigue al ticker es «Últ»; en Matriz la coma es decimal y el punto separa miles
+        const v = /^[\d.,]+$/.test(n) ? num(n.includes(',') ? n : n.replace(/\./g, '')) : NaN; return v > 0 ? String(v).replace('.', ',') : '';
       }
     }
     return '';
   }
+
   const especie = (k) => { // la especie que se carga en la boleta según la moneda elegida en ⚙ (pesos, MEP o CCL)
     const r = tk(k); if (!r || r[1] || !CFG.mon || !DOLAR[DB[r[0]].grupo]) return k;
     return DB[r[0]].grupo === 'on' && /O$/.test(k) ? k.slice(0, -1) + CFG.mon : k + CFG.mon;
@@ -304,7 +307,8 @@
     try { return aBoleta1(k, cant); } catch (er) { aviso('Boleta: error ' + er.message, 1); }
   }
   function aBoleta1(k, cant) {
-    k = especie(aMatriz(k)); aviso('Boleta: buscando ' + k + '…');
+    k = especie(aMatriz(k));
+    if (!(cant > 0)) { const r = tk(k), D = (r && PINS.get(r[0])) || PINS.get(k); if (D) cant = +D.querySelector('.pq').value || 0; } // si el bono tiene ficha fija, van sus nominales aviso('Boleta: buscando ' + k + '…');
     const vis = (e) => e && e.offsetParent && !e.closest('#bnr-panel,#bnr-win,.bnr-pin');
     let inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || ''));
     if (!inp) for (const el of document.querySelectorAll('body *')) { // el texto "Buscar instrumento" o la etiqueta "Instrumento" suelen ser un div aparte (selectores tipo react-select): el input está en el mismo bloque
@@ -375,12 +379,11 @@
     const inp = B.querySelector('input'); let p = precioManual && inp ? num(inp.value) : NaN, fuente = 'manual';
     if (!(p > 0)) { [p, fuente] = precioPantalla(activo); precioManual = false; }
     const t0 = p > 0 ? tirA(b, p) : null, tir = t0 == null ? b.tir : t0, res = f && b.dias > 30 ? (tir - f(b.dias)) * 100 : null;
-    const sem = res == null ? '' : Math.abs(res) < 25 ? ['neutral', 'En línea con la curva'] : res > 0 ? ['cheap', 'Barato'] : ['rich', 'Caro'];
     B.innerHTML = `<div class="t">${activo}</div><div class="m">${b.unidad} · cierre Bonerío ${FECHA}</div>
       <div class="g"><span>${b.unidad} al cierre</span><span>${fmt(b.tir)}%</span>
       <span>${b.unidad} a este precio</span><span>${fmt(tir)}%</span>
       <span>Duration mod.</span><span>${fmt(b.md)}</span><span>Días al vto.</span><span>${b.dias}</span></div>
-      ${sem ? `<div class="sem ${sem[0]}">${sem[1]}: ${fmt(Math.abs(res), 0)} pb ${res > 0 ? 'arriba' : 'abajo'} de la curva</div>` : ''}
+      ${res == null ? '' : `<div class="g"><span>vs curva Bonerío</span><span>${res > 0 ? '+' : ''}${fmt(res, 0)} pb</span></div>`}
       <label class="m">Precio (${fuente || 'sin precio en pantalla'}): si salgo a…</label>
       <input value="${p > 0 ? fmt(p, 3) : ''}" placeholder="Precio">
       <div class="m" style="margin-top:4px">Estimado con la duration (sin convexidad).</div>
