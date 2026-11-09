@@ -79,7 +79,7 @@
   function recuadros() { // cada recuadro de Matriz con libro ("Cierre Ant."): el primer ticker que aparece al subir es su título
     const out = [];
     for (const lab of document.querySelectorAll('body *')) {
-      if (lab.children.length || !/^Cierre\s+Ant\.?\s*:?$/i.test((lab.textContent || '').trim()) || lab.closest('#bnr-panel,#bnr-win')) continue;
+      if (lab.children.length || !/^Cierre\s+Ant\.?\s*:?$/i.test((lab.textContent || '').trim()) || lab.closest('#bnr-panel,#bnr-win,.bnr-pin')) continue;
       let a = lab.parentElement, hit = null;
       for (let i = 0; a && i < 16 && !hit; i++, a = a.parentElement) for (const w of (a.innerText || a.textContent || '').toUpperCase().match(TOK) || []) { const r = tk(w); if (r) { hit = { el: a, k: r[0], suf: r[1] }; break; } }
       if (hit && !out.some((o) => o.el === hit.el)) out.push(hit);
@@ -152,7 +152,7 @@
 
   // ---------- panel ----------
   const P = document.createElement('div'); P.id = 'bnr-panel';
-  P.innerHTML = '<header><span>Bonerío Inside</span><span><button class="cf" title="Datos en los recuadros de Matriz">⚙</button><button class="mn" title="Minimizar">–</button></span></header><div class="cfg" hidden></div><div class="q"><input class="bus" placeholder="Escribí un bono (AL30, TMVE8…)" list="bnr-tk"><datalist id="bnr-tk"></datalist></div><div class="b">Cargando curvas…</div><div class="est" hidden></div>';
+  P.innerHTML = '<header><span>Bonerío Inside</span><span><button class="pin" title="Fijar este bono en una ficha aparte (podés abrir varias)">📌</button><button class="cf" title="Datos en los recuadros de Matriz">⚙</button><button class="mn" title="Minimizar">–</button></span></header><div class="cfg" hidden></div><div class="q"><input class="bus" placeholder="Escribí un bono (AL30, TMVE8…)" list="bnr-tk"><datalist id="bnr-tk"></datalist></div><div class="b">Cargando curvas…</div><div class="est" hidden></div>';
   document.body.appendChild(P);
   const B = P.querySelector('.b');
   P.querySelector('.mn').onclick = () => P.classList.toggle('min');
@@ -170,9 +170,34 @@
   P.querySelector('.cf').onclick = () => { CF.hidden = !CF.hidden; if (!CF.hidden) pintarCfg(); };
   const arrastrar = (W) => { // mover desde el encabezado
     const h = W.querySelector('header'); let dx, dy;
-    h.onmousedown = (e) => { if (e.target.tagName === 'BUTTON') return; dx = e.clientX - W.offsetLeft; dy = e.clientY - W.offsetTop; document.onmousemove = (m) => { W.style.left = m.clientX - dx + 'px'; W.style.top = m.clientY - dy + 'px'; W.style.right = W.style.bottom = 'auto'; }; document.onmouseup = () => (document.onmousemove = null); };
+    h.onmousedown = (e) => { if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT' || W.classList.contains('fijo')) return; dx = e.clientX - W.offsetLeft; dy = e.clientY - W.offsetTop; document.onmousemove = (m) => { W.style.left = m.clientX - dx + 'px'; W.style.top = m.clientY - dy + 'px'; W.style.right = W.style.bottom = 'auto'; }; document.onmouseup = () => { document.onmousemove = document.onmouseup = null; if (W.id === 'bnr-win') recordar(); }; };
   };
   arrastrar(P);
+  // ---------- fichas fijas: un bono por ficha, todas las que quieras; se actualizan con el precio de la pantalla ----------
+  const PINS = new Map();
+  function fichaHTML(k) {
+    const b = DB[k]; if (!b) return '<div class="m">Sin datos en Bonerío</div>';
+    if (b.tipo === 'acc') return `<div class="g"><span>Cierre</span><span>$ ${fmt(b.precio)}</span><span>Beta</span><span>${fmt(b.beta)}</span></div>`;
+    const [p] = precioPantalla(k);
+    if (b.tipo === 'fut') { const x = fut(b, p); return `<div class="g"><span>Precio</span><span>${p > 0 ? fmt(p, 2) : '-'}</span><span>TNA impl.</span><span>${fmt(x.tna)}%</span><span>Dev. mens.</span><span>${fmt(x.dev)}%</span><span>Días</span><span>${x.d}</span></div>`; }
+    const f = ajuste(b.grupo, b.ley), t0 = p > 0 ? tirA(b, p) : null, tir = t0 == null ? b.tir : t0, res = f && b.dias > 30 ? (tir - f(b.dias)) * 100 : null;
+    return `<div class="g"><span>Precio</span><span>${p > 0 ? fmt(p, 3) : '-'}</span><span>${b.unidad} a este precio</span><span>${fmt(tir)}%</span><span>${b.unidad} al cierre</span><span>${fmt(b.tir)}%</span><span>Duration mod.</span><span>${fmt(b.md)}</span>` +
+      (res == null ? '' : `<span>vs curva</span><span style="color:${Math.abs(res) < 25 ? 'inherit' : res > 0 ? '#3ddc84' : '#ff6b6b'}">${res > 0 ? '+' : ''}${fmt(res, 0)} pb</span>`) + '</div>';
+  }
+  function fijar(k) {
+    if (!k) return; if (PINS.has(k)) { PINS.get(k).style.outline = '2px solid #ffc107'; setTimeout(() => (PINS.get(k).style.outline = ''), 600); return; }
+    const D = document.createElement('div'), n = PINS.size; D.className = 'bnr-pin';
+    D.style.top = 70 + (n % 6) * 28 + 'px'; D.style.right = 280 + (n % 6) * 24 + 'px';
+    D.innerHTML = `<header><span class="pk" title="Ver en el panel">${k}</span><button class="x" title="Cerrar">✕</button></header><div class="pb"></div><div class="bt"><button data-v="curva">Curva</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
+    document.body.appendChild(D); arrastrar(D); PINS.set(k, D);
+    D.querySelector('.pb').innerHTML = fichaHTML(k);
+    D.querySelector('.x').onclick = () => { D.remove(); PINS.delete(k); };
+    D.querySelector('.pk').onclick = () => { activo = k; precioManual = false; pintar(); };
+    D.querySelector('[data-v=boleta]').onclick = () => aBoleta(k);
+    D.querySelector('[data-v=curva]').onclick = () => { activo = k; precioManual = false; curvaG = null; pintar(); ventana('curva'); };
+  }
+  const refrescarPins = () => PINS.forEach((D, k) => { const h = fichaHTML(k), pb = D.querySelector('.pb'); if (pb.innerHTML !== h) pb.innerHTML = h; });
+  P.querySelector('.pin').onclick = () => fijar(activo);
   if (chrome.runtime && chrome.runtime.onMessage) chrome.runtime.onMessage.addListener((m) => { if (m && m.t === 'toggle') { const v = P.style.display === 'none'; P.style.display = v ? '' : 'none'; if (W && !v) W.style.display = 'none'; } }); // el ícono de la extensión
   const BUS = P.querySelector('.bus');
   BUS.onkeydown = (e) => { if (e.key === 'Enter') BUS.onchange(); };
@@ -185,7 +210,7 @@
   const VIS = {
     ficha: ['Ficha', (g) => (g === 'acc' ? [['', 'acc', 'accF', 'ficha']] : [['', 'bono', 'bono']])],
     curva: ['Curva', (g) => [['', ...(CURVAS[g] || CURVAS.usd)]]],
-    vol: ['Volumen', () => [['', 'vol', 'vlS1']]],
+    vol: ['Volumen', () => [['Dónde estuvo', 'vol', 'vlS1'], ['Operado hoy', 'res', 'resVolC', 'vol,v=1']]], // «Operado hoy»: la tarjeta de Resumen, período diario
     acc: ['Acciones', () => [['', 'acc', 'accP', 'pares']]],
     brc: ['Brecha y canje', () => [['Ratios', 'brc', 'brA'], ['Todos ahora', 'brc', 'brB']]],
     tfut: ['Futuros', () => [['', 'tfut', 'tfS1']]],
@@ -202,10 +227,13 @@
     if (v && v !== vista) sub = 0; vista = v || vista; if (j != null) sub = j;
     if (!W) {
       W = document.createElement('div'); W.id = 'bnr-win'; tamManual = false; LISTO = false;
-      W.innerHTML = '<header><span class="tt"></span><span class="tabs"></span><button class="x" title="Cerrar">✕</button></header><div class="subs"></div><div class="wb"><iframe allow="clipboard-write"></iframe></div>';
+      W.innerHTML = '<header><span class="tt"></span><span class="tabs"></span><button class="lk" title="Fijar la ventana (no se mueve ni cambia de tamaño)">🔓</button><button class="x" title="Cerrar">✕</button></header><div class="subs"></div><div class="wb"><div class="zs"><iframe allow="clipboard-write"></iframe></div></div>';
       document.body.appendChild(W); arrastrar(W);
       W.querySelector('.x').onclick = () => (W.style.display = 'none'); // se oculta, no se cierra: la próxima vez abre al instante
-      W.addEventListener('mouseup', (e) => { if (e.target === W) tamManual = true; }); // lo agrandó desde la esquina: no lo ajustamos más
+      W.addEventListener('mouseup', (e) => { if (e.target === W) { tamManual = true; encajar(); recordar(); } }); // la agrandó o achicó desde la esquina: el contenido se acomoda a ese tamaño
+      W.querySelector('header').ondblclick = (e) => { if (e.target.tagName !== 'BUTTON' && !W.classList.contains('fijo')) { tamManual = false; W.style.width = ''; encajar(); recordar(); } }; // doble clic: vuelve al tamaño justo
+      const lk = W.querySelector('.lk'); lk.onclick = () => { const f = W.classList.toggle('fijo'); lk.textContent = f ? '🔒' : '🔓'; recordar(); };
+      try { const g = JSON.parse(localStorage.getItem('bnrWin') || 'null'); if (g) { Object.assign(W.style, { left: g.l + 'px', top: g.t + 'px' }); if (g.m) { tamManual = true; Object.assign(W.style, { width: g.w + 'px', height: g.h + 'px' }); } if (g.f) { W.classList.add('fijo'); lk.textContent = '🔒'; } } } catch (er) { }
     }
     if (!oculta) W.style.display = '';
     const g0 = DB[activo] && DB[activo].grupo, g = vista === 'curva' ? (curvaG || (CURVAS[g0] && g0 !== 'acc' ? g0 : 'usd')) : g0, L = VIS[vista][1](g), [, tab, id, sg] = L[sub] || L[0];
@@ -224,7 +252,7 @@
     const cv = SOLO_GRAF[vista] ? 1 : 0; // en las curvas, solo el gráfico (como la curva USD)
     if (LISTO) { F.contentWindow.postMessage({ t: 'bnrSec', tab, id, g: sg || '', k, cv }, '*'); return; } // la página ya está cargada: solo cambia de sección
     F.style.height = '2600px';
-    const url = SITE + '?emb=sec&ht=*&tab=' + tab + '&id=' + id + (sg ? '&g=' + sg : '') + (cv ? '&cv=1' : '') + (k ? '#ficha=' + k + '&n=' + Date.now() : '');
+    const url = SITE + '?emb=sec&tab=' + tab + '&id=' + id + (sg ? '&g=' + sg : '') + (cv ? '&cv=1' : '') + (k ? '#ficha=' + k + '&n=' + Date.now() : '');
     F.src = chrome.runtime.getURL('frame.html') + '#' + encodeURIComponent(url); // Bonerío va adentro de una página de la extensión: así no la frena la regla frame-src de Matriz
   }
   P.addEventListener('mouseenter', () => { if (!W && activo) ventana(null, null, true); }, { once: true }); // la carga empieza al acercarse al panel: cuando tocás, ya está
@@ -232,7 +260,7 @@
   // ---------- cargar un ticker en la boleta de Matriz (campo "Instrumento"); no manda ninguna orden ----------
   function campo(nombre) { // el input de la boleta que está bajo la etiqueta "Precio" o "Cantidad"
     for (const el of document.querySelectorAll('body *')) {
-      if (el.children.length || !el.getClientRects().length || el.closest('#bnr-panel,#bnr-win') || (el.textContent || '').trim().toLowerCase() !== nombre) continue;
+      if (el.children.length || !el.getClientRects().length || el.closest('#bnr-panel,#bnr-win,.bnr-pin') || (el.textContent || '').trim().toLowerCase() !== nombre) continue;
       for (let a = el.parentElement, i = 0; a && i < 3; i++, a = a.parentElement) { const x = [...a.querySelectorAll('input')].find((n) => n.getClientRects().length && n.type !== 'hidden'); if (x) return x; }
     }
     return null;
@@ -271,7 +299,7 @@
   }
   function aBoleta1(k) {
     k = especie(aMatriz(k)); aviso('Boleta: buscando ' + k + '…');
-    const vis = (e) => e && e.offsetParent && !e.closest('#bnr-panel,#bnr-win');
+    const vis = (e) => e && e.offsetParent && !e.closest('#bnr-panel,#bnr-win,.bnr-pin');
     let inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || ''));
     if (!inp) for (const el of document.querySelectorAll('body *')) { // el texto "Buscar instrumento" o la etiqueta "Instrumento" suelen ser un div aparte (selectores tipo react-select): el input está en el mismo bloque
       if (el.children.length || !vis(el) || !/^(Buscar instrumento|Instrumento)$/i.test((el.textContent || '').trim())) continue;
@@ -281,7 +309,7 @@
     if (!inp) { aviso('Boleta: no encontré el campo «Instrumento» de Matriz', 1); return false; }
     const propio = inp.parentElement && inp.parentElement.parentElement; // el propio campo (los buscadores tipo react-select repiten el texto en un div invisible para medirlo)
     const seve = (o) => { const r = o.getBoundingClientRect(); return r.width > 4 && r.height > 4 && getComputedStyle(o).visibility !== 'hidden'; };
-    const cand = () => [...document.querySelectorAll('li,[role=option],mat-option,a,span,div')].filter((o) => !o.children.length && (o.textContent || '').trim().toUpperCase().startsWith(k) && seve(o) && !(propio && propio.contains(o)) && !o.closest('#bnr-panel,#bnr-win'));
+    const cand = () => [...document.querySelectorAll('li,[role=option],mat-option,a,span,div')].filter((o) => !o.children.length && (o.textContent || '').trim().toUpperCase().startsWith(k) && seve(o) && !(propio && propio.contains(o)) && !o.closest('#bnr-panel,#bnr-win,.bnr-pin'));
     const antes = new Set(cand()); // solo vale una sugerencia que aparezca después de escribir (no una fila del panel de precios)
     const box = inp.closest('div') || inp; ['mousedown', 'mouseup', 'click'].forEach((t) => box.dispatchEvent(new MouseEvent(t, { bubbles: true }))); // abre el buscador
     inp.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, k);
@@ -297,13 +325,19 @@
     if (!W || !e.data || e.source !== W.querySelector('iframe').contentWindow) return;
     if (e.data.t === 'bnrTk') { const k = aMatriz(e.data.k), r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } aBoleta(k); return; }
     if (e.data.t !== 'bnrH') return;
-    LISTO = true;
-    const h = Math.max(150, +e.data.h || 0), F = W.querySelector('iframe'), top = W.querySelector('.wb').offsetTop + 2;
-    const max = tamManual ? W.clientHeight - top : Math.min(Math.round(innerHeight * 0.55), innerHeight - W.offsetTop - 10) - top; // como mucho media pantalla: no tapa la operatoria
-    const z = Math.max(0.6, Math.min(1, max / h)); // si no entra, se achica entera (como un zoom) en vez de cortarse
-    Object.assign(F.style, { height: h + 'px', width: 100 / z + '%', transform: z < 1 ? `scale(${z})` : '', transformOrigin: '0 0' });
-    if (!tamManual) W.style.height = Math.ceil(h * z) + top + 'px';
+    LISTO = true; encajar(Math.max(150, +e.data.h || 0));
   });
+  let ultH = 0;
+  function encajar(h) { // la sección entra justa: se escala (como un zoom) para llenar el ancho sin dejar hueco abajo
+    if (h) ultH = h; h = ultH; if (!W || !h) return;
+    const F = W.querySelector('iframe'), Z = W.querySelector('.zs'), wb = W.querySelector('.wb'), top = wb.offsetTop + 2, aw = wb.clientWidth;
+    const z = tamManual ? Math.max(0.5, Math.min(1.6, (W.clientHeight - top) / h)) // tamaño elegido por el usuario: el contenido se agranda o achica para ocuparlo
+      : Math.max(0.6, Math.min(1, (Math.min(Math.round(innerHeight * 0.55), innerHeight - W.offsetTop - 10) - top) / h)); // automático: como mucho media pantalla, no tapa la operatoria
+    Object.assign(F.style, { width: aw / z + 'px', height: h + 'px', transform: z !== 1 ? `scale(${z})` : '' });
+    Object.assign(Z.style, { width: aw + 'px', height: Math.ceil(h * z) + 'px' });
+    if (!tamManual) W.style.height = Math.ceil(h * z) + top + 'px';
+  }
+  function recordar() { try { localStorage.setItem('bnrWin', JSON.stringify({ l: W.offsetLeft, t: W.offsetTop, w: W.offsetWidth, h: W.offsetHeight, m: tamManual, f: W.classList.contains('fijo') })); } catch (er) { } }
 
   function pintar() {
     if (!activo) { B.innerHTML = '<span class="m">Abrí un bono en Matriz (o hacé clic en una fila) y aparece acá.</span>'; return; }
@@ -352,13 +386,13 @@
   }
 
   let t, ultBoleta = null; const revisar = (muts) => {
-    const nuestro = (m) => { const e = m.target.nodeType === 1 ? m.target : m.target.parentElement; return !e || P.contains(e) || (W && W.contains(e)) || e.closest('[data-bnr]'); };
+    const nuestro = (m) => { const e = m.target.nodeType === 1 ? m.target : m.target.parentElement; return !e || P.contains(e) || (W && W.contains(e)) || e.closest('[data-bnr],.bnr-pin'); };
     if (muts.every(nuestro)) return; // cambios del propio panel o de nuestras filas
     clearTimeout(t); t = setTimeout(() => {
       const k = tickerBoleta(); if (k && k !== ultBoleta) { ultBoleta = activo = k; precioManual = false; } // cargó otro bono en la boleta
       if (!activo) activo = tickerVisible();
       if (!precioManual && document.activeElement !== B.querySelector('input')) pintar();
-      inyectar();
+      inyectar(); refrescarPins();
     }, 400);
   };
   document.addEventListener('input', (e) => { if (!P.contains(e.target)) revisar([{ target: e.target }]); }, true);
