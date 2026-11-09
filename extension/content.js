@@ -214,17 +214,22 @@
 
   // ---------- cargar un ticker en la boleta de Matriz (campo "Instrumento"); no manda ninguna orden ----------
   function aBoleta(k) {
-    const lab = (i) => [i.previousElementSibling, i.parentElement && i.parentElement.previousElementSibling].some((x) => x && /^Instrumento$/i.test((x.textContent || '').trim()));
-    const inp = [...document.querySelectorAll('input')].find((i) => !i.closest('#bnr-panel,#bnr-win') && (/instrumento/i.test(i.placeholder || '') || lab(i)));
-    if (!inp) return false;
+    const vis = (e) => e && e.offsetParent && !e.closest('#bnr-panel,#bnr-win');
+    let inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || ''));
+    if (!inp) for (const el of document.querySelectorAll('body *')) { // el texto "Buscar instrumento" o la etiqueta "Instrumento" suelen ser un div aparte (selectores tipo react-select): el input está en el mismo bloque
+      if (el.children.length || !vis(el) || !/^(Buscar instrumento|Instrumento)$/i.test((el.textContent || '').trim())) continue;
+      for (let a = el.parentElement, i = 0; a && i < 4 && !inp; i++, a = a.parentElement) inp = [...a.querySelectorAll('input')].find((x) => vis(x) && x.type !== 'hidden' && x.type !== 'checkbox');
+      if (inp) break;
+    }
     const cand = () => [...document.querySelectorAll('li,[role=option],mat-option,a,span,div')].filter((o) => !o.children.length && o.offsetParent && !o.closest('#bnr-panel,#bnr-win') && (o.textContent || '').trim().toUpperCase().startsWith(k));
     const antes = new Set(cand()); // solo vale una sugerencia que aparezca después de escribir (no una fila del panel de precios)
+    const box = inp.closest('div') || inp; ['mousedown', 'mouseup', 'click'].forEach((t) => box.dispatchEvent(new MouseEvent(t, { bubbles: true }))); // abre el buscador
     inp.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, k);
-    inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: k.slice(-1) }));
+    inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); inp.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: k.slice(-1) }));
     let n = 0; const iv = setInterval(() => { // elige la primera sugerencia nueva (en 24 hs si la hay)
-      if (++n > 12) return clearInterval(iv);
+      if (++n > 16) { clearInterval(iv); inp.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', keyCode: 13 })); return; } // sin sugerencia reconocible: Enter elige la primera
       const ops = cand().filter((o) => !antes.has(o)), o = ops.find((x) => /24/.test(x.textContent)) || ops[0];
-      if (o) { clearInterval(iv); o.click(); }
+      if (o) { clearInterval(iv); ['mousedown', 'mouseup', 'click'].forEach((t) => o.dispatchEvent(new MouseEvent(t, { bubbles: true }))); }
     }, 250);
     return true;
   }
