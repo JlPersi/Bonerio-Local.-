@@ -69,10 +69,10 @@
   }
   function recuadros() { // cada recuadro de Matriz con libro ("Cierre Ant."): el primer ticker que aparece al subir es su título
     const out = [];
-    for (const lab of document.querySelectorAll('div,span,td,th')) {
-      if (lab.children.length || !/^Cierre Ant\.?:?$/.test((lab.textContent || '').trim()) || lab.closest('#bnr-panel,#bnr-win')) continue;
+    for (const lab of document.querySelectorAll('body *')) {
+      if (lab.children.length || !/^Cierre\s+Ant\.?\s*:?$/i.test((lab.textContent || '').trim()) || lab.closest('#bnr-panel,#bnr-win')) continue;
       let a = lab.parentElement, hit = null;
-      for (let i = 0; a && i < 8 && !hit; i++, a = a.parentElement) for (const w of (a.innerText || a.textContent || '').toUpperCase().match(/[A-Z0-9]{3,7}/g) || []) { const r = tk(w); if (r) { hit = { el: a, k: r[0], suf: r[1] }; break; } }
+      for (let i = 0; a && i < 16 && !hit; i++, a = a.parentElement) for (const w of (a.innerText || a.textContent || '').toUpperCase().match(/[A-Z0-9]{3,7}/g) || []) { const r = tk(w); if (r) { hit = { el: a, k: r[0], suf: r[1] }; break; } }
       if (hit && !out.some((o) => o.el === hit.el)) out.push(hit);
     }
     return out;
@@ -112,9 +112,9 @@
     for (const c of recuadros()) {
       const viejas = [...c.el.querySelectorAll('[data-bnr]')];
       if (!CFG.on || !CFG.m.length) { viejas.forEach((r) => r.remove()); continue; }
-      const lab = [...c.el.querySelectorAll('div,span,td')].find((e) => !e.children.length && /^P&L:?$/.test((e.textContent || '').trim()) && !e.closest('[data-bnr]'));
+      const lab = [...c.el.querySelectorAll('*')].find((e) => !e.children.length && /^P\s*&\s*L\s*:?$/i.test((e.textContent || '').trim()) && !e.closest('[data-bnr]'));
       let row = lab && lab.parentElement; while (row && row !== c.el && !/Pos/.test(row.textContent || '')) row = row.parentElement;
-      if (!row || row === c.el) continue;
+      if (!row || row === c.el || /Cierre/.test(row.textContent || '')) continue; // la fila de Pos / P&L sola, no el recuadro entero
       const b = DB[c.k], [p] = precioVale(c.k, c.suf) ? precioDe(c) : [NaN], x = calc(b, p), cel = CFG.m.map((m) => MET[m][1](b, x)), n = Math.ceil(cel.length / 2);
       if (viejas.length !== n) { viejas.forEach((r) => r.remove()); let ant = row; for (let i = 0; i < n; i++) { const r = row.cloneNode(true); r.setAttribute('data-bnr', '1'); r.title = 'Bonerío Local'; ant.after(r); ant = r; } }
       [...c.el.querySelectorAll('[data-bnr]')].forEach((r, i) => {
@@ -188,7 +188,8 @@
     S.innerHTML = L.length < 2 ? '' : L.map((x, i) => `<button data-i="${i}" class="${i === sub ? 'on' : ''}">${x[0]}</button>`).join('');
     S.querySelectorAll('button').forEach((x) => (x.onclick = () => ventana(vista, +x.dataset.i)));
     const F = W.querySelector('iframe'); F.style.height = '2600px'; W.dataset.v = vista;
-    F.src = SITE + '?emb=sec&tab=' + tab + '&id=' + id + (vista === 'ficha' && activo ? '#ficha=' + activo + '&n=' + Date.now() : '');
+    const url = SITE + '?emb=sec&tab=' + tab + '&id=' + id + (vista === 'ficha' && activo ? '#ficha=' + activo + '&n=' + Date.now() : '');
+    F.src = chrome.runtime.getURL('frame.html') + '#' + encodeURIComponent(url); // Bonerío va adentro de una página de la extensión: así no la frena la regla frame-src de Matriz
   }
   window.addEventListener('message', (e) => { // la página manda la altura de la sección: la ventana queda justa
     if (!W || !e.data || e.data.t !== 'bnrH' || e.source !== W.querySelector('iframe').contentWindow) return;
