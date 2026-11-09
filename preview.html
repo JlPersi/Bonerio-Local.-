@@ -10323,7 +10323,12 @@ window.USTX = (function () {
       setTimeout(next, 600);
     } else if (mode === 'sec') {
       var tab = Q.get('tab'), id = Q.get('id') || tab;
-      var CV = Q.get('cv') === '1', CVI = null;
+      var CV = Q.get('cv') === '1', CVI = null, CMP = Q.get('cmp') === '1';
+      var COMPACTO = { // extensión de Matriz: lo esencial de cada sección (el resto se oculta)
+        bono: '#bono>:not(#bnCHe):not(.bnG2)', // ficha: encabezado, rendimiento y curva, calculadora y sensibilidad
+        accP: '#accP>.sxh,#accPk2,#accPn2,#accP label:has(#accMon5),#accP label:has(#accPd)' // pares: acciones, período, bandas y el gráfico
+      };
+      var compacto = function () { var st = document.getElementById('embCmp'); if (!st) { st = document.createElement('style'); st.id = 'embCmp'; document.head.appendChild(st); } st.textContent = CMP && COMPACTO[id] ? 'html.emb ' + COMPACTO[id].split(',').join(',html.emb ') + '{display:none!important}' : ''; };
       var chartOnly = function () { // solo el gráfico principal de la sección (las curvas de la extensión de Matriz): el primer canvas grande y su recuadro, sin textos ni tablas
         clearInterval(CVI); if (!CV) return; var t = '';
         CVI = setInterval(function () {
@@ -10335,10 +10340,10 @@ window.USTX = (function () {
         }, 300);
       };
       var subTab = function (t, g) { if (!g || !/^[\w=,-]+$/.test(g)) return; g.split(',').forEach(function (x) { var q = x.indexOf('=') > 0 ? '[data-' + x.split('=')[0] + '="' + x.split('=')[1] + '"]' : '[data-g="' + x + '"]', n = 0, iv = setInterval(function () { var b = document.querySelector('#' + t + ' ' + q); if (b || ++n > 30) { clearInterval(iv); if (b && !b.classList.contains('on')) b.click(); } }, 200); }); }; // subpestañas internas: «vol» es data-g="vol"; «v=1» es data-v="1" (Resumen: período diario) // subpestaña interna (Acciones → Pares)
-      only(id); setTimeout(function () { goTab(tab, Q.get('sec') || ''); subTab(tab, Q.get('g')); window.scrollTo(0, 0); watch(id); chartOnly(); }, 300);
+      only(id); setTimeout(function () { goTab(tab, Q.get('sec') || ''); subTab(tab, Q.get('g')); window.scrollTo(0, 0); watch(id); chartOnly(); }, 300); compacto();
       window.addEventListener('message', function (e) { // extensión de Matriz: cambia de sección sin recargar la página (mucho más rápido)
         var d = e.data; if (e.source !== parent || !d || d.t !== 'bnrSec' || !/^[\w-]+$/.test(d.tab || '') || !/^[\w-]+$/.test(d.id || '')) return;
-        tab = d.tab; id = d.id; CV = !!d.cv; only(id); goTab(tab, ''); subTab(tab, d.g);
+        tab = d.tab; id = d.id; CV = !!d.cv; CMP = !!d.cmp; only(id); compacto(); goTab(tab, ''); subTab(tab, d.g);
         if (d.k && window.BONO && window.BONO.open) window.BONO.open(String(d.k).toUpperCase());
         window.scrollTo(0, 0); watch(id); chartOnly();
       });
