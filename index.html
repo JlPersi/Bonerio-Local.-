@@ -14858,6 +14858,9 @@ window.RATG = (function () {
     '#res .br .bk{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#res .br .bk small{color:var(--mu);font-size:11.5px;margin-left:7px}#res .br .bt{position:relative;height:22px}' +
     '#res .br .bt i{position:absolute;left:0;top:3px;bottom:3px;border-radius:3px 8px 8px 3px;background:linear-gradient(90deg,rgba(var(--c),.16),rgba(var(--c),.5) 40%,rgba(var(--c),.88));box-shadow:2px 0 8px -3px rgba(var(--c),.5)}' +
     '#res .bsec{grid-column:1/-1;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 0 2px;border-top:2px solid var(--bd)}#res .bsec:first-child{border-top:0;padding-top:0}#res .bsec b{font-size:17px;color:var(--fc,var(--tx))}#res .bsec span{color:var(--mu);font-size:12.5px}' +
+    '#res .seg button.ex{background:rgba(248,113,113,.16)!important;color:var(--tx)!important;text-decoration:line-through;text-decoration-color:#f87171}#res .rsx{margin:0 0 20px 8px;vertical-align:top;background:none;border:1px dashed var(--bd);color:var(--mu);border-radius:10px;padding:9px 12px;font:inherit;font-size:13px;cursor:pointer}#res .rsx.on{border-style:solid;border-color:#f87171;color:var(--tx)}' +
+    '#res .mx{display:grid;grid-template-columns:64px minmax(0,1fr) 52px;gap:6px 12px;align-items:center;font-size:13.5px;font-variant-numeric:tabular-nums}#res .mx .bar{display:flex;height:24px;border-radius:6px;overflow:hidden;background:var(--bg)}#res .mx .bar i{display:block;height:100%;min-width:0}#res .mx .bar i+i{border-left:2px solid var(--card)}#res .mx b{text-align:right;color:var(--mu);font-weight:600}' +
+    '#res .mxL{display:flex;flex-wrap:wrap;gap:8px 16px;margin:16px 0 0;font-size:13px;color:var(--mu)}#res .mxL span{display:inline-flex;align-items:center;gap:6px}#res .mxL i{width:11px;height:11px;border-radius:3px;display:inline-block}' +
     '#res .br .bv{text-align:right;font-weight:700}#res .bl h5{margin-bottom:6px}</style>' +
     '<div class="card sx" id="resTop"><div class="sxh"><div style="min-width:0"><p class="qh">Resumen de mercado</p><p class="qs keep" id="resSub">Cargando…</p></div>' + RDL('resTop', 'Resumen_de_mercado') + '</div>' +
     '<div class="ctl" id="resCtl"><div style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mu)">Período<span class="seg" id="resPer" style="flex-wrap:wrap;max-width:100%">' + PER.map(function (p) { return '<button data-v="' + p[0] + '">' + p[1] + '</button>'; }).join('') + '</span></div>' +
@@ -14873,7 +14876,34 @@ window.RATG = (function () {
     '<p class="note">Precio: retorno total entre los dos cierres, sumando los cupones y amortizaciones que el bono pagó en el período (si no, el que pagó parece que bajó). El resumen es del día terminado: mientras opera la rueda muestra el último cierre (lo de hoy, en Variación diaria). Tasa: TIR en hard dollar (con los flujos completos de cada bono, en MEP o cable según el selector de arriba) y TEA en Lecaps y Boncaps; verde, la tasa bajó (subió el precio). Solo entran las especies que operaron en el período. ONs y provinciales: cierres guardados en dólares (la historia de BYMA desde nov-24). Largo de cada barra: el movimiento contra el mayor de su lista.</p></div></div>' +
     '<div data-pane="vol"><div class="card sx" id="resVolC"><div class="sxh"><div style="min-width:0"><p class="qh">Volumen operado</p><p class="qs keep">Monto operado en el período: lo más operado, el volumen inusual y el reparto por familia. Elegí la familia.</p></div>' + RDL('resVolC', 'Volumen_operado') + '</div><div class="seg rsf" id="resVF"></div><div class="bars" id="resVol"></div>' +
     '<p class="note">Monto en pesos, sumando las tres monedas de cada bono (las especies en dólares, al MEP o CCL de AL30 de cada día). Inusual: el promedio diario del período contra el de las 60 ruedas anteriores (solo especies con más de $50 M diarios de promedio). Acciones: precio por cantidad operada. ONs y provinciales: monto en dólares pasado a pesos al MEP o CCL de cada día.</p></div></div>';
-  [['resGF', 'gf'], ['resVF', 'vf']].forEach(function (z) { var el = root.querySelector('#' + z[0]); el.innerHTML = GF.map(function (g) { return '<button data-f="' + g[0] + '">' + g[1] + '</button>'; }).join(''); el.onclick = function (e) { var b = e.target.closest('button[data-f]'); if (!b) return; ST[z[1]] = b.getAttribute('data-f'); save(); paint(); }; });
+  [['resGF', 'gf'], ['resVF', 'vf']].forEach(function (z) { var el = root.querySelector('#' + z[0]); el.innerHTML = GF.map(function (g) { return '<button data-f="' + g[0] + '">' + g[1] + '</button>'; }).join(''); el.insertAdjacentHTML('afterend', '<button type="button" class="rsx" data-x="' + z[1] + '" title="Las familias marcadas quedan afuera en vez de ser las únicas">Excluir las marcadas</button>');
+    el.onclick = function (e) { var b = e.target.closest('button[data-f]'); if (!b) return; var f = b.getAttribute('data-f'), k = z[1], L = ST[k] && ST[k] !== 'all' ? ST[k].split(',') : [];
+      if (f === 'all') { L = []; ST[k + 'x'] = false; } else { var i = L.indexOf(f); if (i >= 0) L.splice(i, 1); else L.push(f); } ST[k] = L.length ? L.join(',') : 'all'; save(); paint(); }; }); // varias familias a la vez; con «Excluir», las marcadas quedan afuera
+  $('resVolC').insertAdjacentHTML('afterend', '<div class="card sx" id="resMix" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh">Composición del volumen, mes a mes</p><p class="qs keep">Cómo se reparte el monto operado entre las familias en cada uno de los últimos 12 meses: muestra hacia dónde rota el mercado. Usa el mismo filtro de familias de arriba.</p></div>' + RDL('resMix', 'Composicion_volumen') + '</div><div id="resMixB"><p class="note">Calculando…</p></div>' +
+    '<p class="note">Monto en pesos de cada mes, sumando las tres monedas de cada especie (las en dólares al MEP o CCL de AL30 de cada día). A la derecha, el peso de la familia más grande del mes. El mes en curso va hasta la última rueda cerrada.</p></div>');
+  var MIX = null, MXC = { usd: '#5cc8ff', fija: '#4ade80', cer: '#f97316', tamar: '#a78bfa', dl: '#facc15', dual: '#f472b6', on: '#2dd4bf', pv: '#94a3b8', acc: '#ef4444' };
+  function mixPaint(VS) {
+    var el = $('resMixB'); if (!el || !MIX) return; var F = Object.keys(MXC).filter(function (f) { return !VS || VS[f]; }), usado = {};
+    var rows = MIX.map(function (m) { var tot = F.reduce(function (z, f) { return z + (m.v[f] || 0); }, 0); if (!(tot > 0)) return ''; var top = F.reduce(function (a, f) { return (m.v[f] || 0) > (m.v[a] || 0) ? f : a; }, F[0]);
+      return '<span>' + m.lab + '</span><div class="bar">' + F.map(function (f) { var w = (m.v[f] || 0) / tot * 100; if (w < 0.05) return ''; usado[f] = 1; return '<i style="width:' + w.toFixed(2) + '%;background:' + MXC[f] + '" title="' + FAM[f] + ': ' + nf(w, 1) + '% · ' + mny(m.v[f]) + '"></i>'; }).join('') + '</div><b title="' + FAM[top] + '">' + nf((m.v[top] || 0) / tot * 100, 0) + '%</b>'; }).join('');
+    el.innerHTML = rows ? '<div class="mx">' + rows + '</div><div class="mxL">' + F.filter(function (f) { return usado[f]; }).map(function (f) { return '<span><i style="background:' + MXC[f] + '"></i>' + FAM[f] + '</span>'; }).join('') + '</div>' : '<p class="note">Sin volumen para estas familias.</p>';
+  }
+  function mixCalc(U, XS, MEP, CCL) { // los últimos 12 meses, con las ruedas guardadas en data/volumen.json
+    var ds = VD.dates, key = ds.length + ds[ds.length - 1]; if (MIX && MIX.key === key) return; var M = {}, ord = [], esp = typeof especie !== 'undefined' ? especie : 'D';
+    ds.forEach(function (d, i) { var m = d.slice(0, 7); if (!M[m]) { M[m] = { a: i, b: i }; ord.push(m); } M[m].b = i; }); ord = ord.slice(-12);
+    var out = ord.map(function (m) { var MS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']; return { m: m, lab: MS[+m.slice(5, 7) - 1] + ' ' + m.slice(2, 4), a: M[m].a, b: M[m].b, v: {} }; });
+    var add = function (f, s, fx) { if (!s) return; out.forEach(function (o) { o.v[f] = (o.v[f] || 0) + sumE(s, o.a, o.b, fx); }); };
+    Object.keys(U).forEach(function (f) { U[f].forEach(function (o) { var b = o.k; add(f, ser(b)); add(f, ser(b + 'D'), MEP); add(f, ser(b + 'C'), CCL); }); });
+    XS.forEach(function (x) { add(x[0], ser(x[1]), x[1].slice(-1) === 'C' ? CCL : MEP); });
+    Object.keys(DA).forEach(function (t) { add('acc', ser(t, 1)); });
+    MIX = out; MIX.key = key;
+  }
+  root.addEventListener('click', function (e) { var b = e.target.closest('button[data-x]'); if (!b) return; var k = b.getAttribute('data-x'); ST[k + 'x'] = !ST[k + 'x']; save(); paint(); });
+  var famSet = function (k) { var v = ST[k] || 'all', all = GF.slice(1).map(function (g) { return g[0]; }); if (v === 'all') return null; var L = v.split(',').filter(function (f) { return all.indexOf(f) >= 0; }); if (!L.length) return null;
+    if (ST[k + 'x']) { L = all.filter(function (f) { return L.indexOf(f) < 0; }); if (!L.length || L.length === all.length) return null; } var o = {}; L.forEach(function (f) { o[f] = 1; }); return o; }; // null: todas
+  var famPaint = function (id, k) { var v = ST[k] && ST[k] !== 'all' ? ST[k].split(',') : [], x = !!ST[k + 'x'];
+    [].forEach.call(root.querySelectorAll('#' + id + ' button'), function (b) { var f = b.getAttribute('data-f'), m = f === 'all' ? !v.length : v.indexOf(f) >= 0; b.classList.toggle('on', m && !(x && f !== 'all')); b.classList.toggle('ex', m && x && f !== 'all'); });
+    var xb = root.querySelector('button[data-x="' + k + '"]'); if (xb) { xb.classList.toggle('on', x); xb.style.display = v.length ? '' : 'none'; } };
 
   root.querySelector('#resPer').onclick = function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; ST.n = b.getAttribute('data-v'); if (ST.n === 'c' && !ST.a1 && VD) { var dd = VD.dates; ST.a1 = dd[dd.length - 6]; ST.a2 = dd[dd.length - 1]; } save(); draw(); };
   root.querySelector('#resCtl').onchange = function (e) { var t = e.target; if (!t.id) return; var k = { resA1: 'a1', resA2: 'a2', resCm: 'cmp', resC1: 'c1', resC2: 'c2' }[t.id]; if (!k) return; ST[k] = t.value;
@@ -14910,7 +14940,7 @@ window.RATG = (function () {
     Promise.all([pv, pa, j('data/riesgo_pais.json'), j('data/dolar.json')]).then(function (r) { VD = r[0]; RP = r[2] && r[2].d; A35 = r[3] && r[3].A3500; busy = false;
       if (!VD) { $('resSub').textContent = 'No se pudo leer el histórico de precios.'; return; }
       var pos = {}; VD.dates.forEach(function (d, k) { pos[d] = k; }); DA = {};
-      Object.keys(r[1] || {}).forEach(function (t) { var c = [], e = []; r[1][t].forEach(function (x) { var k = pos[x[0]]; if (k == null || !(x[4] > 0)) return; c[k] = x[4]; e[k] = x[5] > 0 ? x[4] * x[5] : 0; }); DA[t] = { c: c, e: e }; });
+      Object.keys(r[1] || {}).forEach(function (t) { var c = [], e = []; r[1][t].forEach(function (x) { var k = pos[x[0]]; if (k == null || !(x[4] > 0)) return; c[k] = x[4]; e[k] = x[5] > 0 ? x[4] * x[5] : 0; }); splitAdj(c); DA[t] = { c: c, e: e }; });
       cb(); });
   }
   function dec(o) { // serie alineada a VD.dates: {c:[], e:[]}
@@ -14919,6 +14949,10 @@ window.RATG = (function () {
     return { c: c, e: e };
   }
   var SER = {}; function ser(k, acc) { if (acc) return DA[k] || null; if (!(k in SER)) SER[k] = dec(VD.t[k]); return SER[k]; }
+  function splitAdj(c) { // splits y agrupamientos (YPFD 10 a 1 el 3/8/26): los cierres de antes se pasan a la escala de hoy, si no el período que lo cruza muestra -90%
+    var ks = Object.keys(c).map(Number).sort(function (a, b) { return a - b; }), raw = ks.map(function (k) { return c[k]; }), F = 1;
+    for (var i = ks.length - 1; i > 0; i--) { var r = raw[i - 1] / raw[i], n = Math.round(r >= 1 ? r : 1 / r); if (n >= 2 && Math.abs((r >= 1 ? r : 1 / r) / n - 1) < 0.15) F = r >= 1 ? F / n : F * n; c[ks[i - 1]] = raw[i - 1] * F; }
+  }
   function pxAt(s, i) { if (!s) return null; for (var q = i; q >= Math.max(0, i - 4); q--) if (s.c[q] > 0) return s.c[q]; return null; }
   function ytm(fl, s, P) { var f = fl.filter(function (x) { return x[0] > s; }); if (!f.length || !(P > 0)) return null; try { return solve(function (y) { return bxPv(f, s, y) - P; }, -0.5, 5); } catch (e) { return null; } }
   function mk(id, cfg) { if (!DRAW) return; if (CH[id]) CH[id].destroy(); var el = $(id); if (!el || !window.Chart) return; CH[id] = new Chart(el, cfg); }
@@ -14986,11 +15020,12 @@ window.RATG = (function () {
     // acciones
     var acc = [], BLS = window.BLS && window.BLS.by;
     Object.keys(DA).forEach(function (t) { var s = ser(t, 1), P0 = pxAt(s, b0), lv = BLS && BLS[t] && BLS[t].c, P1 = live && lv > 0 ? lv : pxAt(s, e0); if (!(P0 > 0) || !(P1 > 0)) return; var tot = sumE(s, v0, e0), pre = sumE(s, Math.max(0, v0 - 60), v0 - 1) / 60; acc.push({ k: t, fam: 'acc', ret: P1 / P0 - 1, vol: tot, adv: tot / N, pre: pre, unu: pre > 0 ? tot / N / pre : null }); });
-    var xl = []; // ONs y provinciales hard dollar: cierres guardados en data/volumen.json (historia de BYMA)
+    var xl = [], XS = []; // ONs y provinciales hard dollar: cierres guardados en data/volumen.json (historia de BYMA)
     [['on', window.ONSQ], ['pv', window.PVSQ]].forEach(function (z) { var Q = z[1], H = []; if (!Q || !Q.hist) return; try { H = Q.hist(function () { if (isAct()) paint(); }) || []; } catch (e) { H = []; }
-      H.forEach(function (o) { var s = ser(o.sym); if (!s) return; var P0 = pxAt(s, b0), P1 = pxAt(s, e0); if (!(P0 > 0) || !(P1 > 0) || Math.abs(P1 / P0 - 1) > Math.min(0.5, 0.15 * Math.sqrt(N))) return; /* saltos raros de un cierre (precio mal cargado) afuera */ var FX = o.sym.slice(-1) === 'C' ? CCL : MEP, tot = sumE(s, v0, e0, FX), pre = sumE(s, Math.max(0, v0 - 60), v0 - 1, FX) / 60;
+      H.forEach(function (o) { var s = ser(o.sym); if (!s) return; XS.push([z[0], o.sym]); var P0 = pxAt(s, b0), P1 = pxAt(s, e0); if (!(P0 > 0) || !(P1 > 0) || Math.abs(P1 / P0 - 1) > Math.min(0.5, 0.15 * Math.sqrt(N))) return; /* saltos raros de un cierre (precio mal cargado) afuera */ var FX = o.sym.slice(-1) === 'C' ? CCL : MEP, tot = sumE(s, v0, e0, FX), pre = sumE(s, Math.max(0, v0 - 60), v0 - 1, FX) / 60;
         if (tot > 0) xl.push({ k: o.k, fam: z[0], ret: P1 / P0 - 1, vol: tot, adv: tot / N, pre: pre, unu: pre > 0 ? tot / N / pre : null }); }); });
     var liq = rows.filter(function (r) { return r.vol > 0; }), accL = acc.filter(function (r) { return r.vol > 0; });
+    try { mixCalc(U, XS, MEP, CCL); } catch (e) { MIX = null; }
 
     // KPIs
     var rpv = function (i) { if (!RP) return null; var d = ds[i]; for (var q = 0; q < 6; q++) { var x = new Date(Date.parse(d) - q * 864e5).toISOString().slice(0, 10); if (RP[x] != null) return RP[x]; } return null; };
@@ -15049,34 +15084,34 @@ window.RATG = (function () {
       var mx = Math.max.apply(null, L.map(function (r) { return Math.abs(v(r)) || 0; }).concat([1e-12]));
       return '<div class="bl"><h5>' + h + (L.length > 10 ? ' <small style="font-weight:500;opacity:.7">(' + L.length + ')</small>' : '') + '</h5>' + (L.length ? (L.length > 10 ? '<div style="max-height:330px;overflow-y:auto;overscroll-behavior:contain;padding-right:4px">' : '<div>') + L.map(function (r) { var x = v(r), cc = typeof c === 'function' ? c(r) : c, w = Math.max(3, Math.abs(x) / mx * 100);
         return '<div class="br"><div class="bk"><b>' + r.k + '</b>' + (sub ? sub(r) : '') + '</div><div class="bt"><i style="--c:' + cc + ';width:' + w.toFixed(1) + '%"></i></div><span class="bv" style="color:rgb(' + cc + ')">' + fmt(x, r) + '</span></div>'; }).join('') + '</div>' : '<p class="note" style="margin:6px 0 0">Sin datos de esta familia en el período.</p>') + '</div>'; };
-    var gf = ST.gf || 'all', RF = liq.concat(xl), pool = gf === 'all' ? RF : gf === 'acc' ? accL : RF.filter(function (r) { return r.fam === gf; });
-    var sub2 = gf === 'all' || gf === 'acc' && false ? famS : null, sR = function (L) { return L.slice().sort(function (x, y) { return y.ret - x.ret; }); };
+    var GS = famSet('gf'), gk = GS ? Object.keys(GS) : [], gf = !GS ? 'all' : gk.length === 1 ? gk[0] : 'multi', RF = liq.concat(xl), pool = gf === 'all' ? RF : gf === 'acc' ? accL : RF.concat(accL).filter(function (r) { return GS[r.fam]; });
+    var sub2 = gf === 'all' || gf === 'multi' ? famS : null, sR = function (L) { return L.slice().sort(function (x, y) { return y.ret - x.ret; }); };
     var byR = sR(liq), aR = sR(accL); // para la narrativa y la comparación
     var upL = sR(pool).filter(function (r) { return r.ret > 1e-6; }), dnL = sR(pool).reverse().filter(function (r) { return r.ret < -1e-6; }); // todos los de la familia (con scroll si son muchos)
-    var ttl = gf === 'all' ? 'Renta fija' : gf === 'acc' ? 'Panel líder' : FAM[gf];
+    var ttl = gf === 'all' ? 'Renta fija' : gf === 'acc' ? 'Panel líder' : gf === 'multi' ? (gk.length > 3 ? gk.length + ' familias' : gk.map(function (f) { return FAM[f]; }).join(' + ')) : FAM[gf];
     var sec = function (t, s2) { return '<div class="bsec"><b>' + t + '</b><span>' + s2 + '</span></div>'; };
     var gl = sec('Precio', 'variación % del período · en bonos, retorno total (precio + cupones y amortizaciones cobrados)') + bars(ttl + ' · suben', upL, function (r) { return r.ret; }, function (x) { return pc(x); }, UP, sub2) + bars(ttl + ' · bajan', dnL, function (r) { return r.ret; }, function (x) { return pc(x); }, DN, sub2);
     var glA = gf === 'all' ? bars('Panel líder · suben', aR.filter(function (r) { return r.ret > 1e-6; }).slice(0, 10), function (r) { return r.ret; }, function (x) { return pc(x); }, UP) + bars('Panel líder · bajan', aR.slice().reverse().filter(function (r) { return r.ret < -1e-6; }).slice(0, 10), function (r) { return r.ret; }, function (x) { return pc(x); }, DN) : '';
     gl += glA;
-    if (gf === 'all' || gf === 'usd' || gf === 'fija') {
+    if (gf === 'all' || GS && (GS.usd || GS.fija)) {
       gl += sec('Tasa', 'variación de la TIR en puntos básicos · si la tasa baja, el precio sube (verde); si sube, el precio baja (rojo)');
-      var Y = pool.filter(function (r) { return r.dy != null; }).sort(function (x, y) { return x.dy - y.dy; }), tS = function (r) { return (gf === 'all' ? famS(r) : '') + '<small>' + (r.fam === 'usd' ? 'TIR ' : 'TEA ') + nf(r.y1 * 100, 2) + '%</small>'; };
+      var Y = pool.filter(function (r) { return r.dy != null; }).sort(function (x, y) { return x.dy - y.dy; }), tS = function (r) { return (gf === 'all' || gf === 'multi' ? famS(r) : '') + '<small>' + (r.fam === 'usd' ? 'TIR ' : 'TEA ') + nf(r.y1 * 100, 2) + '%</small>'; };
       gl += bars('Tasa · bajó (precio sube)', Y.filter(function (r) { return r.dy < 0; }).slice(0, 10), function (r) { return r.dy; }, function (x) { return bp(x); }, UP, tS) +
         bars('Tasa · subió (precio baja)', Y.slice().reverse().filter(function (r) { return r.dy > 0; }).slice(0, 10), function (r) { return r.dy; }, function (x) { return bp(x); }, DN, tS);
     }
     $o('resGL').innerHTML = gl;
-    [].forEach.call(root.querySelectorAll('#resGF button'), function (x) { x.classList.toggle('on', x.getAttribute('data-f') === gf); });
+    famPaint('resGF', 'gf');
 
     // volumen por familia
-    var vf = ST.vf || 'all', allV = liq.concat(xl, accL), vp2 = vf === 'all' ? allV : allV.filter(function (r) { return r.fam === vf; }), VC = 'var(--fr,96,165,250)';
+    var VS = famSet('vf'), vf = !VS ? 'all' : Object.keys(VS).length === 1 ? Object.keys(VS)[0] : 'multi', allV = liq.concat(xl, accL), vp2 = !VS ? allV : allV.filter(function (r) { return VS[r.fam]; }), VC = 'var(--fr,96,165,250)';
     var byV = vp2.slice().sort(function (x, y) { return y.vol - x.vol; }), unu = vp2.filter(function (r) { return r.unu != null && r.pre > (r.fam === 'on' || r.fam === 'pv' ? 5e6 : 5e7); }).sort(function (x, y) { return y.unu - x.unu; });
-    var vs = vf === 'all' ? famS : null, vh = '';
+    var vs = vf === 'all' || vf === 'multi' ? famS : null, vh = '';
     vh += bars('Más operados', byV.slice(0, 10), function (r) { return r.vol; }, function (x) { return mny(x); }, VC, vs);
     vh += bars('Volumen inusual (veces su promedio)', unu.slice(0, 10), function (r) { return r.unu; }, function (x) { return nf(x, 1) + '×'; }, function (r) { return r.unu >= 1 ? UP : DN; }, function (r) { return (vs ? vs(r) : '') + '<small' + col(r.ret) + '>' + pc(r.ret, 1) + '</small>'; });
-    if (vf === 'all') { var famV = {}; allV.forEach(function (r) { famV[r.fam] = (famV[r.fam] || 0) + r.vol; }); var tv = Object.keys(famV).reduce(function (z, k) { return z + famV[k]; }, 0);
+    if (vf === 'all' || vf === 'multi') { var famV = {}; vp2.forEach(function (r) { famV[r.fam] = (famV[r.fam] || 0) + r.vol; }); var tv = Object.keys(famV).reduce(function (z, k) { return z + famV[k]; }, 0);
       vh += bars('Por familia', Object.keys(famV).sort(function (x, y) { return famV[y] - famV[x]; }).map(function (k) { return { k: FAM[k], v: famV[k] }; }), function (r) { return r.v; }, function (x) { return mny(x); }, VC, function (r) { return '<small>' + nf(r.v / tv * 100, 0) + '%</small>'; }); }
     $o('resVol').innerHTML = vh;
-    [].forEach.call(root.querySelectorAll('#resVF button'), function (x) { x.classList.toggle('on', x.getAttribute('data-f') === vf); });
+    famPaint('resVF', 'vf'); mixPaint(VS);
 
     // PM: retorno por familia, amplitud y dispersión
     var stat = function (L2) { var w = L2.reduce(function (z, r) { return z + r.vol; }, 0), m = w > 0 ? L2.reduce(function (z, r) { return z + r.ret * r.vol; }, 0) / w : null, mu = L2.reduce(function (z, r) { return z + r.ret; }, 0) / (L2.length || 1), sd = Math.sqrt(L2.reduce(function (z, r) { return z + (r.ret - mu) * (r.ret - mu); }, 0) / (L2.length || 1)); return { m: m, sd: sd, up: L2.filter(function (r) { return r.ret > 1e-6; }).length, dn: L2.filter(function (r) { return r.ret < -1e-6; }).length, b: L2.slice().sort(function (x, y) { return y.ret - x.ret; }) }; };
