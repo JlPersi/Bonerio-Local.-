@@ -15926,8 +15926,32 @@ window.RATG = (function () {
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var K = 'blCim1', O = { m: 'ARS', c: '', u: '0.5', s: 'g1', dir: -1, x: '', da: '0.1', db: '0.01' }; try { Object.assign(O, JSON.parse(localStorage.getItem(K) || '{}')); } catch (e) {}
   var save = function () { try { localStorage.setItem(K, JSON.stringify(O)); } catch (e) {} };
-  var GN = { usd: 'Soberano USD', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dual: 'Dual', dl: 'Dólar linked', x: 'Agregada' };
-  var mine = function () { return String(O.x || '').toUpperCase().split(/[\s,;]+/).filter(function (t) { return /^[A-Z0-9]{2,10}$/.test(t); }).slice(0, 10); }; // las que cargás vos (acciones, CEDEARs, ONs): van primero
+  var GN = { usd: 'Soberano USD', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dual: 'Dual', dl: 'Dólar linked', x: 'Agregada', acc: 'Acción', ced: 'CEDEAR' };
+  var MAXM = 20, mine = function () { return String(O.x || '').toUpperCase().split(/[\s,;]+/).filter(function (t) { return /^[A-Z0-9]{2,10}$/.test(t); }).slice(0, MAXM); };
+  var TY = {}, OPT = null, OPTa = 0; // el desplegable: acciones (data/acciones/index.json), CEDEARs (la lista de símbolos; la cotización sale de Primary) y los bonos de la página
+  function opts() {
+    if (OPT || OPTa) return; OPTa = 1; var B = []; try { (window.PFQ.universe() || []).forEach(function (r) { if (GN[r.grp] && r.d > 3) B.push([r.k, GN[r.grp]]); }); } catch (e) {}
+    var j = function (u) { return fetch(u).then(function (r) { return r.ok ? r.json() : []; }).catch(function () { return []; }); };
+    Promise.all([j('data/acciones/index.json'), j('https://data912.com/live/arg_cedears')]).then(function (R) {
+      var A = (Array.isArray(R[0]) ? R[0] : []).map(function (x) { TY[x.t] = 'acc'; return [x.t, 'Acción']; }), cs = {};
+      (Array.isArray(R[1]) ? R[1] : []).forEach(function (x) { var t = x && x.symbol; if (t && /^[A-Z0-9]{2,10}$/.test(t)) cs[t] = (cs[t] || 0) + (+x.v || 0); }); // los que tienen volumen hoy, de más a menos (sin rueda: todos)
+      var base = Object.keys(cs).filter(function (t) { return !(/[DC]$/.test(t) && cs[t.slice(0, -1)] != null); }), vol = base.filter(function (t) { return cs[t] > 0; });
+      var C = (vol.length ? vol : base).sort(function (a, b) { return cs[b] - cs[a] || (a < b ? -1 : 1); }).map(function (t) { if (!TY[t]) TY[t] = 'ced'; return [t, 'CEDEAR']; }), seen = {};
+      OPT = A.concat(C, B).filter(function (o) { if (seen[o[0]]) return false; seen[o[0]] = 1; return true; }); OPTa = 0; pkList(); draw();
+    });
+  }
+  function pkBtn() { var b = $('ciPb'); if (!b) return; var m = mine(); b.innerHTML = '<span>' + (m.length ? esc(m.slice(0, 4).join(', ')) + (m.length > 4 ? ' +' + (m.length - 4) : '') : 'Elegí de la lista') + '</span><span>▾</span>'; }
+  function pkList() {
+    var el = $('ciPl'); if (!el || $('ciPp').hidden) return; if (!OPT) { el.innerHTML = '<p class="ciPe">Cargando la lista…</p>'; return; }
+    var q = ($('ciPq').value || '').trim().toUpperCase(), m = mine(), on = {}; m.forEach(function (t) { on[t] = 1; });
+    var L = OPT.filter(function (o) { return !q || o[0].indexOf(q) >= 0 || o[1].toUpperCase().indexOf(q) >= 0; });
+    if (/^[A-Z0-9]{2,10}$/.test(q) && !OPT.some(function (o) { return o[0] === q; })) L.unshift([q, 'Otra']);
+    var sel = m.map(function (t) { return [t, (OPT.filter(function (o) { return o[0] === t; })[0] || [t, 'Otra'])[1]]; }), rest = L.filter(function (o) { return !on[o[0]]; }), G = {}, gs = [];
+    rest.slice(0, 400).forEach(function (o) { if (!G[o[1]]) { G[o[1]] = []; gs.push(o[1]); } G[o[1]].push(o); });
+    var row = function (o) { return '<label><input type="checkbox" value="' + esc(o[0]) + '"' + (on[o[0]] ? ' checked' : '') + '>' + esc(o[0]) + '<small>' + esc(o[1]) + '</small></label>'; };
+    el.innerHTML = (sel.length ? '<h6>Elegidas (' + sel.length + ' de ' + MAXM + ')</h6>' + sel.map(row).join('') : '') + gs.map(function (g) { return '<h6>' + esc(g) + '</h6>' + G[g].map(row).join(''); }).join('') + (!sel.length && !gs.length ? '<p class="ciPe">Nada con «' + esc(q) + '».</p>' : '');
+  }
+  var xT = 0, setMine = function (L) { O.x = L.slice(0, MAXM).join(', '); save(); pkBtn(); clearTimeout(xT); xT = setTimeout(function () { D = null; draw(); load(); }, 600); }; // las que cargás vos (acciones, CEDEARs, ONs): van primero
   var D = null, CAU = {}, ERR = '', T0 = 0, busy = 0;
   var B = function () { return (window.BL_LIVE || 'https://bonerio-vivo.persijuanluis.workers.dev').replace(/\/+$/, ''); };
   var isAct = function () { return root.classList.contains('active'); };
@@ -15939,17 +15963,18 @@ window.RATG = (function () {
     var u = []; try { u = window.PFQ.universe() || []; } catch (e) {}
     var A = (window.VOLX && window.VOLX.adtv) || {}, seen = {};
     var bk = {}; u.forEach(function (r) { bk[r.k] = r.grp; bk[r.k + 'D'] = r.grp; });
-    var X = mine().map(function (t) { seen[t] = 1; var b = bk[t]; return { t: t, k: t.replace(/D$/, ''), g: b && GN[b] ? b : 'x', v: A[t] || 0, my: 1 }; });
+    var X = mine().map(function (t) { seen[t] = 1; var b = bk[t]; return { t: t, k: b ? t.replace(/D$/, '') : t, g: b && GN[b] ? b : TY[t] || 'x', v: A[t] || 0, my: 1 }; });
     return X.concat(u.filter(function (r) { return GN[r.grp] && (O.m === 'ARS' || r.grp === 'usd') && r.d > 3; }).map(function (r) { var t = O.m === 'USD' ? r.k + 'D' : r.k; return { t: t, k: r.k, g: r.grp, v: A[r.k] || 0 }; })
-      .filter(function (r) { if (seen[r.t]) return false; seen[r.t] = 1; return true; }).sort(function (a, b) { return b.v - a.v; }).slice(0, 50));
+      .filter(function (r) { if (seen[r.t]) return false; seen[r.t] = 1; return true; }).sort(function (a, b) { return b.v - a.v; }).slice(0, 60 - X.length));
   }
   function cau() { var c = CAU[O.m]; if (!c) return null; var bi = c.BI && c.BI[0] ? c.BI[0][0] : null, of = c.OF && c.OF[0] ? c.OF[0][0] : null, la = c.LA && c.LA[0] > 0 ? c.LA[0] : null; var v = la || (bi && of ? (bi + of) / 2 : bi || of); return v ? { v: v / 100, bi: bi, of: of, s: c.s } : null; }
   function load() {
-    if (busy || !isAct()) return; busy = 1; var L = list(); T0 = Date.now();
+    if (!isAct()) return; if (busy) { busy = 2; return; } busy = 1; var L = list(); T0 = Date.now(); // si cambian las especies mientras pide, vuelve a pedir al terminar
     if (!L.length) { busy = 0; setTimeout(load, 1500); return; }
     var p1 = fetch(B() + '/cim?t=' + L.map(function (r) { return r.t; }).join(','), { cache: 'no-store' }).then(function (r) { if (r.status === 403) { ERR = 'pro'; return null; } return r.ok ? r.json() : null; }).then(function (j) { if (j && j.d) { D = j; ERR = ''; } else if (ERR !== 'pro') ERR = 'sin'; });
     var p2 = fetch(B() + '/book/CAU-' + O.m, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j) CAU[O.m] = j; }).catch(function () {});
-    Promise.all([p1.catch(function () { ERR = ERR || 'sin'; }), p2]).then(function () { busy = 0; draw(); }, function () { busy = 0; draw(); });
+    var fin = function () { var a = busy === 2; busy = 0; draw(); if (a) load(); };
+    Promise.all([p1.catch(function () { ERR = ERR || 'sin'; }), p2]).then(fin, fin);
   }
   function cupFlag(k, a, b) { try { var c = window.BONO && window.BONO.cf && window.BONO.cf(k); if (!c || !c.f) return false; return c.f.some(function (f) { return f[0] > a && f[0] <= b + 4; }); } catch (e) { return false; } }
   function rows() {
@@ -15959,7 +15984,7 @@ window.RATG = (function () {
       var cb = ci[0] && ci[0][0], ca = ci[1] && ci[1][0], hb = h[0] && h[0][0], ha = h[1] && h[1][0];
       var mc = cb && ca ? (cb + ca) / 2 : ci[2], mh = hb && ha ? (hb + ha) / 2 : h[2];
       var an = function (x, y) { return x > 0 && y > 0 ? (x / y - 1) * 365 / n : null; };
-      var c = c0 + (r.g === 'x' ? num(O.da) : num(O.db)); // por punta: tu comisión + derechos de mercado con IVA (acciones y CEDEARs ~0,1%, bonos ~0,01%)
+      var c = c0 + (/^(x|acc|ced)$/.test(r.g) ? num(O.da) : num(O.db)); // por punta: tu comisión + derechos de mercado con IVA (acciones y CEDEARs ~0,1%, bonos ~0,01%)
       var be = cb > 0 && cr != null ? cb * (1 - c) * (1 + cr * n / 365) / (1 + c) : null; // vendés en CI a la compra, ponés la plata en caución n días: hasta este precio de 24 hs la recompra deja ganancia
       out.push({ t: r.t, k: r.k, g: r.g, v: r.v, my: r.my, cb: cb, ca: ca, hb: hb, ha: ha, cl: ci[2], hl: h[2], im: an(mh, mc), be: be, mg: be && ha > 0 ? be / ha - 1 : null,
         g1: an(hb * (1 - c), ca * (1 + c)), // comprás en CI y vendés en 24 hs: colocás pesos n días
@@ -15970,7 +15995,7 @@ window.RATG = (function () {
   }
   root.innerHTML = '<div class="card sx" id="cimC1"><div class="sxh"><div style="min-width:0"><p class="qh">Monitor CI vs 24 hs</p><p class="qs">La diferencia de precio entre contado inmediato y 24 hs es una tasa: comprar en CI y vender en 24 hs es colocar pesos por los días que separan las dos liquidaciones, y al revés es tomarlos. Si esa tasa le gana a la caución, hay un desarbitraje. Un jueves antes de un feriado, por ejemplo, la 24 hs liquida varios días después y la diferencia pesa más.</p></div><div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'cimC1\', \'Bonerio_CI_vs_24hs\')" title="Descargar imagen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>' +
     '<div class="ctl" style="margin-top:12px"><label>Moneda<span class="seg" id="ciM"><button type="button" data-m="ARS">Pesos</button><button type="button" data-m="USD">Dólar MEP (especie D)</button></span></label>' +
-    '<label>Tus especies (las que tenés en cartera)<input id="ciX" placeholder="BHIP, GGAL, AL30…" style="width:220px" value="' + esc(O.x) + '"></label><label>Comisión por punta (%)<input id="ciC" inputmode="decimal" placeholder="0" value="' + esc(O.c) + '"></label><label>Derechos + IVA acciones (%)<input id="ciDa" inputmode="decimal" value="' + esc(O.da) + '"></label><label>Derechos + IVA bonos (%)<input id="ciDb" inputmode="decimal" value="' + esc(O.db) + '"></label><label>Marcar si le gana a la caución por (puntos)<input id="ciU" inputmode="decimal" value="' + esc(O.u) + '"></label></div>' +
+    '<div class="ciLb" id="ciPk">Tus especies (las que tenés en cartera)<button type="button" id="ciPb" class="ciPb"></button><div class="ciPp" id="ciPp" hidden><input id="ciPq" placeholder="Buscar: BHIP, GGAL, AAPL…" autocomplete="off"><div class="ciPa"><button type="button" data-pa="all">Elegir las visibles</button><button type="button" data-pa="none">Limpiar</button></div><div class="ciPl" id="ciPl"></div></div></div><label>Comisión por punta (%)<input id="ciC" inputmode="decimal" placeholder="0" value="' + esc(O.c) + '"></label><label>Derechos + IVA acciones (%)<input id="ciDa" inputmode="decimal" value="' + esc(O.da) + '"></label><label>Derechos + IVA bonos (%)<input id="ciDb" inputmode="decimal" value="' + esc(O.db) + '"></label><label>Marcar si le gana a la caución por (puntos)<input id="ciU" inputmode="decimal" value="' + esc(O.u) + '"></label></div>' +
     '<div class="kp" id="ciK"></div></div>' +
     '<div class="card sx" id="cimC2" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh" id="ciN">Especies</p><p class="qs" id="ciS">Puntas de Primary en vivo. Tasas nominales anuales (TNA), sin impuestos.</p></div><div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'cimC2\', \'Bonerio_CI_vs_24hs\')" title="Descargar imagen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div><div class="wrap"><table id="ciT"></table></div></div>';
   var COLS = [['t', 'Especie'], ['cb', 'CI compra'], ['ca', 'CI venta'], ['hb', '24 hs compra'], ['ha', '24 hs venta'], ['im', 'Tasa implícita'], ['g1', 'Comprar CI / vender 24 hs'], ['g2', 'Vender CI / comprar 24 hs'], ['be', 'Recompra máx. 24 hs'], ['mg', 'Margen recompra'], ['v', 'Vol. prom. 20d']];
@@ -15985,24 +16010,30 @@ window.RATG = (function () {
       '<div><span>Mejor para colocar</span><b>' + (best1 ? pc(best1.g1) : '—') + '</b><span>' + (best1 ? esc(best1.t) + ': comprás CI y vendés 24 hs' : '') + '</span></div>' +
       '<div><span>Más barato para tomar</span><b>' + (best2 ? pc(best2.g2) : '—') + '</b><span>' + (best2 ? esc(best2.t) + ': vendés CI y recomprás 24 hs' : '') + '</span></div>';
     if (ERR === 'pro') { $('ciT').innerHTML = '<tbody><tr><td style="text-align:left;white-space:normal;padding:18px 10px">Las puntas en vivo de CI y 24 hs son PRO. <a href="#" id="ciP" style="color:var(--ac)">Ver planes</a></td></tr></tbody>'; var a = $('ciP'); if (a) a.onclick = function (e) { e.preventDefault(); if (window.BLPROPOP) window.BLPROPOP('*'); }; $('ciN').textContent = 'Especies'; return; }
-    R.sort(function (a, b) { var x = a[s], y = b[s]; if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * dir; });
+    R.sort(function (a, b) { if (a.my !== b.my) return a.my ? -1 : 1; var x = a[s], y = b[s]; if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * dir; });
     $('ciN').textContent = R.length ? R.length + ' especies con puntas' : (D ? 'Sin puntas ahora' : ERR ? 'Sin conexión con Primary' : 'Cargando…');
     $('ciS').textContent = 'Puntas de Primary en vivo' + (D ? ' (' + new Date(D.t).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ')' : '') + '. TNA por ' + Z[2] + (Z[2] === 1 ? ' día' : ' días') + ', con la comisión que pongas y sin impuestos. En verde, y la fila en dorado: le gana a la caución por más de ' + nf(u * 100, 2) + ' puntos (desarbitrado). ⚠ corta cupón cerca: la diferencia de precio puede ser el cupón.';
     var cv = C ? C.v : null, px = function (v) { return v == null ? '—' : nf(v, v < 10 ? 4 : 2); };
     $('ciT').innerHTML = '<thead><tr>' + COLS.map(function (c) { return '<th data-s="' + c[0] + '"' + (s === c[0] ? ' class="s"' : '') + '>' + c[1] + (s === c[0] ? (dir < 0 ? ' ▾' : ' ▴') : '') + '</th>'; }).join('') + '</tr></thead><tbody>' +
       R.map(function (r) { var ok1 = cv != null && r.g1 != null && r.g1 > cv + u, ok2 = cv != null && r.g2 != null && r.g2 < cv - u;
-        return '<tr data-k="' + esc(r.k) + '"' + (r.g === 'x' ? ' data-x' : '') + (ok1 || ok2 ? ' class="arb" title="Desarbitrado: la tasa CI → 24 hs se aparta de la caución más que el umbral"' : '') + '><td class="k">' + esc(r.t) + '' + (r.cup ? ' ⚠' : '') + '<small>' + GN[r.g] + '</small></td><td>' + px(r.cb) + '</td><td>' + px(r.ca) + '</td><td>' + px(r.hb) + '</td><td>' + px(r.ha) + '</td><td>' + pc(r.im) + '</td><td' + (ok1 ? ' class="ok"' : '') + '>' + pc(r.g1) + '</td><td' + (ok2 ? ' class="ok"' : '') + '>' + pc(r.g2) + '</td><td title="Vendiendo en CI a ' + px(r.cb) + ' y poniendo la plata en caución, recomprar en 24 hs por debajo de este precio deja ganancia (con comisión y derechos)">' + px(r.be) + '</td><td' + (r.mg > 0 ? ' class="ok"' : '') + '>' + (r.mg == null ? '—' : (r.mg > 0 ? '+' : '') + nf(r.mg * 100, 2) + '%') + '</td><td>' + (r.v ? '$ ' + nf(r.v / 1e6, 0) + ' M' : '—') + '</td></tr>'; }).join('') + '</tbody>';
+        return '<tr data-k="' + esc(r.k) + '"' + (/^(x|acc|ced)$/.test(r.g) ? ' data-x' : '') + (ok1 || ok2 ? ' class="arb" title="Desarbitrado: la tasa CI → 24 hs se aparta de la caución más que el umbral"' : '') + '><td class="k">' + esc(r.t) + '' + (r.cup ? ' ⚠' : '') + '<small>' + GN[r.g] + '</small></td><td>' + px(r.cb) + '</td><td>' + px(r.ca) + '</td><td>' + px(r.hb) + '</td><td>' + px(r.ha) + '</td><td>' + pc(r.im) + '</td><td' + (ok1 ? ' class="ok"' : '') + '>' + pc(r.g1) + '</td><td' + (ok2 ? ' class="ok"' : '') + '>' + pc(r.g2) + '</td><td title="Vendiendo en CI a ' + px(r.cb) + ' y poniendo la plata en caución, recomprar en 24 hs por debajo de este precio deja ganancia (con comisión y derechos)">' + px(r.be) + '</td><td' + (r.mg > 0 ? ' class="ok"' : '') + '>' + (r.mg == null ? '—' : (r.mg > 0 ? '+' : '') + nf(r.mg * 100, 2) + '%') + '</td><td>' + (r.v ? '$ ' + nf(r.v / 1e6, 0) + ' M' : '—') + '</td></tr>'; }).join('') + '</tbody>';
   }
   root.addEventListener('click', function (e) {
+    if (e.target.closest('#ciPb')) { var pp = $('ciPp'); pp.hidden = !pp.hidden; if (!pp.hidden) { opts(); pkList(); setTimeout(function () { try { $('ciPq').focus(); } catch (x) {} }, 30); } return; }
+    var pa = e.target.closest('[data-pa]'); if (pa) { if (pa.getAttribute('data-pa') === 'none') setMine([]); else { var add = [].map.call($('ciPl').querySelectorAll('input'), function (i) { return i.value; }); setMine(mine().concat(add.filter(function (t) { return mine().indexOf(t) < 0; }))); } pkList(); return; }
+    if (e.target.closest('#ciPp')) return;
     var m = e.target.closest('[data-m]'); if (m) { O.m = m.getAttribute('data-m'); save(); D = null; draw(); load(); return; }
     var th = e.target.closest('th[data-s]'); if (th) { var k = th.getAttribute('data-s'); if (O.s === k) O.dir = -O.dir; else { O.s = k; O.dir = k === 't' || k === 'g2' ? 1 : -1; } save(); draw(); return; }
     var tr = e.target.closest('tr[data-k]'); if (tr && window.BONO && !tr.hasAttribute('data-x')) window.BONO.open(tr.getAttribute('data-k'));
   });
-  var xT = 0;
-  root.addEventListener('input', function (e) { var id = e.target.id; if (id === 'ciC') O.c = e.target.value; else if (id === 'ciU') O.u = e.target.value; else if (id === 'ciDa') O.da = e.target.value; else if (id === 'ciDb') O.db = e.target.value; else if (id === 'ciX') { O.x = e.target.value; save(); clearTimeout(xT); xT = setTimeout(function () { D = null; draw(); load(); }, 700); return; } else return; save(); draw(); });
+  root.addEventListener('change', function (e) { var i = e.target; if (!i.closest || !i.closest('#ciPl')) return; var L = mine(); if (i.checked) { if (L.length >= MAXM) { i.checked = false; return; } if (L.indexOf(i.value) < 0) L.push(i.value); } else L = L.filter(function (t) { return t !== i.value; }); setMine(L); pkList(); });
+  document.addEventListener('click', function (e) { var pp = $('ciPp'); if (pp && !pp.hidden && !e.target.closest('#ciPk')) pp.hidden = true; });
+  document.addEventListener('keydown', function (e) { var pp = $('ciPp'); if (e.key === 'Escape' && pp && !pp.hidden) pp.hidden = true; });
+  if (!$('ciPkCss')) { var st = document.createElement('style'); st.id = 'ciPkCss'; st.textContent = '#cim .ciLb{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500;color:var(--mu);position:relative}#cim .ciPb{width:240px;height:40px;display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--pill);border:1px solid var(--pillb);color:var(--tx);border-radius:8px;padding:0 12px;font:inherit;cursor:pointer}#cim .ciPb span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#cim .ciPb:hover{border-color:#4a4a50}#cim .ciPp{position:absolute;top:100%;left:0;margin-top:6px;z-index:60;width:300px;max-width:calc(100vw - 32px);background:var(--card);border:1px solid var(--bd);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.45);padding:10px;animation:blPop .18s}#cim .ciPp>input{width:100%}#cim .ciPa{display:flex;justify-content:space-between;margin:8px 2px 4px}#cim .ciPa button{background:none;border:0;color:var(--ac);font-weight:600;font-size:12.5px;font-family:inherit;cursor:pointer;padding:2px}#cim .ciPl{max-height:300px;overflow:auto}#cim .ciPl h6{margin:10px 6px 4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mu)}#cim .ciPl label{flex-direction:row;align-items:center;gap:10px;padding:6px;border-radius:7px;color:var(--tx);font-size:13.5px;cursor:pointer}#cim .ciPl label:hover{background:var(--bd)}#cim .ciPl label input{width:16px;height:16px;min-width:0;padding:0;margin:0;flex:none;accent-color:var(--ac)}#cim .ciPl small{margin-left:auto;color:var(--mu);font-size:11.5px}#cim .ciPe{color:var(--mu);font-size:13px;margin:10px 6px}@media(max-width:900px){#cim .ciLb{flex:1 1 100%}#cim .ciPb{width:100%}}'; document.head.appendChild(st); }
+  root.addEventListener('input', function (e) { var id = e.target.id; if (id === 'ciPq') { pkList(); return; } if (id === 'ciC') O.c = e.target.value; else if (id === 'ciU') O.u = e.target.value; else if (id === 'ciDa') O.da = e.target.value; else if (id === 'ciDb') O.db = e.target.value; else if (id === 'ciX') { O.x = e.target.value; save(); clearTimeout(xT); xT = setTimeout(function () { D = null; draw(); load(); }, 700); return; } else return; save(); draw(); });
   setInterval(function () { if (isAct() && !document.hidden) load(); }, 10000);
   window.CIMX = { rows: rows, days: days, list: list, O: O };
-  var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'cim') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; if (window.VOLX) window.VOLX.ensure(function () { draw(); }); setTimeout(function () { draw(); load(); }, 0); } };
+  var _sw = window.switchTab; window.switchTab = function (id) { _sw.apply(this, arguments); if (id === 'cim') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; pkBtn(); opts(); if (window.VOLX) window.VOLX.ensure(function () { draw(); }); setTimeout(function () { draw(); load(); }, 0); } };
 })();
 </script>
 <script>
