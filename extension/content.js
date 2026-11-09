@@ -239,7 +239,7 @@
     if (e.data.t !== 'bnrH') return;
     LISTO = true;
     const h = Math.max(150, +e.data.h || 0); W.querySelector('iframe').style.height = h + 'px';
-    if (!tamManual) W.style.height = Math.min(h + W.querySelector('.wb').offsetTop + 2, innerHeight - W.offsetTop - 10) + 'px';
+    if (!tamManual) W.style.height = Math.min(h + W.querySelector('.wb').offsetTop + 2, Math.round(innerHeight * 0.55), innerHeight - W.offsetTop - 10) + 'px'; // justa, y como mucho media pantalla: no tapa la operatoria
   });
 
   function pintar() {
