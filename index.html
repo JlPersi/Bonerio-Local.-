@@ -16052,16 +16052,16 @@ window.RATG = (function () {
 </script>
 <style>
 /* clic: un círculo difuminado que se expande y se apaga; al abrir una sección, los gráficos entran de a poco */
-.blRip{position:fixed;left:0;top:0;width:90px;height:90px;margin:-45px 0 0 -45px;border-radius:50%;pointer-events:none;z-index:2147483646;background:radial-gradient(circle,var(--ac,#5cc8ff) 0%,transparent 70%);filter:blur(8px);opacity:0;animation:blRip .75s ease-out forwards}
-@keyframes blRip{0%{transform:scale(.25);opacity:.8}100%{transform:scale(2.4);opacity:0}}
+.blRip{position:fixed;left:0;top:0;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;pointer-events:none;z-index:2147483646;border:2px solid var(--ac,#5cc8ff);box-shadow:0 0 10px var(--ac,#5cc8ff),inset 0 0 8px var(--ac,#5cc8ff);filter:blur(1.2px);opacity:0;animation:blRip .55s ease-out forwards}
+@keyframes blRip{0%{transform:scale(.3);opacity:.9}100%{transform:scale(1.5);opacity:0}}
 @keyframes blCv{from{opacity:0;clip-path:inset(0 100% 0 0);transform:translateY(6px)}to{opacity:1;clip-path:inset(0 0 0 0);transform:none}}
 .blIn canvas{animation:blCv .9s cubic-bezier(.22,.61,.36,1) both}
 </style>
 <script>
 (function () {
   document.addEventListener('pointerdown', function (e) {
-    if (e.button > 0) return; var d = document.createElement('span'); d.className = 'blRip'; d.style.left = e.clientX + 'px'; d.style.top = e.clientY + 'px';
-    document.body.appendChild(d); setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 850);
+    if (e.button > 0) return; var d = document.createElement('span'); d.className = 'blRip'; var z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1; d.style.left = e.clientX / z + 'px'; d.style.top = e.clientY / z + 'px'; // la página va con html{zoom:.9}: sin esto el aro queda corrido del clic
+    document.body.appendChild(d); setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 650);
   }, { passive: true, capture: true });
   var T = new WeakMap();
   var on = function (el) { clearTimeout(T.get(el)); el.classList.remove('blIn'); void el.offsetWidth; el.classList.add('blIn'); T.set(el, setTimeout(function () { el.classList.remove('blIn'); }, 3000)); }; // solo los gráficos que se dibujan al abrir la sección: los que se rehacen después con datos en vivo no titilan
