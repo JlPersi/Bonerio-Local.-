@@ -222,15 +222,15 @@
       for (let a = el.parentElement, i = 0; a && i < 4 && !inp; i++, a = a.parentElement) inp = [...a.querySelectorAll('input')].find((x) => vis(x) && x.type !== 'hidden' && x.type !== 'checkbox');
       if (inp) break;
     }
-    const cand = () => [...document.querySelectorAll('li,[role=option],mat-option,a,span,div')].filter((o) => !o.children.length && o.offsetParent && !o.closest('#bnr-panel,#bnr-win') && (o.textContent || '').trim().toUpperCase().startsWith(k));
+    const cand = () => [...document.querySelectorAll('li,[role=option],mat-option,a,span,div')].filter((o) => !o.children.length && o.getClientRects().length && !o.closest('#bnr-panel,#bnr-win') && (o.textContent || '').trim().toUpperCase().startsWith(k));
     const antes = new Set(cand()); // solo vale una sugerencia que aparezca después de escribir (no una fila del panel de precios)
     const box = inp.closest('div') || inp; ['mousedown', 'mouseup', 'click'].forEach((t) => box.dispatchEvent(new MouseEvent(t, { bubbles: true }))); // abre el buscador
     inp.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, k);
     inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); inp.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: k.slice(-1) }));
     let n = 0; const iv = setInterval(() => { // elige la primera sugerencia nueva (en 24 hs si la hay)
-      if (++n > 16) { clearInterval(iv); inp.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', keyCode: 13 })); return; } // sin sugerencia reconocible: Enter elige la primera
-      const ops = cand().filter((o) => !antes.has(o)), o = ops.find((x) => /24/.test(x.textContent)) || ops[0];
-      if (o) { clearInterval(iv); ['mousedown', 'mouseup', 'click'].forEach((t) => o.dispatchEvent(new MouseEvent(t, { bubbles: true }))); }
+      if (++n > 16) { clearInterval(iv); ['ArrowDown', 'Enter'].forEach((key) => inp.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key, code: key, keyCode: key === 'Enter' ? 13 : 40 }))); return; } // sin sugerencia reconocible: Enter elige la primera
+      const ops = cand().filter((o) => !antes.has(o)), t = (x) => (x.textContent || '').trim().toUpperCase(), o = ops.find((x) => t(x) === k) || ops.find((x) => /24/.test(t(x))) || ops.find((x) => !/\(CI\)|\bCI\b/.test(t(x))) || ops[0]; // 24 hs: el ticker solo (Matriz pone «(CI)» al contado)
+      if (o) { clearInterval(iv); const tg = o.closest('li,[role=option],mat-option') || o; ['mousedown', 'mouseup', 'click'].forEach((ev) => tg.dispatchEvent(new MouseEvent(ev, { bubbles: true, cancelable: true, view: window }))); }
     }, 250);
     return true;
   }
