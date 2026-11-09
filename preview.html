@@ -867,6 +867,8 @@ html{zoom:.9}
 /* ---------- PORTADA (Inicio) y menú lateral ---------- */
 :root { --snw: 270px }
 body.sn-mini { --snw: 70px }
+@media (min-width: 901px) { body { padding-left: 70px !important } #sideNav .sn-col { display: none !important } body:not(.sn-mini) #sideNav { box-shadow: 0 0 40px rgba(0,0,0,.45) } } /* el menú se abre encima de la página, sin correrla */
+#home .hm-qs { display: none !important }
 @media (min-width: 901px) { body { padding-left: var(--snw); transition: padding-left .2s } }
 #topbar .tabs { display: none }
 #topbar { justify-content: flex-end !important }
@@ -9919,7 +9921,9 @@ window.USTX = (function () {
   var sh = document.createElement('div'); sh.id = 'snShade'; document.body.appendChild(sh);
   var bt = document.createElement('button'); bt.id = 'snBtn'; bt.type = 'button'; bt.title = 'Menú'; bt.setAttribute('aria-label', 'Abrir el menú'); bt.innerHTML = IC.menu;
   var h1 = document.querySelector('main > h1'); if (h1) { h1.classList.add('hm-h1'); h1.insertBefore(bt, h1.firstChild); } // en el celu el botón del menú va al lado del título
-  try { if (localStorage.getItem('snMini') === '1') document.body.classList.add('sn-mini'); } catch (e) {}
+  document.body.classList.add('sn-mini'); var hT = null; // en la compu el menú está achicado y se abre al pasar el mouse por encima
+  sn.addEventListener('mouseenter', function () { clearTimeout(hT); if (innerWidth > 900) hT = setTimeout(function () { document.body.classList.remove('sn-mini'); }, 60); });
+  sn.addEventListener('mouseleave', function () { clearTimeout(hT); hT = setTimeout(function () { document.body.classList.add('sn-mini'); }, 150); });
   var open = function (v) { document.body.classList.toggle('sn-open', v); };
   bt.onclick = function () { open(true); }; sh.onclick = function () { open(false); };
   sn.addEventListener('click', function (e) {
@@ -15380,7 +15384,7 @@ window.RATG = (function () {
   function build() {
     if (!$('outFoldCss')) { var st = document.createElement('style'); st.id = 'outFoldCss'; st.textContent = '.outfold{margin-top:14px;border:1px solid var(--bd);border-radius:10px;padding:0 14px}.outfold>summary{cursor:pointer;padding:11px 0;font-weight:600;color:var(--tx);list-style:none;display:flex;align-items:center;gap:10px}.outfold>summary::-webkit-details-marker{display:none}.outfold>summary:before{content:"\\25B8";color:var(--ac);transition:transform .15s}.outfold[open]>summary:before{transform:rotate(90deg)}'; document.head.appendChild(st); }
     W.innerHTML = '<div class="card" id="outCard"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><h3 style="margin:0">Deuda del Tesoro en circulación por bono</h3>' +
-      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" data-html2canvas-ignore="true"><select id="outTy" title="Tipo de deuda" style="min-width:150px;height:38px"></select><span class="seg" id="outOrd" title="Orden de las barras"><button data-o="v">Vencimiento</button><button data-o="a">Menor a mayor</button><button data-o="d">Mayor a menor</button></span><span class="seg" id="outSeg"><button data-v="ars">Pesos</button><button data-v="usd">Dólares</button></span><span class="seg" id="outAj" title="En pesos: valor nominal o actualizado por CER"><button data-a="0">VN</button><button data-a="1">Actualizado por CER</button></span>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" data-html2canvas-ignore="true"><select id="outTy" title="Tipo de deuda" style="min-width:150px;width:auto;max-width:100%;height:38px"></select><span class="seg" id="outOrd" title="Orden de las barras"><button data-o="v">Vencimiento</button><button data-o="a">Menor a mayor</button><button data-o="d">Mayor a menor</button></span><span class="seg" id="outSeg"><button data-v="ars">Pesos</button><button data-v="usd">Dólares</button></span><span class="seg" id="outAj" title="En pesos: valor nominal o actualizado por CER"><button data-a="0">VN</button><button data-a="1">Actualizado por CER</button></span>' +
       '<a class="icon-btn" id="outXl" href="#" title="Descargar la tabla (Excel)" style="width:auto;padding:0 11px;gap:6px;font-size:12.5px;font-weight:600;text-decoration:none;align-self:stretch"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>Excel</a>' +
       '<button class="icon-btn" id="outHd" title="Descargar en HD"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div><p class="qs" id="outTot" style="margin:8px 0 12px"></p>' +
       '<div style="position:relative;height:540px;width:0;min-width:100%"><canvas id="outCh"></canvas></div><div id="outLg" style="margin:10px 0 0;font-size:13px;color:var(--mu)"></div>' +

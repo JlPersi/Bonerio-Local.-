@@ -866,6 +866,8 @@ html{zoom:.9}
 /* ---------- PORTADA (Inicio) y menú lateral ---------- */
 :root { --snw: 270px }
 body.sn-mini { --snw: 70px }
+@media (min-width: 901px) { body { padding-left: 70px !important } #sideNav .sn-col { display: none !important } body:not(.sn-mini) #sideNav { box-shadow: 0 0 40px rgba(0,0,0,.45) } } /* el menú se abre encima de la página, sin correrla */
+#home .hm-qs { display: none !important }
 @media (min-width: 901px) { body { padding-left: var(--snw); transition: padding-left .2s } }
 #topbar .tabs { display: none }
 #topbar { justify-content: flex-end !important }
@@ -1103,6 +1105,8 @@ window.curveFitUSD = function (pts, model, minN) {
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('cal')">Calendario de cobros</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('alert')">Alertas</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('news')">Newsletter</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('planes')">Planes</button>
+      <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('api')">API y MCP</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('vard')">Variación diaria</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('rot')">Rotación</button>
       <button class="tab-btn" onclick="if(window.switchTab) window.switchTab('macro')">Calendario macro</button>
@@ -1307,6 +1311,8 @@ window.curveFitUSD = function (pts, model, minN) {
 <div id="cal" class="tab-content"></div>
 <div id="alert" class="tab-content"></div>
 <div id="news" class="tab-content"></div>
+<div id="planes" class="tab-content"></div>
+<div id="api" class="tab-content"></div>
 <div id="lic" class="tab-content"><iframe id="licFrame" title="Licitaciones del Tesoro" scrolling="no" style="display:block;width:100%;height:1600px;border:0;background:transparent"></iframe></div>
 <div id="deuda" class="tab-content"><div id="outW"></div></div>
 
@@ -9895,7 +9901,7 @@ window.USTX = (function () {
   IC.acc = P('<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 6-7"/><path d="M16 7h4v4"/>');
   IC.res = P('<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>'); IC.trd = P('<path d="M7 17L17 7"/><path d="M8 7h9v9"/>'); IC.dash = P('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>');
   IC.cal = P('<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 13v5M10 14.5h3a1.2 1.2 0 0 1 0 2.4h-2a1.2 1.2 0 0 0 0 2.4" transform="translate(0 -.6) scale(1 .85)"/>'); DESC.cal = 'Cuándo cobrás cupones y amortizaciones de tus bonos, día por día.';
-  IC.cons = P('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'); IC.news = P('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>');
+  IC.cons = P('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'); IC.api = P('<path d="m8 9-4 3 4 3M16 9l4 3-4 3M14 5l-4 14"/>'); IC.planes = P('<path d="M12 2 15 8.5l7 1-5 4.9 1.2 7L12 18l-6.2 3.4 1.2-7-5-4.9 7-1z"/>'); IC.news = P('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>');
   IC.exp = P('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'); IC.expi = IC.exp; IC.expd = IC.dol; IC.expf = IC.curva; IC.expp = IC.exp;
   DESC.expp = 'La probabilidad de default que descuentan los Bonares y Globales, hoy y en el tiempo, con el recupero que elijas.'; DESC.expi = 'La inflación que descuentan los bonos CER contra la tasa fija, bono por bono y en el tiempo, contra el REM.'; DESC.expd = 'La devaluación que descuentan los dólar linked contra la tasa fija, bono por bono y en el tiempo, contra el REM.'; DESC.expf = 'La tasa de cada tramo entre vencimientos de cada familia y las forwards entre pares en el tiempo.'; DESC.thist = 'La tasa de cada bono día por día y su precio relativo contra la curva.';
   var CAR = P('<path d="m9 6 6 6-6 6"/>').replace('<svg ', '<svg class="sn-car" '), has = function (id) { return id === 'home' || TB.some(function (t) { return t[0] === id; }); };
@@ -9905,7 +9911,7 @@ window.USTX = (function () {
     { g: 'pvs', t: 'Bonos provinciales', ic: 'pvs', it: [['pvs', 'Curva y tabla'], ['pvs', 'Por calificación', 'pvsRt'], ['pvsf', 'Flujos y total return']] },
     { h: 'Acciones' }, ['acc', 'Acciones'], { h: 'Dólar y tasas' }, ['dol', 'Dólar'], ['brc', 'Brecha y canje'], ['tcor', 'Mercado de dinero'], ['tfut', 'Futuros'], ['sint', 'Sintéticos'], ['carry', 'Carry trade'],
     { h: 'Mercado' }, ['macro', 'Calendario macro'], { g: 'exp', t: 'Expectativas', ic: 'exp', it: [['expi', 'Inflación implícita'], ['expd', 'Devaluación implícita'], ['expf', 'Forwards'], ['expp', 'Probabilidad de default']] },
-    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['dsim', 'Duales'], { h: 'Más' }, ['news', 'Newsletter'], ['alert', 'Alertas'], ['cons', 'Consultame']];
+    { g: 'his', t: 'Historia y señales', ic: 'thist', it: [['thist', 'Tasas por bono', 'thY'], ['thist', 'Precio relativo', 'thRC']] }, { h: 'Herramientas' }, ['scr', 'Screener'], ['cim', 'CI vs 24 hs'], ['dsim', 'Duales'], { h: 'Más' }, ['news', 'Newsletter'], ['alert', 'Alertas'], ['cons', 'Consultame'], ['planes', 'Planes'], ['api', 'API y MCP']];
   var item = function (t, sub) { return has(t[0]) ? '<button class="sn-it" data-t="' + t[0] + '"' + (t[2] ? ' data-sec="' + t[2] + '"' : '') + ' title="' + t[1] + '">' + (sub ? '' : (IC[t[3] || t[0]] || IC.tabla)) + '<span>' + t[1] + '</span></button>' : ''; };
   sn.innerHTML = '<div class="sn-h"><img src="/favicon.svg?v=2" alt=""><b>BONERÍO LOCAL</b></div><nav>' +
     GR.map(function (g, i) { return g.h ? '<div class="sn-hd">' + g.h + '</div>' : g.sep ? '<div class="sn-sep"></div>' : (Array.isArray(g) ? item(g) : '<div class="sn-g" data-gr="' + g.g + '"><button class="sn-it" data-g="' + g.g + '" title="' + g.t + '">' + IC[g.ic] + '<span>' + g.t + '</span>' + CAR + '</button><div class="sn-sub">' + g.it.map(function (t) { return item(t, 1); }).join('') + '</div></div>'); }).join('') +
@@ -9914,7 +9920,9 @@ window.USTX = (function () {
   var sh = document.createElement('div'); sh.id = 'snShade'; document.body.appendChild(sh);
   var bt = document.createElement('button'); bt.id = 'snBtn'; bt.type = 'button'; bt.title = 'Menú'; bt.setAttribute('aria-label', 'Abrir el menú'); bt.innerHTML = IC.menu;
   var h1 = document.querySelector('main > h1'); if (h1) { h1.classList.add('hm-h1'); h1.insertBefore(bt, h1.firstChild); } // en el celu el botón del menú va al lado del título
-  try { if (localStorage.getItem('snMini') === '1') document.body.classList.add('sn-mini'); } catch (e) {}
+  document.body.classList.add('sn-mini'); var hT = null; // en la compu el menú está achicado y se abre al pasar el mouse por encima
+  sn.addEventListener('mouseenter', function () { clearTimeout(hT); if (innerWidth > 900) hT = setTimeout(function () { document.body.classList.remove('sn-mini'); }, 60); });
+  sn.addEventListener('mouseleave', function () { clearTimeout(hT); hT = setTimeout(function () { document.body.classList.add('sn-mini'); }, 150); });
   var open = function (v) { document.body.classList.toggle('sn-open', v); };
   bt.onclick = function () { open(true); }; sh.onclick = function () { open(false); };
   sn.addEventListener('click', function (e) {
@@ -15375,7 +15383,7 @@ window.RATG = (function () {
   function build() {
     if (!$('outFoldCss')) { var st = document.createElement('style'); st.id = 'outFoldCss'; st.textContent = '.outfold{margin-top:14px;border:1px solid var(--bd);border-radius:10px;padding:0 14px}.outfold>summary{cursor:pointer;padding:11px 0;font-weight:600;color:var(--tx);list-style:none;display:flex;align-items:center;gap:10px}.outfold>summary::-webkit-details-marker{display:none}.outfold>summary:before{content:"\\25B8";color:var(--ac);transition:transform .15s}.outfold[open]>summary:before{transform:rotate(90deg)}'; document.head.appendChild(st); }
     W.innerHTML = '<div class="card" id="outCard"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><h3 style="margin:0">Deuda del Tesoro en circulación por bono</h3>' +
-      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" data-html2canvas-ignore="true"><select id="outTy" title="Tipo de deuda" style="min-width:150px;height:38px"></select><span class="seg" id="outOrd" title="Orden de las barras"><button data-o="v">Vencimiento</button><button data-o="a">Menor a mayor</button><button data-o="d">Mayor a menor</button></span><span class="seg" id="outSeg"><button data-v="ars">Pesos</button><button data-v="usd">Dólares</button></span><span class="seg" id="outAj" title="En pesos: valor nominal o actualizado por CER"><button data-a="0">VN</button><button data-a="1">Actualizado por CER</button></span>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" data-html2canvas-ignore="true"><select id="outTy" title="Tipo de deuda" style="min-width:150px;width:auto;max-width:100%;height:38px"></select><span class="seg" id="outOrd" title="Orden de las barras"><button data-o="v">Vencimiento</button><button data-o="a">Menor a mayor</button><button data-o="d">Mayor a menor</button></span><span class="seg" id="outSeg"><button data-v="ars">Pesos</button><button data-v="usd">Dólares</button></span><span class="seg" id="outAj" title="En pesos: valor nominal o actualizado por CER"><button data-a="0">VN</button><button data-a="1">Actualizado por CER</button></span>' +
       '<a class="icon-btn" id="outXl" href="#" title="Descargar la tabla (Excel)" style="width:auto;padding:0 11px;gap:6px;font-size:12.5px;font-weight:600;text-decoration:none;align-self:stretch"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>Excel</a>' +
       '<button class="icon-btn" id="outHd" title="Descargar en HD"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div><p class="qs" id="outTot" style="margin:8px 0 12px"></p>' +
       '<div style="position:relative;height:540px;width:0;min-width:100%"><canvas id="outCh"></canvas></div><div id="outLg" style="margin:10px 0 0;font-size:13px;color:var(--mu)"></div>' +
@@ -15408,7 +15416,7 @@ window.RATG = (function () {
    PRO = app_metadata.pro_hasta (AAAA-MM-DD) del usuario en Supabase, que se carga con el workflow «Alta PRO».
    Hasta FREE_HASTA (fin de la prueba gratis) está todo abierto; después, cada cuenta nueva tiene 7 días de prueba desde que se registra. */
 (function () {
-  var FREE_HASTA = '2026-11-13', FREE = /^(home|tabla|curva|pesos|dol|macro|lic|cons|res|news)$/;
+  var FREE_HASTA = '2026-11-13', FREE = /^(home|tabla|curva|pesos|dol|macro|lic|cons|res|news|planes|api)$/;
   var PLANES = [['Mensual', '$ 15.000', 'por mes', 'https://mpago.la/1QLNzfC'], ['6 meses', '$ 80.000', 'ahorrás 11%', 'https://mpago.la/1kaGQJu'], ['12 meses', '$ 145.000', 'ahorrás 19%', 'https://mpago.la/1CTcAqa']]; // [nombre, precio, nota, link de Mercado Pago]
   var U = null, hoy = function () { return new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10); };
   var WA = function (t) { var a = window.BLAUTH && window.BLAUTH(), u = U || (a && a.user), m = u && u.email ? ' Mi mail de la cuenta: ' + u.email : ''; return 'https://wa.me/5493772529368?text=' + encodeURIComponent(t + m); }; // transferencia e institucional: por WhatsApp
@@ -16189,6 +16197,37 @@ body.sn-mini #sideNav .sn-u{justify-content:center;padding:12px 0}body.sn-mini #
 })();
 </script>
 <style>
+/* Duales: las curvas de Curva Pesos (duales, TAMAR y CER con los duales) arriba de la valuación; es la misma tarjeta, que se trae acá mientras la pestaña está abierta */
+#dsPsH{display:none}#dsPsH.on{display:block;margin-bottom:24px}
+#dsPsH #pesos{display:flex!important;flex-direction:column;gap:24px}
+#dsPsH #pesos>*:not(.dsK):not(.psPjM){display:none!important}
+#dsPsH #pesos>.card{margin:0!important}#dsPsH #pesos .qh .no{display:none}
+#dsPsH .dsHd{margin:0 0 14px}#dsPsH .dsHd p{margin:4px 0 0;color:var(--mu);font-size:14px;line-height:1.5}
+</style>
+<script>
+(function () {
+  var P = document.getElementById('pesos'), D = document.getElementById('dsim'); if (!P || !D) return;
+  var H = document.createElement('div'); H.id = 'dsPsH'; H.innerHTML = '<div class="card dsHd"><p class="qh" style="margin:0">Duales: curvas, valuación y proyección</p><p>Arriba, las curvas: los duales solos, TAMAR con los duales y CER con los duales, cada una con su proyección (inflación, TAMAR y devaluación mes a mes). Abajo, la valuación con el modelo bivariado y el simulador.</p></div>';
+  D.parentNode.insertBefore(H, D); var mark = document.createComment('pesos'), here = false, OLD = {};
+  var CARDS = [['psC5', 1], ['psC3', 2, 'psD3', '1'], ['psC2', 3, 'psD2', '1']]; // [gráfico, orden, selector de duales, valor: duales contra la curva pura]
+  var fire = function (el) { el.dispatchEvent(new Event('change', { bubbles: true })); };
+  function bring() {
+    if (!here) { P.parentNode.insertBefore(mark, P); H.appendChild(P); here = true; }
+    CARDS.forEach(function (c) { var cv = document.getElementById(c[0]), cd = cv && cv.closest('.card'); if (!cd) return; cd.classList.add('dsK'); cd.style.order = c[1];
+      var s = c[2] && document.getElementById(c[2]); if (s && s.value === '0' && [].some.call(s.options, function (o) { return o.value === c[3]; })) { OLD[c[2]] = s.value; s.value = c[3]; fire(s); } });
+    H.classList.add('on'); if (window.renderPesos) setTimeout(window.renderPesos, 0);
+  }
+  function back() {
+    H.classList.remove('on'); if (!here) return;
+    Object.keys(OLD).forEach(function (id) { var s = document.getElementById(id); if (s) { s.value = OLD[id]; fire(s); } }); OLD = {};
+    [].forEach.call(P.querySelectorAll('.dsK'), function (cd) { cd.classList.remove('dsK'); cd.style.order = ''; });
+    mark.parentNode.insertBefore(P, mark); mark.remove(); here = false;
+  }
+  var _sw = window.switchTab; window.switchTab = function (id) { if (id !== 'dsim') back(); var r = _sw.apply(this, arguments); if (id === 'dsim') bring(); return r; };
+  if (D.classList.contains('active')) bring();
+})();
+</script>
+<style>
 #news .nwH{text-align:center;padding:34px 18px 26px}
 #news .nwChip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--bd);background:var(--bg);color:var(--ac);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:700}
 #news .nwH h2{margin:16px auto 8px;font-size:clamp(28px,4.2vw,44px);line-height:1.08;letter-spacing:-.025em;max-width:760px;color:var(--tx)}#news .nwH h2 span{color:var(--ac)}
@@ -16294,6 +16333,152 @@ body.sn-mini #sideNav .sn-u{justify-content:center;padding:12px 0}body.sn-mini #
   document.addEventListener('bl-auth', function () { if (root.classList.contains('active')) load(); });
   var _sw = window.switchTab; window.switchTab = function (id) { var r = _sw.apply(this, arguments); if (id === 'news') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; render(); } return r; };
   if (root.classList.contains('active')) render();
+})();
+</script>
+<style>
+#planes .plH{text-align:center;padding:30px 12px 24px}
+#planes .plChip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--bd);background:var(--bg);color:var(--ac);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+#planes .plChip:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ac)}
+#planes .plH h2{margin:16px auto 10px;font-size:clamp(28px,4.2vw,44px);line-height:1.08;letter-spacing:-.025em;color:var(--tx)}#planes .plH h2 span{color:var(--ac)}
+#planes .plH p{margin:0 auto;max-width:680px;color:var(--mu);font-size:15.5px;line-height:1.6}
+#planes .plSt{display:flex;flex-wrap:wrap;gap:6px 22px;justify-content:center;margin-top:16px;font-size:13px;color:var(--mu)}#planes .plSt b{color:var(--tx)}
+#planes .plG{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;max-width:900px;margin:8px auto 0}
+#planes .plC{position:relative;display:flex;flex-direction:column;border:1px solid var(--bd);border-radius:20px;padding:26px;background:var(--card)}
+#planes .plC.pro{border-color:rgba(255,197,66,.55);background:linear-gradient(160deg,rgba(255,197,66,.16),rgba(255,197,66,.03) 60%),var(--card);box-shadow:0 20px 60px rgba(255,197,66,.08)}
+#planes .plC .rec{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--ac);color:#141414;font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;border-radius:999px;padding:4px 12px;white-space:nowrap}
+#planes .plC small.k{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu)}
+#planes .plC .pr{margin:6px 0 2px;font-size:34px;font-weight:800;letter-spacing:-.02em;color:var(--tx)}#planes .plC .pr span{font-size:15px;font-weight:600;color:var(--mu)}
+#planes .plC .sb{font-size:13px;color:var(--mu)}
+#planes .plC ul{list-style:none;margin:18px 0 22px;padding:0;display:flex;flex-direction:column;gap:9px;font-size:14.5px;color:var(--tx)}
+#planes .plC li{display:flex;gap:9px;align-items:flex-start;line-height:1.4}#planes .plC li:before{content:"✓";flex:none;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;background:rgba(52,211,153,.15);color:#34d399;margin-top:1px}
+#planes .plC.pro li:before{background:rgba(255,197,66,.18);color:var(--ac)}
+#planes .plB{margin-top:auto;display:block;text-align:center;font:inherit;font-size:14px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;text-decoration:none;border-radius:12px;padding:14px;border:1px solid var(--bd);color:var(--tx);background:none;cursor:pointer}
+#planes .plC.pro .plB{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+#planes .plN{margin-top:10px;text-align:center;font-size:12.5px;color:var(--mu);line-height:1.6}#planes .plN a{color:var(--tx)}
+#planes .plI{max-width:900px;margin:22px auto 0;border:1px solid var(--bd);border-radius:20px;padding:24px 26px;background:var(--card)}
+#planes .plI .hd{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}#planes .plI .hd small{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu)}#planes .plI h3{margin:4px 0 4px;font-size:21px;color:var(--tx)}#planes .plI .hd p{margin:0;color:var(--mu);font-size:13.5px;max-width:520px}
+#planes .plI .am{text-align:right}#planes .plI .am b{display:block;font-size:24px;color:var(--tx)}#planes .plI .am span{font-size:12px;color:var(--mu)}
+#planes .plI .bx{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0}#planes .plI .bx div{border:1px solid var(--bd);border-radius:14px;padding:14px 16px;font-size:13.5px;color:var(--mu);line-height:1.5}#planes .plI .bx b{display:block;color:var(--tx);font-size:14.5px;margin-bottom:4px}
+#planes .plI ul{list-style:none;margin:0 0 18px;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;font-size:13.5px;color:var(--tx)}#planes .plI li:before{content:"✓";color:#34d399;font-weight:800;margin-right:8px}
+#planes .plI .ct{display:flex;align-items:center;gap:14px;flex-wrap:wrap}#planes .plI .ct a{background:var(--tx);color:var(--bg);text-decoration:none;font-weight:800;font-size:13.5px;letter-spacing:.04em;text-transform:uppercase;border-radius:12px;padding:12px 18px}#planes .plI .ct span{font-size:12.5px;color:var(--mu)}
+#planes .plT{max-width:900px;margin:22px auto 0;border:1px solid var(--bd);border-radius:20px;background:var(--card);overflow:hidden}
+#planes .plT h4{margin:0;padding:18px 22px;font-size:16px;color:var(--tx);border-bottom:1px solid var(--bd)}
+#planes .plT .w{overflow-x:auto}#planes .plT table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:560px}
+#planes .plT th,#planes .plT td{padding:11px 16px;border-bottom:1px solid var(--bd);text-align:center;color:var(--tx)}#planes .plT th{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);font-weight:700}
+#planes .plT td:first-child,#planes .plT th:first-child{text-align:left}#planes .plT td:nth-child(3),#planes .plT th:nth-child(3){background:rgba(255,197,66,.07)}
+#planes .plT td.y{color:#34d399;font-weight:800}#planes .plT td.n{color:var(--mu)}#planes .plT td i{font-style:italic;color:var(--mu);font-size:12.5px}#planes .plT tr.pz td{font-weight:800;border-bottom:0}
+@media(max-width:760px){#planes .plG,#planes .plI .bx,#planes .plI ul{grid-template-columns:1fr}#planes .plH{padding:20px 0 18px}#planes .plI .am{text-align:left}}
+</style>
+<script>
+/* ---------- Planes: Gratis, PRO e Institucional, con la comparativa ---------- */
+(function () {
+  var root = document.getElementById('planes'); if (!root) return;
+  var MP = ['https://mpago.la/1QLNzfC', 'https://mpago.la/1kaGQJu', 'https://mpago.la/1CTcAqa']; // mensual, 6 y 12 meses (los mismos del popup PRO)
+  var WA = function (t) { var a = window.BLAUTH && window.BLAUTH(), m = a && a.user && a.user.email ? ' Mi mail de la cuenta: ' + a.user.email : ''; return 'https://wa.me/5493772529368?text=' + encodeURIComponent(t + m); };
+  var FREE = ['Tabla de retornos de bonos en dólares', 'Curvas hard dollar y en pesos', 'Dólar, brecha y canje', 'Licitaciones y calendario macro', 'Resumen de mercado', 'Newsletter por mail', 'Precios con 20 minutos de demora'];
+  var PRO = ['Todo lo del plan Gratis, con precios en vivo', 'Caja de puntas, carry, sintéticos y forwards', 'Duales: curvas, valuación y proyección', 'CI vs 24 hs y Screener', 'ONs, provinciales y acciones', 'Portfolio, trade ideas y alertas', 'Variación diaria con efecto tiempo y tasa'];
+  var CMP = [['Tabla de retornos y curvas', 1, 1, 1], ['Dólar, brecha, licitaciones y calendario', 1, 1, 1], ['Resumen de mercado y newsletter', 1, 1, 1], ['Precios', 'con 20 min de demora', 'en vivo', 'en vivo'],
+    ['Caja de puntas, carry, sintéticos y forwards', 0, 1, 1], ['Duales, CER y TAMAR: valuación y proyección', 0, 1, 1], ['CI vs 24 hs y Screener', 0, 1, 1], ['ONs, provinciales y acciones', 0, 1, 1],
+    ['Portfolio, trade ideas y favoritos', 0, 1, 1], ['Alertas por notificación y mail', 0, 1, 1], ['Historia de tasas y señales', 0, 1, 1], ['PRO para todo el equipo (por dominio de mail)', 0, 0, 1],
+    ['Series históricas en Excel', 0, 0, 1], ['API REST + servidor MCP', 0, 0, 'próximo'], ['Soporte', 0, 'por WhatsApp', 'directo, en el día']];
+  var cell = function (v) { return v === 1 ? '<td class="y">✓</td>' : v === 0 ? '<td class="n">—</td>' : '<td><i>' + v + '</i></td>'; };
+  function draw() {
+    var a = window.BLAUTH && window.BLAUTH(), md = a && a.user && a.user.app_metadata || {}, hoy = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10), esPro = md.pro_hasta && String(md.pro_hasta).slice(0, 10) >= hoy;
+    root.innerHTML = '<div class="plH"><span class="plChip">Bonerío PRO · para inversores, asesores y mesas</span><h2>Toda la renta fija argentina,<br><span>en una sola terminal.</span></h2>' +
+      '<p>Curvas, duales, CER, TAMAR, dólar linked, ONs y acciones con precios en vivo. Valuá, proyectá y armá trades con los mismos datos que usa el mercado, todos los días.</p>' +
+      '<div class="plSt"><span><b>Precios en vivo</b> de BYMA</span><span>·</span><span>Datos del <b>BCRA</b> e <b>INDEC</b></span><span>·</span><span><b>7 días</b> de prueba con todo abierto</span></div></div>' +
+      '<div class="plG"><div class="plC"><small class="k">Free</small><div class="pr">Gratis</div><div class="sb">Sin tarjeta y sin vencimiento</div><ul>' + FREE.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' +
+      (a ? '<span class="plB" style="cursor:default;opacity:.7">' + (esPro ? 'Incluido en tu plan' : 'Tu plan actual') + '</span>' : '<button type="button" class="plB" data-login="up">Crear cuenta gratis</button>') + '</div>' +
+      '<div class="plC pro"><span class="rec">Recomendado</span><small class="k">PRO</small><div class="pr">$ 15.000 <span>/mes</span></div><div class="sb">o $ 145.000 por año (ahorrás 19%) · precio fundador</div><ul>' + PRO.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' +
+      (esPro ? '<span class="plB" style="cursor:default">Ya sos PRO hasta el ' + String(md.pro_hasta).slice(8, 10) + '/' + String(md.pro_hasta).slice(5, 7) + '</span>' : '<a class="plB" href="' + MP[0] + '" target="_blank" rel="noopener">Empezar PRO ahora</a>') +
+      '<div class="plN">Pagás con Mercado Pago · sin permanencia · cancelás cuando quieras<br><a href="' + MP[1] + '" target="_blank" rel="noopener">6 meses ($ 80.000)</a> · <a href="' + MP[2] + '" target="_blank" rel="noopener">12 meses ($ 145.000)</a> · <a href="' + WA('Hola, quiero pagar Bonerío PRO por transferencia. Plan:') + '" target="_blank" rel="noopener">Pagar por transferencia</a></div></div></div>' +
+      '<div class="plI"><div class="hd"><div><small>Para organizaciones</small><h3>Licencia institucional</h3><p>ALyCs, fondos, family offices y equipos de research. Una licencia por firma en vez de una suscripción por persona.</p></div><div class="am"><b>A medida</b><span>Escribinos y te pasamos la propuesta</span></div></div>' +
+      '<div class="bx"><div><b>PRO para todo el equipo</b>Cualquiera que entre con el mail de la organización tiene el plan completo, sin pagar aparte y sin que nadie lo dé de alta.</div><div><b>API REST + MCP · próximamente</b>Nuestros cierres, TIRs y curvas en Excel, Python o Claude, con keys por organización.</div></div>' +
+      '<ul><li>Series históricas de precios y tasas por bono</li><li>Curvas ajustadas por familia, con historia</li><li>Reportes a medida para clientes</li><li>Factura por Mercado Pago o transferencia</li></ul>' +
+      '<div class="ct"><a href="' + WA('Hola, quiero cotizar el plan Institucional de Bonerío. Necesito:') + '" target="_blank" rel="noopener">Contactanos →</a><span>Te respondemos en el día.</span></div></div>' +
+      '<div class="plT"><h4>Comparativa completa</h4><div class="w"><table><thead><tr><th>Función</th><th>Free</th><th>PRO</th><th>Institucional</th></tr></thead><tbody>' +
+      CMP.map(function (r) { return '<tr><td>' + r[0] + '</td>' + cell(r[1]) + cell(r[2]) + cell(r[3]) + '</tr>'; }).join('') +
+      '<tr class="pz"><td>Precio</td><td>$ 0</td><td>$ 15.000/mes</td><td>Consultar</td></tr></tbody></table></div></div>';
+  }
+  document.addEventListener('bl-auth', function () { if (root.classList.contains('active')) draw(); });
+  var _sw = window.switchTab; window.switchTab = function (id) { var r = _sw.apply(this, arguments); if (id === 'planes') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; draw(); } return r; };
+  if (root.classList.contains('active')) draw();
+})();
+</script>
+<style>
+#api .apH{text-align:center;padding:30px 12px 22px}#api .apChip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--bd);background:var(--bg);color:var(--ac);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+#api .apH h2{margin:16px auto 10px;font-size:clamp(28px,4vw,42px);line-height:1.08;letter-spacing:-.025em;color:var(--tx)}#api .apH h2 span{color:var(--ac)}#api .apH p{margin:0 auto;max-width:680px;color:var(--mu);font-size:15.5px;line-height:1.6}
+#api .apW{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:20px}#api .apC{min-width:0;max-width:100%}#api pre{max-width:100%}
+#api .apC{border:1px solid var(--bd);border-radius:18px;background:var(--card);padding:22px 24px}#api .apC h3{margin:0 0 6px;font-size:18px;color:var(--tx)}#api .apC>p{margin:0 0 14px;color:var(--mu);font-size:14px;line-height:1.55}
+#api .apQ{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}#api .apQ div{border:1px solid var(--bd);border-radius:12px;padding:12px 14px;background:var(--bg)}#api .apQ small{display:block;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);font-weight:700}#api .apQ b{display:block;font-size:20px;color:var(--tx);margin-top:4px}#api .apQ span{font-size:12.5px;color:var(--mu)}
+#api .apF{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end}#api .apF label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mu)}#api .apF input[type=text]{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;min-width:220px}
+#api .apF .sc{display:flex;gap:12px;flex-wrap:wrap;padding:9px 0}#api .apF .sc label{flex-direction:row;align-items:center;gap:6px;color:var(--tx);font-size:13.5px}#api .apF .sc input{width:16px!important;min-width:0!important;height:16px;margin:0;padding:0;flex:none}
+#api button.ap{font:inherit;font-size:14px;font-weight:700;border-radius:10px;padding:10px 16px;border:1px solid var(--tx);background:var(--tx);color:var(--bg);cursor:pointer}#api button.ap2{font:inherit;font-size:13px;border-radius:9px;padding:7px 12px;border:1px solid var(--bd);background:none;color:var(--tx);cursor:pointer}
+#api .apNew{margin-top:14px;border:1px solid rgba(52,211,153,.45);background:rgba(52,211,153,.07);border-radius:12px;padding:14px 16px;font-size:13.5px;color:var(--tx)}#api .apNew code{display:block;margin:8px 0;font-size:14px;word-break:break-all;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:10px 12px}
+#api table{width:100%;border-collapse:collapse;font-size:13.5px}#api th,#api td{padding:9px 10px;border-bottom:1px solid var(--bd);text-align:left;color:var(--tx)}#api th{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);font-weight:700}#api td.mu{color:var(--mu)}#api tr.off td{opacity:.5}
+#api .apT{overflow-x:auto}#api .apMsg{min-height:18px;margin-top:10px;font-size:13px;color:var(--mu)}
+#api .apTabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}#api .apTabs button{font:inherit;font-size:13px;border:1px solid var(--bd);background:none;color:var(--mu);border-radius:9px;padding:7px 12px;cursor:pointer}#api .apTabs button.on{color:var(--tx);border-color:var(--tx)}
+#api pre{margin:0;background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:14px 16px;overflow-x:auto;font-size:12.5px;line-height:1.55;color:var(--tx)}#api code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+#api .apE td:first-child{white-space:nowrap}#api .apE code{font-size:12.5px;color:var(--ac)}
+@media(max-width:760px){#api .apQ{grid-template-columns:1fr}#api .apH{padding:20px 0 16px}#api .apC{padding:18px 16px}}
+</style>
+<script>
+/* ---------- API REST + MCP: keys del usuario (Supabase api_keys, solo el hash), cuota y documentación ---------- */
+(function () {
+  var root = document.getElementById('api'); if (!root) return;
+  var $ = function (id) { return document.getElementById(id); }, BASE = (window.BL_LIVE || 'https://bonerio-vivo.persijuanluis.workers.dev').replace(/\/+$/, '');
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var SC = [['curvas', 'Curvas y bonos'], ['cierres', 'Cierres'], ['mercado', 'Dólar y riesgo país']], K = null, USO = {}, NEW = null, TAB = 'curl', ERR = '';
+  var hoy = function () { return new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10); };
+  var EX = function (k) { k = k || 'TU_API_KEY'; return {
+    curl: 'curl -H "X-API-Key: ' + k + '" "' + BASE + '/v1/curvas?grupo=fija"\n\ncurl -H "X-API-Key: ' + k + '" "' + BASE + '/v1/bonos/AL30"',
+    python: 'import requests\n\nH = {"X-API-Key": "' + k + '"}\nr = requests.get("' + BASE + '/v1/curvas", params={"grupo": "cer"}, headers=H)\nfor b in r.json()["bonos"]:\n    print(b["ticker"], b["tir"], b["md"])',
+    excel: '// Excel › Datos › Obtener datos › De otras fuentes › Consulta en blanco › Editor avanzado\nlet\n    r = Json.Document(Web.Contents("' + BASE + '/v1/curvas?grupo=usd", [Headers = [#"X-API-Key" = "' + k + '"]])),\n    t = Table.FromRecords(r[bonos])\nin\n    t',
+    claude: '# Claude Code\nclaude mcp add --transport http bonerio ' + BASE + '/mcp --header "Authorization: Bearer ' + k + '"\n\n# Claude Desktop (claude_desktop_config.json)\n{\n  "mcpServers": {\n    "bonerio": {\n      "command": "npx",\n      "args": ["mcp-remote", "' + BASE + '/mcp", "--header", "Authorization: Bearer ' + k + '"]\n    }\n  }\n}' }; };
+  var RUT = [['GET /v1/curvas?grupo=', 'Curvas al último cierre: TIR, duración modificada, días y precio de cada bono. Grupos: usd, fija, cer, tamar, dl, dual, on, pv.', 'curvas'],
+    ['GET /v1/bonos/{ticker}', 'Un bono: su punto en la curva y el historial de su TIR.', 'curvas'], ['GET /v1/cierres/{ticker}', 'Cierres recientes en pesos, MEP y cable.', 'cierres'],
+    ['GET /v1/riesgo-pais?desde=', 'Riesgo país diario, en puntos básicos.', 'mercado'], ['GET /v1/dolar?desde=', 'A3500, MEP de AL30 y CCL al cierre.', 'mercado'], ['POST /mcp', 'Servidor MCP (HTTP, JSON-RPC): las mismas consultas como herramientas para Claude.', 'según la key']];
+  function draw() {
+    var A = window.BLAUTH && window.BLAUTH(), md = A && A.user && A.user.app_metadata || {}, pro = md.pro_hasta && String(md.pro_hasta).slice(0, 10) >= hoy(), cuota = md.api_cuota || (pro ? 1000 : 50);
+    var keys = (K || []).filter(function (k) { return !k.revocada; }), x = EX(NEW || null);
+    root.innerHTML = '<div class="apH"><span class="apChip">API REST + MCP · beta</span><h2>Nuestras curvas y cierres,<br><span>en tu Excel, Python o Claude</span></h2>' +
+      '<p>Las TIRs, curvas y cierres que calcula la página, por API con tu key o como servidor MCP para preguntarle a Claude. Son datos al cierre, no precios en vivo, y no son recomendación de inversión.</p></div><div class="apW">' +
+      '<div class="apC"><h3>Cuota por día</h3><p>Se renueva a las 0 hs de Buenos Aires. Cada respuesta trae cuánto te queda en el header X-RateLimit-Remaining.</p><div class="apQ"><div><small>Free</small><b>50</b><span>consultas por día</span></div><div><small>PRO</small><b>1.000</b><span>consultas por día</span></div><div><small>Institucional</small><b>A medida</b><span>escribinos</span></div></div></div>' +
+      '<div class="apC"><h3>Mis API keys</h3>' + (!A ? '<p>Entrá con tu cuenta para generar una key.</p>' : ERR ? '<p>' + esc(ERR) + '</p>' :
+        '<p>Tu plan: <b>' + (pro ? 'PRO' : 'Free') + '</b> · ' + cuota.toLocaleString('es-AR') + ' consultas por día entre todas tus keys. Hasta 3 keys activas. La key se muestra una sola vez: guardala; acá solo queda su comienzo.</p>' +
+        (keys.length < 3 ? '<div class="apF"><label>Nombre<input type="text" id="apN" maxlength="40" placeholder="ej. Excel de la mesa"></label><div><div style="font-size:13px;color:var(--mu)">Permisos</div><div class="sc">' + SC.map(function (s) { return '<label><input type="checkbox" data-sc="' + s[0] + '" checked>' + s[1] + '</label>'; }).join('') + '</div></div><button type="button" class="ap" id="apGo">Generar key</button></div>' : '') +
+        (NEW ? '<div class="apNew"><b>Tu key nueva</b> (copiala ahora, no se vuelve a mostrar):<code id="apKey">' + esc(NEW) + '</code><button type="button" class="ap2" id="apCp">Copiar</button></div>' : '') +
+        '<div class="apMsg" id="apMsg"></div>' + (K && K.length ? '<div class="apT"><table><thead><tr><th>Nombre</th><th>Key</th><th>Permisos</th><th>Creada</th><th>Uso hoy</th><th></th></tr></thead><tbody>' + K.map(function (k) {
+          return '<tr class="' + (k.revocada ? 'off' : '') + '"><td>' + esc(k.nombre) + '</td><td class="mu"><code>' + esc(k.prefijo) + '…</code></td><td class="mu">' + (k.scopes || []).join(', ') + '</td><td class="mu">' + String(k.creada || '').slice(0, 10).split('-').reverse().join('/') + '</td><td>' + (USO[k.key_hash] || 0) + '</td><td>' + (k.revocada ? '<span class="mu">revocada</span>' : '<button type="button" class="ap2" data-rv="' + k.id + '">Revocar</button>') + '</td></tr>'; }).join('') + '</tbody></table></div>' : K ? '<p style="margin:0">Todavía no generaste ninguna.</p>' : '<p style="margin:0">Cargando…</p>')) + '</div>' +
+      '<div class="apC"><h3>Rutas</h3><p>Base: <code>' + BASE + '</code>. La key va en el header <code>X-API-Key</code> o en <code>Authorization: Bearer</code>. Todo responde JSON.</p><div class="apT"><table class="apE"><thead><tr><th>Ruta</th><th>Qué devuelve</th><th>Permiso</th></tr></thead><tbody>' + RUT.map(function (r) { return '<tr><td><code>' + r[0] + '</code></td><td>' + r[1] + '</td><td class="mu">' + r[2] + '</td></tr>'; }).join('') + '</tbody></table></div></div>' +
+      '<div class="apC"><h3>Ejemplos</h3><p>' + (NEW ? 'Ya tienen tu key nueva.' : 'Reemplazá TU_API_KEY por tu key.') + '</p><div class="apTabs" id="apTb">' + [['curl', 'curl'], ['python', 'Python'], ['excel', 'Excel'], ['claude', 'Claude (MCP)']].map(function (t) { return '<button type="button" data-tb="' + t[0] + '" class="' + (TAB === t[0] ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div><pre><code>' + esc(x[TAB]) + '</code></pre></div></div>';
+  }
+  function load() {
+    var A = window.BLAUTH && window.BLAUTH(); if (!A) { K = null; draw(); return; }
+    try { A.sb.from('api_keys').select('id,nombre,prefijo,key_hash,scopes,creada,revocada').order('creada', { ascending: false }).then(function (r) {
+      if (r.error) { ERR = /api_keys|relation|schema cache/i.test(r.error.message || '') ? 'La API todavía no está activada. En cuanto esté, acá generás tus keys.' : 'No se pudieron leer tus keys: ' + r.error.message; K = []; draw(); return; }
+      ERR = ''; K = r.data || []; draw();
+      A.sb.from('api_uso').select('key_hash,n').eq('dia', hoy()).then(function (u) { USO = {}; ((u && u.data) || []).forEach(function (x) { USO[x.key_hash] = x.n; }); draw(); });
+    }); } catch (e) { K = []; ERR = 'La API todavía no está activada.'; draw(); }
+  }
+  var b64u = function (a) { return btoa(String.fromCharCode.apply(null, a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+  var sha = function (t) { return crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(function (b) { return [].map.call(new Uint8Array(b), function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); }); };
+  root.addEventListener('click', function (e) {
+    var t = e.target.closest('button'); if (!t) return; var A = window.BLAUTH && window.BLAUTH();
+    if (t.hasAttribute('data-tb')) { TAB = t.getAttribute('data-tb'); draw(); return; }
+    if (t.id === 'apCp') { try { navigator.clipboard.writeText(NEW); t.textContent = 'Copiada'; } catch (x) {} return; }
+    if (!A) return;
+    if (t.id === 'apGo') {
+      var sc = [].filter.call(root.querySelectorAll('[data-sc]'), function (c) { return c.checked; }).map(function (c) { return c.getAttribute('data-sc'); }); if (!sc.length) { $('apMsg').textContent = 'Elegí al menos un permiso.'; return; }
+      var raw = new Uint8Array(32); crypto.getRandomValues(raw); var key = 'bl_' + b64u(raw), nom = ($('apN').value || '').trim() || 'mi key'; t.disabled = true;
+      sha(key).then(function (h) { return A.sb.from('api_keys').insert({ user_id: A.user.id, nombre: nom.slice(0, 40), prefijo: key.slice(0, 10), key_hash: h, scopes: sc }); })
+        .then(function (r) { if (r && r.error) { $('apMsg').textContent = 'No se pudo crear: ' + r.error.message; t.disabled = false; return; } NEW = key; load(); });
+    }
+    var rv = t.getAttribute('data-rv'); if (rv) { t.disabled = true; A.sb.from('api_keys').update({ revocada: true }).eq('id', rv).then(function (r) { if (r && r.error) { $('apMsg').textContent = 'No se pudo revocar: ' + r.error.message; t.disabled = false; return; } load(); }); }
+  });
+  document.addEventListener('bl-auth', function () { if (root.classList.contains('active')) { NEW = null; load(); } });
+  var _sw = window.switchTab; window.switchTab = function (id) { var r = _sw.apply(this, arguments); if (id === 'api') { var gc = $('globalControls'); if (gc) gc.style.display = 'none'; draw(); load(); } return r; };
+  if (root.classList.contains('active')) { draw(); load(); }
 })();
 </script>
 </body>
