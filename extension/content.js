@@ -234,7 +234,7 @@
       document.body.appendChild(W); arrastrar(W);
       W.querySelector('.x').onclick = () => (W.style.display = 'none'); // se oculta, no se cierra: la próxima vez abre al instante
       W.addEventListener('mouseup', (e) => { if (e.target === W) { tamManual = true; encajar(); recordar(); } }); // la agrandó o achicó desde la esquina: el contenido se acomoda a ese tamaño
-      W.querySelector('header').ondblclick = (e) => { if (e.target.tagName !== 'BUTTON' && !W.classList.contains('fijo')) { tamManual = false; W.style.width = ''; encajar(); recordar(); } }; // doble clic: vuelve al tamaño justo
+      W.querySelector('header').ondblclick = (e) => { if (e.target.tagName !== 'BUTTON' && !W.classList.contains('fijo')) { tamManual = false; W.style.width = ''; FIJ = null; encajar(); recordar(); } }; // doble clic: vuelve al tamaño justo
       const lk = W.querySelector('.lk'); lk.onclick = () => { const f = W.classList.toggle('fijo'); lk.textContent = f ? '🔒' : '🔓'; recordar(); };
       try { const g = JSON.parse(localStorage.getItem('bnrWin') || 'null'); if (g) { Object.assign(W.style, { left: g.l + 'px', top: g.t + 'px' }); if (g.m) { tamManual = true; Object.assign(W.style, { width: g.w + 'px', height: g.h + 'px' }); } if (g.f) { W.classList.add('fijo'); lk.textContent = '🔒'; } } } catch (er) { }
     }
@@ -337,15 +337,19 @@
     if (e.data.t !== 'bnrH') return;
     LISTO = true; encajar(Math.max(150, +e.data.h || 0));
   });
-  let ultH = 0;
+  let ultH = 0, FIJ = null;
   function encajar(h) { // la sección entra justa: se escala (como un zoom) para llenar el ancho sin dejar hueco abajo
     if (h) ultH = h; h = ultH; if (!W || !h) return;
     const F = W.querySelector('iframe'), Z = W.querySelector('.zs'), wb = W.querySelector('.wb'), top = wb.offsetTop + 2, aw = wb.clientWidth;
-    const z = tamManual ? Math.max(0.5, Math.min(1.6, (W.clientHeight - top) / h)) // tamaño elegido por el usuario: el contenido se agranda o achica para ocuparlo
-      : Math.max(0.6, Math.min(1, (Math.min(Math.round(innerHeight * 0.55), innerHeight - W.offsetTop - 10) - top) / h)); // automático: como mucho media pantalla, no tapa la operatoria
+    const cap = Math.min(Math.round(innerHeight * 0.55), innerHeight - W.offsetTop - 10); // automático: como mucho media pantalla, no tapa la operatoria
+    let z = tamManual ? Math.max(0.5, Math.min(1.6, (W.clientHeight - top) / h)) // tamaño elegido por el usuario: el contenido se agranda o achica para ocuparlo
+      : Math.max(0.6, Math.min(1, (cap - top) / h));
+    // dentro de la misma solapa la ventana queda quieta: el zoom solo baja y la altura solo sube (al cambiar de familia no salta de tamaño)
+    if (!FIJ || FIJ.c !== W.dataset.sec || FIJ.m !== tamManual || FIJ.w !== W.clientWidth) FIJ = { c: W.dataset.sec, m: tamManual, w: W.clientWidth, z, hw: 0 };
+    z = FIJ.z = Math.min(FIJ.z, z);
     Object.assign(F.style, { width: aw / z + 'px', height: h + 'px', transform: z !== 1 ? `scale(${z})` : '' });
     Object.assign(Z.style, { width: aw + 'px', height: Math.ceil(h * z) + 'px' });
-    if (!tamManual) W.style.height = Math.ceil(h * z) + top + 'px';
+    if (!tamManual) { FIJ.hw = Math.max(FIJ.hw, Math.min(cap, Math.ceil(h * z) + top)); W.style.height = FIJ.hw + 'px'; }
   }
   function recordar() { try { localStorage.setItem('bnrWin', JSON.stringify({ l: W.offsetLeft, t: W.offsetTop, w: W.offsetWidth, h: W.offsetHeight, m: tamManual, f: W.classList.contains('fijo') })); } catch (er) { } }
 
