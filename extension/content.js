@@ -147,7 +147,7 @@
 
   // ---------- panel ----------
   const P = document.createElement('div'); P.id = 'bnr-panel';
-  P.innerHTML = '<header><span>Bonerío Inside</span><span><button class="cf" title="Datos en los recuadros de Matriz">⚙</button><button class="mn" title="Minimizar">–</button></span></header><div class="cfg" hidden></div><div class="q"><input class="bus" placeholder="Escribí un bono (AL30, TMVE8…)" list="bnr-tk"><datalist id="bnr-tk"></datalist></div><div class="b">Cargando curvas…</div>';
+  P.innerHTML = '<header><span>Bonerío Inside</span><span><button class="cf" title="Datos en los recuadros de Matriz">⚙</button><button class="mn" title="Minimizar">–</button></span></header><div class="cfg" hidden></div><div class="q"><input class="bus" placeholder="Escribí un bono (AL30, TMVE8…)" list="bnr-tk"><datalist id="bnr-tk"></datalist></div><div class="b">Cargando curvas…</div><div class="est" hidden></div>';
   document.body.appendChild(P);
   const B = P.querySelector('.b');
   P.querySelector('.mn').onclick = () => P.classList.toggle('min');
@@ -245,10 +245,16 @@
       const q = p > 0 ? String(p).replace('.', ',') : ultimoFila(k); // del recuadro con libro o, si no, del Mini-Panel de precios
       if (q) poner(campo('precio'), q);
       if (CFG.qty > 0) poner(campo('cantidad'), CFG.qty);
+      if (!q) aviso('Boleta: ' + k + ' cargado; sin precio en pantalla (no operó o no está en un recuadro ni en el Mini-Panel)');
     }, 500);
   }
+  let tEst = 0;
+  function aviso(t, mal) { const E = P.querySelector('.est'); E.textContent = t; E.className = 'est' + (mal ? ' mal' : ''); E.hidden = false; console.log('[Bonerío Inside]', t); clearTimeout(tEst); tEst = setTimeout(() => (E.hidden = true), 8000); }
   function aBoleta(k) {
-    k = especie(k);
+    try { return aBoleta1(k); } catch (er) { aviso('Boleta: error ' + er.message, 1); }
+  }
+  function aBoleta1(k) {
+    k = especie(k); aviso('Boleta: buscando ' + k + '…');
     const vis = (e) => e && e.offsetParent && !e.closest('#bnr-panel,#bnr-win');
     let inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || ''));
     if (!inp) for (const el of document.querySelectorAll('body *')) { // el texto "Buscar instrumento" o la etiqueta "Instrumento" suelen ser un div aparte (selectores tipo react-select): el input está en el mismo bloque
@@ -256,6 +262,7 @@
       for (let a = el.parentElement, i = 0; a && i < 4 && !inp; i++, a = a.parentElement) inp = [...a.querySelectorAll('input')].find((x) => vis(x) && x.type !== 'hidden' && x.type !== 'checkbox');
       if (inp) break;
     }
+    if (!inp) { aviso('Boleta: no encontré el campo «Instrumento» de Matriz', 1); return false; }
     const propio = inp.parentElement && inp.parentElement.parentElement; // el propio campo (los buscadores tipo react-select repiten el texto en un div invisible para medirlo)
     const seve = (o) => { const r = o.getBoundingClientRect(); return r.width > 4 && r.height > 4 && getComputedStyle(o).visibility !== 'hidden'; };
     const cand = () => [...document.querySelectorAll('li,[role=option],mat-option,a,span,div')].filter((o) => !o.children.length && (o.textContent || '').trim().toUpperCase().startsWith(k) && seve(o) && !(propio && propio.contains(o)) && !o.closest('#bnr-panel,#bnr-win'));
@@ -264,15 +271,15 @@
     inp.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, k);
     inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); inp.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: k.slice(-1) }));
     let n = 0; const iv = setInterval(() => { // elige la primera sugerencia nueva (en 24 hs si la hay)
-      if (++n > 16) { clearInterval(iv); ['ArrowDown', 'Enter'].forEach((key) => inp.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key, code: key, keyCode: key === 'Enter' ? 13 : 40 }))); completar(k); return; } // sin sugerencia reconocible: Enter elige la primera
+      if (++n > 16) { clearInterval(iv); ['ArrowDown', 'Enter'].forEach((key) => inp.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key, code: key, keyCode: key === 'Enter' ? 13 : 40 }))); aviso('Boleta: escribí ' + k + ' pero no vi la lista de sugerencias (probé con Enter)', 1); completar(k); return; } // sin sugerencia reconocible: Enter elige la primera
       const ops = cand().filter((o) => !antes.has(o)), t = (x) => (x.textContent || '').trim().toUpperCase(), o = ops.find((x) => t(x) === k) || ops.find((x) => /24/.test(t(x))) || ops.find((x) => !/\(CI\)|\bCI\b/.test(t(x))) || ops[0]; // 24 hs: el ticker solo (Matriz pone «(CI)» al contado)
-      if (o) { clearInterval(iv); const tg = o.closest('li,[role=option],mat-option') || o; ['pointerover', 'mouseover', 'mousemove', 'pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((ev) => tg.dispatchEvent(new (ev.startsWith('pointer') ? PointerEvent : MouseEvent)(ev, { bubbles: true, cancelable: true, view: window, button: 0 }))); completar(k); }
+      if (o) { clearInterval(iv); const tg = o.closest('li,[role=option],mat-option') || o; ['pointerover', 'mouseover', 'mousemove', 'pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((ev) => tg.dispatchEvent(new (ev.startsWith('pointer') ? PointerEvent : MouseEvent)(ev, { bubbles: true, cancelable: true, view: window, button: 0 }))); aviso('Boleta: elegí ' + t(o)); completar(k); }
     }, 250);
     return true;
   }
   window.addEventListener('message', (e) => { // la página manda la altura de la sección (la ventana queda justa) o el bono que se tocó
     if (!W || !e.data || e.source !== W.querySelector('iframe').contentWindow) return;
-    if (e.data.t === 'bnrTk') { const k = String(e.data.k).toUpperCase(); aBoleta(k); const r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } return; }
+    if (e.data.t === 'bnrTk') { const k = String(e.data.k).toUpperCase(), r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } aBoleta(k); return; }
     if (e.data.t !== 'bnrH') return;
     LISTO = true;
     const h = Math.max(150, +e.data.h || 0), F = W.querySelector('iframe'), top = W.querySelector('.wb').offsetTop + 2;
