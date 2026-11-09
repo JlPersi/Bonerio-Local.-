@@ -181,21 +181,21 @@
     const [p] = precioPantalla(k);
     if (b.tipo === 'fut') { const x = fut(b, p); return `<div class="g"><span>Precio</span><span>${p > 0 ? fmt(p, 2) : '-'}</span><span>TNA impl.</span><span>${fmt(x.tna)}%</span><span>Dev. mens.</span><span>${fmt(x.dev)}%</span><span>Días</span><span>${x.d}</span></div>`; }
     const f = ajuste(b.grupo, b.ley), t0 = p > 0 ? tirA(b, p) : null, tir = t0 == null ? b.tir : t0, res = f && b.dias > 30 ? (tir - f(b.dias)) * 100 : null;
-    return `<div class="g"><span>Precio</span><span>${p > 0 ? fmt(p, 3) : '-'}</span><span>${b.unidad} a este precio</span><span>${fmt(tir)}%</span><span>${b.unidad} al cierre</span><span>${fmt(b.tir)}%</span><span>Duration mod.</span><span>${fmt(b.md)}</span>` +
-      (res == null ? '' : `<span>vs curva</span><span>${res > 0 ? '+' : ''}${fmt(res, 0)} pb</span>`) + '</div>';
+    return `<div class="g"><span>Precio</span><span>${p > 0 ? fmt(p, 3) : '-'}</span><span>${b.unidad} a este precio</span><span>${fmt(tir)}%</span><span>${b.unidad} al cierre</span><span>${fmt(b.tir)}%</span><span>Duration mod.</span><span>${fmt(b.md)}</span></div>`;
   }
   const guardarPins = () => { try { localStorage.setItem('bnrPins', JSON.stringify([...PINS].map(([k, D]) => ({ k, q: +D.querySelector('.pq').value || 0, l: D.offsetLeft, t: D.offsetTop })))); } catch (er) { } };
   function fijar(k, q, pos) {
     if (!k) return; if (PINS.has(k)) { PINS.get(k).style.outline = '2px solid #ffc107'; setTimeout(() => (PINS.get(k).style.outline = ''), 600); return; }
     const D = document.createElement('div'), n = PINS.size; D.className = 'bnr-pin';
     D.style.top = 70 + (n % 6) * 28 + 'px'; D.style.right = 280 + (n % 6) * 24 + 'px';
-    D.innerHTML = `<header><span class="pk" title="Ver en el panel">${k}</span><button class="x" title="Cerrar">✕</button></header><div class="pb"></div><label class="pql">Nominales <input class="pq" type="number" min="0" step="1" value="${q != null ? q : CFG.qty || ''}"></label><div class="bt"><button data-v="curva">Curva</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
+    D.innerHTML = `<header><span class="pk" title="Ver en el panel">${k}</span><button class="x" title="Cerrar">✕</button></header><div class="pb"></div><label class="pql">Nominales <input class="pq" type="number" min="0" step="1" value="${q != null ? q : CFG.qty || ''}"></label><div class="bt"><button data-v="datos" title="Datos del bono y calculadora">Datos ▾</button><button data-v="curva">Curva</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div><div class="dx" hidden></div>`;
     if (pos) Object.assign(D.style, { left: pos.l + 'px', top: pos.t + 'px', right: 'auto' });
     document.body.appendChild(D); arrastrar(D); PINS.set(k, D); guardarPins();
     D.querySelector('.pq').onchange = guardarPins; D.addEventListener('mouseup', guardarPins);
     D.querySelector('.pb').innerHTML = fichaHTML(k);
     D.querySelector('.x').onclick = () => { D.remove(); PINS.delete(k); guardarPins(); };
     D.querySelector('.pk').onclick = () => { activo = k; precioManual = false; pintar(); };
+    D.querySelector('[data-v=datos]').onclick = (e) => { const x = D.querySelector('.dx'); x.hidden = !x.hidden; e.target.textContent = x.hidden ? 'Datos ▾' : 'Datos ▴'; if (!x.hidden) montarDatos(x, k); };
     D.querySelector('[data-v=boleta]').onclick = () => aBoleta(k, +D.querySelector('.pq').value || 0); // con los nominales de esta ficha
     D.querySelector('[data-v=curva]').onclick = () => { activo = k; precioManual = false; curvaG = null; pintar(); ventana('curva'); };
   }
@@ -211,13 +211,8 @@
   const CURVAS = { fut: ['tfut', 'tfS1'], usd: ['curva', 'yieldCurveContainer'], fija: ['pesos', 'pcard1'], cer: ['pesos', 'pcard3'], tamar: ['pesos', 'pcard4'], dl: ['pesos', 'pcard5'], dual: ['pesos', 'pcard6'], on: ['ons', 'onsC'], pv: ['pvs', 'pvsC'] };
   // solapas de la ventana: [nombre, [[subsolapa, pestaña de Bonerío, sección, subpestaña interna]]]; la sección se muestra sola (modo ?emb=sec del Dashboard)
   const VIS = {
-    ficha: ['Ficha', (g) => (g === 'acc' ? [['', 'acc', 'accF', 'ficha']] : [['', 'bono', 'bono']])],
     curva: ['Curva', (g) => [['', ...(CURVAS[g] || CURVAS.usd)]]],
-    vol: ['Volumen', () => [['', 'res', 'resVolC', 'vol,v=h']]], // la tarjeta «Volumen operado» de Resumen, en «Hoy en vivo»
-    acc: ['Acciones', () => [['', 'acc', 'accP', 'pares']]],
     brc: ['Brecha y canje', () => [['Ratios', 'brc', 'brA'], ['Todos ahora', 'brc', 'brB']]],
-    tfut: ['Futuros', () => [['', 'tfut', 'tfS1']]],
-    sint: ['Sintéticos', () => [['', 'sint', 'syA']]],
     cim: ['Pases', () => [['', 'cim', 'cimC1']]],
     exp: ['Expectativas', () => [['Inflación', 'expi', 'thBBi'], ['Devaluación', 'expd', 'thBBd'], ['Forwards', 'expf', 'thF']]],
   };
@@ -241,7 +236,7 @@
     if (!oculta) W.style.display = '';
     const g0 = DB[activo] && DB[activo].grupo, g = vista === 'curva' ? (curvaG || (CURVAS[g0] && g0 !== 'acc' ? g0 : 'usd')) : g0, L = VIS[vista][1](g), [, tab, id, sg] = L[sub] || L[0];
     W.querySelector('.tt').textContent = activo || '';
-    W.querySelector('.tabs').innerHTML = Object.keys(VIS).filter((x) => (x !== 'ficha' || g0 !== 'fut') && x !== 'tfut') /* futuros: están en el desplegable de Curva */.map((x) => `<button data-v="${x}" class="${x === vista ? 'on' : ''}">${VIS[x][0]}</button>`).join('');
+    W.querySelector('.tabs').innerHTML = Object.keys(VIS).filter(() => true) /* curva, brecha y canje, pases y expectativas; lo de la ficha está en el panel (Datos) */.map((x) => `<button data-v="${x}" class="${x === vista ? 'on' : ''}">${VIS[x][0]}</button>`).join('');
     W.querySelectorAll('.tabs button').forEach((x) => (x.onclick = () => ventana(x.dataset.v)));
     const S = W.querySelector('.subs'); S.hidden = L.length < 2 && vista !== 'curva';
     if (vista === 'curva') { // desplegable: cualquier curva sin tocar Matriz
@@ -333,6 +328,7 @@
   }
   window.addEventListener('message', (e) => { // la página manda la altura de la sección (la ventana queda justa) o el bono que se tocó
     if (!W || !e.data || e.source !== W.querySelector('iframe').contentWindow) return;
+    if (e.data.t === 'bnrDat') { if (/^[A-Z0-9]{3,10}$/.test(e.data.k || '')) { DAT[e.data.k] = e.data.d || null; if (e.data.k === activo) { dxK = null; pintarDatos(); } const D = PINS.get(e.data.k), x = D && D.querySelector('.dx'); if (x && !x.hidden) montarDatos(x, e.data.k); } return; }
     if (e.data.t === 'bnrTk') { const k = aMatriz(e.data.k), r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } aBoleta(k); return; }
     if (e.data.t !== 'bnrH') return;
     LISTO = true; encajar(Math.max(150, +e.data.h || 0));
@@ -355,17 +351,17 @@
 
   function pintar() {
     if (!activo) { B.innerHTML = '<span class="m">Abrí un bono en Matriz (o hacé clic en una fila) y aparece acá.</span>'; return; }
-    const BT = (c) => `<div class="bt">${c ? '<button data-v="ficha">Ficha</button><button data-v="curva">Curva</button>' : '<button data-v="ficha">Ficha</button>'}<button data-v="mas">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
-    const enlazar = () => B.querySelectorAll('.bt button').forEach((x) => (x.onclick = () => (x.dataset.v === 'boleta' ? aBoleta(activo) : (x.dataset.v === 'curva' && (curvaG = null), ventana(x.dataset.v === 'mas' ? (SIGUE[vista] ? 'vol' : vista) : x.dataset.v)))));
+    const BT = (c) => `<div class="bt">${c ? '<button data-v="curva">Curva</button>' : ''}<button data-v="mas">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
+    const enlazar = () => B.querySelectorAll('.bt button').forEach((x) => (x.onclick = () => (x.dataset.v === 'datos' ? (CFG.dat = !CFG.dat, guardar(), dxK = null, pintar()) : x.dataset.v === 'boleta' ? aBoleta(activo) : (x.dataset.v === 'curva' && (curvaG = null), ventana(x.dataset.v === 'mas' ? (vista === 'curva' ? 'brc' : vista) : x.dataset.v)))));
     const seguir = () => { if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana(null, null, W.style.display === 'none') : (W.querySelector('.tt').textContent = activo); }; // la ventana sigue al bono
-    if (!DB[activo]) { B.innerHTML = `<div class="t">${activo}</div><div class="m">Sin datos en Bonerío para este ticker todavía; probá su ficha.</div>` + BT(false); enlazar(); if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana(null, null, W.style.display === 'none') : (W.querySelector('.tt').textContent = activo); return; }
+    if (!DB[activo]) { B.innerHTML = `<div class="t">${activo}</div><div class="m">Sin datos en Bonerío para este ticker todavía.</div>` + BT(false); enlazar(); if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana(null, null, W.style.display === 'none') : (W.querySelector('.tt').textContent = activo); return; }
     const b = DB[activo];
     if (b.tipo === 'acc') {
       ratios(); const r = b.ret || {}, pc = (x) => (x == null ? '-' : fmt(x * 100) + '%');
       B.innerHTML = `<div class="t">${activo}</div><div class="m">Acción · cierre ${b.fecha}</div>
         <div class="g"><span>Precio</span><span>$ ${fmt(b.precio)}</span><span>Var. día</span><span>${pc(r['1d'])}</span><span>1 mes</span><span>${pc(r['1m'])}</span><span>En el año</span><span>${pc(r.ytd)}</span>
         <span>P/E</span><span>${fmt(b.pe)}</span><span>P/VL</span><span>${fmt(b.pvl)}</span><span>EV/EBITDA</span><span>${fmt(b.ev)}</span><span>Beta</span><span>${fmt(b.beta)}</span></div>
-        <div class="bt"><button data-v="ficha">Acciones</button><button data-v="mas">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
+        <div class="bt"><button data-v="mas">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
       enlazar(); seguir(); return;
     }
     if (b.tipo === 'fut') {
@@ -379,23 +375,57 @@
         <div class="bt"><button data-v="curva">Curva</button><button data-v="mas">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
       enlazar(); seguir(); B.querySelector('input').onchange = () => { precioManual = true; pintar(); }; return;
     }
-    const f = ajuste(b.grupo, b.ley);
-    const inp = B.querySelector('input'); let p = precioManual && inp ? num(inp.value) : NaN, fuente = 'manual';
-    if (!(p > 0)) { [p, fuente] = precioPantalla(activo); precioManual = false; }
-    const t0 = p > 0 ? tirA(b, p) : null, tir = t0 == null ? b.tir : t0, res = f && b.dias > 30 ? (tir - f(b.dias)) * 100 : null;
+    const [p] = precioPantalla(activo), t0 = p > 0 ? tirA(b, p) : null, tir = t0 == null ? b.tir : t0;
     B.innerHTML = `<div class="t">${activo}</div><div class="m">${b.unidad} · cierre Bonerío ${FECHA}</div>
       <div class="g"><span>${b.unidad} al cierre</span><span>${fmt(b.tir)}%</span>
       <span>${b.unidad} a este precio</span><span>${fmt(tir)}%</span>
       <span>Duration mod.</span><span>${fmt(b.md)}</span><span>Días al vto.</span><span>${b.dias}</span></div>
-      ${res == null ? '' : `<div class="g"><span>vs curva Bonerío</span><span>${res > 0 ? '+' : ''}${fmt(res, 0)} pb</span></div>`}
-      <label class="m">Precio (${fuente || 'sin precio en pantalla'}): si salgo a…</label>
-      <input value="${p > 0 ? fmt(p, 3) : ''}" placeholder="Precio">
-      <div class="m" style="margin-top:4px">Estimado con la duration (sin convexidad).</div>
-      ${BT(true)}`;
+      <div class="bt"><button data-v="datos" class="${CFG.dat ? 'on' : ''}" title="Datos del bono y calculadora">Datos ${CFG.dat ? '▴' : '▾'}</button><button data-v="curva">Curva</button><button data-v="mas">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>`;
     enlazar();
     if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana(null, null, W.style.display === 'none') : (W.querySelector('.tt').textContent = activo); // la ventana sigue al bono
-    const ni = B.querySelector('input');
-    ni.onchange = () => { precioManual = true; pintar(); };
+    pintarDatos();
+  }
+
+  // ---------- datos y calculadora del bono, en el panel (los mismos cálculos de la ficha de Bonerío: la página los manda) ----------
+  const DX = document.createElement('div'); DX.className = 'dx'; DX.hidden = true; B.after(DX);
+  const DAT = {}; let dxK = null, pideN = 0;
+  function pedirDatos(k) {
+    if (k in DAT) return; if (!W) ventana(null, null, true); // la página de Bonerío se carga escondida
+    if (!LISTO) { if (++pideN < 60) setTimeout(() => pedirDatos(k), 500); return; }
+    pideN = 0; W.querySelector('iframe').contentWindow.postMessage({ t: 'bnrDatos', k }, '*');
+  }
+  const pvY = (fl, s, y) => fl.reduce((a, f) => a + f[1] / Math.pow(1 + y, (f[0] - s) / 365), 0);
+  const tirP = (fl, s, P) => { let lo = -0.95, hi = 20; if (!(P > 0) || !fl.length) return null; for (let i = 0; i < 200; i++) { const m = (lo + hi) / 2; if (pvY(fl, s, m) > P) lo = m; else hi = m; } return (lo + hi) / 2; };
+  const durY = (fl, s, y) => { let pv = 0, tw = 0; fl.forEach((f) => { const t = (f[0] - s) / 365, v = f[1] / Math.pow(1 + y, t); pv += v; tw += v * t; }); return pv > 0 ? tw / pv / (1 + y) : null; };
+  function pintarDatos() {
+    const b = DB[activo]; if (!CFG.dat || !b || b.tipo) { DX.hidden = true; return; }
+    DX.hidden = false; if (dxK === activo && DX.querySelector('.cx')) return; // ya está (no se pisa lo que escribiste en la calculadora)
+    if (montarDatos(DX, activo)) dxK = activo;
+  }
+  function montarDatos(DX, k) { // los datos de la ficha y la calculadora, en el panel o en una ficha fija
+    const d = DAT[k];
+    if (d === undefined) { DX.innerHTML = '<div class="m">Cargando los datos de Bonerío…</div>'; pedirDatos(k); return false; }
+    if (!d) { DX.innerHTML = '<div class="m">Sin datos de Bonerío para este bono.</div>'; return false; }
+    const u = d.usd ? 'US$ ' : '$ ', pc = (x) => (x == null ? '—' : fmt(x * 100) + '%'), f2 = (x, n) => (x == null ? '—' : fmt(x, n == null ? 2 : n));
+    const [ps] = precioPantalla(k), P0 = ps > 0 ? ps : d.P, pin = PINS.get(k), vn0 = (pin && +pin.querySelector('.pq').value) || CFG.qty || 100;
+    DX.innerHTML = `<div class="g">
+      <span>Precio Bonerío</span><span>${u}${f2(d.P)}</span><span>${d.yl}</span><span>${pc(d.y)}</span>
+      <span>Duración Macaulay</span><span>${f2(d.mac)}</span><span>Duración modificada</span><span>${f2(d.md)}</span>
+      <span>Convexidad</span><span>${f2(d.cx)}</span><span>Cambio por 1 pb (100 VN)</span><span>${d.md != null ? u + f2(d.P * d.md / 1e4, 4) : '—'}</span>
+      <span>Valor técnico</span><span>${d.vt != null ? u + f2(d.vt) : '—'}</span><span>Intereses corridos</span><span>${d.acc != null ? u + f2(d.acc, 4) : '—'}</span>
+      <span>Valor residual</span><span>${d.res != null ? f2(d.res) + '%' : '—'}</span><span>Paridad</span><span>${d.vt > 0 ? pc(d.P / d.vt) : '—'}</span>
+      ${d.cpn != null ? `<span>${d.cpnL || 'Cupón'}</span><span>${pc(d.cpn)}</span>` : ''}</div>
+      <div class="cx"><label>Precio<input data-c="p" value="${f2(P0)}"></label><label>${d.yl} %<input data-c="y"></label><label>Nominales<input data-c="n" value="${vn0}"></label></div>
+      <div class="g co"></div>`;
+    const I = (c) => DX.querySelector(`[data-c="${c}"]`);
+    const out = () => {
+      const P = num(I('p').value), y = num(I('y').value) / 100, vn = num(I('n').value) || 0, tot = d.nom.reduce((a, f) => a + f[1], 0), pay = P * vn / 100, get = tot * vn / 100, md = isFinite(y) ? durY(d.fl, d.s, y) : null;
+      DX.querySelector('.co').innerHTML = `<span>Pagás</span><span>${u}${f2(pay)}</span><span>Cobrás en total</span><span>${u}${f2(get)}</span><span>Ganancia nominal</span><span>${u}${f2(get - pay)}</span><span>Duración modificada</span><span>${f2(md)}</span><span>Cambio por 1 pb</span><span>${md != null ? u + f2(pay * md / 1e4) : '—'}</span>`;
+    };
+    const desdeP = () => { const P = num(I('p').value), y = tirP(d.fl, d.s, P / d.kq); I('y').value = y == null ? '' : fmt(y * 100); out(); };
+    I('p').oninput = desdeP; I('n').oninput = out;
+    I('y').oninput = () => { const y = num(I('y').value) / 100; if (isFinite(y) && y > -0.95) I('p').value = fmt(pvY(d.fl, d.s, y) * d.kq); out(); };
+    desdeP(); return true;
   }
 
   let t, ultBoleta = null; const revisar = (muts) => {

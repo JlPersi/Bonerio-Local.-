@@ -5,8 +5,9 @@ addEventListener('hashchange', ir); ir();
 addEventListener('message', (e) => {
   if (e.source !== F.contentWindow || !e.data) return;
   if (e.data.t === 'bnrH') { F.style.height = e.data.h + 'px'; parent.postMessage({ t: 'bnrH', h: e.data.h }, '*'); }
+  if (e.data.t === 'bnrDat') parent.postMessage({ t: 'bnrDat', k: e.data.k, d: e.data.d }, '*'); // datos del bono para la calculadora del panel
   if (e.data.t === 'bnrTk' && /^[A-Z0-9\/]{3,10}$/.test(e.data.k)) parent.postMessage({ t: 'bnrTk', k: e.data.k }, '*'); // tocó un bono en Bonerío
 });
 addEventListener('message', (e) => { // la ventana de Matriz pide otra sección: va directo a la página, sin recargar
-  if (e.source === parent && e.data && e.data.t === 'bnrSec' && F.contentWindow) F.contentWindow.postMessage(e.data, '*');
+  if (e.source === parent && e.data && (e.data.t === 'bnrSec' || e.data.t === 'bnrDatos') && F.contentWindow) F.contentWindow.postMessage(e.data, '*');
 });
