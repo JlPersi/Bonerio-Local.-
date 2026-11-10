@@ -44,3 +44,9 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 
 **Descarga para usuarios:** https://boneriolocal.com.ar/inside.html (el .zip está en `descargas/`).
 
+
+**Pases por pata (0.18.1):** la solapa Pases muestra el monitor y la tabla de especies. Cada fila tiene botones *Comprar CI / Vender 24 hs* y *Vender CI / Comprar 24 hs*: cada uno carga esa pata en la boleta (CI o 24 hs) con el precio del recuadro de ese plazo y los nominales en cartera si están cargados (`CIMX.nom`).
+
+**Filtros en ONs y provinciales:** tipo, gráfico, liquidez, eje X, empresa/provincia, sector y buscar, compactos arriba del gráfico.
+
+**Sensibilidad al costado:** se abre en un cuadro al lado del panel o de la ficha (a la derecha si entra) y lo sigue si lo movés.
