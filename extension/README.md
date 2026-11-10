@@ -40,7 +40,7 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 
 **Pase CI ↔ 24 hs:** en el panel, *Colocar* (comprás en CI y vendés en 24 hs) o *Tomar* (al revés). Carga la primera pata en la boleta con el precio del recuadro de ese plazo; apretás Comprar o Vender y después *Pata 2* carga la otra.
 
-**Acceso:** abierta para todos hasta el viernes 13/11. Desde el 14/11, solo cuentas con Bonerío PRO o en sus 7 días de prueba (lo dice la página de Bonerío con la sesión de la cuenta). Sin sesión, el panel pide entrar.
+**Acceso:** abierta para todos hasta el martes 10/11. Desde el miércoles 11/11, solo cuentas con Bonerío PRO o en sus 7 días de prueba (lo dice la página de Bonerío con la sesión de la cuenta). Sin sesión, el panel pide entrar.
 
 **Descarga para usuarios:** https://boneriolocal.com.ar/inside.html (el .zip está en `descargas/`).
 
