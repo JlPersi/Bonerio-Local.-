@@ -50,3 +50,5 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 **Filtros en ONs y provinciales:** tipo, gráfico, liquidez, eje X, empresa/provincia, sector y buscar, compactos arriba del gráfico.
 
 **Sensibilidad al costado:** se abre en un cuadro al lado del panel o de la ficha (a la derecha si entra) y lo sigue si lo movés.
+
+**Alerta de pases (0.18.2):** con la rueda abierta, la página (escondida) vigila tus especies en cartera de Pases cada 10 s. Si colocar o tomar le gana a la caución por más de tu umbral, suena un «check» y aparece arriba un aviso con las dos patas (Comprar/Vender CI y 24 hs), que cargan la boleta con tus nominales. Cada pase avisa una vez cada 30 minutos. Se apaga en ⚙.
