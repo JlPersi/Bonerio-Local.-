@@ -83,7 +83,7 @@
       let a = lab.parentElement, hit = null;
       for (let i = 0; a && i < 16 && !hit; i++, a = a.parentElement) { // sube hasta el recuadro: sin salir a otro recuadro ni al resto de Matriz, y sin leer botones (BYMA, MERV… son botones de Matriz)
         const tx = a.innerText || a.textContent || ''; if (tx.length > 3000 || (i && [...a.querySelectorAll('*')].filter((x) => !x.children.length && /^Cierre\s+Ant\.?\s*:?$/i.test((x.textContent || '').trim())).length > 1)) break;
-        for (const el of a.querySelectorAll('*')) { if (el.children.length || el.closest('button,[role=button],[role=tab],a,nav,#bnr-panel,#bnr-win,.bnr-pin,[data-bnr]')) continue; const w = ((el.textContent || '').trim().toUpperCase().match(TOK) || [])[0], r = w && tk(w); if (r) { hit = { el: a, k: r[0], suf: r[1] }; break; } }
+        for (const el of a.querySelectorAll('*')) { if (el.children.length || el.closest('button,a,nav,#bnr-panel,#bnr-win,.bnr-pin,[data-bnr]')) continue; const w = ((el.textContent || '').trim().toUpperCase().match(TOK) || [])[0], r = w && tk(w); if (r) { hit = { el: a, k: r[0], suf: r[1] }; break; } }
       }
       if (hit && !out.some((o) => o.el === hit.el)) out.push(hit);
     }
@@ -165,7 +165,7 @@
       const lab = [...c.el.querySelectorAll('*')].find((e) => !e.children.length && /^P\s*&\s*L\s*:?$/i.test((e.textContent || '').trim()) && !e.closest('[data-bnr]'));
       let row = lab && lab.parentElement; while (row && row !== c.el && !/Pos/.test(row.textContent || '')) row = row.parentElement;
       if (!row || row === c.el || /Cierre/.test(row.textContent || '')) continue; // la fila de Pos / P&L sola, no el recuadro entero
-      const b = DB[c.k], [p] = precioVale(c.k, c.suf) ? precioDe(c) : [NaN], cel = filas(b, p), n = Math.ceil(cel.length / 2);
+      const b = DB[c.k], [p] = precioVale(c.k, c.suf) || (c.suf === 'C' && DOLAR[DB[c.k].grupo]) ? precioDe(c) : [NaN] /* D (MEP) y C (cable): la TIR a ese precio en dólares; en pesos, la del cierre */, cel = filas(b, p), n = Math.ceil(cel.length / 2);
       if (!n) continue;
       if (viejas.length !== n) { viejas.forEach((r) => r.remove()); let ant = row; for (let i = 0; i < n; i++) { const r = row.cloneNode(true); r.setAttribute('data-bnr', '1'); r.style.borderTop = '1px solid rgba(255,255,255,.45)'; r.title = 'Bonerío Local'; ant.after(r); ant = r; } }
       [...c.el.querySelectorAll('[data-bnr]')].forEach((r, i) => {
