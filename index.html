@@ -15517,7 +15517,7 @@ window.RATG = (function () {
 
 /* ---------- Bonerío PRO: secciones gratis y el resto con candado (popup para suscribirse) ----------
    PRO = app_metadata.pro_hasta (AAAA-MM-DD) del usuario en Supabase, que se carga con el workflow «Alta PRO».
-   Hasta FREE_HASTA (fin de la prueba gratis) está todo abierto; después, cada cuenta nueva tiene 7 días de prueba desde que se registra. */
+   Hasta FREE_HASTA (fin de la prueba gratis) está todo abierto; después, cada cuenta nueva tiene 5 días de prueba desde que se registra. */
 (function () {
   var FREE_HASTA = '2026-11-11', FREE = /^(home|tabla|curva|pesos|dol|macro|lic|cons|res|news|planes)$/;
   var PLANES = [['Mensual', '$ 15.000', 'por mes', 'https://mpago.la/1QLNzfC'], ['6 meses', '$ 80.000', 'ahorrás 11%', 'https://mpago.la/1kaGQJu'], ['12 meses', '$ 145.000', 'ahorrás 19%', 'https://mpago.la/1CTcAqa']]; // [nombre, precio, nota, link de Mercado Pago]
@@ -15526,7 +15526,7 @@ window.RATG = (function () {
   var TRF = function () { return WA('Hola, quiero pagar Bonerío PRO por transferencia. Plan:'); }, INS = function () { return WA('Hola, quiero cotizar el plan Institucional de Bonerío. Necesito:'); };
   var FAQ = [['¿Cómo me suscribo?', 'Con Mercado Pago desde acá (mensual, 6 o 12 meses), con el mismo mail de tu cuenta. Si preferís transferencia, escribinos por WhatsApp y te pasamos los datos. Se activa en el día.'],
     ['¿Qué sigue gratis?', 'La tabla de retornos, las curvas, la curva en pesos, el dólar, las licitaciones, el calendario macro y el resumen. Sin PRO, los precios se ven con 20 minutos de demora.'],
-    ['¿Hay prueba gratis?', 'Sí: cada cuenta nueva tiene 7 días con todo abierto desde que se registra.'],
+    ['¿Hay prueba gratis?', 'Sí: cada cuenta nueva tiene 5 días con todo abierto desde que se registra.'],
     ['¿Qué es el precio fundador?', 'Si te suscribís ahora, mantenés ese precio mientras sigas suscripto, aunque después suba.'],
     ['¿Puedo usarlo adentro de Matriz?', 'Sí: con la extensión de Chrome <a href="/inside.html" target="_blank" rel="noopener" style="color:var(--ac)">Bonerío Inside</a> tenés las curvas, los datos del bono, la sensibilidad y los pases CI/24 hs en tu Matriz, y tocando un bono se completa la boleta. Viene con PRO.'],
     ['¿Qué es el plan Institucional?', 'Para ALyCs, fondos, family offices y equipos: series de precios y tasas históricas, datos en Excel o por API, varios usuarios y reportes a medida. Se cotiza según lo que necesites; escribinos por WhatsApp.'],
@@ -15534,16 +15534,16 @@ window.RATG = (function () {
   var faq = function (c) { return '<div class="blFaq">' + FAQ.map(function (q) { return '<details><summary>' + q[0] + '</summary><p>' + q[1] + '</p></details>'; }).join('') + '</div>'; };
   var extra = function (c) { return '<a href="' + INS() + '" target="_blank" rel="noopener" class="blIns"><span>Institucional<small>series de precios, Excel/API, varios usuarios</small></span><b>A cotizar</b></a>' +
     '<p class="ft" style="margin:4px 0 0">¿Preferís transferencia? <a href="' + TRF() + '" target="_blank" rel="noopener" class="blTrf">Escribinos por WhatsApp</a></p>'; };
-  window.BLPROU = function () { // la cuenta (sin la apertura general): null sin sesión, true con PRO o en sus 7 días de prueba; la usa la extensión de Matriz
+  window.BLPROU = function () { // la cuenta (sin la apertura general): null sin sesión, true con PRO o en sus 5 días de prueba; la usa la extensión de Matriz
     var a = window.BLAUTH && window.BLAUTH(), u = U || (a && a.user);
     if (!u) try { var s = JSON.parse(localStorage.getItem('sb-sbvebxqeltvkerrarzqn-auth-token') || 'null'); u = s && s.user; } catch (e) { }
     if (!u) return null; var m = u.app_metadata || {};
-    return !!((u.created_at && Date.now() < Date.parse(u.created_at) + 7 * 864e5) || (m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoy()));
+    return !!((u.created_at && Date.now() < Date.parse(u.created_at) + 5 * 864e5) || (m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoy()));
   };
   var pro = window.BLPRO = function () {
     if (hoy() < FREE_HASTA) return true;
     var a = window.BLAUTH && window.BLAUTH(), u = U || (a && a.user), m = u && u.app_metadata || {};
-    if (u && u.created_at && Date.now() < Date.parse(u.created_at) + 7 * 864e5) return true; // cada cuenta nueva tiene 7 días de prueba desde que se registra
+    if (u && u.created_at && Date.now() < Date.parse(u.created_at) + 5 * 864e5) return true; // cada cuenta nueva tiene 5 días de prueba desde que se registra
     return !!(m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoy());
   };
   var st = document.createElement('style');
@@ -15581,7 +15581,7 @@ window.RATG = (function () {
     c = document.createElement('div'); c.className = 'card'; c.id = 'hmPro'; c.setAttribute('data-norf', '1'); c.setAttribute('data-html2canvas-ignore', 'true');
     c.style.cssText = 'border:1px solid #ffc542;margin:0 0 16px;padding:18px 20px';
     c.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between"><div style="flex:1 1 320px;min-width:0"><span style="font:700 12px Inter,sans-serif;letter-spacing:.06em;color:#ffc542;text-transform:uppercase">Bonerío PRO</span>' +
-      '<h3 style="margin:6px 0 6px">' + (hoy() < '2026-11-11' ? 'Desde el miércoles 11/11, el acceso completo es con suscripción, con 7 días de prueba gratis' : 'Todas las herramientas, con suscripción') + '</h3>' +
+      '<h3 style="margin:6px 0 6px">' + (hoy() < '2026-11-11' ? 'Desde el miércoles 11/11, el acceso completo es con suscripción, con 5 días de prueba gratis' : 'Todas las herramientas, con suscripción') + '</h3>' +
       '<p class="qs" style="margin:0 0 6px">Caja de puntas en vivo, carry, sintéticos, forwards, ONs, acciones, alertas y más. Siguen gratis: tabla de retornos, curvas, curva en pesos, dólar, licitaciones, calendario macro y resumen.</p>' +
       '<p class="qs" style="margin:0"><b style="color:var(--ac)">Precio fundador:</b> si te suscribís antes del 11/11, mantenés el precio mientras sigas suscripto.</p></div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' + PLANES.map(function (p, i) { return '<a href="' + p[3] + '" target="_blank" rel="noopener" style="display:flex;flex-direction:column;gap:2px;min-width:120px;padding:10px 14px;border:1px solid ' + (i === 2 ? '#ffc542' : 'var(--bd)') + ';border-radius:10px;color:var(--tx);text-decoration:none"><span style="font-weight:600">' + p[0] + '</span><b style="font-size:17px">' + p[1] + '</b><small style="color:var(--mu)">' + p[2] + '</small></a>'; }).join('') + '<a href="' + INS() + '" target="_blank" rel="noopener" style="display:flex;flex-direction:column;gap:2px;min-width:120px;padding:10px 14px;border:1px dashed var(--bd);border-radius:10px;color:var(--tx);text-decoration:none"><span style="font-weight:600">Institucional</span><b style="font-size:17px;color:#5cc8ff">A cotizar</b><small style="color:var(--mu)">por WhatsApp</small></a></div></div>' +
@@ -15594,7 +15594,7 @@ window.RATG = (function () {
     var d = document.createElement('div'); d.className = 'fm'; d.id = 'blIntroPro'; var CC = ['#5cc8ff', '#b8e986', '#ffc542'];
     d.innerHTML = '<h3 class="sh"><span class="dm">Bonerío PRO,</span> todas las herramientas.</h3><p class="shp">' + (hoy() < '2026-11-11' ? 'Desde el miércoles 11/11, el acceso completo es con suscripción. ' : '') + 'Caja de puntas en vivo, carry, sintéticos, forwards, ONs, acciones, alertas y más. Siguen gratis: tabla de retornos, curvas, curva en pesos, dólar, licitaciones, calendario macro y resumen.</p>' +
       '<div class="fg">' + PLANES.map(function (p, i) { return '<a class="f" href="' + p[3] + '" target="_blank" rel="noopener" style="--c:' + CC[i] + ';min-height:0;padding-bottom:22px;color:inherit;text-decoration:none' + (i === 2 ? ';border-color:#ffc542' : '') + '"><i>' + p[0] + '</i><b>' + p[1] + '</b><p>' + (i ? p[2] + ' contra el mensual' : 'por mes') + '</p></a>'; }).join('') + '</div>' +
-      '<p class="shp" style="margin:18px 0 0"><b style="color:#ffc542">Precio fundador:</b> si te suscribís antes del 11/11, mantenés el precio mientras sigas suscripto. Con <b style="color:#f4f4f5">7 días de prueba gratis</b>. Pagás con Mercado Pago, con el mismo mail de tu cuenta. <a data-login="up" href="#" style="color:#ffc542;font-weight:600">Crear cuenta</a></p>' +
+      '<p class="shp" style="margin:18px 0 0"><b style="color:#ffc542">Precio fundador:</b> si te suscribís antes del 11/11, mantenés el precio mientras sigas suscripto. Con <b style="color:#f4f4f5">5 días de prueba gratis</b>. Pagás con Mercado Pago, con el mismo mail de tu cuenta. <a data-login="up" href="#" style="color:#ffc542;font-weight:600">Crear cuenta</a></p>' +
       '<p class="shp" style="margin:10px 0 0">¿Preferís transferencia? <a href="' + TRF() + '" target="_blank" rel="noopener" class="blTrf">Escribinos por WhatsApp</a>. ¿Sos una institución? <a href="' + INS() + '" target="_blank" rel="noopener" style="color:#5cc8ff;font-weight:600">Plan Institucional a cotizar</a>: series de precios, Excel/API, varios usuarios y reportes a medida.</p>' + faq();
     cat.parentNode.insertBefore(d, cat);
   };
@@ -16338,10 +16338,10 @@ body.sn-mini #sideNav .sn-u{justify-content:center;padding:12px 0}body.sn-mini #
   var b = document.createElement('button'); b.type = 'button'; b.className = 'sn-u'; b.style.display = 'none'; var nav = sn.querySelector('nav'); sn.insertBefore(b, nav ? nav.nextSibling : null);
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var hoy = function () { return new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10); }, fd = function (s) { return s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(2, 4); };
-  var plan = function (u) { // PRO pago (pro_hasta), prueba gratis (los 7 días de la cuenta nueva o hasta el 10/11) o gratis
+  var plan = function (u) { // PRO pago (pro_hasta), prueba gratis (los 5 días de la cuenta nueva o hasta el 10/11) o gratis
     var m = u.app_metadata || {}, ph = m.pro_hasta ? String(m.pro_hasta).slice(0, 10) : '';
     if (ph && ph >= hoy()) return ['PRO', 'hasta el ' + fd(ph), 1];
-    var tr = u.created_at ? Date.parse(u.created_at) + 7 * 864e5 : 0, fh = '2026-11-11';
+    var tr = u.created_at ? Date.parse(u.created_at) + 5 * 864e5 : 0, fh = '2026-11-11';
     if (Date.now() < tr || hoy() < fh) { var f = new Date(Math.max(tr, Date.parse(fh + 'T03:00:00Z')) - 3 * 3600e3).toISOString().slice(0, 10); return ['Prueba', 'prueba hasta el ' + fd(f), 1]; }
     return ['Free', 'plan gratis', 0];
   };
@@ -16555,7 +16555,7 @@ body.sn-mini #sideNav .sn-u{justify-content:center;padding:12px 0}body.sn-mini #
     var a = window.BLAUTH && window.BLAUTH(), md = a && a.user && a.user.app_metadata || {}, hoy = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10), esPro = md.pro_hasta && String(md.pro_hasta).slice(0, 10) >= hoy;
     root.innerHTML = '<div class="plH"><span class="plChip">Bonerío PRO · para inversores, asesores y mesas</span><h2>Toda la renta fija argentina,<br><span>en una sola terminal.</span></h2>' +
       '<p>Curvas, duales, CER, TAMAR, dólar linked, ONs y acciones con precios en vivo. Valuá, proyectá y armá trades con los mismos datos que usa el mercado, todos los días.</p>' +
-      '<div class="plSt"><span><b>Precios en vivo</b> de BYMA</span><span>·</span><span>Datos del <b>BCRA</b> e <b>INDEC</b></span><span>·</span><span><b>7 días</b> de prueba con todo abierto</span></div></div>' +
+      '<div class="plSt"><span><b>Precios en vivo</b> de BYMA</span><span>·</span><span>Datos del <b>BCRA</b> e <b>INDEC</b></span><span>·</span><span><b>5 días</b> de prueba con todo abierto</span></div></div>' +
       '<div class="plG"><div class="plC"><small class="k">Free</small><div class="pr">Gratis</div><div class="sb">Sin tarjeta y sin vencimiento</div><ul>' + FREE.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' +
       (a ? '<span class="plB" style="cursor:default;opacity:.7">' + (esPro ? 'Incluido en tu plan' : 'Tu plan actual') + '</span>' : '<button type="button" class="plB" data-login="up">Crear cuenta gratis</button>') + '</div>' +
       '<div class="plC pro"><span class="rec">Recomendado</span><small class="k">PRO</small><div class="pr">$ 15.000 <span>/mes</span></div><div class="sb">o $ 145.000 por año (ahorrás 19%) · precio fundador</div><ul>' + PRO.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' +
