@@ -213,7 +213,7 @@
   const VIS = {
     curva: ['Curva', (g) => [['', ...(CURVAS[g] || CURVAS.usd)]]],
     brc: ['Brecha y canje', () => [['Ratios', 'brc', 'brA'], ['Todos ahora', 'brc', 'brB']]],
-    cim: ['Pases', () => [['', 'cim', 'cimC1']]],
+    cim: ['Pases', () => [['', 'cim', 'cim']]], // el monitor y la tabla de especies (con un botón por pata)
     exp: ['Expectativas', () => [['Inflación', 'expi', 'thBBi'], ['Devaluación', 'expd', 'thBBd'], ['Fwd tasa fija', 'expf', 'expfW1'], ['Fwd CER', 'expf', 'expfW2'], ['Fwd TAMAR', 'expf', 'expfW3'], ['Fwd DL', 'expf', 'expfW4']]],
   };
   const NOM_CURVA = { usd: 'Soberanos USD', fija: 'Lecaps / Boncaps', cer: 'CER', tamar: 'TAMAR', dl: 'Dollar linked', dual: 'Duales', on: 'ONs', pv: 'Provinciales', fut: 'Futuros de dólar' };
@@ -252,13 +252,14 @@
     }
     const F = W.querySelector('iframe'), k = vista === 'ficha' && activo && g !== 'acc' ? activo : '';
     const cv = SOLO_GRAF[vista] && !/^expfW/.test(id) ? 1 : 0; // en las curvas, solo el gráfico (como la curva USD)
-    const clave = [tab, id, sg, k, cv].join('|');
+    const ctl = vista === 'curva' && /^(on|pv)$/.test(g) ? 1 : 0; // ONs y provinciales: con sus filtros (tipo, sector, liquidez…)
+    const clave = [tab, id, sg, k, ctl, cv].join('|');
     if (LISTO && clave === W.dataset.sec) return; // ya muestra eso (por ejemplo, tocaste otro punto de la misma curva): no se vuelve a dibujar
     W.dataset.sec = clave;
     cargando(true);
-    if (LISTO) { setTimeout(() => { esperaH = Date.now(); F.contentWindow.postMessage({ t: 'bnrSec', tab, id, g: sg || '', k, cv, cmp: 1 }, '*'); }, 110); return; } // la página ya está cargada: solo cambia de sección (primero se desvanece lo anterior, así no se ve el cambio)
+    if (LISTO) { setTimeout(() => { esperaH = Date.now(); F.contentWindow.postMessage({ t: 'bnrSec', tab, id, g: sg || '', k, cv, ctl, cmp: 1 }, '*'); }, 110); return; } // la página ya está cargada: solo cambia de sección (primero se desvanece lo anterior, así no se ve el cambio)
     esperaH = 0; F.style.height = '2600px';
-    const url = SITE + '?emb=sec&cmp=1&tab=' + tab + '&id=' + id + (sg ? '&g=' + sg : '') + (cv ? '&cv=1' : '') + (k ? '#ficha=' + k + '&n=' + Date.now() : '');
+    const url = SITE + '?emb=sec&cmp=1&tab=' + tab + '&id=' + id + (sg ? '&g=' + sg : '') + (cv ? '&cv=1' : '') + (ctl ? '&ctl=1' : '') + '&v=' + ((chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '') + (k ? '#ficha=' + k + '&n=' + Date.now() : '');
     F.src = chrome.runtime.getURL('frame.html') + '#' + encodeURIComponent(url); // Bonerío va adentro de una página de la extensión: así no la frena la regla frame-src de Matriz
   }
   P.addEventListener('mouseenter', () => { if (!W && activo) ventana(null, null, true); }, { once: true }); // la carga empieza al acercarse al panel: cuando tocás, ya está
@@ -305,11 +306,11 @@
   }
   let tEst = 0;
   function aviso(t, mal) { const E = P.querySelector('.est'); E.textContent = t; E.className = 'est' + (mal ? ' mal' : ''); E.hidden = false; console.log('[Bonerío Inside]', t); clearTimeout(tEst); tEst = setTimeout(() => (E.hidden = true), 8000); }
-  function aBoleta(k, cant, pz) {
-    try { return aBoleta1(k, cant, pz); } catch (er) { aviso('Boleta: error ' + er.message, 1); }
+  function aBoleta(k, cant, pz, crudo) {
+    try { return aBoleta1(k, cant, pz, crudo); } catch (er) { aviso('Boleta: error ' + er.message, 1); }
   }
-  function aBoleta1(k, cant, pz) {
-    k = especie(aMatriz(k));
+  function aBoleta1(k, cant, pz, crudo) {
+    k = crudo ? k : especie(aMatriz(k)); // crudo: la especie tal cual (la tabla de Pases ya trae la D del MEP)
     if (!(cant > 0)) { const r = tk(k), D = (r && PINS.get(r[0])) || PINS.get(k); if (D) cant = +D.querySelector('.pq').value || 0; } // si el bono tiene ficha fija, van sus nominales aviso('Boleta: buscando ' + k + '…');
     const vis = (e) => e && e.offsetParent && !e.closest('#bnr-panel,#bnr-win,.bnr-pin');
     let inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || ''));
@@ -338,6 +339,7 @@
     if (e.data.t === 'bnrDat') { if (/^[A-Z0-9]{3,10}$/.test(e.data.k || '')) { DAT[e.data.k] = e.data.d || null; if (e.data.k === activo) { dxK = null; pintarDatos(); } const D = PINS.get(e.data.k), x = D && D.querySelector('.dx'); if (x && !x.hidden) montarDatos(x, e.data.k); } return; }
     if (e.data.t === 'bnrPro') { const ant = PRO; PRO = e.data.p === true ? true : e.data.p === false ? false : null; if (ant !== PRO) pintar(); return; }
     if (e.data.t === 'bnrTk' && bloqueado()) return;
+    if (e.data.t === 'bnrPata') { if (bloqueado()) return; const { k, pz, sd } = e.data, q = +e.data.q > 0 ? +e.data.q : 0, r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } msgPase = `${k} en ${pz === 'ci' ? 'CI' : '24 hs'}: revisá y apretá ${sd === 'c' ? 'COMPRAR' : 'VENDER'}.`; aBoleta(k, q, pz, 1); return; } // una pata del pase (con los nominales en cartera, si los cargaste en Pases), desde la tabla de Pases
     if (e.data.t === 'bnrTk') { const k = aMatriz(e.data.k), r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } aBoleta(k); return; }
     if (e.data.t !== 'bnrH') return;
     LISTO = true; encajar(Math.max(150, +e.data.h || 0));
@@ -439,6 +441,19 @@
     DX.hidden = false; if (dxK === activo && DX.querySelector('.cx')) return; // ya está (no se pisa lo que escribiste en la calculadora)
     if (montarDatos(DX, activo)) dxK = activo;
   }
+  function sensAl(DX) { // el cuadro de sensibilidad va al costado del panel o de la ficha (a la derecha si entra; si no, a la izquierda)
+    if (DX._fl) return DX._fl;
+    const FL = DX._fl = document.createElement('div'); FL.className = 'bnr-sens'; FL.hidden = true; document.body.appendChild(FL);
+    FL.addEventListener('click', (e) => { if (e.target.closest('.sh button')) { DX._sx = false; FL.hidden = true; const b = DX.querySelector('.sxb'); if (b) b.classList.remove('on'); if (DX.parentElement === P) { CFG.sx = false; guardar(); } } });
+    FL._ubicar = () => {
+      const host = DX.closest('#bnr-panel,.bnr-pin'); if (!host || DX.hidden || !document.body.contains(DX)) { FL.hidden = true; return; }
+      const r = host.getBoundingClientRect(), w = FL.offsetWidth || 270, h = FL.offsetHeight || 260;
+      FL.style.left = (r.right + 8 + w <= innerWidth ? r.right + 8 : Math.max(8, r.left - 8 - w)) + 'px';
+      FL.style.top = Math.max(8, Math.min(r.top, innerHeight - h - 8)) + 'px';
+    };
+    setInterval(() => { if (!FL.hidden) FL._ubicar(); else if (DX._sx && !DX.hidden && document.body.contains(DX)) { FL.hidden = false; FL._ubicar(); } }, 300); // sigue al panel si lo movés
+    return FL;
+  }
   function montarDatos(DX, k) { // los datos de la ficha y la calculadora, en el panel o en una ficha fija
     const d = DAT[k];
     if (d === undefined) { DX.innerHTML = '<div class="m">Cargando los datos de Bonerío…</div>'; pedirDatos(k); return false; }
@@ -454,13 +469,15 @@
       ${d.cpn != null ? `<span>${d.cpnL || 'Cupón'}</span><span>${pc(d.cpn)}</span>` : ''}</div>
       <div class="cx"><label>Precio<input data-c="p" value="${f2(P0)}"></label><label>${d.yl} %<input data-c="y"></label><label>Nominales<input data-c="n" value="${vn0}"></label></div>
       <div class="g co"></div>
-      <details class="sx"${CFG.sx ? ' open' : ''}><summary>Sensibilidad a la ${d.yl}</summary><div class="st"></div></details>`;
+      <button class="sxb">Sensibilidad a la ${d.yl} <span>▸</span></button>`;
     const I = (c) => DX.querySelector(`[data-c="${c}"]`);
-    DX.querySelector('.sx').ontoggle = (e) => { CFG.sx = e.target.open; guardar(); };
-    const sens = (y, vn) => { // cuánto cambia el precio si la TIR se mueve, desde el precio de la calculadora
-      const box = DX.querySelector('.st'); if (!isFinite(y)) { box.innerHTML = ''; return; }
+    const FL = sensAl(DX), SB = DX.querySelector('.sxb'), abrir = (on) => { DX._sx = on; SB.classList.toggle('on', on); FL.hidden = !on; if (on) FL._ubicar(); };
+    if (DX._sx == null) DX._sx = DX.parentElement === P && !!CFG.sx; abrir(DX._sx);
+    SB.onclick = () => { abrir(!DX._sx); if (DX.parentElement === P) { CFG.sx = DX._sx; guardar(); } };
+    const sens = (y, vn) => { // cuánto cambia el precio si la TIR se mueve, desde el precio de la calculadora (se abre al costado)
+      const box = FL; if (!isFinite(y)) { box.innerHTML = ''; return; }
       const p0 = pvY(d.fl, d.s, y) * d.kq;
-      box.innerHTML = `<table><tr><th title="Cuánto se mueve la ${d.yl}">Δ ${d.yl}</th><th>Precio</th><th>Var.</th><th>Resultado</th></tr>${[-200, -100, -50, -25, 25, 50, 100, 200].map((b) => { const y1 = y + b / 1e4, p1 = pvY(d.fl, d.s, y1) * d.kq, v = p1 / p0 - 1; return `<tr class="${v >= 0 ? 'up' : 'dn'}"><td title="${d.yl} ${pc(y1)}">${b > 0 ? '+' : ''}${b} pb</td><td>${f2(p1)}</td><td>${v >= 0 ? '+' : ''}${fmt(v * 100)}%</td><td>${v >= 0 ? '+' : '−'}${u}${f2(Math.abs((p1 - p0) * vn / 100))}</td></tr>`; }).join('')}</table>`;
+      box.innerHTML = `<div class="sh"><b>${k}</b> · sensibilidad a la ${d.yl} desde ${f2(p0)}<button title="Cerrar">✕</button></div><table><tr><th title="Cuánto se mueve la ${d.yl}">Δ ${d.yl}</th><th>Precio</th><th>Var.</th><th>Resultado</th></tr>${[-200, -100, -50, -25, 25, 50, 100, 200].map((b) => { const y1 = y + b / 1e4, p1 = pvY(d.fl, d.s, y1) * d.kq, v = p1 / p0 - 1; return `<tr class="${v >= 0 ? 'up' : 'dn'}"><td title="${d.yl} ${pc(y1)}">${b > 0 ? '+' : ''}${b} pb</td><td>${f2(p1)}</td><td>${v >= 0 ? '+' : ''}${fmt(v * 100)}%</td><td>${v >= 0 ? '+' : '−'}${u}${f2(Math.abs((p1 - p0) * vn / 100))}</td></tr>`; }).join('')}</table>`;
     };
     let out = () => {
       const P = num(I('p').value), y = num(I('y').value) / 100, vn = num(I('n').value) || 0, tot = d.nom.reduce((a, f) => a + f[1], 0), pay = P * vn / 100, get = tot * vn / 100, md = isFinite(y) ? durY(d.fl, d.s, y) : null;
