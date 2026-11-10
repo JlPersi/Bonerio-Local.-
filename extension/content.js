@@ -327,17 +327,18 @@
   function completar(k, cant, pz) { // después de elegir el instrumento: precio de mercado que muestra Matriz y la cantidad por defecto (si hay). Comprar/Vender lo aprieta el usuario.
     setTimeout(() => {
       const r = tk(k), cs = r ? recuadros().filter((x) => x.k === r[0] && x.suf === r[1]) : [], c = pz ? cs.find((x) => plazoDe(x.el) === pz) || cs.find((x) => !plazoDe(x.el) && pz === '24') : cs[0], [p] = c ? precioDe(c) : [NaN];
-      const [pb, pa] = c && pz ? libro(c, p) : [NaN, NaN], pp = pz ? (LADO === 'c' ? pa : pb) : NaN; // en un pase: comprás a la punta vendedora, vendés a la compradora (si se leen); si no, el último
-      const q = pp > 0 ? String(pp).replace('.', ',') : p > 0 ? String(p).replace('.', ',') : pz === 'ci' ? '' : ultimoFila(k); // en un pase, el precio de CI sale solo de un recuadro en CI
+      const lv = pz ? (PXP.k === k && PXP.pz === pz ? PXP.p : 0) : PXV[k] || 0; // el último operado en Primary (el mismo que muestra Matriz), si la ventana lo tiene en vivo
+      const q0 = p > 0 ? String(p).replace('.', ',') : pz === 'ci' ? '' : ultimoFila(k), q = q0 || (lv > 0 ? String(lv).replace('.', ',') : ''); // siempre el ÚLTIMO operado: del recuadro (en un pase, el de ese plazo), del Mini-Panel o, si no está a la vista, de Primary
       if (pz) { if (q) poner(campo('precio'), q); const n = cant > 0 ? cant : CFG.qty; if (n > 0) poner(campo('cantidad'), n); aviso(q ? msgPase : 'Sin precio de ' + k + ' en ' + (pz === 'ci' ? 'CI' : '24 hs') + ' en pantalla (abrí su recuadro): completalo a mano. ' + msgPase, !q); return; } // del recuadro con libro o, si no, del Mini-Panel de precios
       const b = !q && r && DB[r[0]], qc = b && b.precio > 0 && precioVale(r[0], r[1]) ? String(b.precio).replace('.', ',') : ''; // sin precio en pantalla: el cierre de Bonerío (BYMA), avisando
       if (q || qc) poner(campo('precio'), q || qc);
       const n = cant > 0 ? cant : CFG.qty; if (n > 0) poner(campo('cantidad'), n);
       if (qc) aviso('Boleta: ' + k + ' sin precio en pantalla; puse el cierre de Bonerío (' + (b.fecha || FECHA) + '): revisalo antes de mandar', 1);
+      else if (!q0 && q) aviso('Boleta: ' + k + ' con el último operado en Primary (no está en un recuadro ni en el Mini-Panel)');
       else if (!q) aviso('Boleta: ' + k + ' cargado; sin precio en pantalla (no operó o no está en un recuadro ni en el Mini-Panel)');
     }, 500);
   }
-  let tEst = 0, LADO = '';
+  let tEst = 0, PXV = {}, PXP = {};
   function aviso(t, mal) { const E = P.querySelector('.est'); E.textContent = t; E.className = 'est' + (mal ? ' mal' : ''); E.hidden = false; console.log('[Bonerío Inside]', t); clearTimeout(tEst); tEst = setTimeout(() => (E.hidden = true), 8000); }
   function aBoleta(k, cant, pz, crudo) {
     try { return aBoleta1(k, cant, pz, crudo); } catch (er) { aviso('Boleta: error ' + er.message, 1); }
@@ -373,8 +374,8 @@
     if (e.data.t === 'bnrPro') { const ant = PRO; PRO = e.data.p === true ? true : e.data.p === false ? false : null; if (ant !== PRO) pintar(); return; }
     if (e.data.t === 'bnrTk' && bloqueado()) return;
     if (e.data.t === 'bnrPaseAl') { if (!bloqueado() && CFG.alp !== false) avisarPases(e.data.a || []); return; }
-    if (e.data.t === 'bnrPata') { if (bloqueado()) return; const { k, pz, sd } = e.data, q = +e.data.q > 0 ? +e.data.q : 0, r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } LADO = sd; msgPase = `${k} en ${pz === 'ci' ? 'CI' : '24 hs'}: revisá y apretá ${sd === 'c' ? 'COMPRAR' : 'VENDER'}.`; aBoleta(k, q, pz, 1); return; } // una pata del pase (con los nominales en cartera, si los cargaste en Pases), desde la tabla de Pases
-    if (e.data.t === 'bnrTk') { const k = aMatriz(e.data.k), r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } aBoleta(k); return; }
+    if (e.data.t === 'bnrPata') { if (bloqueado()) return; const { k, pz, sd } = e.data, q = +e.data.q > 0 ? +e.data.q : 0, r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } PXP = { k, pz, p: +e.data.px > 0 ? +e.data.px : 0 }; msgPase = `${k} en ${pz === 'ci' ? 'CI' : '24 hs'}: revisá y apretá ${sd === 'c' ? 'COMPRAR' : 'VENDER'}.`; aBoleta(k, q, pz, 1); return; } // una pata del pase (con los nominales en cartera, si los cargaste en Pases), desde la tabla de Pases
+    if (e.data.t === 'bnrTk') { PXV = e.data.px && typeof e.data.px === 'object' ? e.data.px : {}; const k = aMatriz(e.data.k), r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } aBoleta(k); return; }
     if (e.data.t !== 'bnrH') return;
     LISTO = true; encajar(Math.max(150, +e.data.h || 0));
     if (Date.now() - esperaH > 40) { setTimeout(() => cargando(false), 50); if (vista === 'curva') plazo(W.dataset.g); } // la sección nueva ya está: aparece con un fundido
