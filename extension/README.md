@@ -58,3 +58,5 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 **Tipo de curva y burbujas (1.0.3):** en Curva, al lado del desplegable de la curva, se elige el ajuste (mejor ajuste, logarítmica, raíz cuadrada, lineal, cuadrática, Nelson-Siegel; queda guardado por curva) y el botón *◉ Volumen* agranda cada punto según el monto operado hoy (`bnrBub`; en la página, un plugin de Chart.js con `window.PXQ`).
 
 **Precio y cantidad a mano (1.0.4):** en ⚙, dos checks: *No cargar la cantidad* y *No cargar el precio de mercado*. La boleta elige el instrumento y deja el cursor en el campo que va a mano.
+
+**Ficha fija con precio (1.0.5):** la ficha fija tiene *Nominales* y *Precio*. Lo escrito ahí gana; vacío, sigue a ⚙ (cantidad por defecto o a mano; precio de mercado o a mano), y el placeholder dice cuál. Los nominales ya no se copian de ⚙ al fijar, así cambiar ⚙ se aplica a todas las fichas. Con precio escrito, la TIR de la ficha es a ese precio.
