@@ -186,11 +186,13 @@
   function pintarCfg() {
     CF.innerHTML = `<label><input type="checkbox" data-on ${CFG.on ? 'checked' : ''}> Mostrar en los recuadros de Matriz</label>` +
       Object.keys(MET).map((k) => `<label><input type="checkbox" data-m="${k}" ${CFG.m.includes(k) ? 'checked' : ''}> ${MET[k][0]}</label>`).join('') +
-      `<label style="margin-top:4px">Cantidad por defecto en la boleta <input type="number" min="0" data-q value="${CFG.qty || ''}" style="width:90px;margin-left:auto"></label>` +
+      `<label style="margin-top:4px">Cantidad por defecto en la boleta <input type="number" min="0" data-q value="${CFG.qty || ''}" ${CFG.qm === 'm' ? 'disabled' : ''} style="width:90px;margin-left:auto"></label>` +
+      `<label><input type="checkbox" data-qm ${CFG.qm === 'm' ? 'checked' : ''}> No cargar la cantidad (la pongo a mano)</label>` +
+      `<label><input type="checkbox" data-pm ${CFG.pm === 'm' ? 'checked' : ''}> No cargar el precio de mercado (lo pongo a mano)</label>` +
       `<label><input type="checkbox" data-alp ${CFG.alp !== false ? 'checked' : ''}> Avisarme (con sonido) cuando convenga un pase en mis especies de Pases</label>` +
       `<label>Moneda en la boleta (bonos en dólares) <select data-mon style="margin-left:auto">${[['', 'Pesos'], ['D', 'MEP (D)'], ['C', 'CCL (C)']].map(([v, t]) => `<option value="${v}" ${(CFG.mon || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>`;
     CF.querySelectorAll('input,select').forEach((i) => (i.onchange = () => {
-      if (i.hasAttribute('data-alp')) { CFG.alp = i.checked; if (i.checked) { sonar(); if (!W) ventana(null, null, true); } } else if (i.hasAttribute('data-mon')) CFG.mon = i.value; else if (i.hasAttribute('data-q')) CFG.qty = +i.value || 0; else if (i.hasAttribute('data-on')) CFG.on = i.checked; else CFG.m = Object.keys(MET).filter((k) => CF.querySelector(`[data-m="${k}"]`).checked);
+      if (i.hasAttribute('data-alp')) { CFG.alp = i.checked; if (i.checked) { sonar(); if (!W) ventana(null, null, true); } } else if (i.hasAttribute('data-mon')) CFG.mon = i.value; else if (i.hasAttribute('data-q')) CFG.qty = +i.value || 0; else if (i.hasAttribute('data-pm')) CFG.pm = i.checked ? 'm' : ''; else if (i.hasAttribute('data-qm')) { CFG.qm = i.checked ? 'm' : ''; CF.querySelector('[data-q]').disabled = i.checked; } else if (i.hasAttribute('data-on')) CFG.on = i.checked; else CFG.m = Object.keys(MET).filter((k) => CF.querySelector(`[data-m="${k}"]`).checked);
       guardar(); inyectar();
     }));
   }
@@ -339,6 +341,8 @@
       const r = tk(k), cs = r ? recuadros().filter((x) => x.k === r[0] && x.suf === r[1]) : [], c = pz ? cs.find((x) => plazoDe(x.el) === pz) || cs.find((x) => !plazoDe(x.el) && pz === '24') : cs[0], [p] = c ? precioDe(c) : [NaN];
       const lv = pz ? (PXP.k === k && PXP.pz === pz ? PXP.p : 0) : PXV[k] || 0; // el último operado en Primary (el mismo que muestra Matriz), si la ventana lo tiene en vivo
       const q0 = p > 0 ? String(p).replace('.', ',') : pz === 'ci' ? '' : ultimoFila(k), q = q0 || (lv > 0 ? String(lv).replace('.', ',') : ''); // siempre el ÚLTIMO operado: del recuadro (en un pase, el de ese plazo), del Mini-Panel o, si no está a la vista, de Primary
+      const PM = CFG.pm === 'm', QM = CFG.qm === 'm', foco = () => { const x = PM ? campo('precio') : QM ? campo('cantidad') : null; if (x) { x.focus(); x.select && x.select(); } }; // en ⚙: precio y/o cantidad a mano (queda el cursor ahí para tipear)
+      if (PM || QM) { if (!PM && q) poner(campo('precio'), q); const n = cant > 0 ? cant : CFG.qty; if (!QM && n > 0) poner(campo('cantidad'), n); foco(); aviso(pz ? msgPase : 'Boleta: ' + k + ' cargado; completá ' + (PM && QM ? 'precio y cantidad' : PM ? 'el precio' : 'la cantidad') + ' a mano'); return; }
       if (pz) { if (q) poner(campo('precio'), q); const n = cant > 0 ? cant : CFG.qty; if (n > 0) poner(campo('cantidad'), n); aviso(q ? msgPase : 'Sin precio de ' + k + ' en ' + (pz === 'ci' ? 'CI' : '24 hs') + ' en pantalla (abrí su recuadro): completalo a mano. ' + msgPase, !q); return; } // del recuadro con libro o, si no, del Mini-Panel de precios
       const b = !q && r && DB[r[0]], qc = b && b.precio > 0 && precioVale(r[0], r[1]) ? String(b.precio).replace('.', ',') : ''; // sin precio en pantalla: el cierre de Bonerío (BYMA), avisando
       if (q || qc) poner(campo('precio'), q || qc);
