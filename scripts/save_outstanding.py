@@ -151,10 +151,33 @@ def clase_col(d):
     return clase(d, "A.1.7" if "U$S" not in u or "DLK" in u or "U$D" in u else "A.1.9")
 
 
+COL_HEAD = ["hoja", "instrumento", "moneda", "liquidacion", "vn", "baja", "vn_baja"]
+
+
+def colocaciones_csv(xlsx_bytes, f):
+    """Del Excel de Finanzas se guardan solo las filas que se usan (data/colocaciones.csv): hoja, instrumento, moneda,
+       fecha de liquidación, VN (millones) y, en los canjes, el instrumento que se da de baja y su VN."""
+    import csv, io, openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes), read_only=True, data_only=True)
+    out = []
+    for h in ("Bonos", "Letras", "Canjes- Conversiones", "Otras Operaciones"):
+        if h not in wb.sheetnames:
+            continue
+        for r in wb[h].iter_rows(values_only=True):
+            if len(r) < 11 or not isinstance(r[0], str) or not hasattr(r[7], "year") or not isinstance(r[8], (int, float)):
+                continue
+            baja = r[9].strip() if isinstance(r[9], str) and isinstance(r[10], (int, float)) else ""
+            out.append([h, r[0].strip(), str(r[6] or "").strip(), r[7].date().isoformat(), repr(float(r[8])), baja, repr(float(r[10])) if baja else ""])
+    with open(f, "w", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh, lineterminator="\n"); w.writerow(COL_HEAD); w.writerows(out)
+
+
 def colocaciones():
-    """data/colocaciones.xlsx (Oficina Nacional de Crédito Público, «Colocaciones de deuda»): cada colocación del año por instrumento,
-       con su fecha de liquidación y el VN (en millones de la moneda de origen). Las conversiones suman el nuevo y restan el que se da de baja."""
-    f = os.path.join(ROOT, "data", "colocaciones.xlsx")
+    """data/colocaciones.csv (de la planilla «Colocaciones de deuda» de la Oficina Nacional de Crédito Público): cada colocación
+       del año por instrumento, con su fecha de liquidación y el VN (en millones de la moneda de origen). Las conversiones suman
+       el nuevo y restan el que se da de baja."""
+    import csv
+    f = os.path.join(ROOT, "data", "colocaciones.csv")
     # Finanzas lo publica como /sites/default/files/colocaciones_DD-MM-AA.xlsx (último día del mes): se busca el más nuevo
     hoy, prev = dt.date.today(), json.load(open(OUT)).get("col", {}) if os.path.exists(OUT) else {}
     for k in range(0, 4):
@@ -170,29 +193,21 @@ def colocaciones():
             if b:
                 hit = b; break
         if hit:
-            open(f, "wb").write(hit); print("colocaciones nuevas:", fin); break
+            colocaciones_csv(hit, f); print("colocaciones nuevas:", fin); break
     if not os.path.exists(f):
         return None
-    import openpyxl
-    wb = openpyxl.load_workbook(f, read_only=True, data_only=True)
     out, corte = [], None
     def vto(d):
         m = re.search(r"(\d\d)-(\d\d)-(\d{4})", d)
         return "%s-%s-%s" % (m.group(3), m.group(2), m.group(1)) if m else None
-    for h in ("Bonos", "Letras", "Canjes- Conversiones", "Otras Operaciones"):  # otras: colocaciones directas por resolución (suman)
-        if h not in wb.sheetnames:
+    for r in csv.DictReader(open(f, encoding="utf-8-sig", newline="")):
+        d, fl, cur = r["instrumento"], r["liquidacion"], "USD" if r["moneda"].upper() == "USD" else "ARS"
+        if not vto(d) or "INTRA" in d.upper() or "/BCRA/" in d.upper():
             continue
-        for r in wb[h].iter_rows(values_only=True):
-            if len(r) < 11 or not isinstance(r[0], str) or not hasattr(r[7], "year") or not isinstance(r[8], (int, float)):
-                continue
-            d, fl, cur = r[0].strip(), r[7].date().isoformat(), "USD" if str(r[6]).strip().upper() == "USD" else "ARS"
-            if not vto(d) or "INTRA" in d.upper() or "/BCRA/" in d.upper():
-                continue
-            out.append([fl, d, vto(d), clase_col(d), round(float(r[8]), 3), cur])
-            if h.startswith("Canjes") and isinstance(r[9], str) and isinstance(r[10], (int, float)) and vto(r[9]):
-                out.append([fl, r[9].strip(), vto(r[9]), clase_col(r[9]), -round(float(r[10]), 3), cur])
-            corte = max(corte or fl, fl)
-    m = re.search(r"(\d\d)-(\d\d)-(\d\d)", os.path.basename(f))
+        out.append([fl, d, vto(d), clase_col(d), round(float(r["vn"]), 3), cur])
+        if r["hoja"].startswith("Canjes") and r["baja"] and vto(r["baja"]):
+            out.append([fl, r["baja"], vto(r["baja"]), clase_col(r["baja"]), -round(float(r["vn_baja"]), 3), cur])
+        corte = max(corte or fl, fl)
     return {"corte": corte, "ops": sorted(out)}
 
 

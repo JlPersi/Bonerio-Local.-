@@ -1,22 +1,20 @@
 """Arma data/ons.json para la sección de Obligaciones negociables.
 
-Entrada: data/ons_flujos.xlsx (flujos de fondos por 100 VN de cada ON, hoja «Cashflow de Bonos»)
+Entrada: data/ons_flujos.csv (flujos de fondos por 100 VN de cada ON, hoja «Cashflow de Bonos»)
 y, opcional, la foto de cierres (data/ons_cierre.json, que arma el Action). Salida por ON (código sin la letra de especie):
 tipo, emisión, vencimiento, tasa, residual y los flujos que faltan cobrar.
 """
-import json, os, datetime
-import openpyxl
+import csv, json, os, datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, "..", "data", "ons_flujos.xlsx")
+SRC = os.path.join(HERE, "..", "data", "ons_flujos.csv")
 OUT = os.path.join(HERE, "..", "data", "ons.json")
 TP = {"ON": "usd", "ON_DOLLAR_LINKED": "dl", "ON_TAMAR": "tamar", "ON_BADLAR": "badlar", "ON_CER": "cer", "ON_FIXED_RATE": "fija"}
 
 
 def main():
     hoy = datetime.date.today().isoformat()
-    wb = openpyxl.load_workbook(SRC, read_only=True)
-    rows = list(wb.worksheets[0].iter_rows(values_only=True))
+    rows = list(csv.reader(open(SRC, encoding="utf-8-sig", newline="")))
     head = [str(h) for h in rows[0]]
     ix = {h: i for i, h in enumerate(head)}
     by = {}

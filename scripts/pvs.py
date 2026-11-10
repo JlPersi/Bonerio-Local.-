@@ -1,16 +1,15 @@
 """Arma data/pvs.json, data/pvs_emisores.json y (opcional) data/pvs_cierre.json para la sección de Bonos provinciales.
 
-Entrada: data/pvs_flujos.xlsx (flujos por 100 VN de cada bono subsoberano, hoja «Cashflow de Bonos»).
+Entrada: data/pvs_flujos.csv (flujos por 100 VN de cada bono subsoberano, hoja «Cashflow de Bonos»).
 Opcional: SERIES=series.xlsx (hoja «Serie  de Bond»: cierres y monto por día) y YIELDS=yield-bonds.csv (TIR del cierre)
 para la foto de cierres. Salida por bono (el ticker en pesos): tipo, emisión, vencimiento, tasa, residual, flujos
 que faltan cobrar y las especies en dólares (d = MEP, c = cable), que en los provinciales no siguen la regla ticker + D/C.
 """
 import json, os, sys, csv, datetime, statistics
-import openpyxl
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "..", "data")
-SRC = os.path.join(DATA, "pvs_flujos.xlsx")
+SRC = os.path.join(DATA, "pvs_flujos.csv")
 TP = {"SUB_SOBERANO": "usd", "SUB_SOBERANO_DOLLAR_LINKED": "dl", "SUB_SOBERANO_TAMAR": "tamar", "SUB_SOBERANO_BADLAR": "badlar",
       "SUB_SOBERANO_CER": "cer", "SUB_SOBERANO_FIXED_RATE": "fija"}
 # especie en pesos -> (MEP, cable); los que no tienen especie en dólares se valúan con el precio en pesos ÷ MEP
@@ -34,8 +33,7 @@ EMIS = {"BA37D": "Buenos Aires", "BB37D": "Buenos Aires", "BC37D": "Buenos Aires
 
 def main():
     hoy = os.environ.get("HOY") or datetime.date.today().isoformat()
-    wb = openpyxl.load_workbook(SRC, read_only=True)
-    rows = list(wb.worksheets[0].iter_rows(values_only=True))
+    rows = list(csv.reader(open(SRC, encoding="utf-8-sig", newline="")))
     ix = {str(h): i for i, h in enumerate(rows[0])}
     by = {}
     for r in rows[1:]:
@@ -73,6 +71,7 @@ def main():
 
 def cierre(out):
     """Foto del último cierre completo: [precio, TIR del cierre, monto, monto promedio de 20 ruedas, ruedas operadas de 20]."""
+    import openpyxl  # SERIES es una planilla externa (opcional)
     wb = openpyxl.load_workbook(os.environ["SERIES"], read_only=True)
     rows = list(wb.worksheets[0].iter_rows(values_only=True))
     ix = {str(h): i for i, h in enumerate(rows[0])}

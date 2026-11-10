@@ -1,26 +1,28 @@
-"""Flujos de fondos de los bonos: la planilla data/flujos.xlsx es la fuente; la página los lleva adentro (PX.S, PSD.INST y PSOLD.INST).
+"""Flujos de fondos de los bonos: los CSV data/flujos_*.csv son la fuente; la página los lleva adentro (PX.S, PSD.INST y PSOLD.INST).
 
-    python3 scripts/flujos.py build    # planilla -> index.html y preview.html (lo corre solo el Action cuando cambia la planilla)
-    python3 scripts/flujos.py export   # index.html -> planilla (para rearmarla desde lo que tiene la página)
-    python3 scripts/flujos.py check    # verifica que la planilla y la página digan lo mismo
+    python3 scripts/flujos.py build    # CSV -> index.html y preview.html (lo corre solo el Action cuando cambia un CSV)
+    python3 scripts/flujos.py export   # index.html -> CSV (para rearmarlos desde lo que tiene la página)
+    python3 scripts/flujos.py check    # verifica que los CSV y la página digan lo mismo
 
-Hojas de la planilla (una fila por pago; los datos del bono se repiten en cada fila):
-- «Pesos» y «Pesos vencidos»: Ticker, Clase, Familia, Emisión, Fecha de pago, Pago, Amortización, Tasa, Interés, Residual, Tipo.
-- «Dólares»: Ticker, Emisión, Fecha de pago, Cupón, Amortización, Residual.
-- «Precio de emisión» (opcional): Ticker, Precio. Para un bono nuevo sin historia de precios: arranca su serie con ese precio.
-Fechas como fecha de Excel (o texto AAAA-MM-DD); montos por 100 de valor nominal; tasas en decimal (0,021 = 2,1%).
+Un CSV por planilla (una fila por pago; los datos del bono se repiten en cada fila, el orden solo importa dentro de cada bono):
+- flujos_pesos.csv y flujos_pesos_vencidos.csv: Ticker, Clase, Familia, Emisión, Fecha de pago, Pago, Amortización, Tasa, Interés, Residual, Tipo.
+    Clase: cap (Lecap/Boncap), cpn (tasa fija con cupón), cer0 (CER cupón cero), cerc (Boncer con cupón), tamar, dl (dollar linked),
+    dual (paga el mayor de dos patas: dos filas con la misma fecha), dualtf (dual tasa fija / TAMAR).
+    Familia: fija, cer, tamar, dl, o las dos patas de un dual (cer+tamar, dl+tamar). Tipo: FIXED_RATE, CER, TAMAR o DOLLAR_LINKED.
+    Pago = cupón + amortización (en CER, TAMAR y DL, sin ajustar); Interés 0 si capitaliza; Residual = VN que queda después del pago.
+- flujos_dolares.csv: Ticker, Emisión, Fecha de pago, Cupón, Amortización, Residual (globales y bonares).
+- flujos_precio_emision.csv (opcional): Ticker, Precio. Para un bono nuevo sin historia de precios: arranca su serie con ese precio.
+Fechas AAAA-MM-DD (o DD/MM/AAAA); montos por 100 de valor nominal; tasas en decimal (0.021 = 2,1%).
+Se editan en GitHub (lápiz) o en Excel: si Excel los guarda con «;» y coma decimal, también se leen bien.
 """
+import csv
 import datetime as dt
 import json
 import os
 import sys
 
-import openpyxl
-from openpyxl.styles import Alignment, Font, PatternFill
-from openpyxl.utils import get_column_letter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-XLSX = os.path.join(ROOT, "data", "flujos.xlsx")
 PAGES = [os.path.join(ROOT, f) for f in ("index.html", "preview.html")]
 TICKERS = os.path.join(ROOT, "scripts", "pesos_tickers.json")
 EPOCH = dt.date(1970, 1, 1)
@@ -29,27 +31,11 @@ H_PESOS = ["Ticker", "Clase", "Familia", "Emisión", "Fecha de pago", "Pago", "A
 H_USD = ["Ticker", "Emisión", "Fecha de pago", "Cupón", "Amortización", "Residual"]
 CLASES = {"cap": "Lecap / Boncap", "cpn": "Bono a tasa fija con cupón", "cer0": "Lecer / Boncer cupón cero", "cerc": "Boncer con cupón",
           "tamar": "Bono TAMAR", "dl": "Dollar linked", "dual": "Dual (el mayor de dos pagos)", "dualtf": "Dual tasa fija / TAMAR"}
-LEEME = [
-    ("Flujos de fondos de los bonos de Bonerío Local", ""),
-    ("", ""),
-    ("Cómo se usa", "Esta planilla es la fuente de los flujos de la página. Para sumar o corregir un bono: editar las filas, guardar y subir el archivo a GitHub (data/flujos.xlsx, «Add file → Upload files» reemplaza el anterior). El Action «Flujos» actualiza la página solo en un par de minutos."),
-    ("Una fila por pago", "Los datos del bono (Ticker, Clase, Familia, Emisión) se repiten en cada fila de sus pagos. El orden de las filas no importa salvo dentro de cada bono (por fecha)."),
-    ("Montos", "Por 100 de valor nominal original. Tasas en decimal: 0,021 = 2,1%."),
-    ("", ""),
-    ("Hoja «Pesos»", ""),
-    ("Clase", "cap = Lecap / Boncap (capitaliza y paga todo al vencimiento) · cpn = tasa fija con cupón · cer0 = CER cupón cero · cerc = Boncer con cupón · tamar = bono TAMAR · dl = dollar linked · dual = dual (paga el mayor de dos patas: dos filas con la misma fecha) · dualtf = dual tasa fija / TAMAR."),
-    ("Familia", "fija, cer, tamar, dl, o las dos patas de un dual: cer+tamar, dl+tamar."),
-    ("Pago", "Lo que paga en esa fecha (cupón + amortización). En una Lecap, el monto final por 100 VN. En los CER, TAMAR y dollar linked, en valores sin ajustar."),
-    ("Amortización", "Capital que devuelve en esa fecha."),
-    ("Tasa", "La del bono en decimal: TEM de la Lecap, cupón anual del CER, margen sobre TAMAR, etc."),
-    ("Interés", "Interés de esa fecha (0 si capitaliza)."),
-    ("Residual", "Valor nominal que queda después del pago."),
-    ("Tipo", "FIXED_RATE, CER, TAMAR o DOLLAR_LINKED (en un dual, una fila de cada tipo)."),
-    ("", ""),
-    ("Hoja «Dólares»", "Globales y Bonares: Cupón y Amortización de cada fecha por 100 VN, y Residual (VN que queda)."),
-    ("Hoja «Pesos vencidos»", "Bonos que ya vencieron: solo para mostrar su historia."),
-    ("Hoja «Precio de emisión»", "Opcional. Para un bono nuevo que todavía no tiene cierres guardados: su precio de emisión, para arrancar la serie."),
-]
+SHEETS = {"Pesos": "pesos", "Dólares": "dolares", "Pesos vencidos": "pesos_vencidos", "Precio de emisión": "precio_emision"}
+
+
+def csv_path(name):
+    return os.path.join(ROOT, "data", "flujos_%s.csv" % SHEETS[name])
 
 
 def d2n(v):
@@ -59,7 +45,11 @@ def d2n(v):
         return (v - EPOCH).days
     if isinstance(v, (int, float)):
         return int(v)
-    return (dt.date.fromisoformat(str(v).strip()[:10]) - EPOCH).days
+    v = str(v).strip()
+    if "/" in v:  # DD/MM/AAAA (Excel en castellano)
+        d, m, y = (int(x) for x in v.split()[0].split("/"))
+        return (dt.date(y, m, d) - EPOCH).days
+    return (dt.date.fromisoformat(v[:10]) - EPOCH).days
 
 
 def n2d(n):
@@ -90,64 +80,55 @@ def dump(o):
 
 
 # ---------- página -> planilla ----------
+def write_csv(name, head, rows):
+    def cell(v):
+        return v.isoformat() if isinstance(v, dt.date) else repr(v) if isinstance(v, float) else v
+    with open(csv_path(name), "w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh, lineterminator="\n"); w.writerow(head)
+        for r in rows:
+            w.writerow([cell(v) for v in r])
+
+
 def export():
     _, P = read_page(PAGES[0])
-    wb = openpyxl.Workbook()
-    ws = wb.active; ws.title = "Leeme"
-    for a, b in LEEME:
-        ws.append([a, b])
-    ws["A1"].font = Font(bold=True, size=14)
-    for r in range(2, ws.max_row + 1):
-        ws.cell(r, 1).font = Font(bold=True)
-        ws.cell(r, 2).alignment = Alignment(wrap_text=True, vertical="top")
-        ws.cell(r, 1).alignment = Alignment(vertical="top")
-    ws.column_dimensions["A"].width = 26; ws.column_dimensions["B"].width = 120
-
-    def sheet(title, head, rows, fmt):
-        w = wb.create_sheet(title); w.append(head)
-        for c in w[1]:
-            c.font = Font(bold=True, color="FFFFFF"); c.fill = PatternFill("solid", fgColor="44403C")
-        for r in rows:
-            w.append(r)
-        for col, f in fmt.items():
-            for r in range(2, w.max_row + 1):
-                w.cell(r, col).number_format = f
-        for i, h in enumerate(head, 1):
-            w.column_dimensions[get_column_letter(i)].width = max(12, len(h) + 4)
-        w.freeze_panes = "B2"; w.auto_filter.ref = w.dimensions
-        return w
 
     def pesos_rows(inst):
         return [[t, b["k"], b["f"], n2d(b["iss"]), n2d(r[0]), r[1], r[2], r[3], r[4], r[5], r[6]] for t, b in inst.items() for r in b["r"]]
-    fp = {4: "yyyy-mm-dd", 5: "yyyy-mm-dd", 6: "0.000000", 7: "0.000000", 8: "0.0000", 9: "0.000000", 10: "0.00"}
-    sheet("Pesos", H_PESOS, pesos_rows(P["PSD"][2]["INST"]), fp)
-    sheet("Dólares", H_USD, [[t, n2d(b["iss"]), n2d(r[0]), r[1], r[2], r[3]] for t, b in P["PX"][2]["S"].items() for r in b["r"]],
-          {2: "yyyy-mm-dd", 3: "yyyy-mm-dd", 4: "0.0000", 5: "0.0000", 6: "0.00"})
-    sheet("Pesos vencidos", H_PESOS, pesos_rows(P["PSOLD"][2]["INST"]), fp)
-    sheet("Precio de emisión", ["Ticker", "Precio"], [], {2: "0.00"})
-    wb.save(XLSX)
-    print("planilla guardada:", os.path.relpath(XLSX, ROOT))
+    write_csv("Pesos", H_PESOS, pesos_rows(P["PSD"][2]["INST"]))
+    write_csv("Dólares", H_USD, [[t, n2d(b["iss"]), n2d(r[0]), r[1], r[2], r[3]] for t, b in P["PX"][2]["S"].items() for r in b["r"]])
+    write_csv("Pesos vencidos", H_PESOS, pesos_rows(P["PSOLD"][2]["INST"]))
+    if not os.path.exists(csv_path("Precio de emisión")):
+        write_csv("Precio de emisión", ["Ticker", "Precio"], [])
+    print("planillas guardadas: data/flujos_*.csv")
 
 
 # ---------- planilla -> página ----------
-def read_xlsx():
-    wb = openpyxl.load_workbook(XLSX, data_only=True)
+def read_csv(name):
+    """Filas de data/flujos_<hoja>.csv. Acepta coma o punto y coma como separador (Excel en castellano guarda con «;» y coma decimal)."""
+    f = csv_path(name)
+    if not os.path.exists(f):
+        return None
+    txt = open(f, encoding="utf-8-sig").read()
+    first = txt.split("\n", 1)[0]
+    return list(csv.reader(txt.splitlines(), delimiter=";" if first.count(";") > first.count(",") else ","))
 
+
+def read_planilla():
     def rows(name, head):
-        if name not in wb.sheetnames:
+        data = read_csv(name)
+        if not data:
             return []
-        w = wb[name]; it = w.iter_rows(values_only=True); h = [str(x or "").strip() for x in next(it)]
+        it = iter(data); h = [str(x or "").strip() for x in next(it)]
         miss = [c for c in head if c not in h]
         if miss:
-            sys.exit("hoja «%s»: faltan las columnas %s" % (name, ", ".join(miss)))
+            sys.exit("%s: faltan las columnas %s" % (os.path.basename(csv_path(name)), ", ".join(miss)))
         ix = [h.index(c) for c in head]
         out = []
         for n, r in enumerate(it, 2):
-            if r is None or all(v in (None, "") for v in r):
+            if not r or all(v.strip() == "" for v in r):
                 continue
             out.append((n, [r[i] if i < len(r) else None for i in ix]))
         return out
-
     def pesos(name):
         inst = {}
         for n, (t, k, f, iss, fe, pago, am, tasa, intr, res, tipo) in rows(name, H_PESOS):
@@ -155,7 +136,7 @@ def read_xlsx():
                 t = str(t).strip(); b = inst.setdefault(t, {"k": str(k).strip(), "f": str(f).strip(), "iss": d2n(iss), "r": []})
                 b["r"].append([d2n(fe), num(pago), num(am), num(tasa), num(intr), num(res), str(tipo).strip()])
             except Exception as e:
-                sys.exit("hoja «%s», fila %d: %s" % (name, n, e))
+                sys.exit("%s, fila %d: %s" % (os.path.basename(csv_path(name)), n, e))
         for b in inst.values():
             b["r"].sort(key=lambda r: r[0])
         return inst
@@ -166,7 +147,7 @@ def read_xlsx():
             t = str(t).strip(); b = usd.setdefault(t, {"iss": d2n(iss), "r": []})
             b["r"].append([d2n(fe), num(cu), num(am), num(res)])
         except Exception as e:
-            sys.exit("hoja «Dólares», fila %d: %s" % (n, e))
+            sys.exit("flujos_dolares.csv, fila %d: %s" % (n, e))
     for b in usd.values():
         b["r"].sort(key=lambda r: r[0])
     px = {str(t).strip(): num(p) for _, (t, p) in rows("Precio de emisión", ["Ticker", "Precio"]) if t and p not in (None, "")}
@@ -192,7 +173,7 @@ def validate(inst, usd):
 
 
 def build(write=True):
-    inst, usd, old, px = read_xlsx()
+    inst, usd, old, px = read_planilla()
     validate(inst, usd)
     changed = []
     for path in PAGES:
@@ -213,7 +194,7 @@ def build(write=True):
                 open(path, "w", encoding="utf-8").write("\n".join(lines))
     sin_h = [t for t in inst if t not in P["PSD"][2]["H"]]
     if sin_h:
-        print("ojo: sin historia de precios (cargar su precio en la hoja «Precio de emisión»):", ", ".join(sin_h))
+        print("ojo: sin historia de precios (cargar su precio en data/flujos_precio_emision.csv):", ", ".join(sin_h))
     raw = open(TICKERS, encoding="utf-8").read(); tk = json.loads(raw); END = "\n" if raw.endswith("\n") else ""
     lst = tk if isinstance(tk, list) else None
     if lst is not None:
