@@ -426,7 +426,7 @@
   }
   function recordar() { try { localStorage.setItem('bnrWin', JSON.stringify({ l: W.offsetLeft, t: W.offsetTop, w: W.offsetWidth, h: W.offsetHeight, m: tamManual, f: W.classList.contains('fijo') })); } catch (er) { } }
 
-  // ---------- acceso: abierta para todos hasta el viernes 13/11; después, cuentas con Bonerío PRO (o en sus 7 días de prueba) ----------
+  // ---------- acceso: abierta para todos hasta el martes 10/11; después, cuentas con Bonerío PRO (o en sus 5 días de prueba) ----------
   const LIBRE_HASTA = '2026-11-11', hoyAR = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
   let PRO; // lo dice la página de Bonerío con la sesión de la cuenta: true, false o null (sin sesión)
   const bloqueado = () => hoyAR() >= LIBRE_HASTA && PRO !== true;
