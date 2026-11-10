@@ -10283,6 +10283,12 @@ window.USTX = (function () {
   if (EMB) {
     var mode = Q.get('emb'), wid = Q.get('wid') || '';
     var post = window.DBPOST = function (o) { o.wid = wid; try { parent.postMessage(o, location.origin); } catch (e) { } if (o.t === 'dbH') try { parent.postMessage({ t: 'bnrH', h: o.h }, '*'); } catch (e) { } }; // la altura también para la extensión de Matriz (solo el número)
+    var proU = 'x'; setInterval(function () { var v = window.BLPROU ? window.BLPROU() : null; if (v !== proU) { proU = v; try { parent.postMessage({ t: 'bnrPro', p: v }, '*'); } catch (er) { } } }, 2000); // extensión de Matriz: si la cuenta tiene PRO
+    window.addEventListener('message', function (e) { // extensión de Matriz: alto del gráfico (llena la ventana) y opciones de la sección (plazo máximo de la curva)
+      var d = e.data; if (e.source !== parent || !d) return;
+      if (d.t === 'bnrCvH') { var st = document.getElementById('embCvH'); if (!st) { st = document.createElement('style'); st.id = 'embCvH'; document.head.appendChild(st); } var hh = Math.round(+d.h || 0); st.textContent = hh > 120 && hh < 3000 ? 'html.emb #embCv{height:' + hh + 'px!important;min-height:0!important;max-height:none!important}' : ''; }
+      if (d.t === 'bnrSel' && /^[\w-]+$/.test(d.id || '')) { var s = document.getElementById(d.id); if (s && s.tagName === 'SELECT' && s.value !== String(d.v) && [].some.call(s.options, function (o) { return o.value === String(d.v); })) { s.value = String(d.v); s.dispatchEvent(new Event('change', { bubbles: true })); } }
+    });
     window.addEventListener('message', function (e) { // extensión de Matriz: pide los datos de un bono para la calculadora del panel
       var d = e.data; if (e.source !== parent || !d || d.t !== 'bnrDatos' || !/^[A-Z0-9]{3,10}$/.test(d.k || '')) return;
       var r = window.BONO && window.BONO.datos ? window.BONO.datos(d.k) : null; try { parent.postMessage({ t: 'bnrDat', k: d.k, d: r }, '*'); } catch (er) { }
@@ -10310,7 +10316,7 @@ window.USTX = (function () {
         var el = document.getElementById(id);
         if (!el || !el.getClientRects().length) { if (!ok && Date.now() - t0 > 25000) { ok = true; post({ t: 'dbH', miss: 1 }); } return; }
         if (!ok) { ok = true; H.classList.add('embok'); }
-        var h = Math.ceil(el.getBoundingClientRect().bottom + window.scrollY + 2); if (h !== last) { last = h; post({ t: 'dbH', h: h }); }
+        var h = Math.ceil(el.getBoundingClientRect().top + Math.max(el.offsetHeight, el.scrollHeight) + window.scrollY + 2); /* con scrollHeight entran los desplegables abiertos (no se cortan) */ if (h !== last) { last = h; post({ t: 'dbH', h: h }); }
       };
       WI = setInterval(tick, 400); requestAnimationFrame(tick); // la primera altura sale en el siguiente cuadro, sin esperar el reloj
     };
@@ -15482,6 +15488,12 @@ window.RATG = (function () {
   var faq = function (c) { return '<div class="blFaq">' + FAQ.map(function (q) { return '<details><summary>' + q[0] + '</summary><p>' + q[1] + '</p></details>'; }).join('') + '</div>'; };
   var extra = function (c) { return '<a href="' + INS() + '" target="_blank" rel="noopener" class="blIns"><span>Institucional<small>series de precios, Excel/API, varios usuarios</small></span><b>A cotizar</b></a>' +
     '<p class="ft" style="margin:4px 0 0">¿Preferís transferencia? <a href="' + TRF() + '" target="_blank" rel="noopener" class="blTrf">Escribinos por WhatsApp</a></p>'; };
+  window.BLPROU = function () { // la cuenta (sin la apertura general): null sin sesión, true con PRO o en sus 7 días de prueba; la usa la extensión de Matriz
+    var a = window.BLAUTH && window.BLAUTH(), u = U || (a && a.user);
+    if (!u) try { var s = JSON.parse(localStorage.getItem('sb-sbvebxqeltvkerrarzqn-auth-token') || 'null'); u = s && s.user; } catch (e) { }
+    if (!u) return null; var m = u.app_metadata || {};
+    return !!((u.created_at && Date.now() < Date.parse(u.created_at) + 7 * 864e5) || (m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoy()));
+  };
   var pro = window.BLPRO = function () {
     if (hoy() < FREE_HASTA) return true;
     var a = window.BLAUTH && window.BLAUTH(), u = U || (a && a.user), m = u && u.app_metadata || {};

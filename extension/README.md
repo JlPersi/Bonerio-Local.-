@@ -31,3 +31,16 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 **Datos:** el botón *Datos ▾* del panel y de cada ficha fija despliega todos los datos de la ficha del bono (TIR, duraciones, convexidad, valor técnico, intereses corridos, paridad, cupón) y una calculadora de precio ↔ TIR con nominales. Son datos de cierre de Bonerío.
 
 **Colores:** panel, fichas y ventana usan el estilo oscuro de Bonerío Local (negro y dorado) para no confundirse con Matriz.
+
+**Plazo máximo:** en las curvas en pesos, un segundo desplegable elige hasta qué plazo se ven los bonos (por defecto, todos: DICP, PARP, CUAP…).
+
+**Ventana nítida:** la sección no se escala; se acomoda al ancho de la ventana y lo que sobra se desplaza. Los desplegables salen en su lugar y no se cortan. Con tamaño a mano, en las curvas el gráfico llena la ventana.
+
+**Sensibilidad:** en Datos, la tabla de cuánto cambia el precio (y tu resultado con los nominales) si la TIR se mueve ±25 a ±200 pb.
+
+**Pase CI ↔ 24 hs:** en el panel, *Colocar* (comprás en CI y vendés en 24 hs) o *Tomar* (al revés). Carga la primera pata en la boleta con el precio del recuadro de ese plazo; apretás Comprar o Vender y después *Pata 2* carga la otra.
+
+**Acceso:** abierta para todos hasta el miércoles 11/11. Desde el 12/11, solo cuentas con Bonerío PRO o en sus 7 días de prueba (lo dice la página de Bonerío con la sesión de la cuenta). Sin sesión, el panel pide entrar.
+
+**Descarga para usuarios:** https://boneriolocal.com.ar/inside.html (el .zip está en `descargas/`).
+
