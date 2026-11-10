@@ -10312,12 +10312,27 @@ window.USTX = (function () {
       var d = e.data; if (e.source !== parent || !d) return;
       if (d.t === 'bnrCvH') { var st = document.getElementById('embCvH'); if (!st) { st = document.createElement('style'); st.id = 'embCvH'; document.head.appendChild(st); } var hh = Math.round(+d.h || 0); st.textContent = hh > 120 && hh < 3000 ? 'html.emb #embCv{height:' + hh + 'px!important;min-height:0!important;max-height:none!important}' : ''; }
       if (d.t === 'bnrPx' && d.px && typeof d.px === 'object') mxPx(d.px);
+      if (d.t === 'bnrBub' && !!d.on !== BUB) { BUB = !!d.on; bubUp(); }
       if (d.t === 'bnrSel' && /^[\w-]+$/.test(d.id || '')) { var s = document.getElementById(d.id); if (s && s.tagName === 'SELECT' && s.value !== String(d.v) && [].some.call(s.options, function (o) { return o.value === String(d.v); })) { s.value = String(d.v); s.dispatchEvent(new Event('change', { bubbles: true })); } }
     });
     window.addEventListener('message', function (e) { // extensión de Matriz: pide los datos de un bono para la calculadora del panel
       var d = e.data; if (e.source !== parent || !d || d.t !== 'bnrDatos' || !/^[A-Z0-9]{3,10}$/.test(d.k || '')) return;
       var r = window.BONO && window.BONO.datos ? window.BONO.datos(d.k) : null; try { parent.postMessage({ t: 'bnrDat', k: d.k, d: r }, '*'); } catch (er) { }
     });
+    /* Extensión de Matriz: burbujas de volumen en cualquier curva. Con BUB, cada punto con ticker (k, bono, t…) toma un radio según el monto operado hoy
+       (data912 / Primary en window.PXQ: nominales × precio, sumando las especies D y C al MEP o CCL de AL30). */
+    var BUB = false, bubK = function (p) { if (!p || typeof p !== 'object') return null; var k = null; ['k', 'bono', 'ticker', 'tk', 't', 'sym'].some(function (x) { return typeof p[x] === 'string' && /^[A-Z][A-Z0-9]{2,7}$/.test(p[x]) && (k = p[x]); }); return k; };
+    var bubM = function (k) { var q = window.PXQ || {}, fx = function (s) { var a = q.AL30, b = q['AL30' + s]; return a && b && a.c > 0 && b.c > 0 ? a.c / b.c : 0; }, b = /O$/.test(k) ? k.slice(0, -1) : k, m = 0, seen = {};
+      [[k, 1], [k + 'D', fx('D')], [k + 'C', fx('C')], [b + 'O', 1], [b + 'D', fx('D')], [b + 'C', fx('C')]].forEach(function (x) { var o = q[x[0]]; if (seen[x[0]] || !o || !(o.v > 0 && o.c > 0) || !x[1]) return; seen[x[0]] = 1; m += o.v * o.c / 100 * x[1]; }); return m; };
+    var bubPts = function (ch, d) { return Array.isArray(d.data) && d.type !== 'line' && d.showLine !== true && (d.type === 'scatter' || d.type === 'bubble' || /scatter|bubble/.test(ch.config.type) || d.showLine === false) && d.data.some(bubK); };
+    var bubPl = { id: 'bnrBub', beforeUpdate: function (ch) { var ds = (ch.data && ch.data.datasets) || [];
+      ds.forEach(function (d) { if (d.$pr0 !== undefined && (!BUB || !bubPts(ch, d))) { d.pointRadius = d.$pr0; d.pointHoverRadius = d.$ph0; d.backgroundColor = d.$bg0; delete d.$pr0; } });
+      if (!BUB) return; var mx = 0; ds.forEach(function (d) { if (bubPts(ch, d)) d.data.forEach(function (p) { var k = bubK(p); if (k) mx = Math.max(mx, bubM(k)); }); }); if (!(mx > 0)) return;
+      ds.forEach(function (d) { if (!bubPts(ch, d)) return; if (d.$pr0 === undefined) { d.$pr0 = d.pointRadius; d.$ph0 = d.pointHoverRadius; d.$bg0 = d.backgroundColor; }
+        d.pointRadius = d.data.map(function (p) { var k = bubK(p), m = k ? bubM(k) : 0; return m > 0 ? 4 + 22 * Math.sqrt(m / mx) : 3.5; }); d.pointHoverRadius = d.pointRadius.map(function (r) { return r + 2; });
+        if (typeof d.$bg0 === 'string' && /^#[0-9a-f]{6}$/i.test(d.$bg0)) d.backgroundColor = d.$bg0 + '99'; }); } }; // semitransparentes: se ven las que se pisan
+    var bubUp = function () { if (window.Chart && Chart.instances) Object.keys(Chart.instances).forEach(function (i) { try { Chart.instances[i].update('none'); } catch (er) { } }); };
+    (function reg() { if (window.Chart && Chart.register) { try { Chart.register(bubPl); } catch (er) { } } else setTimeout(reg, 300); })();
     var lvPx = window.BLLV = function (k) { var B = window.BLS, o = {}; if (!B || !B.ok || B.dem || !B.by) return o; // en vivo (PRO): el último de cada especie del bono
       var b = /O$/.test(k) ? k.slice(0, -1) : k; [k, k + 'D', k + 'C', b + 'D', b + 'C'].forEach(function (s) { var r = B.by[s]; if (r && r.c > 0) o[s] = r.c; }); return o; };
     document.addEventListener('click', function (e) { // extensión de Matriz: el ticker del punto del gráfico o de la fila que se tocó, para cargarlo en la boleta

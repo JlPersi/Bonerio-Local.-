@@ -246,7 +246,14 @@
   const NOM_CURVA = { usd: 'Soberanos USD', fija: 'Lecaps / Boncaps', cer: 'CER', tamar: 'TAMAR', dl: 'Dollar linked', dual: 'Duales', on: 'ONs', pv: 'Provinciales', fut: 'Futuros de dólar' };
   let curvaG = null; // la curva elegida en el desplegable (null: la del bono activo)
   const PLAZO = { fija: 'psX1', cer: 'psX2', tamar: 'psX3', dl: 'psX4', dual: 'psX5' }; // el «Plazo máximo» de cada curva en pesos
-  const plazo = (g) => { if (W && LISTO && PLAZO[g]) W.querySelector('iframe').contentWindow.postMessage({ t: 'bnrSel', id: PLAZO[g], v: (CFG.px || {})[g] || '99999' }, '*'); }; // por defecto, todos los bonos (DICP, PARP…)
+  const MODELO = { usd: 'usdCurveModel', fija: 'psK1', cer: 'psK2', tamar: 'psK3', dl: 'psK4', dual: 'psK5' }; // el «Modelo de curva» de cada una
+  const AJUSTES = [['auto', 'Mejor ajuste'], ['log', 'Logarítmica'], ['sqrt', 'Raíz cuadrada'], ['lin', 'Lineal'], ['quad', 'Cuadrática'], ['ns', 'Nelson-Siegel']];
+  const plazo = (g) => { // al cargar una curva: plazo máximo (por defecto todos los bonos: DICP, PARP…), modelo elegido y burbujas de volumen
+    const f = W && LISTO && W.querySelector('iframe'); if (!f) return; const w = f.contentWindow;
+    if (PLAZO[g]) w.postMessage({ t: 'bnrSel', id: PLAZO[g], v: (CFG.px || {})[g] || '99999' }, '*');
+    const m = (CFG.mdl || {})[g]; if (MODELO[g] && m) w.postMessage({ t: 'bnrSel', id: MODELO[g], v: m }, '*');
+    w.postMessage({ t: 'bnrBub', on: !!CFG.bub }, '*');
+  };
   const SOLO_GRAF = { curva: 1, tfut: 1, sint: 1, exp: 1 };
   const SIGUE = { ficha: 1, curva: 1 }; // las que cambian con el bono
   let W = null, vista = 'curva', sub = 0, tamManual = false, LISTO = false;
@@ -273,6 +280,9 @@
     if (vista === 'curva') { // desplegable: cualquier curva sin tocar Matriz
       S.innerHTML = `<select class="selc">${Object.keys(NOM_CURVA).map((x) => `<option value="${x}" ${x === g ? 'selected' : ''}>${NOM_CURVA[x]}</option>`).join('')}</select>`;
       S.querySelector('select').onchange = (e) => { curvaG = e.target.value; ventana('curva'); };
+      if (MODELO[g]) { const v = (CFG.mdl || {})[g] || 'log'; S.insertAdjacentHTML('beforeend', `<select class="selc mdl" title="Tipo de curva (ajuste)">${AJUSTES.filter(([a]) => g !== 'usd' || a !== 'auto').map(([a, b]) => `<option value="${a}" ${a === v ? 'selected' : ''}>${b}</option>`).join('')}</select>`); S.querySelector('.mdl').onchange = (e) => { CFG.mdl = Object.assign({}, CFG.mdl, { [g]: e.target.value }); guardar(); plazo(g); }; }
+      S.insertAdjacentHTML('beforeend', `<button class="bub${CFG.bub ? ' on' : ''}" title="Burbujas de volumen: el tamaño de cada punto es el monto operado hoy">◉ Volumen</button>`);
+      S.querySelector('.bub').onclick = (e) => { CFG.bub = !CFG.bub; guardar(); e.currentTarget.classList.toggle('on', CFG.bub); plazo(g); };
       const px = PLAZO[g]; if (px) { const v = (CFG.px || {})[g] || '99999'; S.insertAdjacentHTML('beforeend', `<select class="selc px" title="Plazo máximo de la curva">${[['365', '1 año'], ['730', '2 años'], ['1000', '1.000 días'], ['1500', '4 años'], ['99999', 'Todos los plazos']].map(([a, b]) => `<option value="${a}" ${a === v ? 'selected' : ''}>${b}</option>`).join('')}</select>`); S.querySelector('.px').onchange = (e) => { CFG.px = Object.assign({}, CFG.px, { [g]: e.target.value }); guardar(); plazo(g); }; }
     } else {
       S.innerHTML = L.length < 2 ? '' : L.map((x, i) => `<button data-i="${i}" class="${i === sub ? 'on' : ''}">${x[0]}</button>`).join('');
