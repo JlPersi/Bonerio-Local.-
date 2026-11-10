@@ -193,7 +193,7 @@
       `<label>Moneda en la boleta (bonos en dólares) <select data-mon style="margin-left:auto">${[['', 'Pesos'], ['D', 'MEP (D)'], ['C', 'CCL (C)']].map(([v, t]) => `<option value="${v}" ${(CFG.mon || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>`;
     CF.querySelectorAll('input,select').forEach((i) => (i.onchange = () => {
       if (i.hasAttribute('data-alp')) { CFG.alp = i.checked; if (i.checked) { sonar(); if (!W) ventana(null, null, true); } } else if (i.hasAttribute('data-mon')) CFG.mon = i.value; else if (i.hasAttribute('data-q')) CFG.qty = +i.value || 0; else if (i.hasAttribute('data-pm')) CFG.pm = i.checked ? 'm' : ''; else if (i.hasAttribute('data-qm')) { CFG.qm = i.checked ? 'm' : ''; CF.querySelector('[data-q]').disabled = i.checked; } else if (i.hasAttribute('data-on')) CFG.on = i.checked; else CFG.m = Object.keys(MET).filter((k) => CF.querySelector(`[data-m="${k}"]`).checked);
-      guardar(); inyectar();
+      guardar(); inyectar(); phPins();
     }));
   }
   P.querySelector('.cf').onclick = () => { CF.hidden = !CF.hidden; if (!CF.hidden) pintarCfg(); };
@@ -204,31 +204,35 @@
   arrastrar(P);
   // ---------- fichas fijas: un bono por ficha, todas las que quieras; se actualizan con el precio de la pantalla ----------
   const PINS = new Map();
-  function fichaHTML(k) {
+  function fichaHTML(k, pf) { // pf: el precio escrito en la ficha fija (si vale para la cuenta de Bonerío: pesos, o MEP en los de dólares)
     const b = DB[k]; if (!b) return '<div class="m">Sin datos en Bonerío</div>';
     if (b.tipo === 'acc') return `<div class="g"><span>Cierre</span><span>$ ${fmt(b.precio)}</span><span>Beta</span><span>${fmt(b.beta)}</span></div>`;
-    const [p] = precioPantalla(k);
+    const [p] = pf > 0 && (!DOLAR[b.grupo] || CFG.mon === 'D') ? [pf] : precioPantalla(k);
     if (b.tipo === 'fut') { const x = fut(b, p); return `<div class="g"><span>Precio</span><span>${p > 0 ? fmt(p, 2) : '-'}</span><span>TNA impl.</span><span>${fmt(x.tna)}%</span><span>Dev. mens.</span><span>${fmt(x.dev)}%</span><span>Días</span><span>${x.d}</span></div>`; }
     const f = ajuste(b.grupo, b.ley), t0 = p > 0 ? tirA(b, p) : null, tir = t0 == null ? b.tir : t0, res = f && b.dias > 30 ? (tir - f(b.dias)) * 100 : null;
     return `<div class="g"><span>Precio</span><span>${p > 0 ? fmt(p, 3) : '-'}</span><span>${b.unidad} a este precio</span><span>${fmt(tir)}%</span><span>${b.unidad} al cierre</span><span>${fmt(b.tir)}%</span><span>Duration mod.</span><span>${fmt(b.md)}</span></div>`;
   }
-  const guardarPins = () => { try { localStorage.setItem('bnrPins', JSON.stringify([...PINS].map(([k, D]) => ({ k, q: +D.querySelector('.pq').value || 0, l: D.offsetLeft, t: D.offsetTop })))); } catch (er) { } };
+  const guardarPins = () => { try { localStorage.setItem('bnrPins', JSON.stringify([...PINS].map(([k, D]) => ({ k, q: +D.querySelector('.pq').value || 0, p: pinP(D), l: D.offsetLeft, t: D.offsetTop })))); } catch (er) { } };
+  const pinP = (D) => { const v = num((D.querySelector('.pp') || {}).value); return v > 0 ? v : 0; }; // precio escrito en la ficha (Matriz: coma decimal)
+  const phPins = () => PINS.forEach((D) => { // vacío = lo que diga ⚙: la cantidad por defecto o a mano; el precio de mercado o a mano
+    D.querySelector('.pq').placeholder = CFG.qm !== 'm' && CFG.qty > 0 ? 'por def. ' + CFG.qty : 'a mano'; D.querySelector('.pp').placeholder = CFG.pm === 'm' ? 'a mano' : 'mercado'; });
   function fijar(k, q, pos) {
     if (!k) return; if (PINS.has(k)) { PINS.get(k).style.outline = '2px solid #ffc107'; setTimeout(() => (PINS.get(k).style.outline = ''), 600); return; }
     const D = document.createElement('div'), n = PINS.size; D.className = 'bnr-pin';
     D.style.top = 70 + (n % 6) * 28 + 'px'; D.style.right = 280 + (n % 6) * 24 + 'px';
-    D.innerHTML = `<header><span class="pk" title="Ver en el panel">${k}</span><button class="x" title="Cerrar">✕</button></header><div class="pb"></div><label class="pql">Nominales <input class="pq" type="number" min="0" step="1" value="${q != null ? q : CFG.qty || ''}"></label><div class="bt"><button data-v="datos" title="Datos del bono y calculadora">Datos ▾</button><button data-v="curva">Curva</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div><div class="dx" hidden></div>`;
+    D.innerHTML = `<header><span class="pk" title="Ver en el panel">${k}</span><button class="x" title="Cerrar">✕</button></header><div class="pb"></div><label class="pql">Nominales <input class="pq" type="number" min="0" step="1" value="${q > 0 ? q : ''}"></label><label class="pql">Precio <input class="pp" type="text" inputmode="decimal" value="${pos && pos.p > 0 ? String(pos.p).replace('.', ',') : ''}"></label><div class="bt"><button data-v="datos" title="Datos del bono y calculadora">Datos ▾</button><button data-v="curva">Curva</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div><div class="dx" hidden></div>`;
     if (pos) Object.assign(D.style, { left: pos.l + 'px', top: pos.t + 'px', right: 'auto' });
     document.body.appendChild(D); arrastrar(D); PINS.set(k, D); guardarPins();
-    D.querySelector('.pq').onchange = guardarPins; D.addEventListener('mouseup', guardarPins);
-    D.querySelector('.pb').innerHTML = fichaHTML(k);
+    D.querySelector('.pq').onchange = guardarPins; D.addEventListener('mouseup', guardarPins); phPins();
+    D.querySelector('.pp').onchange = () => { guardarPins(); D.querySelector('.pb').innerHTML = fichaHTML(k, pinP(D)); }; // la TIR de la ficha, a ese precio
+    D.querySelector('.pb').innerHTML = fichaHTML(k, pinP(D));
     D.querySelector('.x').onclick = () => { D.remove(); PINS.delete(k); guardarPins(); };
     D.querySelector('.pk').onclick = () => { activo = k; precioManual = false; pintar(); };
     D.querySelector('[data-v=datos]').onclick = (e) => { const x = D.querySelector('.dx'); x.hidden = !x.hidden; e.target.textContent = x.hidden ? 'Datos ▾' : 'Datos ▴'; if (!x.hidden) montarDatos(x, k); };
-    D.querySelector('[data-v=boleta]').onclick = () => aBoleta(k, +D.querySelector('.pq').value || 0); // con los nominales de esta ficha
+    D.querySelector('[data-v=boleta]').onclick = () => aBoleta(k, +D.querySelector('.pq').value || 0); // con los nominales y el precio de esta ficha (si están escritos)
     D.querySelector('[data-v=curva]').onclick = () => { activo = k; precioManual = false; curvaG = null; pintar(); ventana('curva'); };
   }
-  const refrescarPins = () => PINS.forEach((D, k) => { const h = fichaHTML(k), pb = D.querySelector('.pb'); if (pb.innerHTML !== h) pb.innerHTML = h; });
+  const refrescarPins = () => PINS.forEach((D, k) => { const h = fichaHTML(k, pinP(D)), pb = D.querySelector('.pb'); if (pb.innerHTML !== h) pb.innerHTML = h; });
   P.querySelector('.pin').onclick = () => fijar(activo);
   if (chrome.runtime && chrome.runtime.onMessage) chrome.runtime.onMessage.addListener((m) => { if (m && m.t === 'toggle') { const v = P.style.display === 'none'; P.style.display = v ? '' : 'none'; if (W && !v) W.style.display = 'none'; } }); // el ícono de la extensión
   const BUS = P.querySelector('.bus');
@@ -341,8 +345,11 @@
       const r = tk(k), cs = r ? recuadros().filter((x) => x.k === r[0] && x.suf === r[1]) : [], c = pz ? cs.find((x) => plazoDe(x.el) === pz) || cs.find((x) => !plazoDe(x.el) && pz === '24') : cs[0], [p] = c ? precioDe(c) : [NaN];
       const lv = pz ? (PXP.k === k && PXP.pz === pz ? PXP.p : 0) : PXV[k] || 0; // el último operado en Primary (el mismo que muestra Matriz), si la ventana lo tiene en vivo
       const q0 = p > 0 ? String(p).replace('.', ',') : pz === 'ci' ? '' : ultimoFila(k), q = q0 || (lv > 0 ? String(lv).replace('.', ',') : ''); // siempre el ÚLTIMO operado: del recuadro (en un pase, el de ese plazo), del Mini-Panel o, si no está a la vista, de Primary
-      const PM = CFG.pm === 'm', QM = CFG.qm === 'm', foco = () => { const x = PM ? campo('precio') : QM ? campo('cantidad') : null; if (x) { x.focus(); x.select && x.select(); } }; // en ⚙: precio y/o cantidad a mano (queda el cursor ahí para tipear)
-      if (PM || QM) { if (!PM && q) poner(campo('precio'), q); const n = cant > 0 ? cant : CFG.qty; if (!QM && n > 0) poner(campo('cantidad'), n); foco(); aviso(pz ? msgPase : 'Boleta: ' + k + ' cargado; completá ' + (PM && QM ? 'precio y cantidad' : PM ? 'el precio' : 'la cantidad') + ' a mano'); return; }
+      const pf = PFIJO; PFIJO = 0; if (pf > 0) { poner(campo('precio'), String(pf).replace('.', ',')); } // el precio escrito en la ficha fija
+      const PM = CFG.pm === 'm' || pf > 0, QM = CFG.qm === 'm' && !(cant > 0); // en ⚙: precio y/o cantidad a mano (queda el cursor ahí para tipear); lo escrito en la ficha fija gana
+      if (PM || QM) { if (!PM && q) poner(campo('precio'), q); const n = cant > 0 ? cant : CFG.qty; if (!QM && n > 0) poner(campo('cantidad'), n); const pa = PM && !(pf > 0); // falta a mano: el precio (si no vino de la ficha) y/o la cantidad
+        const x = pa ? campo('precio') : QM ? campo('cantidad') : null; if (x) { x.focus(); x.select && x.select(); }
+        aviso(pz ? msgPase : 'Boleta: ' + k + ' cargado' + (pf > 0 ? ' a $ ' + fmt(pf, 2) + ' (precio de la ficha)' : '') + (pa || QM ? '; completá ' + (pa && QM ? 'precio y cantidad' : pa ? 'el precio' : 'la cantidad') + ' a mano' : '')); return; }
       if (pz) { if (q) poner(campo('precio'), q); const n = cant > 0 ? cant : CFG.qty; if (n > 0) poner(campo('cantidad'), n); aviso(q ? msgPase : 'Sin precio de ' + k + ' en ' + (pz === 'ci' ? 'CI' : '24 hs') + ' en pantalla (abrí su recuadro): completalo a mano. ' + msgPase, !q); return; } // del recuadro con libro o, si no, del Mini-Panel de precios
       const b = !q && r && DB[r[0]], qc = b && b.precio > 0 && precioVale(r[0], r[1]) ? String(b.precio).replace('.', ',') : ''; // sin precio en pantalla: el cierre de Bonerío (BYMA), avisando
       if (q || qc) poner(campo('precio'), q || qc);
@@ -352,14 +359,14 @@
       else if (!q) aviso('Boleta: ' + k + ' cargado; sin precio en pantalla (no operó o no está en un recuadro ni en el Mini-Panel)');
     }, 500);
   }
-  let tEst = 0, PXV = {}, PXP = {};
+  let tEst = 0, PXV = {}, PXP = {}, PFIJO = 0;
   function aviso(t, mal) { const E = P.querySelector('.est'); E.textContent = t; E.className = 'est' + (mal ? ' mal' : ''); E.hidden = false; console.log('[Bonerío Inside]', t); clearTimeout(tEst); tEst = setTimeout(() => (E.hidden = true), 8000); }
   function aBoleta(k, cant, pz, crudo) {
     try { return aBoleta1(k, cant, pz, crudo); } catch (er) { aviso('Boleta: error ' + er.message, 1); }
   }
   function aBoleta1(k, cant, pz, crudo) {
     k = crudo ? k : especie(aMatriz(k)); // crudo: la especie tal cual (la tabla de Pases ya trae la D del MEP)
-    if (!(cant > 0)) { const r = tk(k), D = (r && PINS.get(r[0])) || PINS.get(k); if (D) cant = +D.querySelector('.pq').value || 0; } // si el bono tiene ficha fija, van sus nominales aviso('Boleta: buscando ' + k + '…');
+    { const r = tk(k), D = (r && PINS.get(r[0])) || PINS.get(k); PFIJO = D && !pz ? pinP(D) : 0; if (D && !(cant > 0)) cant = +D.querySelector('.pq').value || 0; } // si el bono tiene ficha fija, van sus nominales y su precio (los escritos ganan sobre ⚙) // si el bono tiene ficha fija, van sus nominales aviso('Boleta: buscando ' + k + '…');
     const vis = (e) => e && e.offsetParent && !e.closest('#bnr-panel,#bnr-win,.bnr-pin');
     let inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || ''));
     if (!inp) for (const el of document.querySelectorAll('body *')) { // el texto "Buscar instrumento" o la etiqueta "Instrumento" suelen ser un div aparte (selectores tipo react-select): el input está en el mismo bloque
