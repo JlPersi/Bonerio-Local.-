@@ -62,3 +62,5 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 **Ficha fija con precio (1.0.5):** la ficha fija tiene *Nominales* y *Precio*. Lo escrito ahí gana; vacío, sigue a ⚙ (cantidad por defecto o a mano; precio de mercado o a mano), y el placeholder dice cuál. Los nominales ya no se copian de ⚙ al fijar, así cambiar ⚙ se aplica a todas las fichas. Con precio escrito, la TIR de la ficha es a ese precio.
 
 **Moneda en la curva (1.0.6):** en las curvas en dólares, ONs y provinciales, la barra tiene *Pesos / MEP / CCL*: el punto que tocás se abre en la boleta en esa especie (es la misma opción que «Moneda en la boleta» de ⚙).
+
+**Recuadros sin ticker propio (1.0.8):** para saber de qué especie es un recuadro, sube desde «Cierre Ant.» sin salir del recuadro (frena si encuentra otro recuadro o demasiado texto) y sin leer botones (BYMA, MERV… de la barra de Matriz). Antes, en un recuadro de caución o de un CEDEAR, podía tomar el botón BYMA y mostrar los ratios de esa acción.

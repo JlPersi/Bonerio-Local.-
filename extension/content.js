@@ -81,7 +81,10 @@
     for (const lab of document.querySelectorAll('body *')) {
       if (lab.children.length || !/^Cierre\s+Ant\.?\s*:?$/i.test((lab.textContent || '').trim()) || lab.closest('#bnr-panel,#bnr-win,.bnr-pin')) continue;
       let a = lab.parentElement, hit = null;
-      for (let i = 0; a && i < 16 && !hit; i++, a = a.parentElement) for (const w of (a.innerText || a.textContent || '').toUpperCase().match(TOK) || []) { const r = tk(w); if (r) { hit = { el: a, k: r[0], suf: r[1] }; break; } }
+      for (let i = 0; a && i < 16 && !hit; i++, a = a.parentElement) { // sube hasta el recuadro: sin salir a otro recuadro ni al resto de Matriz, y sin leer botones (BYMA, MERV… son botones de Matriz)
+        const tx = a.innerText || a.textContent || ''; if (tx.length > 3000 || (i && [...a.querySelectorAll('*')].filter((x) => !x.children.length && /^Cierre\s+Ant\.?\s*:?$/i.test((x.textContent || '').trim())).length > 1)) break;
+        for (const el of a.querySelectorAll('*')) { if (el.children.length || el.closest('button,[role=button],[role=tab],a,nav,#bnr-panel,#bnr-win,.bnr-pin,[data-bnr]')) continue; const w = ((el.textContent || '').trim().toUpperCase().match(TOK) || [])[0], r = w && tk(w); if (r) { hit = { el: a, k: r[0], suf: r[1] }; break; } }
+      }
       if (hit && !out.some((o) => o.el === hit.el)) out.push(hit);
     }
     return out;
