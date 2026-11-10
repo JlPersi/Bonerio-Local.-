@@ -19,7 +19,7 @@ const SEPS = EPS.filter((e) => e !== 'arg_cedears'); // lo que va por la conexi�
 const BYMA = 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/cauciones';
 const TTL = 15;
 const SB = 'https://sbvebxqeltvkerrarzqn.supabase.co', SBK = 'sb_publishable_yhGb-WD_rjY-PohFtWjRig_g54LnhVf'; // la clave pública de la página (auth.js), no es un secreto
-const FREE_HASTA = '2026-11-13', DEMORA = 20 * 60e3;
+const FREE_HASTA = '2026-11-11', DEMORA = 20 * 60e3;
 const PROC = new Map();
 async function esPro(t) { // el mismo criterio que la página (BLPRO): prueba abierta, cuenta nueva de menos de 7 días o pro_hasta vigente; se guarda 10 minutos por token
   if (hoyBA() < FREE_HASTA) return true;
