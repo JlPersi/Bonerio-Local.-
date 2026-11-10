@@ -52,3 +52,5 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 **Sensibilidad al costado:** se abre en un cuadro al lado del panel o de la ficha (a la derecha si entra) y lo sigue si lo movés.
 
 **Alerta de pases (0.18.2):** con la rueda abierta, la página (escondida) vigila tus especies en cartera de Pases cada 10 s. Si colocar o tomar le gana a la caución por más de tu umbral, suena un «check» y aparece arriba un aviso con las dos patas (Comprar/Vender CI y 24 hs), que cargan la boleta con tus nominales. Cada pase avisa una vez cada 30 minutos. Se apaga en ⚙.
+
+**Precios de tu Matriz (1.0.1):** cada 2 s la extensión lee los precios que muestra tu Matriz (último y mejores puntas de cada recuadro con libro, en CI o 24 hs, y el «Últ» del Mini-Panel) y los manda a la ventana (`bnrPx`). La página los pone por encima de los suyos (stream y data912, solo si el precio es parecido) y redibuja: curvas, TIR, pases y alertas se calculan con lo que ves, en tiempo real. En las patas del pase la boleta toma la punta: comprás a la venta, vendés a la compra (si no se lee el libro, el último).

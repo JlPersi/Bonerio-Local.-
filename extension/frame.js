@@ -12,5 +12,5 @@ addEventListener('message', (e) => {
   if (e.data.t === 'bnrTk' && /^[A-Z0-9\/]{3,10}$/.test(e.data.k)) parent.postMessage({ t: 'bnrTk', k: e.data.k }, '*'); // tocó un bono en Bonerío
 });
 addEventListener('message', (e) => { // la ventana de Matriz pide otra sección: va directo a la página, sin recargar
-  if (e.source === parent && e.data && /^bnr(Sec|Datos|CvH|Sel)$/.test(e.data.t) && F.contentWindow) F.contentWindow.postMessage(e.data, '*');
+  if (e.source === parent && e.data && /^bnr(Sec|Datos|CvH|Sel|Px)$/.test(e.data.t) && F.contentWindow) F.contentWindow.postMessage(e.data, '*');
 });
