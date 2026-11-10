@@ -64,3 +64,5 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 **Moneda en la curva (1.0.6):** en las curvas en dólares, ONs y provinciales, la barra tiene *Pesos / MEP / CCL*: el punto que tocás se abre en la boleta en esa especie (es la misma opción que «Moneda en la boleta» de ⚙).
 
 **Recuadros sin ticker propio (1.0.8):** para saber de qué especie es un recuadro, sube desde «Cierre Ant.» sin salir del recuadro (frena si encuentra otro recuadro o demasiado texto) y sin leer botones (BYMA, MERV… de la barra de Matriz). Antes, en un recuadro de caución o de un CEDEAR, podía tomar el botón BYMA y mostrar los ratios de esa acción.
+
+**1.0.9:** el título del recuadro se lee aunque esté en un encabezado con rol de botón o pestaña (1.0.8 lo salteaba y el recuadro quedaba sin filas). En los recuadros C (cable) de bonos en dólares, la TIR también se calcula a su precio.
