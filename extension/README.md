@@ -60,3 +60,5 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 **Precio y cantidad a mano (1.0.4):** en ⚙, dos checks: *No cargar la cantidad* y *No cargar el precio de mercado*. La boleta elige el instrumento y deja el cursor en el campo que va a mano.
 
 **Ficha fija con precio (1.0.5):** la ficha fija tiene *Nominales* y *Precio*. Lo escrito ahí gana; vacío, sigue a ⚙ (cantidad por defecto o a mano; precio de mercado o a mano), y el placeholder dice cuál. Los nominales ya no se copian de ⚙ al fijar, así cambiar ⚙ se aplica a todas las fichas. Con precio escrito, la TIR de la ficha es a ese precio.
+
+**Moneda en la curva (1.0.6):** en las curvas en dólares, ONs y provinciales, la barra tiene *Pesos / MEP / CCL*: el punto que tocás se abre en la boleta en esa especie (es la misma opción que «Moneda en la boleta» de ⚙).

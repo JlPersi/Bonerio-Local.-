@@ -193,7 +193,7 @@
       `<label>Moneda en la boleta (bonos en dólares) <select data-mon style="margin-left:auto">${[['', 'Pesos'], ['D', 'MEP (D)'], ['C', 'CCL (C)']].map(([v, t]) => `<option value="${v}" ${(CFG.mon || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>`;
     CF.querySelectorAll('input,select').forEach((i) => (i.onchange = () => {
       if (i.hasAttribute('data-alp')) { CFG.alp = i.checked; if (i.checked) { sonar(); if (!W) ventana(null, null, true); } } else if (i.hasAttribute('data-mon')) CFG.mon = i.value; else if (i.hasAttribute('data-q')) CFG.qty = +i.value || 0; else if (i.hasAttribute('data-pm')) CFG.pm = i.checked ? 'm' : ''; else if (i.hasAttribute('data-qm')) { CFG.qm = i.checked ? 'm' : ''; CF.querySelector('[data-q]').disabled = i.checked; } else if (i.hasAttribute('data-on')) CFG.on = i.checked; else CFG.m = Object.keys(MET).filter((k) => CF.querySelector(`[data-m="${k}"]`).checked);
-      guardar(); inyectar(); phPins();
+      guardar(); inyectar(); phPins(); if (W) W.querySelectorAll('.subs .mon button').forEach((y) => y.classList.toggle('on', y.dataset.mon === (CFG.mon || '')));
     }));
   }
   P.querySelector('.cf').onclick = () => { CF.hidden = !CF.hidden; if (!CF.hidden) pintarCfg(); };
@@ -287,6 +287,10 @@
       S.innerHTML = `<select class="selc">${Object.keys(NOM_CURVA).map((x) => `<option value="${x}" ${x === g ? 'selected' : ''}>${NOM_CURVA[x]}</option>`).join('')}</select>`;
       S.querySelector('select').onchange = (e) => { curvaG = e.target.value; ventana('curva'); };
       if (MODELO[g]) { const v = (CFG.mdl || {})[g] || 'log'; S.insertAdjacentHTML('beforeend', `<select class="selc mdl" title="Tipo de curva (ajuste)">${AJUSTES.filter(([a]) => g !== 'usd' || a !== 'auto').map(([a, b]) => `<option value="${a}" ${a === v ? 'selected' : ''}>${b}</option>`).join('')}</select>`); S.querySelector('.mdl').onchange = (e) => { CFG.mdl = Object.assign({}, CFG.mdl, { [g]: e.target.value }); guardar(); plazo(g); }; }
+      if (DOLAR[g]) { // en qué especie se abre en la boleta el punto que tocás (la misma opción que en ⚙)
+        S.insertAdjacentHTML('beforeend', `<span class="mon" title="Al tocar un punto, la boleta se abre en esta moneda">${[['', 'Pesos'], ['D', 'MEP'], ['C', 'CCL']].map(([v, t]) => `<button data-mon="${v}" class="${(CFG.mon || '') === v ? 'on' : ''}">${t}</button>`).join('')}</span>`);
+        S.querySelectorAll('.mon button').forEach((x) => (x.onclick = () => { CFG.mon = x.dataset.mon; guardar(); S.querySelectorAll('.mon button').forEach((y) => y.classList.toggle('on', y === x)); if (!CF.hidden) pintarCfg(); }));
+      }
       S.insertAdjacentHTML('beforeend', `<button class="bub${CFG.bub ? ' on' : ''}" title="Burbujas de volumen: el tamaño de cada punto es el monto operado hoy">◉ Volumen</button>`);
       S.querySelector('.bub').onclick = (e) => { CFG.bub = !CFG.bub; guardar(); e.currentTarget.classList.toggle('on', CFG.bub); plazo(g); };
       const px = PLAZO[g]; if (px) { const v = (CFG.px || {})[g] || '99999'; S.insertAdjacentHTML('beforeend', `<select class="selc px" title="Plazo máximo de la curva">${[['365', '1 año'], ['730', '2 años'], ['1000', '1.000 días'], ['1500', '4 años'], ['99999', 'Todos los plazos']].map(([a, b]) => `<option value="${a}" ${a === v ? 'selected' : ''}>${b}</option>`).join('')}</select>`); S.querySelector('.px').onchange = (e) => { CFG.px = Object.assign({}, CFG.px, { [g]: e.target.value }); guardar(); plazo(g); }; }
