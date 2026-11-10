@@ -161,9 +161,10 @@
     CF.innerHTML = `<label><input type="checkbox" data-on ${CFG.on ? 'checked' : ''}> Mostrar en los recuadros de Matriz</label>` +
       Object.keys(MET).map((k) => `<label><input type="checkbox" data-m="${k}" ${CFG.m.includes(k) ? 'checked' : ''}> ${MET[k][0]}</label>`).join('') +
       `<label style="margin-top:4px">Cantidad por defecto en la boleta <input type="number" min="0" data-q value="${CFG.qty || ''}" style="width:90px;margin-left:auto"></label>` +
+      `<label><input type="checkbox" data-alp ${CFG.alp !== false ? 'checked' : ''}> Avisarme (con sonido) cuando convenga un pase en mis especies de Pases</label>` +
       `<label>Moneda en la boleta (bonos en dólares) <select data-mon style="margin-left:auto">${[['', 'Pesos'], ['D', 'MEP (D)'], ['C', 'CCL (C)']].map(([v, t]) => `<option value="${v}" ${(CFG.mon || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>`;
     CF.querySelectorAll('input,select').forEach((i) => (i.onchange = () => {
-      if (i.hasAttribute('data-mon')) CFG.mon = i.value; else if (i.hasAttribute('data-q')) CFG.qty = +i.value || 0; else if (i.hasAttribute('data-on')) CFG.on = i.checked; else CFG.m = Object.keys(MET).filter((k) => CF.querySelector(`[data-m="${k}"]`).checked);
+      if (i.hasAttribute('data-alp')) { CFG.alp = i.checked; if (i.checked) { sonar(); if (!W) ventana(null, null, true); } } else if (i.hasAttribute('data-mon')) CFG.mon = i.value; else if (i.hasAttribute('data-q')) CFG.qty = +i.value || 0; else if (i.hasAttribute('data-on')) CFG.on = i.checked; else CFG.m = Object.keys(MET).filter((k) => CF.querySelector(`[data-m="${k}"]`).checked);
       guardar(); inyectar();
     }));
   }
@@ -228,6 +229,7 @@
     if (!W) {
       W = document.createElement('div'); W.id = 'bnr-win'; tamManual = false; LISTO = false;
       W.innerHTML = '<header><span class="tt"></span><span class="tabs"></span><button class="lk" title="Fijar la ventana (no se mueve ni cambia de tamaño)">🔓</button><button class="x" title="Cerrar">✕</button></header><div class="subs"></div><div class="wb"><div class="zs"><iframe allow="clipboard-write"></iframe></div></div>';
+      if (oculta) W.style.visibility = 'hidden'; // se carga escondida (visibility, no display: así la página igual se dibuja y mide)
       document.body.appendChild(W); arrastrar(W);
       W.querySelector('.x').onclick = () => (W.style.display = 'none'); // se oculta, no se cierra: la próxima vez abre al instante
       W.addEventListener('mouseup', (e) => { if (e.target === W) { tamManual = true; encajar(); recordar(); } }); // la agrandó o achicó desde la esquina: el contenido se acomoda a ese tamaño
@@ -235,7 +237,7 @@
       const lk = W.querySelector('.lk'); lk.onclick = () => { const f = W.classList.toggle('fijo'); lk.textContent = f ? '🔒' : '🔓'; recordar(); };
       try { const g = JSON.parse(localStorage.getItem('bnrWin') || 'null'); if (g) { Object.assign(W.style, { left: g.l + 'px', top: g.t + 'px' }); if (g.m) { tamManual = true; Object.assign(W.style, { width: g.w + 'px', height: g.h + 'px' }); } if (g.f) { W.classList.add('fijo'); lk.textContent = '🔒'; } } } catch (er) { }
     }
-    if (!oculta) W.style.display = '';
+    if (!oculta) { W.style.display = ''; W.style.visibility = ''; }
     const g0 = DB[activo] && DB[activo].grupo, g = vista === 'curva' ? (curvaG || (CURVAS[g0] && g0 !== 'acc' ? g0 : 'usd')) : g0, L = VIS[vista][1](g), [, tab, id, sg] = L[sub] || L[0];
     W.querySelector('.tt').textContent = activo || '';
     W.dataset.g = g || '';
@@ -339,6 +341,7 @@
     if (e.data.t === 'bnrDat') { if (/^[A-Z0-9]{3,10}$/.test(e.data.k || '')) { DAT[e.data.k] = e.data.d || null; if (e.data.k === activo) { dxK = null; pintarDatos(); } const D = PINS.get(e.data.k), x = D && D.querySelector('.dx'); if (x && !x.hidden) montarDatos(x, e.data.k); } return; }
     if (e.data.t === 'bnrPro') { const ant = PRO; PRO = e.data.p === true ? true : e.data.p === false ? false : null; if (ant !== PRO) pintar(); return; }
     if (e.data.t === 'bnrTk' && bloqueado()) return;
+    if (e.data.t === 'bnrPaseAl') { if (!bloqueado() && CFG.alp !== false) avisarPases(e.data.a || []); return; }
     if (e.data.t === 'bnrPata') { if (bloqueado()) return; const { k, pz, sd } = e.data, q = +e.data.q > 0 ? +e.data.q : 0, r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } msgPase = `${k} en ${pz === 'ci' ? 'CI' : '24 hs'}: revisá y apretá ${sd === 'c' ? 'COMPRAR' : 'VENDER'}.`; aBoleta(k, q, pz, 1); return; } // una pata del pase (con los nominales en cartera, si los cargaste en Pases), desde la tabla de Pases
     if (e.data.t === 'bnrTk') { const k = aMatriz(e.data.k), r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } aBoleta(k); return; }
     if (e.data.t !== 'bnrH') return;
@@ -411,6 +414,25 @@
     if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana(null, null, W.style.display === 'none') : (W.querySelector('.tt').textContent = activo); // la ventana sigue al bono
     pintarDatos();
   }
+
+  // ---------- alerta de pases: cuando en tus especies de Pases conviene colocar o tomar, suena un «check» y aparece un aviso con las dos patas ----------
+  let AC = null; const AVISADO = new Map();
+  function sonar() { // dos notas cortas y suaves, sin archivos
+    try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume();
+      [[880, 0], [1320, 0.12]].forEach(([f, t0]) => { const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime + t0; o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22); o.connect(g).connect(AC.destination); o.start(t); o.stop(t + 0.25); });
+    } catch (er) { }
+  }
+  document.addEventListener('pointerdown', () => { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); } catch (er) { } }, { capture: true, once: true }); // el navegador habilita el sonido después del primer clic
+  const pct = (x) => fmt(x * 100) + '%';
+  function avisarPases(A) {
+    const ahora = Date.now(), nuevos = A.filter((x) => { const k = x.t + '|' + x.tp, u = AVISADO.get(k); return !u || ahora - u > 30 * 60e3; }); // cada pase avisa una vez cada 30 minutos
+    if (!nuevos.length) return; nuevos.forEach((x) => AVISADO.set(x.t + '|' + x.tp, ahora)); sonar();
+    let T = document.getElementById('bnr-alp'); if (!T) { T = document.createElement('div'); T.id = 'bnr-alp'; document.body.appendChild(T); }
+    T.innerHTML = '<header><b>Pases que convienen</b><button class="x" title="Cerrar">✕</button></header>' + nuevos.map((x) => { const pt = PATAS[x.tp === 2 ? 'col' : 'tom']; return `<div class="it"><div><b>${x.t}</b> · ${x.tp === 2 ? 'colocar' : 'tomar'} a ${pct(x.g)} <small>(caución ${pct(x.c)}${x.n ? ' · ' + fmt(x.n, 0) + ' VN' : ''})</small></div><div class="bt">${pt.map(([pz, lado, nom]) => `<button data-k="${x.t}" data-pz="${pz}" data-sd="${lado === 'COMPRAR' ? 'c' : 'v'}" data-n="${x.n || 0}">${lado === 'COMPRAR' ? 'Comprar' : 'Vender'} ${nom}</button>`).join('')}</div></div>`; }).join('');
+    T.hidden = false; clearTimeout(T._t); T._t = setTimeout(() => (T.hidden = true), 120e3);
+    T.onclick = (e) => { const b = e.target.closest('button'); if (!b) return; if (b.classList.contains('x')) { T.hidden = true; return; } T.querySelectorAll('.bt button.on').forEach((x) => x.classList.remove('on')); b.classList.add('on'); const k = b.dataset.k, pz = b.dataset.pz, r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } msgPase = `${k} en ${pz === 'ci' ? 'CI' : '24 hs'}: revisá y apretá ${b.dataset.sd === 'c' ? 'COMPRAR' : 'VENDER'}.`; aBoleta(k, +b.dataset.n || 0, pz, 1); };
+  }
+  setTimeout(() => { if (!W && CFG.alp !== false) ventana(null, null, true); }, 5000); // para vigilar los pases la página de Bonerío se carga escondida al entrar
 
   // ---------- pase CI ↔ 24 hs: carga las dos patas en la boleta, una por vez (Comprar/Vender lo aprieta el usuario) ----------
   let PASE = null, msgPase = ''; // { k, d: 'col' | 'tom', pata: 2 } cuando falta la segunda pata
