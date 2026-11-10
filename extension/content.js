@@ -91,6 +91,31 @@
     const v = valorJunto(c.el, /^Cierre Ant\.?:?$/); if (v > 0) return [v, 'cierre anterior'];
     return [NaN, ''];
   }
+  function libro(c, ref) { // la mejor punta del libro del recuadro: [compra, venta]. Columnas por el encabezado (Compra / Venta) o, si no hay, Cant. | Compra | Venta | Cant.
+    let bi = 1, ai = 2;
+    for (const row of c.el.querySelectorAll('tr,div')) {
+      const ch = [...row.children]; if (ch.length < 4 || ch.length > 6 || ch.some((x) => x.children.length > 1)) continue;
+      const t = ch.map((x) => (x.textContent || '').trim());
+      if (t.some((x) => /[a-z]/i.test(x))) { const B = t.findIndex((x) => /^(precio\s*)?compra$|^bid$/i.test(x)), A = t.findIndex((x) => /^(precio\s*)?venta$|^ask$|^oferta$/i.test(x)); if (B >= 0 && A >= 0) { bi = B; ai = A; } continue; }
+      const v = t.map((x) => (/^[\d.,]+$/.test(x) ? num(x) : NaN)), ok = (x) => x > 0 && (!(ref > 0) || Math.abs(x / ref - 1) < 0.2), b = v[bi], a = v[ai];
+      if (!ok(b) && !ok(a)) continue; if (ok(b) && ok(a) && b > a) continue;
+      return [ok(b) ? b : NaN, ok(a) ? a : NaN];
+    }
+    return [NaN, NaN];
+  }
+  function pantalla() { // los precios que muestra tu Matriz, en vivo: {AL30: {ci: [último, compra, venta], h: [...]}}; recuadros con libro y, si no, el Mini-Panel (24 hs)
+    const o = {};
+    for (const c of recuadros()) {
+      const s = c.k + c.suf, pz = plazoDe(c.el) === 'ci' ? 'ci' : 'h', u = valorJunto(c.el, /^Cierre:?$/), [b, a] = libro(c, u > 0 ? u : valorJunto(c.el, /^Cierre Ant\.?:?$/));
+      if (u > 0 || b > 0 || a > 0) (o[s] = o[s] || {})[pz] = [u > 0 ? u : 0, b > 0 ? b : 0, a > 0 ? a : 0];
+    }
+    for (const el of document.querySelectorAll('body *')) {
+      if (el.children.length) continue; const w = (el.textContent || '').trim().toUpperCase(); if (w.length < 3 || w.length > 8 || !tk(w) || (o[w] && o[w].h)) continue;
+      if (!el.getClientRects().length || el.closest('#bnr-panel,#bnr-win,.bnr-pin,.bnr-sens,[data-bnr],[role=listbox],[role=option]')) continue;
+      const v = num(ultimoDe(el, w)); if (v > 0) (o[w] = o[w] || {}).h = [v, 0, 0];
+    }
+    return o;
+  }
   function precioPantalla(k) {
     if (tickerBoleta() === k) for (const lab of document.querySelectorAll('label,div,span')) { // boleta: campo "Precio" con valor cargado
       if (lab.children.length || (lab.textContent || '').trim() !== 'Precio') continue;
@@ -98,7 +123,8 @@
       if (v > 0) return [v, 'boleta'];
     }
     const c = recuadros().find((r) => r.k === k && precioVale(k, r.suf));
-    return c ? precioDe(c) : [NaN, ''];
+    if (c) return precioDe(c);
+    const m = !DOLAR[DB[k].grupo] || DB[k].tipo === 'acc' ? num(ultimoFila(k)) : NaN; return m > 0 ? [m, 'último'] : [NaN, '']; // si no hay recuadro, el Mini-Panel
   }
 
   // ---------- filas de Bonerío adentro de cada recuadro de Matriz, debajo de "Pos / P&L" (copian su estilo) ----------
@@ -278,6 +304,11 @@
   function ultimoFila(k) { // Mini-Panel de precios: la fila «AL30 … Últ Var.%»; devuelve el «Últ» como lo pide la boleta (81250,5), o '' si no operó
     for (const el of document.querySelectorAll('body *')) {
       if (el.children.length || (el.textContent || '').trim().toUpperCase() !== k || !el.getClientRects().length || el.closest('#bnr-panel,#bnr-win,.bnr-pin,[data-bnr],[role=listbox],[role=option]')) continue;
+      const v = ultimoDe(el, k); if (v != null) return v;
+    }
+    return '';
+  }
+  function ultimoDe(el, k) { // el «Últ» de la fila del Mini-Panel donde está ese ticker (null: no es una fila del Mini-Panel)
       for (let a = el.parentElement, i = 0; a && i < 5; i++, a = a.parentElement) {
         const tx = a.innerText || ''; if (/Cierre/i.test(tx)) break; // un recuadro con libro: su precio lo lee precioDe
         const t = tx.trim().split(/\s+/), j = t.findIndex((x) => x.toUpperCase() === k);
@@ -285,8 +316,7 @@
         const n = t[j + 1]; if (n == null) continue; // la columna que sigue al ticker es «Últ»; en Matriz la coma es decimal y el punto separa miles
         const v = /^[\d.,]+$/.test(n) ? num(n.includes(',') ? n : n.replace(/\./g, '')) : NaN; return v > 0 ? String(v).replace('.', ',') : '';
       }
-    }
-    return '';
+    return null;
   }
 
   const especie = (k) => { // la especie que se carga en la boleta según la moneda elegida en ⚙ (pesos, MEP o CCL)
@@ -297,7 +327,8 @@
   function completar(k, cant, pz) { // después de elegir el instrumento: precio de mercado que muestra Matriz y la cantidad por defecto (si hay). Comprar/Vender lo aprieta el usuario.
     setTimeout(() => {
       const r = tk(k), cs = r ? recuadros().filter((x) => x.k === r[0] && x.suf === r[1]) : [], c = pz ? cs.find((x) => plazoDe(x.el) === pz) || cs.find((x) => !plazoDe(x.el) && pz === '24') : cs[0], [p] = c ? precioDe(c) : [NaN];
-      const q = p > 0 ? String(p).replace('.', ',') : pz === 'ci' ? '' : ultimoFila(k); // en un pase, el precio de CI sale solo de un recuadro en CI
+      const [pb, pa] = c && pz ? libro(c, p) : [NaN, NaN], pp = pz ? (LADO === 'c' ? pa : pb) : NaN; // en un pase: comprás a la punta vendedora, vendés a la compradora (si se leen); si no, el último
+      const q = pp > 0 ? String(pp).replace('.', ',') : p > 0 ? String(p).replace('.', ',') : pz === 'ci' ? '' : ultimoFila(k); // en un pase, el precio de CI sale solo de un recuadro en CI
       if (pz) { if (q) poner(campo('precio'), q); const n = cant > 0 ? cant : CFG.qty; if (n > 0) poner(campo('cantidad'), n); aviso(q ? msgPase : 'Sin precio de ' + k + ' en ' + (pz === 'ci' ? 'CI' : '24 hs') + ' en pantalla (abrí su recuadro): completalo a mano. ' + msgPase, !q); return; } // del recuadro con libro o, si no, del Mini-Panel de precios
       const b = !q && r && DB[r[0]], qc = b && b.precio > 0 && precioVale(r[0], r[1]) ? String(b.precio).replace('.', ',') : ''; // sin precio en pantalla: el cierre de Bonerío (BYMA), avisando
       if (q || qc) poner(campo('precio'), q || qc);
@@ -306,7 +337,7 @@
       else if (!q) aviso('Boleta: ' + k + ' cargado; sin precio en pantalla (no operó o no está en un recuadro ni en el Mini-Panel)');
     }, 500);
   }
-  let tEst = 0;
+  let tEst = 0, LADO = '';
   function aviso(t, mal) { const E = P.querySelector('.est'); E.textContent = t; E.className = 'est' + (mal ? ' mal' : ''); E.hidden = false; console.log('[Bonerío Inside]', t); clearTimeout(tEst); tEst = setTimeout(() => (E.hidden = true), 8000); }
   function aBoleta(k, cant, pz, crudo) {
     try { return aBoleta1(k, cant, pz, crudo); } catch (er) { aviso('Boleta: error ' + er.message, 1); }
@@ -342,13 +373,17 @@
     if (e.data.t === 'bnrPro') { const ant = PRO; PRO = e.data.p === true ? true : e.data.p === false ? false : null; if (ant !== PRO) pintar(); return; }
     if (e.data.t === 'bnrTk' && bloqueado()) return;
     if (e.data.t === 'bnrPaseAl') { if (!bloqueado() && CFG.alp !== false) avisarPases(e.data.a || []); return; }
-    if (e.data.t === 'bnrPata') { if (bloqueado()) return; const { k, pz, sd } = e.data, q = +e.data.q > 0 ? +e.data.q : 0, r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } msgPase = `${k} en ${pz === 'ci' ? 'CI' : '24 hs'}: revisá y apretá ${sd === 'c' ? 'COMPRAR' : 'VENDER'}.`; aBoleta(k, q, pz, 1); return; } // una pata del pase (con los nominales en cartera, si los cargaste en Pases), desde la tabla de Pases
+    if (e.data.t === 'bnrPata') { if (bloqueado()) return; const { k, pz, sd } = e.data, q = +e.data.q > 0 ? +e.data.q : 0, r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } LADO = sd; msgPase = `${k} en ${pz === 'ci' ? 'CI' : '24 hs'}: revisá y apretá ${sd === 'c' ? 'COMPRAR' : 'VENDER'}.`; aBoleta(k, q, pz, 1); return; } // una pata del pase (con los nominales en cartera, si los cargaste en Pases), desde la tabla de Pases
     if (e.data.t === 'bnrTk') { const k = aMatriz(e.data.k), r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } aBoleta(k); return; }
     if (e.data.t !== 'bnrH') return;
     LISTO = true; encajar(Math.max(150, +e.data.h || 0));
     if (Date.now() - esperaH > 40) { setTimeout(() => cargando(false), 50); if (vista === 'curva') plazo(W.dataset.g); } // la sección nueva ya está: aparece con un fundido
   });
   let ultH = 0, FIJ = null, esperaH = 0, cgT = 0;
+  setInterval(() => { // los precios de tu Matriz (recuadros y Mini-Panel) van a la ventana: curvas, bonos y pases se calculan con lo que ves, en tiempo real
+    const f = W && LISTO && W.querySelector('iframe'); if (!f || !f.contentWindow) return;
+    try { f.contentWindow.postMessage({ t: 'bnrPx', px: pantalla() }, '*'); } catch (er) {}
+  }, 2000);
   function cargando(si) { // fundido entre secciones y una barrita dorada mientras carga
     if (!W) return; const Z = W.querySelector('.zs'); clearTimeout(cgT);
     Z.classList.toggle('cg', si); if (si) esperaH = 1e15, cgT = setTimeout(() => Z.classList.remove('cg'), 3000);
