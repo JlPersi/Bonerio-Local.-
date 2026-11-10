@@ -16514,6 +16514,7 @@ body.sn-mini #sideNav .sn-u{justify-content:center;padding:12px 0}body.sn-mini #
 #planes .plC ul{list-style:none;margin:18px 0 22px;padding:0;display:flex;flex-direction:column;gap:9px;font-size:14.5px;color:var(--tx)}
 #planes .plC li{display:flex;gap:9px;align-items:flex-start;line-height:1.4}#planes .plC li:before{content:"✓";flex:none;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;background:rgba(52,211,153,.15);color:#34d399;margin-top:1px}
 #planes .plC.pro li:before{background:rgba(255,197,66,.18);color:var(--ac)}
+#planes .plX{margin-top:10px;font-size:13px;color:var(--mu);text-align:center}#planes .plX summary{cursor:pointer;list-style:none;text-decoration:underline;text-underline-offset:3px}#planes .plX summary::-webkit-details-marker{display:none}#planes .plX p{margin:10px 0 8px;line-height:1.5;text-align:left}#planes .plX b{color:var(--tx)}#planes .plX a{color:var(--ac);font-weight:700;text-decoration:none}
 #planes .plB{margin-top:auto;display:block;text-align:center;font:inherit;font-size:14px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;text-decoration:none;border-radius:12px;padding:14px;border:1px solid var(--bd);color:var(--tx);background:none;cursor:pointer}
 #planes .plC.pro .plB{background:var(--tx);color:var(--bg);border-color:var(--tx)}
 #planes .plN{margin-top:10px;text-align:center;font-size:12.5px;color:var(--mu);line-height:1.6}#planes .plN a{color:var(--tx)}
@@ -16544,6 +16545,11 @@ body.sn-mini #sideNav .sn-u{justify-content:center;padding:12px 0}body.sn-mini #
     ['Expectativas: inflación, devaluación, forwards y default', 0, 1, 1], ['Historia de tasas y precio relativo', 0, 1, 1], ['Screener, pases CI vs 24 hs y duales', 0, 1, 1], ['Caja de puntas en vivo', 0, 1, 1],
     ['Dashboard, portfolio, trade ideas y favoritos', 0, 1, 1], ['Alertas y calendario de cobros', 0, 1, 1], ['PRO para todo el equipo (por dominio de mail)', 0, 0, 1],
     ['Series históricas en Excel', 0, 0, 1], ['Soporte', 0, 'por WhatsApp', 'directo, en el día']];
+  var baja = function (h) { // cancelar: avisa por WhatsApp; no se le cobra más y sigue con PRO hasta su vencimiento (pro_hasta no se toca)
+    var f = h.slice(8, 10) + '/' + h.slice(5, 7) + '/' + h.slice(0, 4);
+    return '<details class="plX"><summary>Cancelar mi suscripción</summary><p>Si cancelás, no te cobramos más y <b>seguís con PRO hasta el ' + f + '</b>. Después tu cuenta pasa al plan Gratis, sin perder nada de lo que guardaste.</p>' +
+      '<a href="' + WA('Hola, quiero cancelar mi suscripción a Bonerío PRO para que no me cobren más. Sigo con acceso hasta el ' + f + '.') + '" target="_blank" rel="noopener">Avisar la baja por WhatsApp →</a></details>';
+  };
   var cell = function (v) { return v === 1 ? '<td class="y">✓</td>' : v === 0 ? '<td class="n">—</td>' : '<td><i>' + v + '</i></td>'; };
   function draw() {
     var a = window.BLAUTH && window.BLAUTH(), md = a && a.user && a.user.app_metadata || {}, hoy = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10), esPro = md.pro_hasta && String(md.pro_hasta).slice(0, 10) >= hoy;
@@ -16553,7 +16559,7 @@ body.sn-mini #sideNav .sn-u{justify-content:center;padding:12px 0}body.sn-mini #
       '<div class="plG"><div class="plC"><small class="k">Free</small><div class="pr">Gratis</div><div class="sb">Sin tarjeta y sin vencimiento</div><ul>' + FREE.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' +
       (a ? '<span class="plB" style="cursor:default;opacity:.7">' + (esPro ? 'Incluido en tu plan' : 'Tu plan actual') + '</span>' : '<button type="button" class="plB" data-login="up">Crear cuenta gratis</button>') + '</div>' +
       '<div class="plC pro"><span class="rec">Recomendado</span><small class="k">PRO</small><div class="pr">$ 15.000 <span>/mes</span></div><div class="sb">o $ 145.000 por año (ahorrás 19%) · precio fundador</div><ul>' + PRO.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' +
-      (esPro ? '<span class="plB" style="cursor:default">Ya sos PRO hasta el ' + String(md.pro_hasta).slice(8, 10) + '/' + String(md.pro_hasta).slice(5, 7) + '</span>' : '<a class="plB" href="' + MP[0] + '" target="_blank" rel="noopener">Empezar PRO ahora</a>') +
+      (esPro ? '<span class="plB" style="cursor:default">Ya sos PRO hasta el ' + String(md.pro_hasta).slice(8, 10) + '/' + String(md.pro_hasta).slice(5, 7) + '</span>' + baja(String(md.pro_hasta).slice(0, 10)) : '<a class="plB" href="' + MP[0] + '" target="_blank" rel="noopener">Empezar PRO ahora</a>') +
       '<div class="plN">Pagás con Mercado Pago · sin permanencia · cancelás cuando quieras<br><a href="' + MP[1] + '" target="_blank" rel="noopener">6 meses ($ 80.000)</a> · <a href="' + MP[2] + '" target="_blank" rel="noopener">12 meses ($ 145.000)</a> · <a href="' + WA('Hola, quiero pagar Bonerío PRO por transferencia. Plan:') + '" target="_blank" rel="noopener">Pagar por transferencia</a></div></div></div>' +
       '<div class="plI"><div class="hd"><div><small>Para organizaciones</small><h3>Licencia institucional</h3><p>ALyCs, fondos, family offices y equipos de research. Una licencia por firma en vez de una suscripción por persona.</p></div><div class="am"><b>A medida</b><span>Escribinos y te pasamos la propuesta</span></div></div>' +
       '<div class="bx"><div><b>PRO para todo el equipo</b>Cualquiera que entre con el mail de la organización tiene el plan completo, sin pagar aparte y sin que nadie lo dé de alta.</div></div>' +
