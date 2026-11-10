@@ -16659,5 +16659,22 @@ body.sn-mini #sideNav .sn-u{justify-content:center;padding:12px 0}body.sn-mini #
     setTimeout(go, 1500); // después de que la página arma su pestaña inicial
   })();
 </script>
+<script>
+(function () {
+  var st = document.createElement('style'); st.textContent = '#blWb{position:fixed;top:0;left:0;right:0;height:2px;z-index:9999;pointer-events:none;overflow:hidden;opacity:0;transition:opacity .2s}#blWb.on{opacity:1}#blWb::before{content:"";position:absolute;top:0;bottom:0;left:-35%;width:35%;background:#ffc542;animation:blWb 1s ease-in-out infinite}@keyframes blWb{to{left:100%}}.tab-content.active.cg{opacity:.15;animation:none}.tab-content.active.cg2{opacity:.35}.tab-content.active.cg2,.tab-content.active.cg3{transition:opacity .15s}@media (prefers-reduced-motion:reduce){#blWb::before{animation:none;left:0;width:100%}.tab-content.active.cg,.tab-content.active.cg2{opacity:1}}';
+  st.textContent += '.blIn canvas,.blIn>*{animation:none!important}'; // como la extensión: entra todo junto con un fundido corto, sin que las tarjetas suban de a una ni los gráficos se dibujen de izquierda a derecha
+  document.head.appendChild(st);
+  // «piensa» como la ventana de la extensión: al cambiar de sección o de curva/grupo, barra dorada arriba y el contenido atenuado hasta que termina de dibujarse; después entra con un fundido
+  var wb = null, nb = 0, bar = function (on) { if (!wb && document.body) { wb = document.createElement('div'); wb.id = 'blWb'; document.body.appendChild(wb); } nb = Math.max(0, nb + (on ? 1 : -1)); if (wb) wb.classList.toggle('on', nb > 0); };
+  var listo = function (t0, min, cb) { setTimeout(function () { requestAnimationFrame(function () { requestAnimationFrame(function () { setTimeout(cb, Math.max(0, min - (Date.now() - t0))); }); }); }, 0); }; // después de los render que cada sección agenda con setTimeout(0)
+  addEventListener('load', function () {
+    var sw = window.switchTab; if (typeof sw !== 'function' || sw.__wb) return;
+    var w = function (id) { var t = document.getElementById(id); if (!t || t.classList.contains('active')) return sw.apply(this, arguments); bar(1); t.classList.add('cg'); var r = sw.apply(this, arguments), t0 = Date.now(); listo(t0, 140, function () { t.classList.remove('cg'); bar(0); }); return r; };
+    w.__wb = 1; window.switchTab = w;
+  });
+  var dim = function (e) { var el = e.target, tc = el && el.closest && el.closest('.tab-content.active'); if (!tc || tc.classList.contains('cg') || tc.classList.contains('cg2')) return; if (e.type === 'change' ? el.tagName !== 'SELECT' : !el.closest('.seg button')) return; bar(1); tc.classList.add('cg2', 'cg3'); listo(Date.now(), 160, function () { tc.classList.remove('cg2'); bar(0); setTimeout(function () { tc.classList.remove('cg3'); }, 200); }); };
+  document.addEventListener('change', dim, true); document.addEventListener('click', dim, true);
+})();
+</script>
 </body>
 </html>
