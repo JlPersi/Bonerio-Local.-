@@ -26,15 +26,18 @@ def usuarios():
     h = {"apikey": KEY}
     if KEY.startswith("eyJ"):
         h["Authorization"] = "Bearer " + KEY
-    out, page = set(), 1
+    out, page, nuevos = set(), 1, set()
+    desde = os.environ.get("DESDE", "").strip()  # AAAA-MM-DD: además de la tanda, los que se registraron desde ese día (si la lista creció en medio de las tandas)
     while True:
         j = http(f"{SB}/auth/v1/admin/users?page={page}&per_page=1000", headers=h) or {}
         us = j.get("users", []) if isinstance(j, dict) else j
         for u in us:
             if u.get("email") and u.get("email_confirmed_at") is not None:
                 out.add(u["email"].strip().lower())
+                if desde and (u.get("created_at") or "")[:10] >= desde:
+                    nuevos.add(u["email"].strip().lower())
         if len(us) < 1000:
-            return sorted(out)
+            return sorted(out), sorted(nuevos)
         page += 1
 
 
@@ -48,12 +51,18 @@ def main():
     if modo == "todos":
         if "COMPLETAR" in html:
             sys.exit("el texto todavía tiene COMPLETAR: no sale a todos")
-        mails = usuarios()
+        mails, nuevos = usuarios()
         tanda = int(os.environ.get("TANDA") or 0)  # el plan gratis de Resend manda 100 por día: de a 100, una tanda por día (0 = todos juntos)
         tam = int(os.environ.get("TAM") or 100)
         if tanda > 0:
             print(len(mails), "usuarios en total; tanda", tanda, "de", -(-len(mails) // tam), "(de a", tam, ")")
             mails = mails[(tanda - 1) * tam:tanda * tam]
+        if nuevos:
+            print(len(nuevos), "registrados desde", os.environ.get("DESDE"))
+            mails = sorted(set(mails) | set(nuevos))
+        tope = int(os.environ.get("MAX") or 0)  # el plan gratis de Resend: 100 por día en total
+        if tope and len(mails) > tope:
+            sys.exit(f"son {len(mails)} destinatarios y el tope es {tope}: no sale nada")
     else:
         if not prueba:
             sys.exit("falta la dirección de prueba")
