@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ONs nuevas desde la CNV -> data/ons_flujos.xlsx -> data/ons.json.
+"""ONs nuevas desde la CNV -> data/ons_flujos.csv -> data/ons.json.
 
   python3 scripts/ons_cnv.py nuevas [--dias 45] [--dir carpeta]
       Lista las últimas colocaciones de ON de la CNV (Empresas > Últimas colocaciones) que no están cargadas
@@ -32,7 +32,7 @@ import json, os, re, sys, time, html, datetime as dt, calendar, subprocess, urll
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..")
-XLSX = os.path.join(ROOT, "data", "ons_flujos.xlsx")
+FLUJOS = os.path.join(ROOT, "data", "ons_flujos.csv")
 STATE = os.path.join(ROOT, "data", "ons_cnv.json")
 EMIS = os.path.join(ROOT, "data", "ons_emisores.json")
 ONS = os.path.join(ROOT, "data", "ons.json")
@@ -228,15 +228,14 @@ def flujos(f, fer):
 
 
 def alta(path, seco):
-    import openpyxl
+    import csv
     fichas = json.load(open(path, encoding="utf-8"))
     fichas = fichas if isinstance(fichas, list) else [fichas]
     fer = feriados()
     st = load(STATE, {"series": {}, "alias": {}})
     em = load(EMIS, {})
-    wb = None if seco else openpyxl.load_workbook(XLSX)
-    ws = wb.worksheets[0] if wb else None
-    ya = {r[0] for r in ws.iter_rows(min_row=2, values_only=True)} if ws else set()
+    nuevas = []
+    ya = set() if seco else {r[0] for r in list(csv.reader(open(FLUJOS, encoding="utf-8-sig", newline="")))[1:] if r}
     for f in fichas:
         rows = flujos(f, fer)
         t = f.get("ticker")
@@ -252,7 +251,7 @@ def alta(path, seco):
         if t in ya:
             raise SystemExit("%s ya está en la planilla" % t)
         for r in rows:
-            ws.append([t, f["tipo"], None, f["emision"], r[0], str(r[1]), str(r[2]), str(r[3]), str(r[4]), str(r[5]), str(r[6]), r[7], None])
+            nuevas.append([t, f["tipo"], None, f["emision"], r[0], str(r[1]), str(r[2]), str(r[3]), str(r[4]), str(r[5]), str(r[6]), r[7], None])
         em[t[:-1]] = f["emisor"]
         if ser:
             st["series"][ser] = {"estado": "cargada", "ticker": t}
@@ -260,7 +259,8 @@ def alta(path, seco):
             st["alias"][f["cuit"]] = f["emisor"]
     if seco:
         return
-    wb.save(XLSX)
+    with open(FLUJOS, "a", encoding="utf-8", newline="") as fh:
+        csv.writer(fh, lineterminator="\n").writerows([["" if v is None else v for v in r] for r in nuevas])
     save(STATE, st)
     json.dump(dict(sorted(em.items())), open(EMIS, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     subprocess.run([sys.executable, os.path.join(HERE, "ons.py")], check=True)
