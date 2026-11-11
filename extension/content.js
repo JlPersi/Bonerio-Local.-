@@ -294,9 +294,10 @@
     if (v && v !== vista) sub = 0; vista = v || vista; if (j != null) sub = j;
     if (!W) {
       W = document.createElement('div'); W.id = 'bnr-win'; tamManual = false; LISTO = false;
-      W.innerHTML = '<header><span class="tt"></span><span class="tabs"></span><button class="lk" title="Fijar la ventana (no se mueve ni cambia de tamaño)">🔓</button><button class="x" title="Cerrar">✕</button></header><div class="subs"></div><div class="wb"><div class="zs"><iframe allow="clipboard-write"></iframe></div></div>';
+      W.innerHTML = '<header><span class="tt"></span><span class="tabs"></span><button class="mn" title="Minimizar">–</button><button class="lk" title="Fijar la ventana (no se mueve ni cambia de tamaño)">🔓</button><button class="x" title="Cerrar">✕</button></header><div class="subs"></div><div class="wb"><div class="zs"><iframe allow="clipboard-write"></iframe></div></div>';
       if (oculta) W.style.visibility = 'hidden'; // se carga escondida (visibility, no display: así la página igual se dibuja y mide)
       document.body.appendChild(W); arrastrar(W);
+      W.querySelector('.mn').onclick = () => { const m = W.classList.toggle('min'); W.querySelector('.mn').textContent = m ? '▢' : '–'; W.querySelector('.mn').title = m ? 'Restaurar' : 'Minimizar'; if (m) { W.dataset.h = W.style.height; W.style.height = 'auto'; } else { W.style.height = W.dataset.h || ''; encajar(); } };
       W.querySelector('.x').onclick = () => (W.style.display = 'none'); // se oculta, no se cierra: la próxima vez abre al instante
       W.addEventListener('mouseup', (e) => { if (e.target === W) { tamManual = true; encajar(); recordar(); } }); // la agrandó o achicó desde la esquina: el contenido se acomoda a ese tamaño
       W.querySelector('header').ondblclick = (e) => { if (e.target.tagName !== 'BUTTON' && !W.classList.contains('fijo')) { tamManual = false; W.style.width = ''; FIJ = null; encajar(); recordar(); } }; // doble clic: vuelve al tamaño justo
@@ -411,10 +412,11 @@
     k = crudo ? k : especie(aMatriz(k)); // crudo: la especie tal cual (la tabla de Pases ya trae la D del MEP)
     { const r = tk(k), D = (r && PINS.get(r[0])) || PINS.get(k); PFIJO = D && !pz ? pinP(D) : 0; if (D && !(cant > 0)) cant = +D.querySelector('.pq').value || 0; } // si el bono tiene ficha fija, van sus nominales y su precio (los escritos ganan sobre ⚙) // si el bono tiene ficha fija, van sus nominales aviso('Boleta: buscando ' + k + '…');
     const vis = (e) => e && e.offsetParent && !e.closest('#bnr-panel,#bnr-win,.bnr-pin');
-    let inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || ''));
+    const enBoleta = (i) => { if (/b[uú]squeda|agregar|emisor|filtr/i.test(i.placeholder || '')) return false; for (let a = i.parentElement, n = 0; a && n < 7; n++, a = a.parentElement) { const t = a.innerText || ''; if (t.length > 3000) return false; if (/\bPrecio\b/.test(t) && /\bCantidad\b/.test(t)) return true; } return false; }; // la boleta (con Precio y Cantidad al lado), no el buscador de BYMA/Bonos ni «Agregar instrumento» de los paneles
+    let inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || '') && enBoleta(i));
     if (!inp) for (const el of document.querySelectorAll('body *')) { // el texto "Buscar instrumento" o la etiqueta "Instrumento" suelen ser un div aparte (selectores tipo react-select): el input está en el mismo bloque
       if (el.children.length || !vis(el) || !/^(Buscar instrumento|Instrumento)$/i.test((el.textContent || '').trim())) continue;
-      for (let a = el.parentElement, i = 0; a && i < 4 && !inp; i++, a = a.parentElement) inp = [...a.querySelectorAll('input')].find((x) => vis(x) && x.type !== 'hidden' && x.type !== 'checkbox');
+      for (let a = el.parentElement, i = 0; a && i < 4 && !inp; i++, a = a.parentElement) inp = [...a.querySelectorAll('input')].find((x) => vis(x) && x.type !== 'hidden' && x.type !== 'checkbox' && enBoleta(x));
       if (inp) break;
     }
     if (!inp) { aviso('Boleta: no encontré el campo «Instrumento» de Matriz', 1); return false; }
