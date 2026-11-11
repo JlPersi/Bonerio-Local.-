@@ -213,7 +213,7 @@
       `<label>Moneda en la boleta (bonos en dólares) <select data-mon style="margin-left:auto">${[['', 'Pesos'], ['D', 'MEP (D)'], ['C', 'CCL (C)']].map(([v, t]) => `<option value="${v}" ${(CFG.mon || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>`;
     CF.querySelectorAll('input,select').forEach((i) => (i.onchange = () => {
       if (i.hasAttribute('data-alp')) { CFG.alp = i.checked; if (i.checked) { sonar(); if (!W) ventana(null, null, true); } } else if (i.hasAttribute('data-mon')) CFG.mon = i.value; else if (i.hasAttribute('data-q')) CFG.qty = +i.value || 0; else if (i.hasAttribute('data-pm')) CFG.pm = i.checked ? 'm' : ''; else if (i.hasAttribute('data-qm')) { CFG.qm = i.checked ? 'm' : ''; CF.querySelector('[data-q]').disabled = i.checked; } else if (i.hasAttribute('data-on')) CFG.on = i.checked; else CFG.m = Object.keys(MET).filter((k) => CF.querySelector(`[data-m="${k}"]`).checked);
-      if (i.hasAttribute('data-mon')) { dxK = null; pintar(); } guardar(); if (PRO === undefined && !W) ventana(null, null, true); /* sin la página todavía no se sabe si la cuenta es PRO: se carga escondida */ inyectar(); phPins(); if (W) W.querySelectorAll('.subs .mon button').forEach((y) => y.classList.toggle('on', y.dataset.mon === (CFG.mon || '')));
+      if (i.hasAttribute('data-mon')) { dxK = null; pintar(); spPag(); } guardar(); if (PRO === undefined && !W) ventana(null, null, true); /* sin la página todavía no se sabe si la cuenta es PRO: se carga escondida */ inyectar(); phPins(); if (W) W.querySelectorAll('.subs .mon button').forEach((y) => y.classList.toggle('on', y.dataset.mon === (CFG.mon || '')));
     }));
   }
   P.querySelector('.cf').onclick = () => { CF.hidden = !CF.hidden; if (!CF.hidden) pintarCfg(); };
@@ -286,8 +286,9 @@
     const f = W && LISTO && W.querySelector('iframe'); if (!f) return; const w = f.contentWindow;
     if (PLAZO[g]) w.postMessage({ t: 'bnrSel', id: PLAZO[g], v: (CFG.px || {})[g] || '99999' }, '*');
     const m = (CFG.mdl || {})[g]; if (MODELO[g] && m) w.postMessage({ t: 'bnrSel', id: MODELO[g], v: m }, '*');
-    w.postMessage({ t: 'bnrBub', on: !!CFG.bub }, '*');
+    w.postMessage({ t: 'bnrBub', on: !!CFG.bub }, '*'); spPag();
   };
+  const spPag = () => { const f = W && LISTO && W.querySelector('iframe'); if (f) f.contentWindow.postMessage({ t: 'bnrSp', sp: CFG.mon === 'C' ? 'C' : 'D' }, '*'); }; // MEP o Cable: la curva en dólares de la página cambia de especie
   const SOLO_GRAF = { curva: 1, tfut: 1, sint: 1, exp: 1 };
   const SIGUE = { ficha: 1, curva: 1 }; // las que cambian con el bono
   let W = null, vista = 'curva', sub = 0, tamManual = false, LISTO = false;
@@ -318,7 +319,7 @@
       if (MODELO[g]) { const v = (CFG.mdl || {})[g] || 'log'; S.insertAdjacentHTML('beforeend', `<select class="selc mdl" title="Tipo de curva (ajuste)">${AJUSTES.filter(([a]) => g !== 'usd' || a !== 'auto').map(([a, b]) => `<option value="${a}" ${a === v ? 'selected' : ''}>${b}</option>`).join('')}</select>`); S.querySelector('.mdl').onchange = (e) => { CFG.mdl = Object.assign({}, CFG.mdl, { [g]: e.target.value }); guardar(); plazo(g); }; }
       if (DOLAR[g]) { // en qué especie se abre en la boleta el punto que tocás (la misma opción que en ⚙)
         S.insertAdjacentHTML('beforeend', `<span class="mon" title="Al tocar un punto, la boleta se abre en esta moneda">${[['', 'Pesos'], ['D', 'MEP'], ['C', 'CCL']].map(([v, t]) => `<button data-mon="${v}" class="${(CFG.mon || '') === v ? 'on' : ''}">${t}</button>`).join('')}</span>`);
-        S.querySelectorAll('.mon button').forEach((x) => (x.onclick = () => { CFG.mon = x.dataset.mon; guardar(); S.querySelectorAll('.mon button').forEach((y) => y.classList.toggle('on', y === x)); if (!CF.hidden) pintarCfg(); dxK = null; pintar(); }));
+        S.querySelectorAll('.mon button').forEach((x) => (x.onclick = () => { CFG.mon = x.dataset.mon; guardar(); S.querySelectorAll('.mon button').forEach((y) => y.classList.toggle('on', y === x)); if (!CF.hidden) pintarCfg(); dxK = null; pintar(); spPag(); }));
       }
       S.insertAdjacentHTML('beforeend', `<button class="bub${CFG.bub ? ' on' : ''}" title="Burbujas de volumen: el tamaño de cada punto es el monto operado hoy">◉ Volumen</button>`);
       S.querySelector('.bub').onclick = (e) => { CFG.bub = !CFG.bub; guardar(); e.currentTarget.classList.toggle('on', CFG.bub); plazo(g); };
@@ -520,7 +521,7 @@
       <span>Duration mod.</span><span>${fmt(b.md)}</span><span>Días al vto.</span><span>${b.dias}</span></div>
       <div class="bt"><button data-v="datos" class="${CFG.dat ? 'on' : ''}" title="Datos del bono y calculadora">Datos ${CFG.dat ? '▴' : '▾'}</button><button data-v="curva">Curva</button><button data-v="mas">Más…</button><button data-v="boleta" title="Cargar en la boleta de Matriz">Boleta</button></div>${paseHTML()}`;
     enlazar(); enlazarPase();
-    B.querySelectorAll('.t .mon button').forEach((x) => (x.onclick = () => { CFG.mon = x.dataset.mon; guardar(); dxK = null; pintar(); if (W) W.querySelectorAll('.subs .mon button').forEach((y) => y.classList.toggle('on', y.dataset.mon === (CFG.mon || ''))); if (!CF.hidden) pintarCfg(); }));
+    B.querySelectorAll('.t .mon button').forEach((x) => (x.onclick = () => { CFG.mon = x.dataset.mon; guardar(); dxK = null; pintar(); spPag(); if (W) W.querySelectorAll('.subs .mon button').forEach((y) => y.classList.toggle('on', y.dataset.mon === (CFG.mon || ''))); if (!CF.hidden) pintarCfg(); }));
     if (W && W.querySelector('.tt').textContent !== activo) SIGUE[vista] ? ventana(null, null, W.style.display === 'none') : (W.querySelector('.tt').textContent = activo); // la ventana sigue al bono
     pintarDatos();
   }
