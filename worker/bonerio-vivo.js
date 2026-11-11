@@ -29,7 +29,7 @@ async function esPro(t) { // el mismo criterio que la página (BLPRO): prueba ab
   try {
     const r = await fetch(SB + '/auth/v1/user', { headers: { apikey: SBK, Authorization: 'Bearer ' + t } });
     if (r.status >= 500) return true; // Supabase caído: no se le corta el vivo a quien paga (no se guarda)
-    if (r.ok) { const us = await r.json(), m = (us && us.app_metadata) || {}; ok = !!(us && m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoyBA()); }
+    if (r.ok) { const us = await r.json(), m = (us && us.app_metadata) || {}; ok = !!(us && ((us.created_at && Date.parse(us.created_at) < Date.parse('2026-11-11T16:45:00Z') && Date.now() < Date.parse(us.created_at) + 5 * 864e5) || (m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoyBA()))); } // las cuentas creadas antes del 11/11 13:45 conservan sus 5 días de prueba
   } catch (e) { return true; }
   if (PROC.size > 5000) PROC.clear(); PROC.set(t, { t: Date.now(), ok }); return ok;
 }
