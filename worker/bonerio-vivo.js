@@ -21,7 +21,7 @@ const TTL = 15;
 const SB = 'https://sbvebxqeltvkerrarzqn.supabase.co', SBK = 'sb_publishable_yhGb-WD_rjY-PohFtWjRig_g54LnhVf'; // la clave pública de la página (auth.js), no es un secreto
 const FREE_HASTA = '2026-11-11', DEMORA = 20 * 60e3;
 const PROC = new Map();
-async function esPro(t) { // el mismo criterio que la página (BLPRO): prueba abierta, cuenta nueva de menos de 5 días o pro_hasta vigente; se guarda 10 minutos por token
+async function esPro(t) { // el mismo criterio que la página (BLPRO): prueba abierta o pro_hasta vigente; se guarda 10 minutos por token
   if (hoyBA() < FREE_HASTA) return true;
   if (!t || t.length > 4000) return false;
   const c = PROC.get(t); if (c && Date.now() - c.t < 10 * 60e3) return c.ok;
@@ -29,7 +29,7 @@ async function esPro(t) { // el mismo criterio que la página (BLPRO): prueba ab
   try {
     const r = await fetch(SB + '/auth/v1/user', { headers: { apikey: SBK, Authorization: 'Bearer ' + t } });
     if (r.status >= 500) return true; // Supabase caído: no se le corta el vivo a quien paga (no se guarda)
-    if (r.ok) { const us = await r.json(), m = (us && us.app_metadata) || {}; ok = !!(us && ((us.created_at && Date.now() < Date.parse(us.created_at) + 5 * 864e5) || (m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoyBA()))); }
+    if (r.ok) { const us = await r.json(), m = (us && us.app_metadata) || {}; ok = !!(us && m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoyBA()); }
   } catch (e) { return true; }
   if (PROC.size > 5000) PROC.clear(); PROC.set(t, { t: Date.now(), ok }); return ok;
 }
