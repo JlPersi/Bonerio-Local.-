@@ -412,9 +412,10 @@
   function aBoleta1(k, cant, pz, crudo) {
     k = crudo ? k : especie(aMatriz(k)); // crudo: la especie tal cual (la tabla de Pases ya trae la D del MEP)
     { const r = tk(k), D = (r && PINS.get(r[0])) || PINS.get(k); PFIJO = D && !pz ? pinP(D) : 0; if (D && !(cant > 0)) cant = +D.querySelector('.pq').value || 0; } // si el bono tiene ficha fija, van sus nominales y su precio (los escritos ganan sobre ⚙) // si el bono tiene ficha fija, van sus nominales aviso('Boleta: buscando ' + k + '…');
-    const vis = (e) => e && e.offsetParent && !e.closest('#bnr-panel,#bnr-win,.bnr-pin');
+    const vis = (e) => e && e.getClientRects().length && !e.closest('#bnr-panel,#bnr-win,.bnr-pin'); // getClientRects: la boleta de BYMA/Bonos está fija abajo (position: fixed no tiene offsetParent)
     const enBoleta = (i) => { if (/b[uú]squeda|agregar|emisor|filtr/i.test(i.placeholder || '')) return false; for (let a = i.parentElement, n = 0; a && n < 7; n++, a = a.parentElement) { const t = a.textContent || ''; if (t.length > 3000) return false; if (/Precio/.test(t) && /Cantidad/.test(t)) return true; } return false; }; // la boleta (con Precio y Cantidad al lado), no el buscador de BYMA/Bonos ni «Agregar instrumento» de los paneles
-    let inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || '') && enBoleta(i));
+    let inp = [...document.querySelectorAll('form[class*="MiniOrder"] .instrument-form-item input, .instrument-form-item input[role=combobox]')].find((i) => vis(i) && !i.disabled); // la boleta de Matriz (ant-design): «Buscar instrumento»
+    if (!inp) inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || '') && enBoleta(i));
     if (!inp) for (const el of document.querySelectorAll('body *')) { // el texto "Buscar instrumento" o la etiqueta "Instrumento" suelen ser un div aparte (selectores tipo react-select): el input está en el mismo bloque
       if (el.children.length || !vis(el) || !/^(Buscar instrumento|Instrumento)$/i.test((el.textContent || '').trim())) continue;
       for (let a = el.parentElement, i = 0; a && i < 4 && !inp; i++, a = a.parentElement) inp = [...a.querySelectorAll('input')].find((x) => vis(x) && x.type !== 'hidden' && x.type !== 'checkbox' && enBoleta(x));
@@ -423,7 +424,8 @@
     if (!inp) { aviso('Boleta: no encontré el campo «Instrumento» de Matriz', 1); return false; }
     const propio = inp.parentElement && inp.parentElement.parentElement; // el propio campo (los buscadores tipo react-select repiten el texto en un div invisible para medirlo)
     const seve = (o) => { const r = o.getBoundingClientRect(); return r.width > 4 && r.height > 4 && getComputedStyle(o).visibility !== 'hidden'; };
-    const cand = () => [...document.querySelectorAll('li,[role=option],mat-option,a,span,div')].filter((o) => !o.children.length && (o.textContent || '').trim().toUpperCase().startsWith(k) && seve(o) && !(propio && propio.contains(o)) && !o.closest('#bnr-panel,#bnr-win,.bnr-pin'));
+    const dd = () => [...document.querySelectorAll('.ant-select-dropdown,[role=listbox]')].filter((x) => x.getClientRects().length && !x.closest('#bnr-panel,#bnr-win,.bnr-pin'));
+    const cand = () => [...(dd().length ? dd().flatMap((x) => [...x.querySelectorAll('*')]) : document.querySelectorAll('li,[role=option],mat-option,a,span,div'))].filter((o) => !o.children.length && (o.textContent || '').trim().toUpperCase().startsWith(k) && seve(o) && !(propio && propio.contains(o)) && !o.closest('#bnr-panel,#bnr-win,.bnr-pin'));
     const antes = new Set(cand()); // solo vale una sugerencia que aparezca después de escribir (no una fila del panel de precios)
     const box = inp.closest('div') || inp; ['mousedown', 'mouseup', 'click'].forEach((t) => box.dispatchEvent(new MouseEvent(t, { bubbles: true }))); // abre el buscador
     inp.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, k);
@@ -431,7 +433,7 @@
     let n = 0; const iv = setInterval(() => { // elige la primera sugerencia nueva (en 24 hs si la hay)
       if (++n > 16) { clearInterval(iv); ['ArrowDown', 'Enter'].forEach((key) => inp.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key, code: key, keyCode: key === 'Enter' ? 13 : 40 }))); aviso('Boleta: escribí ' + k + ' pero no vi la lista de sugerencias (probé con Enter)', 1); completar(k, cant, pz); return; } // sin sugerencia reconocible: Enter elige la primera
       const ops = cand().filter((o) => !antes.has(o)), t = (x) => (x.textContent || '').trim().toUpperCase(), o = pz === 'ci' ? ops.find((x) => /\(CI\)|\bCI\b/.test(t(x))) : ops.find((x) => t(x) === k) || ops.find((x) => /24/.test(t(x))) || ops.find((x) => !/\(CI\)|\bCI\b/.test(t(x))) || ops[0]; // 24 hs: el ticker solo (Matriz pone «(CI)» al contado)
-      if (o) { clearInterval(iv); const tg = o.closest('li,[role=option],mat-option') || o; ['pointerover', 'mouseover', 'mousemove', 'pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((ev) => tg.dispatchEvent(new (ev.startsWith('pointer') ? PointerEvent : MouseEvent)(ev, { bubbles: true, cancelable: true, view: window, button: 0 }))); aviso('Boleta: elegí ' + t(o)); completar(k, cant, pz); }
+      if (o) { clearInterval(iv); const tg = o.closest('.ant-select-item-option,li,[role=option],mat-option') || o; ['pointerover', 'mouseover', 'mousemove', 'pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((ev) => tg.dispatchEvent(new (ev.startsWith('pointer') ? PointerEvent : MouseEvent)(ev, { bubbles: true, cancelable: true, view: window, button: 0 }))); aviso('Boleta: elegí ' + t(o)); completar(k, cant, pz); }
     }, 250);
     return true;
   }
