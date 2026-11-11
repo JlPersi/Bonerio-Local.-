@@ -83,6 +83,7 @@
       let a = lab.parentElement, hit = null;
       for (let i = 0; a && i < 16 && !hit; i++, a = a.parentElement) { // sube hasta el recuadro: sin salir a otro recuadro ni al resto de Matriz, y sin leer botones (BYMA, MERV… son botones de Matriz)
         const tx = a.innerText || a.textContent || ''; if (tx.length > 3000 || (i && [...a.querySelectorAll('*')].filter((x) => !x.children.length && /^Cierre\s+Ant\.?\s*:?$/i.test((x.textContent || '').trim())).length > 1)) break;
+        { const sy = a.querySelector('[class*="bm_"] .symbol, a[href*="/security/"] .symbol'), r = sy && !sy.closest('#bnr-panel,#bnr-win,.bnr-pin') && tk((sy.textContent || '').trim()); if (r) { hit = { el: a, k: r[0], suf: r[1] }; break; } } // Matriz: el ticker del recuadro es un link (<a href="/security/bm_MERV_AL30_24hs"><span class="symbol">)
         for (const el of a.querySelectorAll('*')) { if (el.closest('button,a,nav,#bnr-panel,#bnr-win,.bnr-pin,[data-bnr]')) continue; const tx0 = el.children.length ? [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('') : el.textContent; /* el título puede tener un ícono adentro: vale su texto propio */ const w = ((tx0 || '').trim().toUpperCase().match(TOK) || [])[0], r = w && tk(w); if (r) { hit = { el: a, k: r[0], suf: r[1] }; break; } }
       }
       if (hit && !out.some((o) => o.el === hit.el)) out.push(hit);
@@ -381,7 +382,7 @@
     const m = CFG.mon || ''; if (m) { const p = ultP(baseD(k) + m); return { usd: p, loc: p, fx: 1, mon: m }; }
     const p = ultP(k), fx = mepDe(k); return { usd: p > 0 && fx > 0 ? p / fx : NaN, loc: p, fx, mon: '' };
   }
-  const plazoDe = (el) => { const x = el.innerText || ''; return /\(CI\)|\bCI\b|contado inmediato/i.test(x) ? 'ci' : /24\s*hs|\b24H\b/i.test(x) ? '24' : ''; }; // el plazo de un recuadro de Matriz
+  const plazoDe = (el) => { const w = el.closest && (el.querySelector('[class*="bm_"]') || el.closest('[class*="bm_"]')), m = w && /\bbm_[A-Z]+_[A-Z0-9.\/]+_(CI|24hs|48hs)\b/i.exec(w.className || ''); if (m) return /ci/i.test(m[1]) ? 'ci' : '24'; const x = el.innerText || ''; return /\(CI\)|\bCI\b|contado inmediato/i.test(x) ? 'ci' : /24\s*hs|\b24H\b/i.test(x) ? '24' : ''; }; // el plazo de un recuadro de Matriz
   function completar(k, cant, pz) { // después de elegir el instrumento: precio de mercado que muestra Matriz y la cantidad por defecto (si hay). Comprar/Vender lo aprieta el usuario.
     setTimeout(() => {
       const r = tk(k), cs = r ? recuadros().filter((x) => x.k === r[0] && x.suf === r[1]) : [], c = pz ? cs.find((x) => plazoDe(x.el) === pz) || cs.find((x) => !plazoDe(x.el) && pz === '24') : cs[0], [p] = c ? precioDe(c) : [NaN];
