@@ -400,10 +400,10 @@ export default {
       if (env.FEED) try { d.stream = await (await env.FEED.get(env.FEED.idFromName('main')).fetch(new Request(u.origin + '/stats'))).json(); } catch (e) { d.stream = String(e.message || e); } // mensajes de Primary recibidos hoy por la conexión permanente
       return new Response(JSON.stringify(d, null, 1), { headers: h });
     }
-    const P = await esPro(u.searchParams.get('t')); // quien no es PRO: precios de hace 20 minutos (ver arriba)
+    const P = await esPro(u.pathname === '/cim' && !u.searchParams.has('s') ? null : u.searchParams.get('t')); // en /cim las especies van en ?s= (antes iban en ?t= y pisaban el token) // quien no es PRO: precios de hace 20 minutos (ver arriba)
     if (!P && (u.pathname.startsWith('/book/') || u.pathname.startsWith('/merv') || u.pathname === '/cim')) return new Response('{"error":"pro"}', { status: 403, headers: Object.assign({}, h, { 'Cache-Control': 'no-store' }) });
     if (u.pathname === '/cim') { // monitor CI vs 24 hs: la mejor punta y el último de las dos liquidaciones, hasta 60 especies, por el websocket (se guarda 3 segundos)
-      const hb = Object.assign({}, h, { 'Cache-Control': 'no-store' }), T = [...new Set((u.searchParams.get('t') || '').toUpperCase().split(','))].filter((x) => /^[A-Z0-9]{2,10}$/.test(x)).slice(0, 60), k = '/cim?' + T.join(','), m = MEM[k];
+      const hb = Object.assign({}, h, { 'Cache-Control': 'no-store' }), T = [...new Set((u.searchParams.get('s') || '').toUpperCase().split(','))].filter((x) => /^[A-Z0-9]{2,10}$/.test(x)).slice(0, 60), k = '/cim?' + T.join(','), m = MEM[k];
       if (m && Date.now() - m.t < 3000) return new Response(m.b, { headers: hb });
       try {
         const VS = new Set((await instruments(env)).map((i) => (i.instrumentId || {}).symbol)), sy = (t, z) => 'MERV - XMEV - ' + t + z, L = [];
