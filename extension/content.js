@@ -405,10 +405,12 @@
     if (e.data.t === 'bnrPata') { if (bloqueado()) return; const { k, pz, sd } = e.data, q = +e.data.q > 0 ? +e.data.q : 0, r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } PXP = { k, pz, p: +e.data.px > 0 ? +e.data.px : 0 }; msgPase = `${k} en ${pz === 'ci' ? 'CI' : '24 hs'}: revisá y apretá ${sd === 'c' ? 'COMPRAR' : 'VENDER'}.`; aBoleta(k, q, pz, 1); return; } // una pata del pase (con los nominales en cartera, si los cargaste en Pases), desde la tabla de Pases
     if (e.data.t === 'bnrTk') { PXV = e.data.px && typeof e.data.px === 'object' ? e.data.px : {}; const k = aMatriz(e.data.k), r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } aBoleta(k); return; }
     if (e.data.t !== 'bnrH') return;
-    LISTO = true; encajar(Math.max(150, +e.data.h || 0));
+    if (!LISTO) setTimeout(darTok, 0); LISTO = true; encajar(Math.max(150, +e.data.h || 0));
     if (Date.now() - esperaH > 40) { setTimeout(() => cargando(false), 50); if (vista === 'curva') plazo(W.dataset.g); } // la sección nueva ya está: aparece con un fundido
   });
-  let ultH = 0, FIJ = null, esperaH = 0, cgT = 0;
+  let ultH = 0, FIJ = null, esperaH = 0, cgT = 0, SES = null;
+  const darTok = () => { const f = W && LISTO && W.querySelector('iframe'); if (f && f.contentWindow && SES) f.contentWindow.postMessage({ t: 'bnrTok', k: SES.k, v: SES.v }, '*'); }; // la sesión de Bonerío (copiada por auth.js desde boneriolocal.com.ar) a la ventana
+  try { chrome.storage.local.get('bnrTok', (o) => { SES = (o && o.bnrTok) || null; darTok(); }); chrome.storage.onChanged.addListener((c) => { if (c.bnrTok) { SES = c.bnrTok.newValue || null; darTok(); } }); } catch (er) { }
   setInterval(() => { // los precios de tu Matriz (recuadros y Mini-Panel) van a la ventana: curvas, bonos y pases se calculan con lo que ves, en tiempo real
     const f = W && LISTO && W.querySelector('iframe'); if (!f || !f.contentWindow) return;
     try { f.contentWindow.postMessage({ t: 'bnrPx', px: pantalla() }, '*'); } catch (er) {}
@@ -438,7 +440,7 @@
     B.innerHTML = PRO === undefined ? '<div class="m">Verificando tu cuenta de Bonerío…</div>'
       : `<div class="t">Bonerío PRO</div><div class="m">${PRO === null ? 'Entrá con tu cuenta de Bonerío Local para usar Bonerío Inside.' : 'Bonerío Inside es parte de Bonerío PRO y tu cuenta no lo tiene activo.'}</div>
         <div class="bt">${PRO === null ? '<button data-l="in">Entrar</button>' : ''}<button data-l="pl">Ver planes</button></div>`;
-    B.querySelectorAll('[data-l]').forEach((x) => (x.onclick = () => (x.dataset.l === 'in' ? ventana('curva') : window.open('https://boneriolocal.com.ar/#tab=planes', '_blank'))));
+    B.querySelectorAll('[data-l]').forEach((x) => (x.onclick = () => { if (x.dataset.l === 'in') { window.open('https://boneriolocal.com.ar/', '_blank'); B.querySelector('.m').textContent = 'Entrá con tu cuenta en la pestaña de Bonerío que se abrió y volvé: acá se habilita solo.'; } else window.open('https://boneriolocal.com.ar/#tab=planes', '_blank'); })); // se entra en la página (no se puede iniciar sesión con Google adentro de un iframe); la sesión llega por auth.js
     if (W && PRO === false) W.style.display = 'none'; try { DX.hidden = true; } catch (er) { } /* DX todavía no existe en la primera pintada */
   }
   function pintar() {

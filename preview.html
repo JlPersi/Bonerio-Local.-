@@ -10315,6 +10315,9 @@ window.USTX = (function () {
       var d = e.data; if (e.source !== parent || !d) return;
       if (d.t === 'bnrCvH') { var st = document.getElementById('embCvH'); if (!st) { st = document.createElement('style'); st.id = 'embCvH'; document.head.appendChild(st); } var hh = Math.round(+d.h || 0); st.textContent = hh > 120 && hh < 3000 ? 'html.emb #embCv{height:' + hh + 'px!important;min-height:0!important;max-height:none!important}' : ''; }
       if (d.t === 'bnrPx' && d.px && typeof d.px === 'object') mxPx(d.px);
+      if (d.t === 'bnrTok' && /^sb-[\w-]+-auth-token$/.test(d.k || '') && typeof d.v === 'string') { // la sesión con la que entraste en boneriolocal.com.ar (adentro de Matriz el iframe tiene otro localStorage y Google no deja entrar desde un iframe)
+        var tk0 = null, tk1 = null; try { tk1 = (JSON.parse(d.v) || {}).access_token; tk0 = (JSON.parse(localStorage.getItem(d.k) || 'null') || {}).access_token; } catch (er) { }
+        if (tk1 && tk1 !== tk0) { try { localStorage.setItem(d.k, d.v); var n = +(sessionStorage.getItem('bnrTokR') || 0); if (n < 3) { sessionStorage.setItem('bnrTokR', n + 1); location.reload(); } } catch (er) { } } }
       if (d.t === 'bnrBub' && !!d.on !== BUB) { BUB = !!d.on; bubUp(); }
       if (d.t === 'bnrSel' && /^[\w-]+$/.test(d.id || '')) { var s = document.getElementById(d.id); if (s && s.tagName === 'SELECT' && s.value !== String(d.v) && [].some.call(s.options, function (o) { return o.value === String(d.v); })) { s.value = String(d.v); s.dispatchEvent(new Event('change', { bubbles: true })); } }
     });
