@@ -10354,7 +10354,7 @@ window.USTX = (function () {
       if (e.data.t === 'dbSp') { var bb = document.getElementById(e.data.sp === 'C' ? 'bccl' : 'bmep'); if (bb && !bb.classList.contains('on')) bb.click(); }
     });
     var only = function (id) { // todo lo que no sea la sección, ni la contiene ni está adentro, se oculta (y sigue oculto aunque la pestaña se vuelva a dibujar); una sola regla, así se puede cambiar de sección sin recargar
-      var st = document.getElementById('embOnly'); if (!st) { st = document.createElement('style'); st.id = 'embOnly'; document.head.appendChild(st); } var ids = [].concat(id); st.textContent = 'html.emb body *' + ids.map(function (x) { return ':not(:has(#' + x + ')):not(#' + x + '):not(#' + x + ' *)'; }).join('') + ':not(#ampOv):not(#ampOv *){display:none!important}' + ids.map(function (x) { return 'html.emb #' + x + '{margin:0!important}'; }).join(''); // una o varias partes (el gráfico y sus filtros)
+      var st = document.getElementById('embOnly'); if (!st) { st = document.createElement('style'); st.id = 'embOnly'; document.head.appendChild(st); } var ids = [].concat(id); st.textContent = 'html.emb body *' + ids.map(function (x) { return ':not(:has(#' + x + ')):not(#' + x + '):not(#' + x + ' *)'; }).join('') + ':not(#ampOv):not(#ampOv *):not(#blPro):not(#blPro *){display:none!important}' + ids.map(function (x) { return 'html.emb #' + x + '{margin:0!important}'; }).join(''); // una o varias partes (el gráfico y sus filtros)
     };
     var WI = null, watch = function (id) { // avisa la altura al tablero mientras cambie (un solo reloj: al cambiar de sección se reemplaza)
       var last = -1, t0 = Date.now(), ok = false; clearInterval(WI);
@@ -15547,9 +15547,7 @@ window.RATG = (function () {
   };
   var pro = window.BLPRO = function () {
     if (hoy() < FREE_HASTA) return true;
-    var a = window.BLAUTH && window.BLAUTH(), u = U || (a && a.user), m = u && u.app_metadata || {};
-    if (u && u.created_at && Date.parse(u.created_at) < Date.parse('2026-11-11T16:45:00Z') && Date.now() < Date.parse(u.created_at) + 5 * 864e5) return true; // las cuentas creadas antes del 11/11 13:45 conservan sus 5 días de prueba
-    return !!(m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoy());
+    return window.BLPROU() === true; // la misma cuenta que ve la extensión: con la sesión guardada aunque el login todavía no terminó de cargar (adentro de Matriz la sección se abre antes)
   };
   var st = document.createElement('style');
   st.textContent = '[data-theme="light"] .tab-btn.pl::after,[data-theme="light"] #sideNav .sn-it.pl span::after{background:#c98a00}' + '.tab-btn.pl::after,#sideNav .sn-it.pl span::after{content:"";display:inline-block;width:11px;height:11px;margin-left:6px;vertical-align:-1px;background:#ffc542;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M6 10V8a6 6 0 1 1 12 0v2h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1zm2 0h8V8a4 4 0 1 0-8 0z%27/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M6 10V8a6 6 0 1 1 12 0v2h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1zm2 0h8V8a4 4 0 1 0-8 0z%27/%3E%3C/svg%3E") center/contain no-repeat}' +
