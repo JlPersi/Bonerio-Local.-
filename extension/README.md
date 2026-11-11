@@ -16,6 +16,9 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 
 **A la boleta:** «→ Boleta» o un clic en un punto de un gráfico o en una fila de una tabla de la ventana escribe el ticker en «Instrumento» de Matriz y elige la sugerencia de 24 hs, en la moneda elegida en ⚙ (pesos, MEP «D» o CCL «C») para los bonos en dólares. Después completa «Precio» con el último (o el cierre anterior) del recuadro de ese ticker en Matriz o, si no hay recuadro, con el «Últ» del Mini-Panel de precios (y, si tampoco está, con el cierre de Bonerío, avisando en el panel) y «Cantidad» con la cantidad por defecto (⚙). No aprieta Comprar ni Vender: eso lo hace el usuario.
 
+## 1.1.9
+- Boleta en BYMA / Bonos, Líder, General y Favoritos: la boleta de abajo está fija (position: fixed) y la extensión la descartaba como «no visible». Ahora se busca primero el campo de la boleta de Matriz (form MiniOrderForm, «Buscar instrumento») y las sugerencias en su desplegable.
+
 ## 1.1.8
 - Más liviana en el dashboard: los recuadros y los precios de la pantalla se leen como mucho cada 0,7 y 1,5 s, y nada con la pestaña oculta.
 
