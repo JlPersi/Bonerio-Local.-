@@ -12,5 +12,5 @@ addEventListener('message', (e) => {
   if (e.data.t === 'bnrTk' && /^[A-Z0-9\/]{3,10}$/.test(e.data.k)) parent.postMessage({ t: 'bnrTk', k: e.data.k, px: Object.fromEntries(Object.entries(e.data.px || {}).filter(([s, v]) => /^[A-Z0-9]{3,10}$/.test(s) && +v > 0).slice(0, 6).map(([s, v]) => [s, +v])) }, '*'); // tocó un bono en Bonerío
 });
 addEventListener('message', (e) => { // la ventana de Matriz pide otra sección: va directo a la página, sin recargar
-  if (e.source === parent && e.data && /^bnr(Sec|Datos|CvH|Sel|Px|Bub)$/.test(e.data.t) && F.contentWindow) F.contentWindow.postMessage(e.data, '*');
+  if (e.source === parent && e.data && /^bnr(Sec|Datos|CvH|Sel|Px|Bub|Tok)$/.test(e.data.t) && F.contentWindow) F.contentWindow.postMessage(e.data, '*');
 });

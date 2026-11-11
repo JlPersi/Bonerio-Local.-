@@ -66,3 +66,5 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 **Recuadros sin ticker propio (1.0.8):** para saber de qué especie es un recuadro, sube desde «Cierre Ant.» sin salir del recuadro (frena si encuentra otro recuadro o demasiado texto) y sin leer botones (BYMA, MERV… de la barra de Matriz). Antes, en un recuadro de caución o de un CEDEAR, podía tomar el botón BYMA y mostrar los ratios de esa acción.
 
 **1.0.9:** el título del recuadro se lee aunque esté en un encabezado con rol de botón o pestaña (1.0.8 lo salteaba y el recuadro quedaba sin filas). En los recuadros C (cable) de bonos en dólares, la TIR también se calcula a su precio.
+
+**Entrar (1.1.0):** adentro de Matriz la página es un iframe de otro sitio: Chrome le da un localStorage aparte y Google no deja iniciar sesión en un iframe. Por eso *Entrar* abre boneriolocal.com.ar en una pestaña; `auth.js` (corre solo en boneriolocal.com.ar) copia la sesión a `chrome.storage.local` y la ventana la recibe (`bnrTok`) y se recarga una vez ya con la cuenta. Permiso nuevo: `storage`.
