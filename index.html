@@ -15542,11 +15542,12 @@ window.RATG = (function () {
     var a = window.BLAUTH && window.BLAUTH(), u = U || (a && a.user);
     if (!u) try { var s = JSON.parse(localStorage.getItem('sb-sbvebxqeltvkerrarzqn-auth-token') || 'null'); u = s && s.user; } catch (e) { }
     if (!u) return null; var m = u.app_metadata || {};
-    return !!(m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoy());
+    return !!((u.created_at && Date.parse(u.created_at) < Date.parse('2026-11-11T16:45:00Z') && Date.now() < Date.parse(u.created_at) + 5 * 864e5) || (m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoy())); // las cuentas creadas antes del 11/11 13:45 conservan sus 5 días de prueba
   };
   var pro = window.BLPRO = function () {
     if (hoy() < FREE_HASTA) return true;
     var a = window.BLAUTH && window.BLAUTH(), u = U || (a && a.user), m = u && u.app_metadata || {};
+    if (u && u.created_at && Date.parse(u.created_at) < Date.parse('2026-11-11T16:45:00Z') && Date.now() < Date.parse(u.created_at) + 5 * 864e5) return true; // las cuentas creadas antes del 11/11 13:45 conservan sus 5 días de prueba
     return !!(m.pro_hasta && String(m.pro_hasta).slice(0, 10) >= hoy());
   };
   var st = document.createElement('style');
@@ -16345,8 +16346,8 @@ body.sn-mini #sideNav .sn-u{justify-content:center;padding:12px 0}body.sn-mini #
   var plan = function (u) { // PRO (pro_hasta), prueba abierta (hasta el 10/11) o gratis
     var m = u.app_metadata || {}, ph = m.pro_hasta ? String(m.pro_hasta).slice(0, 10) : '';
     if (ph && ph >= hoy()) return ['PRO', 'hasta el ' + fd(ph), 1];
-    var fh = '2026-11-11';
-    if (hoy() < fh) { var f = new Date(Date.parse(fh + 'T03:00:00Z') - 3 * 3600e3).toISOString().slice(0, 10); return ['Prueba', 'prueba hasta el ' + fd(f), 1]; }
+    var tr = u.created_at && Date.parse(u.created_at) < Date.parse('2026-11-11T16:45:00Z') ? Date.parse(u.created_at) + 5 * 864e5 : 0;
+    if (Date.now() < tr) return ['Prueba', 'prueba hasta el ' + fd(new Date(tr - 3 * 3600e3).toISOString().slice(0, 10)), 1];
     return ['Free', 'plan gratis', 0];
   };
   var sig = '';
