@@ -76,7 +76,8 @@
     }
     return NaN;
   }
-  function recuadros() { // cada recuadro de Matriz con libro ("Cierre Ant."): el primer ticker que aparece al subir es su título
+  let RQ = null, RQt = 0; function recuadros() { if (Date.now() - RQt < 700 && RQ && RQ.every((c) => c.el.isConnected)) return RQ; RQt = Date.now(); return (RQ = recuadros0()); } // se lee como mucho cada 0,7 s (con el dashboard lleno, leer toda la pantalla es caro)
+  function recuadros0() { // cada recuadro de Matriz con libro ("Cierre Ant."): el primer ticker que aparece al subir es su título
     const out = [];
     for (const lab of document.querySelectorAll('body *')) {
       if (lab.children.length || !/^Cierre\s+Ant\.?\s*:?$/i.test((lab.textContent || '').trim()) || lab.closest('#bnr-panel,#bnr-win,.bnr-pin')) continue;
@@ -371,7 +372,7 @@
     const r = tk(k); if (!r || r[1] || !CFG.mon || !DOLAR[DB[r[0]].grupo]) return k;
     return DB[r[0]].grupo === 'on' && /O$/.test(k) ? k.slice(0, -1) + CFG.mon : k + CFG.mon;
   };
-  let PANT = null, PANTt = 0; const pant = () => (Date.now() - PANTt > 800 ? ((PANTt = Date.now()), (PANT = pantalla())) : PANT);
+  let PANT = null, PANTt = 0; const pant = () => (Date.now() - PANTt > 1500 ? ((PANTt = Date.now()), (PANT = pantalla())) : PANT);
   const ultP = (s) => { const x = pant()[s], v = x && ((x.ci && x.ci[0]) || (x.h && x.h[0])); return v > 0 ? v : +PXA[s] || 0; }; // el último de esa especie: recuadro o Mini-Panel de Matriz, o Primary
   const baseD = (k) => (DB[k] && DB[k].grupo === 'on' && /O$/.test(k) ? k.slice(0, -1) : k); // AL30 → AL30D / AL30C; las ONs: TLC1O → TLC1D
   function mepDe(k) { // pesos por dólar MEP del propio bono en pantalla (AL30 ÷ AL30D); si no, el de AL30 o GD30
@@ -412,7 +413,7 @@
     k = crudo ? k : especie(aMatriz(k)); // crudo: la especie tal cual (la tabla de Pases ya trae la D del MEP)
     { const r = tk(k), D = (r && PINS.get(r[0])) || PINS.get(k); PFIJO = D && !pz ? pinP(D) : 0; if (D && !(cant > 0)) cant = +D.querySelector('.pq').value || 0; } // si el bono tiene ficha fija, van sus nominales y su precio (los escritos ganan sobre ⚙) // si el bono tiene ficha fija, van sus nominales aviso('Boleta: buscando ' + k + '…');
     const vis = (e) => e && e.offsetParent && !e.closest('#bnr-panel,#bnr-win,.bnr-pin');
-    const enBoleta = (i) => { if (/b[uú]squeda|agregar|emisor|filtr/i.test(i.placeholder || '')) return false; for (let a = i.parentElement, n = 0; a && n < 7; n++, a = a.parentElement) { const t = a.innerText || ''; if (t.length > 3000) return false; if (/\bPrecio\b/.test(t) && /\bCantidad\b/.test(t)) return true; } return false; }; // la boleta (con Precio y Cantidad al lado), no el buscador de BYMA/Bonos ni «Agregar instrumento» de los paneles
+    const enBoleta = (i) => { if (/b[uú]squeda|agregar|emisor|filtr/i.test(i.placeholder || '')) return false; for (let a = i.parentElement, n = 0; a && n < 7; n++, a = a.parentElement) { const t = a.textContent || ''; if (t.length > 3000) return false; if (/Precio/.test(t) && /Cantidad/.test(t)) return true; } return false; }; // la boleta (con Precio y Cantidad al lado), no el buscador de BYMA/Bonos ni «Agregar instrumento» de los paneles
     let inp = [...document.querySelectorAll('input')].find((i) => vis(i) && /instrumento/i.test(i.placeholder || '') && enBoleta(i));
     if (!inp) for (const el of document.querySelectorAll('body *')) { // el texto "Buscar instrumento" o la etiqueta "Instrumento" suelen ser un div aparte (selectores tipo react-select): el input está en el mismo bloque
       if (el.children.length || !vis(el) || !/^(Buscar instrumento|Instrumento)$/i.test((el.textContent || '').trim())) continue;
@@ -624,12 +625,12 @@
   let t, ultBoleta = null; const revisar = (muts) => {
     const nuestro = (m) => { const e = m.target.nodeType === 1 ? m.target : m.target.parentElement; return !e || P.contains(e) || (W && W.contains(e)) || e.closest('[data-bnr],.bnr-pin'); };
     if (muts.every(nuestro)) return; // cambios del propio panel o de nuestras filas
-    if (t) return; t = setTimeout(() => { t = 0; /* cada 400 ms como mucho, sin reiniciar la espera: con el mercado abierto Matriz cambia algo todo el tiempo y la espera no terminaba nunca */
+    if (t) return; t = setTimeout(() => { t = 0; if (document.hidden) return; /* cada 400 ms como mucho, sin reiniciar la espera: con el mercado abierto Matriz cambia algo todo el tiempo y la espera no terminaba nunca */
       const k = tickerBoleta(); if (k && k !== ultBoleta) { ultBoleta = activo = k; precioManual = false; } // cargó otro bono en la boleta
       if (!activo) activo = tickerVisible();
       if (!precioManual && document.activeElement !== B.querySelector('input')) pintar();
       if (bloqueado()) document.querySelectorAll('[data-bnr]').forEach((x) => x.remove()); else { inyectar(); refrescarPins(); }
-    }, 400);
+    }, 700);
   };
   document.addEventListener('input', (e) => { if (!P.contains(e.target)) revisar([{ target: e.target }]); }, true);
   let pIni = null; document.addEventListener('mousedown', (e) => (pIni = [e.clientX, e.clientY]), true);
