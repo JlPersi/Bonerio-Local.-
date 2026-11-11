@@ -158,15 +158,25 @@
       pintar(); inyectar();
     }).catch(() => {});
   }
+  function propias(c, ancla, cel) { // Matriz no tiene una fila Pos / P&L que se pueda copiar (p.ej. una grilla sola con Cierre, Mín, Máx…): filas propias debajo
+    let a = ancla; while (a && a.parentElement && a.parentElement !== c.el && !/Pendientes|Ejecutadas/i.test(a.parentElement.textContent || '')) a = a.parentElement;
+    if (!a || a === c.el) return;
+    let d = c.el.querySelector('[data-bnr="x"]'); c.el.querySelectorAll('[data-bnr]:not([data-bnr="x"])').forEach((r) => r.remove());
+    if (!d) { d = document.createElement('div'); d.setAttribute('data-bnr', 'x'); d.title = 'Bonerío Local'; d.style.cssText = 'display:grid;grid-template-columns:auto 1fr auto 1fr;gap:2px 8px;padding:3px 8px;font-size:11px;line-height:1.5;color:#e5e7eb;background:rgba(0,0,0,.28);border-top:1px solid rgba(255,255,255,.45)'; }
+    if (a.nextElementSibling !== d) a.after(d);
+    const h = cel.map(([l, v, col]) => `<span style="opacity:.75">${l}:</span><span style="font-weight:700${col ? ';color:' + col : ''}">${v}</span>`).join('');
+    if (d.innerHTML !== h) d.innerHTML = h;
+  }
   function inyectar() {
-    for (const c of recuadros()) {
+    for (const c of recuadros()) try {
       const viejas = [...c.el.querySelectorAll('[data-bnr]')];
       if (!CFG.on || !CFG.m.length) { viejas.forEach((r) => r.remove()); continue; }
       const lab = [...c.el.querySelectorAll('*')].find((e) => !e.children.length && /^P\s*&\s*L\s*:?$/i.test((e.textContent || '').trim()) && !e.closest('[data-bnr]'));
       let row = lab && lab.parentElement; while (row && row !== c.el && !/Pos/.test(row.textContent || '')) row = row.parentElement;
-      if (!row || row === c.el || /Cierre/.test(row.textContent || '')) continue; // la fila de Pos / P&L sola, no el recuadro entero
       const b = DB[c.k], [p] = precioVale(c.k, c.suf) || (c.suf === 'C' && DOLAR[DB[c.k].grupo]) ? precioDe(c) : [NaN] /* D (MEP) y C (cable): la TIR a ese precio en dólares; en pesos, la del cierre */, cel = filas(b, p), n = Math.ceil(cel.length / 2);
       if (!n) continue;
+      if (!row || row === c.el || /Cierre/.test(row.textContent || '') || [...row.querySelectorAll('*')].filter((e) => !e.children.length).length < 4) { propias(c, lab || [...c.el.querySelectorAll('*')].find((e) => !e.children.length && /^Cierre\s+Ant/i.test((e.textContent || '').trim())), cel); continue; } // la fila de Pos / P&L sola, no el recuadro entero
+      c.el.querySelectorAll('[data-bnr="x"]').forEach((r) => r.remove());
       if (viejas.length !== n) { viejas.forEach((r) => r.remove()); let ant = row; for (let i = 0; i < n; i++) { const r = row.cloneNode(true); r.setAttribute('data-bnr', '1'); r.style.borderTop = '1px solid rgba(255,255,255,.45)'; r.title = 'Bonerío Local'; ant.after(r); ant = r; } }
       [...c.el.querySelectorAll('[data-bnr]')].forEach((r, i) => {
         const hojas = [...r.querySelectorAll('*')].filter((e) => !e.children.length); if (hojas.length < 4) return;
@@ -176,12 +186,12 @@
           if (V.textContent !== val) V.textContent = val; if (V.style.color !== (col || '')) V.style.color = col || '';
         });
       });
-    }
+    } catch (e) { } // un recuadro raro no frena a los demás
   }
 
   // ---------- panel ----------
   const P = document.createElement('div'); P.id = 'bnr-panel';
-  P.innerHTML = '<header><span>Bonerío Inside</span><span><button class="pin" title="Fijar este bono en una ficha aparte (podés abrir varias)">📌</button><button class="cf" title="Datos en los recuadros de Matriz">⚙</button><button class="mn" title="Minimizar">–</button></span></header><div class="cfg" hidden></div><div class="q"><input class="bus" placeholder="Escribí un bono (AL30, TMVE8…)" list="bnr-tk"><datalist id="bnr-tk"></datalist></div><div class="b">Cargando curvas…</div><div class="est" hidden></div>';
+  P.innerHTML = '<header><span>Bonerío Inside</span><span><button class="pin" title="Fijar este bono en una ficha aparte (podés abrir varias)">📌</button><button class="cf" title="Datos en los recuadros de Matriz">⚙</button><button class="mn" title="Minimizar">–</button></span></header><div class="cfg" hidden></div><div class="q"><input class="bus" placeholder="Escribí un bono (AL30, TMVE8…)"></div><div class="b">Cargando curvas…</div><div class="est" hidden></div>';
   document.body.appendChild(P);
   const B = P.querySelector('.b');
   P.querySelector('.mn').onclick = () => P.classList.toggle('min');
@@ -239,8 +249,16 @@
   P.querySelector('.pin').onclick = () => fijar(activo);
   if (chrome.runtime && chrome.runtime.onMessage) chrome.runtime.onMessage.addListener((m) => { if (m && m.t === 'toggle') { const v = P.style.display === 'none'; P.style.display = v ? '' : 'none'; if (W && !v) W.style.display = 'none'; } }); // el ícono de la extensión
   const BUS = P.querySelector('.bus');
-  BUS.onkeydown = (e) => { if (e.key === 'Enter') BUS.onchange(); };
-  BUS.onchange = () => { const k = BUS.value.toUpperCase().trim(); if (!k) return; activo = k; precioManual = false; BUS.value = ''; pintar(); };
+  const SUG = document.createElement('div'); SUG.className = 'sug'; SUG.hidden = true; BUS.after(SUG); // sugerencias propias (no la lista del navegador con todos los bonos): aparecen recién al escribir
+  const elegir = (k) => { k = (k || '').toUpperCase().trim(); SUG.hidden = true; if (!k) return; activo = (tk(k) || [k])[0]; precioManual = false; BUS.value = ''; pintar(); };
+  BUS.oninput = () => {
+    const q = BUS.value.toUpperCase().trim(); if (!q) { SUG.hidden = true; return; }
+    const l = Object.keys(DB).filter((k) => k.startsWith(q)).sort((a, b) => a.length - b.length || a.localeCompare(b)).slice(0, 6);
+    SUG.innerHTML = l.map((k) => `<button data-k="${k}">${k}</button>`).join(''); SUG.hidden = !l.length;
+    SUG.querySelectorAll('button').forEach((x) => (x.onmousedown = (e) => { e.preventDefault(); elegir(x.dataset.k); }));
+  };
+  BUS.onblur = () => setTimeout(() => (SUG.hidden = true), 100);
+  BUS.onkeydown = (e) => { if (e.key === 'Enter') { const f = SUG.hidden ? null : SUG.querySelector('button'); elegir(DB[BUS.value.toUpperCase().trim()] || !f ? BUS.value : f.dataset.k); } else if (e.key === 'Escape') SUG.hidden = true; };
 
   // ---------- ventana flotante con la ficha, la curva o el portfolio de Bonerío (la sección sola, como en el Dashboard) ----------
   const SITE = 'https://boneriolocal.com.ar/';
@@ -581,7 +599,7 @@
   let t, ultBoleta = null; const revisar = (muts) => {
     const nuestro = (m) => { const e = m.target.nodeType === 1 ? m.target : m.target.parentElement; return !e || P.contains(e) || (W && W.contains(e)) || e.closest('[data-bnr],.bnr-pin'); };
     if (muts.every(nuestro)) return; // cambios del propio panel o de nuestras filas
-    clearTimeout(t); t = setTimeout(() => {
+    if (t) return; t = setTimeout(() => { t = 0; /* cada 400 ms como mucho, sin reiniciar la espera: con el mercado abierto Matriz cambia algo todo el tiempo y la espera no terminaba nunca */
       const k = tickerBoleta(); if (k && k !== ultBoleta) { ultBoleta = activo = k; precioManual = false; } // cargó otro bono en la boleta
       if (!activo) activo = tickerVisible();
       if (!precioManual && document.activeElement !== B.querySelector('input')) pintar();
@@ -614,7 +632,6 @@
       }).catch(() => {}),
     ]);
   }).then(() => {
-    P.querySelector('#bnr-tk').innerHTML = Object.keys(DB).sort().map((k) => `<option value="${k}">`).join('');
     activo = tickerVisible(); pintar(); inyectar();
     try { (JSON.parse(localStorage.getItem('bnrPins') || '[]') || []).forEach((x) => fijar(x.k, x.q, x)); } catch (er) { } // las fichas fijas quedan de una vez para la otra
     new MutationObserver(revisar).observe(document.body, { childList: true, subtree: true, characterData: true });
