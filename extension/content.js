@@ -196,7 +196,7 @@
       `<label>Moneda en la boleta (bonos en dólares) <select data-mon style="margin-left:auto">${[['', 'Pesos'], ['D', 'MEP (D)'], ['C', 'CCL (C)']].map(([v, t]) => `<option value="${v}" ${(CFG.mon || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>`;
     CF.querySelectorAll('input,select').forEach((i) => (i.onchange = () => {
       if (i.hasAttribute('data-alp')) { CFG.alp = i.checked; if (i.checked) { sonar(); if (!W) ventana(null, null, true); } } else if (i.hasAttribute('data-mon')) CFG.mon = i.value; else if (i.hasAttribute('data-q')) CFG.qty = +i.value || 0; else if (i.hasAttribute('data-pm')) CFG.pm = i.checked ? 'm' : ''; else if (i.hasAttribute('data-qm')) { CFG.qm = i.checked ? 'm' : ''; CF.querySelector('[data-q]').disabled = i.checked; } else if (i.hasAttribute('data-on')) CFG.on = i.checked; else CFG.m = Object.keys(MET).filter((k) => CF.querySelector(`[data-m="${k}"]`).checked);
-      guardar(); inyectar(); phPins(); if (W) W.querySelectorAll('.subs .mon button').forEach((y) => y.classList.toggle('on', y.dataset.mon === (CFG.mon || '')));
+      guardar(); if (PRO === undefined && !W) ventana(null, null, true); /* sin la página todavía no se sabe si la cuenta es PRO: se carga escondida */ inyectar(); phPins(); if (W) W.querySelectorAll('.subs .mon button').forEach((y) => y.classList.toggle('on', y.dataset.mon === (CFG.mon || '')));
     }));
   }
   P.querySelector('.cf').onclick = () => { CF.hidden = !CF.hidden; if (!CF.hidden) pintarCfg(); };
@@ -399,7 +399,7 @@
   window.addEventListener('message', (e) => { // la página manda la altura de la sección (la ventana queda justa) o el bono que se tocó
     if (!W || !e.data || e.source !== W.querySelector('iframe').contentWindow) return;
     if (e.data.t === 'bnrDat') { if (/^[A-Z0-9]{3,10}$/.test(e.data.k || '')) { if (!e.data.d) { if ((NUL[e.data.k] = (NUL[e.data.k] || 0) + 1) < 20) setTimeout(() => { if (!DAT[e.data.k]) { delete DAT[e.data.k]; pedirDatos(e.data.k); } }, 1000); return; } DAT[e.data.k] = e.data.d; /* sin datos todavía (la página no terminó de cargar): se vuelve a pedir */ if (e.data.k === activo) { dxK = null; pintarDatos(); } const D = PINS.get(e.data.k), x = D && D.querySelector('.dx'); if (x && !x.hidden) montarDatos(x, e.data.k); } return; }
-    if (e.data.t === 'bnrPro') { const ant = PRO; PRO = e.data.p === true ? true : e.data.p === false ? false : null; if (ant !== PRO) pintar(); return; }
+    if (e.data.t === 'bnrPro') { const ant = PRO; PRO = e.data.p === true ? true : e.data.p === false ? false : null; if (ant !== PRO) { pintar(); if (bloqueado()) document.querySelectorAll('[data-bnr]').forEach((x) => x.remove()); else { inyectar(); refrescarPins(); } } return; }
     if (e.data.t === 'bnrTk' && bloqueado()) return;
     if (e.data.t === 'bnrPaseAl') { if (!bloqueado() && CFG.alp !== false) avisarPases(e.data.a || []); return; }
     if (e.data.t === 'bnrPata') { if (bloqueado()) return; const { k, pz, sd } = e.data, q = +e.data.q > 0 ? +e.data.q : 0, r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } PXP = { k, pz, p: +e.data.px > 0 ? +e.data.px : 0 }; msgPase = `${k} en ${pz === 'ci' ? 'CI' : '24 hs'}: revisá y apretá ${sd === 'c' ? 'COMPRAR' : 'VENDER'}.`; aBoleta(k, q, pz, 1); return; } // una pata del pase (con los nominales en cartera, si los cargaste en Pases), desde la tabla de Pases
@@ -598,6 +598,7 @@
 
   fetch(URL_CURVAS).then((r) => r.json()).then((d) => {
     FECHA = d.fecha;
+    if (PRO === undefined && !W && hoyAR() >= LIBRE_HASTA) setTimeout(() => { if (!W) ventana(null, null, true); }, 1500); // para saber si la cuenta es PRO hace falta la página: se carga escondida, así los recuadros aparecen sin abrir la curva
     for (const [g, l] of Object.entries(d.grupos)) { GRP[g] = l; l.forEach((b) => (DB[b.ticker] = Object.assign({ grupo: g }, b))); }
     return Promise.all([
       fetch(DATA + 'tasas.json').then((r) => r.json()).then((t) => { // futuros de dólar: último cierre y el A3500
