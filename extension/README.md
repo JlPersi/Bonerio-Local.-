@@ -16,6 +16,10 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 
 **A la boleta:** «→ Boleta» o un clic en un punto de un gráfico o en una fila de una tabla de la ventana escribe el ticker en «Instrumento» de Matriz y elige la sugerencia de 24 hs, en la moneda elegida en ⚙ (pesos, MEP «D» o CCL «C») para los bonos en dólares. Después completa «Precio» con el último (o el cierre anterior) del recuadro de ese ticker en Matriz o, si no hay recuadro, con el «Últ» del Mini-Panel de precios (y, si tampoco está, con el cierre de Bonerío, avisando en el panel) y «Cantidad» con la cantidad por defecto (⚙). No aprieta Comprar ni Vender: eso lo hace el usuario.
 
+## 1.1.3
+- Recuadros: con el mercado abierto Matriz cambia algo todo el tiempo y la espera para dibujar no terminaba nunca; ahora se dibuja cada 400 ms como mucho. Si el recuadro no tiene una fila Pos / P&L para copiar, van filas propias debajo.
+- Buscador: sugerencias propias (hasta 6) recién al escribir, en vez de la lista del navegador.
+
 ## 1.1.2
 - Los datos en los recuadros aparecen sin abrir la curva (la página, que dice si la cuenta es PRO, se carga escondida al empezar).
 
