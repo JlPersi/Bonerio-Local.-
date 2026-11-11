@@ -16082,7 +16082,7 @@ window.RATG = (function () {
   function load() {
     if (!isAct() && !alOn()) return; if (busy) { busy = 2; return; } busy = 1; var L = list(); T0 = Date.now(); // si cambian las especies mientras pide, vuelve a pedir al terminar
     if (!L.length) { busy = 0; setTimeout(load, 1500); return; }
-    var p1 = fetch(B() + '/cim?t=' + L.map(function (r) { return r.t; }).join(','), { cache: 'no-store' }).then(function (r) { if (r.status === 403) { ERR = 'pro'; return null; } return r.ok ? r.json() : null; }).then(function (j) { if (j && j.d) { D = j; ERR = ''; } else if (ERR !== 'pro') ERR = 'sin'; });
+    var p1 = fetch(B() + '/cim?s=' + L.map(function (r) { return r.t; }).join(','), { cache: 'no-store' }).then(function (r) { if (r.status === 403) { ERR = 'pro'; return null; } return r.ok ? r.json() : null; }).then(function (j) { if (j && j.d) { D = j; ERR = ''; } else if (ERR !== 'pro') ERR = 'sin'; });
     var p2 = fetch(B() + '/book/CAU-' + O.m, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j) CAU[O.m] = j; }).catch(function () {});
     var fin = function () { var a = busy === 2; busy = 0; draw(); alerta(); if (a) load(); };
     Promise.all([p1.catch(function () { ERR = ERR || 'sin'; }), p2]).then(fin, fin);
