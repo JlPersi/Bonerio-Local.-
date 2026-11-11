@@ -83,14 +83,19 @@
       let a = lab.parentElement, hit = null;
       for (let i = 0; a && i < 16 && !hit; i++, a = a.parentElement) { // sube hasta el recuadro: sin salir a otro recuadro ni al resto de Matriz, y sin leer botones (BYMA, MERV… son botones de Matriz)
         const tx = a.innerText || a.textContent || ''; if (tx.length > 3000 || (i && [...a.querySelectorAll('*')].filter((x) => !x.children.length && /^Cierre\s+Ant\.?\s*:?$/i.test((x.textContent || '').trim())).length > 1)) break;
-        for (const el of a.querySelectorAll('*')) { if (el.children.length || el.closest('button,a,nav,#bnr-panel,#bnr-win,.bnr-pin,[data-bnr]')) continue; const w = ((el.textContent || '').trim().toUpperCase().match(TOK) || [])[0], r = w && tk(w); if (r) { hit = { el: a, k: r[0], suf: r[1] }; break; } }
+        for (const el of a.querySelectorAll('*')) { if (el.closest('button,a,nav,#bnr-panel,#bnr-win,.bnr-pin,[data-bnr]')) continue; const tx0 = el.children.length ? [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('') : el.textContent; /* el título puede tener un ícono adentro: vale su texto propio */ const w = ((tx0 || '').trim().toUpperCase().match(TOK) || [])[0], r = w && tk(w); if (r) { hit = { el: a, k: r[0], suf: r[1] }; break; } }
       }
       if (hit && !out.some((o) => o.el === hit.el)) out.push(hit);
     }
     return out;
   }
+  function ultRec(c) { // el último operado del recuadro: el número grande de arriba, el que va antes de la variación «(0,36 %)»
+    const h = [...c.el.querySelectorAll('*')].filter((e) => !e.children.length && !e.closest('[data-bnr]')), t = h.map((e) => (e.textContent || '').trim()), i = t.findIndex((x) => /^\(?\s*[-+]?[\d.,]+\s*%\s*\)?$/.test(x));
+    for (let j = i - 1; j >= 0 && j >= i - 4; j--) { const v = /^[\d.,]+$/.test(t[j]) ? num(t[j]) : NaN; if (v > 0) return v; }
+    return valorJunto(c.el, /^Cierre:?$/);
+  }
   function precioDe(c) {
-    const u = valorJunto(c.el, /^Cierre:?$/); if (u > 0) return [u, 'último'];
+    const u = ultRec(c); if (u > 0) return [u, 'último'];
     const v = valorJunto(c.el, /^Cierre Ant\.?:?$/); if (v > 0) return [v, 'cierre anterior'];
     return [NaN, ''];
   }
@@ -109,7 +114,7 @@
   function pantalla() { // los precios que muestra tu Matriz, en vivo: {AL30: {ci: [último, compra, venta], h: [...]}}; recuadros con libro y, si no, el Mini-Panel (24 hs)
     const o = {};
     for (const c of recuadros()) {
-      const s = c.k + c.suf, pz = plazoDe(c.el) === 'ci' ? 'ci' : 'h', u = valorJunto(c.el, /^Cierre:?$/), [b, a] = libro(c, u > 0 ? u : valorJunto(c.el, /^Cierre Ant\.?:?$/));
+      const s = c.k + c.suf, pz = plazoDe(c.el) === 'ci' ? 'ci' : 'h', u = ultRec(c), [b, a] = libro(c, u > 0 ? u : valorJunto(c.el, /^Cierre Ant\.?:?$/));
       if (u > 0 || b > 0 || a > 0) (o[s] = o[s] || {})[pz] = [u > 0 ? u : 0, b > 0 ? b : 0, a > 0 ? a : 0];
     }
     for (const el of document.querySelectorAll('body *')) {
