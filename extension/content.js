@@ -398,18 +398,18 @@
   }
   window.addEventListener('message', (e) => { // la página manda la altura de la sección (la ventana queda justa) o el bono que se tocó
     if (!W || !e.data || e.source !== W.querySelector('iframe').contentWindow) return;
-    if (e.data.t === 'bnrDat') { if (/^[A-Z0-9]{3,10}$/.test(e.data.k || '')) { DAT[e.data.k] = e.data.d || null; if (e.data.k === activo) { dxK = null; pintarDatos(); } const D = PINS.get(e.data.k), x = D && D.querySelector('.dx'); if (x && !x.hidden) montarDatos(x, e.data.k); } return; }
+    if (e.data.t === 'bnrDat') { if (/^[A-Z0-9]{3,10}$/.test(e.data.k || '')) { if (!e.data.d) { if ((NUL[e.data.k] = (NUL[e.data.k] || 0) + 1) < 20) setTimeout(() => { if (!DAT[e.data.k]) { delete DAT[e.data.k]; pedirDatos(e.data.k); } }, 1000); return; } DAT[e.data.k] = e.data.d; /* sin datos todavía (la página no terminó de cargar): se vuelve a pedir */ if (e.data.k === activo) { dxK = null; pintarDatos(); } const D = PINS.get(e.data.k), x = D && D.querySelector('.dx'); if (x && !x.hidden) montarDatos(x, e.data.k); } return; }
     if (e.data.t === 'bnrPro') { const ant = PRO; PRO = e.data.p === true ? true : e.data.p === false ? false : null; if (ant !== PRO) pintar(); return; }
     if (e.data.t === 'bnrTk' && bloqueado()) return;
     if (e.data.t === 'bnrPaseAl') { if (!bloqueado() && CFG.alp !== false) avisarPases(e.data.a || []); return; }
     if (e.data.t === 'bnrPata') { if (bloqueado()) return; const { k, pz, sd } = e.data, q = +e.data.q > 0 ? +e.data.q : 0, r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } PXP = { k, pz, p: +e.data.px > 0 ? +e.data.px : 0 }; msgPase = `${k} en ${pz === 'ci' ? 'CI' : '24 hs'}: revisá y apretá ${sd === 'c' ? 'COMPRAR' : 'VENDER'}.`; aBoleta(k, q, pz, 1); return; } // una pata del pase (con los nominales en cartera, si los cargaste en Pases), desde la tabla de Pases
     if (e.data.t === 'bnrTk') { PXV = e.data.px && typeof e.data.px === 'object' ? e.data.px : {}; const k = aMatriz(e.data.k), r = tk(k); if (r) { activo = r[0]; precioManual = false; pintar(); } aBoleta(k); return; }
     if (e.data.t !== 'bnrH') return;
-    if (!LISTO) setTimeout(darTok, 0); LISTO = true; encajar(Math.max(150, +e.data.h || 0));
+    if (!LISTO) setTimeout(darTok, 0); else if (reSec && Date.now() - reSec > 300 && Date.now() - reSec < 20000) { reSec = 0; W.dataset.sec = ''; setTimeout(() => ventana(null, null, W.style.display === 'none' || W.style.visibility === 'hidden'), 0); } /* la página se recargó con tu sesión: vuelve a la sección que estabas mirando */ LISTO = true; encajar(Math.max(150, +e.data.h || 0));
     if (Date.now() - esperaH > 40) { setTimeout(() => cargando(false), 50); if (vista === 'curva') plazo(W.dataset.g); } // la sección nueva ya está: aparece con un fundido
   });
-  let ultH = 0, FIJ = null, esperaH = 0, cgT = 0, SES = null;
-  const darTok = () => { const f = W && LISTO && W.querySelector('iframe'); if (f && f.contentWindow && SES) f.contentWindow.postMessage({ t: 'bnrTok', k: SES.k, v: SES.v }, '*'); }; // la sesión de Bonerío (copiada por auth.js desde boneriolocal.com.ar) a la ventana
+  let reSec = 0, ultH = 0, FIJ = null, esperaH = 0, cgT = 0, SES = null;
+  const darTok = () => { const f = W && LISTO && W.querySelector('iframe'); if (f && f.contentWindow && SES) reSec = Date.now(), f.contentWindow.postMessage({ t: 'bnrTok', k: SES.k, v: SES.v }, '*'); }; // la sesión de Bonerío (copiada por auth.js desde boneriolocal.com.ar) a la ventana
   try { chrome.storage.local.get('bnrTok', (o) => { SES = (o && o.bnrTok) || null; darTok(); }); chrome.storage.onChanged.addListener((c) => { if (c.bnrTok) { SES = c.bnrTok.newValue || null; darTok(); } }); } catch (er) { }
   setInterval(() => { // los precios de tu Matriz (recuadros y Mini-Panel) van a la ventana: curvas, bonos y pases se calculan con lo que ves, en tiempo real
     const f = W && LISTO && W.querySelector('iframe'); if (!f || !f.contentWindow) return;
@@ -515,9 +515,9 @@
 
   // ---------- datos y calculadora del bono, en el panel (los mismos cálculos de la ficha de Bonerío: la página los manda) ----------
   const DX = document.createElement('div'); DX.className = 'dx'; DX.hidden = true; B.after(DX);
-  const DAT = {}; let dxK = null, pideN = 0;
+  const DAT = {}, NUL = {}; let dxK = null, pideN = 0;
   function pedirDatos(k) {
-    if (k in DAT) return; if (!W) ventana(null, null, true); // la página de Bonerío se carga escondida
+    if (DAT[k]) return; if (!W) ventana(null, null, true); // la página de Bonerío se carga escondida
     if (!LISTO) { if (++pideN < 60) setTimeout(() => pedirDatos(k), 500); return; }
     pideN = 0; W.querySelector('iframe').contentWindow.postMessage({ t: 'bnrDatos', k }, '*');
   }
