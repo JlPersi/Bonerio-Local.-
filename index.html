@@ -15953,13 +15953,14 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
 /* ---------- Screener: todo el mercado de renta fija con filtros (soberanos, ONs y provinciales; datos que ya carga la página) ---------- */
 (function () {
   var root = document.getElementById('scr'); if (!root) return; root.classList.add('blx');
-  var K = 'blScr1', F = { u: ['usd', 'fija', 'cer', 'tamar', 'dual', 'dl', 'on', 'pv'], tir0: '', tir1: '', md0: '', md1: '', d0: '', d1: '', vol: '', par0: '', par1: '', cal: '', ley: '', q: '', s: 'tir', dir: -1 };
+  var K = 'blScr1', F = { u: ['usd', 'fija', 'cer', 'tamar', 'dual', 'dl', 'onu', 'on', 'pvu', 'pv'], v2: 1, tir0: '', tir1: '', md0: '', md1: '', d0: '', d1: '', vol: '', par0: '', par1: '', cal: '', ley: '', q: '', s: 'tir', dir: -1 };
   try { Object.assign(F, JSON.parse(localStorage.getItem(K) || '{}')); } catch (e) {}
+  if (!F.v2) { F.v2 = 1; if (F.u.indexOf('on') >= 0) F.u.push('onu'); if (F.u.indexOf('pv') >= 0) F.u.push('pvu'); } // ONs y provinciales se separan en dólares y en pesos
   var save = function () { try { localStorage.setItem(K, JSON.stringify(F)); } catch (e) {} };
   var $ = function (id) { return document.getElementById(id); };
   var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
-  var GN = { usd: 'Soberanos USD', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dual: 'Duales', dl: 'Dólar linked', on: 'ONs', pv: 'Provinciales' };
+  var GN = { usd: 'Soberanos USD', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dual: 'Duales', dl: 'Dólar linked', onu: 'ONs USD', on: 'ONs en pesos', pvu: 'Provinciales USD', pv: 'Provinciales en pesos' };
   var RK = ['AAA', 'AA+', 'AA', 'AA-', 'A+', 'A', 'A-', 'BBB+', 'BBB', 'BBB-', 'BB+', 'BB', 'BB-', 'B+', 'B', 'B-', 'CCC', 'CC', 'C', 'D'];
   var rk = function (c) { if (!c) return 99; var m = /^([A-D]{1,3}[+-]?)/.exec(String(c).toUpperCase()); var i = m ? RK.indexOf(m[1]) : -1; return i < 0 ? 99 : i; };
   var CAL = null; fetch('data/calificaciones.json').then(function (r) { return r.ok ? r.json() : {}; }).then(function (j) { CAL = j || {}; draw(); }).catch(function () { CAL = {}; });
@@ -15968,10 +15969,10 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
     var out = [], V = window.VOLX && window.VOLX.adtv || {};
     var vol = function (k, al) { return V[k] || (al && V[al]) || V[k + 'D'] || 0; };
     try { (window.PFQ && window.PFQ.universe() || []).forEach(function (r) { var vt = window.BONO && window.BONO.vt ? window.BONO.vt(r.k) : null;
-      var gg = /^ON /.test(r.tipo || '') ? 'on' : /^Provincial /.test(r.tipo || '') ? 'pv' : r.grp; // las ONs y provinciales TAMAR / BADLAR van con su grupo
-      out.push({ k: r.k, g: gg, tipo: r.tipo || '', P: r.P, ccy: r.pccy, tir: r.tir, tna: r.tna, md: r.md, d: r.d, mat: r.mat, tl: r.tl, vol: vol(r.k), par: vt > 0 ? r.P / vt : null, cal: (gg === 'on' || gg === 'pv') ? calOf(((r.tipo || '').match(/·\s*(.+)$/) || [])[1] || '') : null, ley: /ley (NY|Nueva York)|Global/i.test(r.tipo || '') ? 'ny' : 'local' }); }); } catch (e) { console.error('scr sob', e); }
+      var gg = /^ON /.test(r.tipo || '') ? 'on' : /^Provincial /.test(r.tipo || '') ? 'pv' : r.grp; if ((gg === 'on' || gg === 'pv') && r.grp === 'usd') gg += 'u'; // en dólares (hard dollar) o en pesos // las ONs y provinciales TAMAR / BADLAR van con su grupo
+      out.push({ k: r.k, g: gg, tipo: r.tipo || '', P: r.P, ccy: r.pccy, tir: r.tir, tna: r.tna, md: r.md, d: r.d, mat: r.mat, tl: r.tl, vol: vol(r.k), par: vt > 0 ? r.P / vt : null, cal: /^(on|pv)/.test(gg) ? calOf(((r.tipo || '').match(/·\s*(.+)$/) || [])[1] || '') : null, ley: /ley (NY|Nueva York)|Global/i.test(r.tipo || '') ? 'ny' : 'local' }); }); } catch (e) { console.error('scr sob', e); }
     [['on', window.ONSQ], ['pv', window.PVSQ]].forEach(function (x) { if (!x[1]) return; try { x[1].bono(function () { draw(); }).forEach(function (r) { var em = (r.tipo || '').split(' · ')[1] || '';
-      out.push({ k: r.k, g: x[0], tipo: r.tipo || '', P: r.P, ccy: r.ty === 'usd' || r.usdOn ? 'USD' : 'ARS', tir: r.tir, tna: r.tna, md: r.md, d: r.d, mat: r.mat, tl: r.tl, vol: vol(r.k, r.al), par: r.vt > 0 ? r.P / r.vt : null, cal: x[0] === 'on' ? calOf(em) : null, ley: '' }); }); } catch (e) { console.error('scr corp', e); } });
+      out.push({ k: r.k, g: x[0] + (r.ty === 'usd' ? 'u' : ''), tipo: r.tipo || '', P: r.P, ccy: r.ty === 'usd' || r.usdOn ? 'USD' : 'ARS', tir: r.tir, tna: r.tna, md: r.md, d: r.d, mat: r.mat, tl: r.tl, vol: vol(r.k, r.al), par: r.vt > 0 ? r.P / r.vt : null, cal: x[0] === 'on' ? calOf(em) : null, ley: '' }); }); } catch (e) { console.error('scr corp', e); } });
     var seen = {}; return out.filter(function (r) { if (seen[r.k] || !(r.tir > -0.5 && r.tir < (/d[oó]lar|real|CER/i.test(r.tl || '') || r.ccy === 'USD' ? 0.5 : 0.9)) || !(r.d >= 7) || !(r.P > 0)) return false; seen[r.k] = 1; return true; }); // sin repetidos ni TIR que no tienen sentido (a días del vencimiento o precio en otra moneda)
   }
   var num = function (v) { v = String(v).replace(',', '.'); return v === '' || isNaN(+v) ? null : +v; };
@@ -15983,16 +15984,17 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
     if ((a = num(F.d0)) != null && !(r.d >= a * 365)) return false; if ((a = num(F.d1)) != null && !(r.d <= a * 365)) return false;
     if ((a = num(F.vol)) != null && !(r.vol >= a * 1e6)) return false;
     if ((a = num(F.par0)) != null && !(r.par * 100 >= a)) return false; if ((a = num(F.par1)) != null && !(r.par * 100 <= a)) return false;
-    if (F.cal && (r.g === 'on' ? rk(r.cal) > rk(F.cal) : r.g !== 'pv' ? false : false)) return false;
+    if (F.cal && (r.g === 'on' || r.g === 'onu') && rk(r.cal) > rk(F.cal)) return false;
     if (F.ley && r.g === 'usd' && r.ley !== F.ley) return false;
+    if (F.ley && (r.g === 'onu' || r.g === 'pvu')) { var x = window.BLLAM ? window.BLLAM(r.k) : null, l = x && x.l; if (!l || (F.ley === 'local') !== (l === 'Argentina')) return false; } // ONs y provinciales en dólares: la ley de la ficha técnica de BYMA
     if (F.q && (r.k + ' ' + r.tipo).toLowerCase().indexOf(F.q.toLowerCase()) < 0) return false;
     return true;
   }
   var COLS = [['k', 'Bono'], ['g', 'Grupo'], ['P', 'Precio'], ['tir', 'TIR'], ['tna', 'TNA'], ['md', 'MD'], ['d', 'Vence en'], ['vol', 'Vol. prom. 20d'], ['par', 'Paridad'], ['cal', 'Calif.']];
-  var PRE = [['Rinden más del 10% en USD', { u: ['usd', 'on', 'pv'], tir0: '10', tir1: '', md0: '', md1: '', d0: '', d1: '', vol: '', par0: '', par1: '', cal: '', ley: '' }],
+  var PRE = [['Rinden más del 10% en USD', { u: ['usd', 'onu', 'pvu'], tir0: '10', tir1: '', md0: '', md1: '', d0: '', d1: '', vol: '', par0: '', par1: '', cal: '', ley: '' }],
     ['Líquidos (+$1.000 M por día)', { vol: '1000', tir0: '', tir1: '', md0: '', md1: '', d0: '', d1: '', par0: '', par1: '', cal: '', ley: '' }],
     ['Bajo la par', { par1: '100', par0: '', tir0: '', tir1: '', md0: '', md1: '', d0: '', d1: '', vol: '', cal: '', ley: '' }],
-    ['ONs AA o mejor, más de 7%', { u: ['on'], cal: 'AA', tir0: '7', tir1: '', md0: '', md1: '', d0: '', d1: '', vol: '', par0: '', par1: '', ley: '' }],
+    ['ONs USD AA o mejor, más de 7%', { u: ['onu'], cal: 'AA', tir0: '7', tir1: '', md0: '', md1: '', d0: '', d1: '', vol: '', par0: '', par1: '', ley: '' }],
     ['Cortos (menos de 1 año)', { d1: '1', d0: '', tir0: '', tir1: '', md0: '', md1: '', vol: '', par0: '', par1: '', cal: '', ley: '' }]];
   var inp = function (id, ph, w) { return '<input id="' + id + '" placeholder="' + ph + '" inputmode="decimal" style="width:' + (w || 70) + 'px" value="' + esc(F[id.slice(2)] || '') + '">'; };
   root.innerHTML = '<div class="card sx" id="scrC1"><div class="sxh"><div style="min-width:0"><p class="qh">Screener de renta fija</p><p class="qs">Todo el mercado en una tabla: soberanos en dólares y en pesos, ONs y provinciales. Filtrá por TIR, duración, plazo, volumen, paridad y calificación. Tocá un bono para abrir su ficha. Los filtros quedan guardados.</p></div><div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'scrC1\', \'Bonerio_Screener\')" title="Descargar imagen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>' +
@@ -16000,10 +16002,11 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
     '<div class="ctl" style="margin-top:14px"><label>TIR (%)<span class="rg">' + inp('scTir0', 'mín') + '–' + inp('scTir1', 'máx') + '</span></label><label>Duración modificada<span class="rg">' + inp('scMd0', 'mín') + '–' + inp('scMd1', 'máx') + '</span></label><label>Vence en (años)<span class="rg">' + inp('scD0', 'mín') + '–' + inp('scD1', 'máx') + '</span></label>' +
     '<label>Volumen prom. mín. ($ M)' + inp('scVol', 'ej. 500', 100) + '</label><label>Paridad (%)<span class="rg">' + inp('scPar0', 'mín') + '–' + inp('scPar1', 'máx') + '</span></label>' +
     '<label>Calificación mín. (ONs)<select id="scCal"><option value="">Todas</option>' + ['AAA', 'AA', 'A', 'BBB', 'BB', 'B'].map(function (c) { return '<option' + (F.cal === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></label>' +
-    '<label>Ley (soberanos USD)<select id="scLey"><option value="">Todas</option><option value="local"' + (F.ley === 'local' ? ' selected' : '') + '>Local (Bonares)</option><option value="ny"' + (F.ley === 'ny' ? ' selected' : '') + '>NY (Globales)</option></select></label>' +
+    '<label title="Soberanos: Bonares (local) o Globales (NY). ONs y provinciales en dólares: la ley de la ficha técnica de BYMA (si no la informa, se deduce del ISIN)">Ley (en dólares)<select id="scLey"><option value="">Todas</option><option value="local"' + (F.ley === 'local' ? ' selected' : '') + '>Argentina (Bonares y locales)</option><option value="ny"' + (F.ley === 'ny' ? ' selected' : '') + '>NY / extranjera (Globales e internacionales)</option></select></label>' +
     '<label style="flex:1 1 160px">Buscar<input id="scQ" placeholder="Ticker o emisor" value="' + esc(F.q) + '"></label></div>' +
     '<div class="chips pr"><span class="qs" style="margin:4px 4px 0 0">Atajos:</span>' + PRE.map(function (p, i) { return '<button type="button" data-p="' + i + '">' + p[0] + '</button>'; }).join('') + '<button type="button" data-p="x">Limpiar filtros</button></div></div>' +
     '<div class="card sx" id="scrC2" style="margin-top:24px"><div class="sxh"><div style="min-width:0"><p class="qh" id="scN">Resultados</p><p class="qs">TIR en la unidad de cada bono: en dólares los hard dollar, real (sobre CER) los CER, nominal en pesos el resto. Volumen: promedio diario de las últimas 20 ruedas, en pesos. Paridad: precio sobre valor técnico.</p></div><div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" style="flex:none" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'scrC2\', \'Bonerio_Screener\')" title="Descargar imagen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div><div class="wrap" style="overflow-x:auto"><table id="scT"></table></div></div>';
+  document.addEventListener('bllam', function () { if (F.ley && root.classList.contains('active')) draw(); });
   function syncU() { [].forEach.call(root.querySelectorAll('[data-u]'), function (b) { b.classList.toggle('on', F.u.indexOf(b.getAttribute('data-u')) >= 0); }); }
   function sync() { ['Tir0', 'Tir1', 'Md0', 'Md1', 'D0', 'D1', 'Vol', 'Par0', 'Par1'].forEach(function (x) { $('sc' + x).value = F[x.toLowerCase()] || ''; }); $('scCal').value = F.cal || ''; $('scLey').value = F.ley || ''; $('scQ').value = F.q || ''; syncU(); }
   function draw() {
