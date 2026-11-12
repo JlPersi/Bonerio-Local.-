@@ -6853,6 +6853,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   }
   function shortest2(o) { var r = {}; keys(o).forEach(function (d) { var x = (o[d] || []).filter(function (q) { return q[1] && dn(q[1]) - dn(d) >= 10; })[0]; if (x) r[d] = x[2]; }); return r; } // futuro de caución más cercano (10 días o más)
   function getS() { if (!SS && TJ) SS = build(); return SS; }
+  window.BLFUT = function (k) { var S = getS(); if (!S) return 0; var f = [].concat(S.futV || [], S.fut || []).filter(function (x) { return x.s === k; })[0]; return f && f.F > 0 ? f.F : 0; }; // extensión de Matriz: el último del futuro (en vivo o el cierre de la última rueda)
   var cp = function (r) { return r ? (r[3] || r[4] || r[5] || (r[1] && r[2] ? (r[1] + r[2]) / 2 : null)) : null; }; // tasa de una fila de BYMA: última, cierre, vwap o punto medio
   function intraOf(kind, k) { // la última rueda con intradiario de ese instrumento: {d, p: [[minuto, valor, cantidad]], dias}
     var dd = keys(INT).reverse();
@@ -10344,7 +10345,8 @@ window.USTX = (function () {
     var bubUp = function () { if (window.Chart && Chart.instances) Object.keys(Chart.instances).forEach(function (i) { try { Chart.instances[i].update('none'); } catch (er) { } }); };
     (function reg() { if (window.Chart && Chart.register) { try { Chart.register(bubPl); } catch (er) { } } else setTimeout(reg, 300); })();
     var lvPx = window.BLLV = function (k) { var B = window.BLS, o = {}, vv = B && B.ok && !B.dem && B.by; // en vivo (PRO): el último de cada especie del bono; si no, el de data912
-      var b = /O$/.test(k) ? k.slice(0, -1) : k; [k, k + 'D', k + 'C', b + 'D', b + 'C'].forEach(function (s) { var r = vv && B.by[s]; if (r && r.c > 0) o[s] = r.c; else if (D9[s] > 0) o[s] = D9[s]; }); return o; };
+      var b = /O$/.test(k) ? k.slice(0, -1) : k; [k, k + 'D', k + 'C', b + 'D', b + 'C'].forEach(function (s) { var r = vv && B.by[s]; if (r && r.c > 0) o[s] = r.c; else if (D9[s] > 0) o[s] = D9[s]; });
+      var mf = /^(?:DLR[ \/])?([A-Z]{3})(\d{2})$/.exec(k), fv = mf && window.BLFUT ? window.BLFUT('DLR/' + mf[1] + mf[2]) : 0; if (fv > 0) o['DLR/' + mf[1] + mf[2]] = fv; /* futuros de dólar */ return o; };
     document.addEventListener('click', function (e) { // extensión de Matriz: el ticker del punto del gráfico o de la fila que se tocó, para cargarlo en la boleta
       var k = null, c = e.target.closest && e.target.closest('canvas'), ch = c && window.Chart && Chart.getChart && Chart.getChart(c);
       if (ch) { var pos = Chart.helpers.getRelativePosition(e, ch), L = [].concat(ch.getElementsAtEventForMode(e, 'nearest', { intersect: true }, false), ch.tooltip && ch.tooltip.getActiveElements ? ch.tooltip.getActiveElements() : [], (function () { var o = []; ch.data.datasets.forEach(function (d, i) { if (!ch.isDatasetVisible(i)) return; ch.getDatasetMeta(i).data.forEach(function (p, j) { var r = Math.hypot(p.x - pos.x, p.y - pos.y); if (r < 22) o.push({ datasetIndex: i, index: j, r: r }); }); }); return o.sort(function (a, b) { return a.r - b.r; }); })()); // el punto tocado, el del tooltip o el más cercano a menos de 22 px (las líneas de la curva no tienen ticker y se saltean)
