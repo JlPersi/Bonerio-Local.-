@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Valor nominal en circulación de las ONs y provinciales (data/ons.json y data/pvs.json), de la ficha técnica de BYMA (datos abiertos, sin credenciales).
 Sirve para el Calendario de cobros: lo que paga cada emisor = flujo cada 100 VN × VN en circulación.
-Sale data/ons_vn.json: {"act": fecha, "t": {ticker: [VN emitido, VN residual, moneda]}} (montoNominal y montoResidual de BYMA, en unidades). Lo que BYMA no devuelve se conserva de la corrida anterior.
+Sale data/ons_vn.json: {"act": fecha, "t": {ticker: [VN emitido, VN residual, moneda, lámina mínima, ley, país de la ley, ISIN]}} (montoNominal, montoResidual, denominacionMinima, ley, paisLey y codigoIsin de BYMA; VN en unidades). Lo que BYMA no devuelve se conserva de la corrida anterior.
 Uso: python3 scripts/save_ons_vn.py [--max N] [--log]   (corre en el Action "ONs: VN en circulación"; desde el sandbox BYMA no responde)"""
 import datetime as dt, json, os, re, sys, time, urllib.request
 
@@ -71,7 +71,7 @@ def main():
                 print(k, sym, json.dumps(P, ensure_ascii=False)[:1500])
             d = next((x for x in (j.get("data") or []) if isinstance(x, dict)), None) if isinstance(j, dict) else None
             if d and num(d.get("montoNominal")):
-                got = [num(d.get("montoNominal")), num(d.get("montoResidual")), d.get("moneda") or ""]
+                got = [num(d.get("montoNominal")), num(d.get("montoResidual")), d.get("moneda") or "", num(d.get("denominacionMinima")), (d.get("ley") or "").strip(), (d.get("paisLey") or "").strip(), (d.get("codigoIsin") or "").strip()]
             if got:
                 break
             time.sleep(0.2)
