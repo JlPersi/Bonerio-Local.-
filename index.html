@@ -4470,6 +4470,13 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   var CORP = function (g) { return g === 'on' || g === 'pv'; }; // ONs y provinciales: se suman solo si se eligen
   var GR = '#34d399', RD = '#ff6b8b', NE = '#a1a1aa';
   var ST = { n: 1, vm: 'acum', grp: 'usd', sort: 'dpct', dir: -1, mU: window.USD_MODEL || 'log', mP: 'log', cap: 0, dual: '0', ax: 'md', axU: 'md', sh: 'hide', b0: 0, e1: 0, bub: true }, PCT = {}, BUB = null, REF1 = 0, DATA = null, CH = null, timer = null;
+  var EMV = { on: [], pv: [] }; ST.sec = ''; try { var e0 = JSON.parse(localStorage.getItem('vdEm1') || '{}'); if (Array.isArray(e0.on)) EMV.on = e0.on; if (Array.isArray(e0.pv)) EMV.pv = e0.pv; if (typeof e0.sec === 'string') ST.sec = e0.sec; } catch (e) { } // ONs y provinciales: filtro por empresa / provincia y por sector, como en sus pestañas
+  var emSel = function () { return EMV[ST.grp === 'pv' ? 'pv' : 'on']; }, emSave = function () { try { localStorage.setItem('vdEm1', JSON.stringify({ on: EMV.on, pv: EMV.pv, sec: ST.sec })); } catch (e) { } };
+  var secOf = function (em) { try { return window.ONSQ && window.ONSQ.sec ? window.ONSQ.sec(em) : ''; } catch (e) { return ''; } }, EMC = {};
+  var emOk = function (r) { if (r.grp !== 'on' && r.grp !== 'pv') return true; var L = EMV[r.grp]; if (L.length && L.indexOf(r.em) < 0) return false; return !(r.grp === 'on' && ST.sec && secOf(r.em) !== ST.sec); };
+  function emUI() { var el = document.getElementById('vdEmL'); if (!el) return; var L = emSel(), q = (document.getElementById('vdEmQ').value || '').trim().toLowerCase(), ks = Object.keys(EMC).sort(function (a, b) { return (L.indexOf(b) >= 0) - (L.indexOf(a) >= 0) || a.localeCompare(b, 'es'); });
+    document.getElementById('vdEmB').textContent = L.length ? (L.length <= 2 ? L.join(', ') : L[0] + ' y ' + (L.length - 1) + ' más') : 'Todas';
+    el.innerHTML = ks.filter(function (n) { return !q || n.toLowerCase().indexOf(q) >= 0; }).map(function (n) { return '<label><input type="checkbox" data-em="' + n.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;') + '"' + (L.indexOf(n) >= 0 ? ' checked' : '') + '>' + n.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '<small>' + EMC[n] + '</small></label>'; }).join('') || '<p style="margin:8px 6px;color:var(--mu);font-size:13px">Nada con ese nombre.</p>'; }
   var HOST = null, OWN = null; // HOST: la pestaña Resumen, que muestra esta misma tarjeta con su período (b0/e1: fechas elegidas, en días)
   var dstr = function (t) { return bxDayStr(t).split('-').reverse().slice(0, 2).join('/'); };
   var dfull = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
@@ -4617,6 +4624,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     root.innerHTML =
       '<style>' +
       '.vdw .vdc{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}.vdw .vdc label{min-width:0}.vdw .vdc select{width:210px}' +
+      '.vdw .vdc .lbl{display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--mu);position:relative}.vdw .emB{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:10px 30px 10px 14px;font:inherit;width:210px;max-width:100%;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}.vdw .emB:after{content:"▾";position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--mu)}' +
+      '.vdw .emP{position:absolute;top:100%;left:0;z-index:60;margin-top:6px;width:290px;max-width:calc(100vw - 32px);background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px;box-shadow:0 14px 34px rgba(0,0,0,.35)}.vdw .emP input[type=search]{width:100%;padding:8px 10px;font-size:13px;box-sizing:border-box}.vdw .emL{max-height:300px;overflow:auto;margin-top:8px}' +
+      '.vdw .vdc .emL label{display:flex;flex-direction:row;align-items:center;gap:8px;padding:6px;border-radius:8px;color:var(--tx);font-size:13px;cursor:pointer}.vdw .vdc .emL label:hover{background:var(--bg)}.vdw .emL input{width:auto;padding:0;margin:0}.vdw .emL small{margin-left:auto;color:var(--mu);font-size:12px}.vdw .emF{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:var(--mu)}.vdw .emF button{background:none;border:0;color:var(--ac);cursor:pointer;font:inherit;font-weight:600}' +
       '.vdw .vdt{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}.vdw .vdt th,.vdw .vdt td{padding:7px 10px;white-space:nowrap}' +
       '.vdw .vdt th{cursor:pointer;user-select:none;font-size:12px;position:sticky;top:0;background:var(--card);z-index:1}.vdw .vdt th.on{color:var(--ac)}' +
       '.vdw .vdt td.k{font-weight:700;text-align:left;color:var(--ok)}.vdw .vdt td.l,.vdw .vdt th.l{text-align:left}.vdw .vdt td.r{text-align:right}.vdw .vdt tr:hover td{background:rgba(161,161,170,.08)}' +
@@ -4631,7 +4641,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '</style>' +
       '<div class="card sx" id="vdCap"><div class="sxh"><div style="min-width:0"><p class="qh" id="vdTit">Variación diaria contra el cierre anterior</p><p class="qs keep" id="vdInfo"></p></div>' +
       '<div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'vdCap\', \'Soberanos_Variacion_Diaria\')" title="Descargar en HD"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>' +
-      '<div class="vdc sxc"><label>Grupo<select id="vdG"></select></label><label>Comparar contra<select id="vdN"><option value="1">Ayer (cierre anterior)</option><option value="5">5 ruedas atrás</option><option value="10">10 ruedas atrás</option><option value="m">Un mes atrás</option></select></label>' +
+      '<div class="vdc sxc"><label>Grupo<select id="vdG"></select></label><div class="lbl" id="vdEmW" style="display:none"><span id="vdEmT">Empresa</span><button type="button" class="emB" id="vdEmB">Todas</button><div class="emP" id="vdEmP" hidden><input type="search" id="vdEmQ" placeholder="Buscar…"><div class="emL" id="vdEmL"></div><div class="emF"><span id="vdEmS"></span><button type="button" id="vdEmX">Todas</button></div></div></div><label id="vdSecL" style="display:none">Sector<select id="vdSec"></select></label><label>Comparar contra<select id="vdN"><option value="1">Ayer (cierre anterior)</option><option value="5">5 ruedas atrás</option><option value="10">10 ruedas atrás</option><option value="m">Un mes atrás</option></select></label>' +
       '<label id="vdKL">Curva<select id="vdK"></select></label><label id="vdAxL">Eje X<select id="vdAx">' + xaxOpts('md') + '</select></label><label id="vdXL">Plazo máximo<select id="vdX"><option value="365">365 días</option><option value="540">540 días</option><option value="730">730 días</option><option value="1000">1.000 días</option><option value="1500">1.500 días</option><option value="0" selected>Todos</option></select></label><label id="vdDL">Duales<select id="vdD"><option value="0">No incluir</option><option value="2">Incluir en la curva</option></select></label>' +
       '<label id="vdShL" title="Con tan poco plazo, 0,01% de precio mueve la tasa decenas o cientos de pb (S16O6, a 3 días, 149 pb): su cambio de tasa no se compara con el del resto">Menos de 30 días<select id="vdSh"><option value="hide">Ocultar en el gráfico</option><option value="gray">Mostrar en gris</option></select></label>' +
       '<label id="vdBubL" title="El tamaño de cada punto es el monto operado en la rueda (todas las especies del bono, en pesos)">Burbujas de volumen<select id="vdBub"><option value="1">Mostrar</option><option value="0">Ocultar</option></select></label>' +
@@ -4657,6 +4667,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     document.getElementById('vdFx').onchange = function () { ST.fx = this.value === '1'; try { localStorage.setItem('vdFx', ST.fx ? '1' : '0'); } catch (e) {} render(); };
     try { ST.fx = localStorage.getItem('vdFx') === '1'; } catch (e) {} document.getElementById('vdFx').value = ST.fx ? '1' : '0';
     document.getElementById('vdTop').onchange = function () { ST.top = this.value; render(); };
+    var $e = function (id) { return document.getElementById(id); };
+    $e('vdEmB').onclick = function (ev) { ev.stopPropagation(); var p = $e('vdEmP'); p.hidden = !p.hidden; if (!p.hidden) { $e('vdEmQ').value = ''; emUI(); $e('vdEmQ').focus(); } };
+    $e('vdEmP').onclick = function (ev) { ev.stopPropagation(); };
+    $e('vdEmQ').oninput = function () { emUI(); };
+    $e('vdEmL').onchange = function (ev) { var n = ev.target.getAttribute('data-em'); if (n == null) return; var L = emSel(), i = L.indexOf(n); if (ev.target.checked && i < 0) L.push(n); else if (!ev.target.checked && i >= 0) L.splice(i, 1); emSave(); render(); };
+    $e('vdEmX').onclick = function () { emSel().length = 0; emSave(); $e('vdEmP').hidden = true; render(); };
+    $e('vdSec').onchange = function () { ST.sec = this.value; emSave(); render(); };
+    document.addEventListener('click', function () { var p = $e('vdEmP'); if (p && !p.hidden) p.hidden = true; });
     document.getElementById('vdTable').onclick = function (e) { var th = e.target.closest ? e.target.closest('th[data-s]') : null; if (!th) return; var s = th.getAttribute('data-s'); if (ST.sort === s) ST.dir = -ST.dir; else { ST.sort = s; ST.dir = s === 'k' ? 1 : -1; } render(); };
     var det = document.getElementById('vdDet'); try { det.open = localStorage.getItem('vdDet') === '1'; } catch (e) { } det.addEventListener('toggle', function () { try { localStorage.setItem('vdDet', det.open ? '1' : '0'); } catch (e) { } });
   }
@@ -4882,6 +4900,10 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var rows = ST.grp === 'all' ? DATA : DATA.filter(function (r) { return r.grp === ST.grp || (isD && ST.dual === '2' && r.grp === 'dual' && (ST.grp === 'tamar' || r.dualCer)); });
       rows.forEach(function (r) { r.star = r.grp === 'dual' && ST.grp !== 'dual' && ST.grp !== 'all'; });
       if (ST.cap > 0) rows = rows.filter(function (r) { return r.days <= ST.cap; });
+      var corp = CORP(ST.grp); document.getElementById('vdEmW').style.display = corp ? '' : 'none'; document.getElementById('vdSecL').style.display = ST.grp === 'on' ? '' : 'none';
+      if (corp) { EMC = {}; var sc = document.getElementById('vdSec'); if (ST.grp === 'on' && !sc.options.length && window.ONSQ && window.ONSQ.secs) sc.innerHTML = '<option value="">Todos</option>' + window.ONSQ.secs().map(function (x) { return '<option value="' + x[0] + '">' + x[1] + '</option>'; }).join(''); sc.value = ST.sec || '';
+        rows.forEach(function (r) { if (r.em && (ST.grp !== 'on' || !ST.sec || secOf(r.em) === ST.sec)) EMC[r.em] = (EMC[r.em] || 0) + 1; });
+        document.getElementById('vdEmT').textContent = ST.grp === 'pv' ? 'Provincia' : 'Empresa'; document.getElementById('vdEmS').textContent = ST.grp === 'pv' ? 'Elegí una o varias' : 'Elegí una o varias'; emUI(); rows = rows.filter(emOk); }
       if (window.vardFilter) rows = rows.filter(window.vardFilter); // lo usa el reporte diario (scripts/reporte_web.js) para dibujar solo una selección
       var cnt = {}; DATA.forEach(function (r) { var k = r.t0 + '|' + r.t1; cnt[k] = (cnt[k] || 0) + 1; }); var best = Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a]; })[0];
       var t0 = best ? +best.split('|')[0] : 0, t1 = best ? +best.split('|')[1] : 0, inG = function (r) { return CORP(ST.grp) ? r.grp === ST.grp : !CORP(r.grp); }, n912 = DATA.filter(function (r) { return inG(r) && r.src === 'data912'; }).length, nOld = DATA.filter(function (r) { return inG(r) && (r.src === 'previo' || (r.src === 'cierre' && r.t0 !== t0)); }).length;
@@ -12298,6 +12320,7 @@ window.RATG = (function () {
   /* ---------- para el buscador de arriba: encontrar ONs por ticker (con o sin la letra de especie) o por empresa ---------- */
   var vdAsk = 0, matAsk = 0;
   window.ONSQ = {
+    sec: function (em) { return secO(em); }, secs: function () { return OSEC.map(function (x) { return [x[0], x[1]]; }).concat([['otr', 'Otros']]); }, // sectores de las ONs (los usa Variación diaria)
     hist: function (cb) { // Variación diaria y Resumen con varias ruedas: cada ON hard dollar con sus flujos (también los ya pagados) y su especie
       if (!J) { load().then(function () { if (J && cb) cb(); }); return []; }
       var sp = spG(); return Object.keys(J.on).filter(function (k) { return J.on[k].t === 'usd' && J.on[k].fl; }).map(function (k) { var o = J.on[k]; return { k: k, sym: k + sp, em: EM[k] || '', mat: dn(o.mat), fl: (o.fp || []).concat(o.fl).map(function (f) { return [dn(f[0]), f[1]]; }) }; });
