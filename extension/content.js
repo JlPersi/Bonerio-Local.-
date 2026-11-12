@@ -121,7 +121,7 @@
     }
     for (const el of document.querySelectorAll('body *')) {
       if (el.children.length) continue; const w = (el.textContent || '').trim().toUpperCase(); if (w.length < 3 || w.length > 8 || !tk(w) || (o[w] && o[w].h)) continue;
-      if (!el.getClientRects().length || el.closest('#bnr-panel,#bnr-win,.bnr-pin,.bnr-sens,[data-bnr],[role=listbox],[role=option]')) continue;
+      if (!el.getClientRects().length || el.closest('#bnr-panel,#bnr-win,.bnr-pin,.bnr-sens,[data-bnr],[role=listbox],[role=option],form[class*="MiniOrder"],.ant-select')) continue;
       const v = num(ultimoDe(el, w)); if (v > 0) (o[w] = o[w] || {}).h = [v, 0, 0];
     }
     return o;
@@ -353,12 +353,32 @@
   function poner(inp, v) { if (!inp || v == null || v === '') return; inp.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, String(v)); ['input', 'change'].forEach((t) => inp.dispatchEvent(new Event(t, { bubbles: true }))); inp.dispatchEvent(new Event('blur', { bubbles: true })); }
   function ultimoFila(k) { // Mini-Panel de precios: la fila «AL30 … Últ Var.%»; devuelve el «Últ» como lo pide la boleta (81250,5), o '' si no operó
     for (const el of document.querySelectorAll('body *')) {
-      if (el.children.length || (el.textContent || '').trim().toUpperCase() !== k || !el.getClientRects().length || el.closest('#bnr-panel,#bnr-win,.bnr-pin,[data-bnr],[role=listbox],[role=option]')) continue;
+      if (el.children.length || (el.textContent || '').trim().toUpperCase() !== k || !el.getClientRects().length || el.closest('#bnr-panel,#bnr-win,.bnr-pin,[data-bnr],[role=listbox],[role=option],form[class*="MiniOrder"],.ant-select')) continue;
       const v = ultimoDe(el, k); if (v != null) return v;
     }
     return '';
   }
+  let HDR = null, HDRt = 0; const hdrUlt = () => { // los encabezados «Últ» visibles (tablas de BYMA, Favoritos, Mini-Panel)
+    if (Date.now() - HDRt < 1500 && HDR && HDR.every((h) => h.isConnected)) return HDR; HDRt = Date.now(); HDR = [];
+    for (const h of document.querySelectorAll('th,[role=columnheader],div,span,p')) if (!h.children.length && /^[ÚU]lt(\.|imo)?$/i.test((h.textContent || '').trim()) && h.getClientRects().length && !h.closest('#bnr-panel,#bnr-win,.bnr-pin,[data-bnr]')) HDR.push(h);
+    return HDR;
+  };
+  const vNum = (n) => { n = (n || '').trim(); if (/^-+$/.test(n)) return ''; if (!/^[\d.,]+$/.test(n)) return null; const v = num(n.includes(',') ? n : n.replace(/\./g, '')); return v > 0 ? String(v).replace('.', ',') : ''; };
+  function colUlt(el) { // en una tabla con encabezados: la celda de la columna «Últ» en la fila del ticker (no la que sigue al ticker, que en BYMA es Vol. C)
+    const r = el.getBoundingClientRect(), y = (r.top + r.bottom) / 2; let h = null, bd = 1e9;
+    for (const x of hdrUlt()) { const q = x.getBoundingClientRect(); if (q.bottom > r.top + 2 || q.left + 4 < r.left) continue; const d = (r.top - q.bottom) * 4 + (q.left - r.left) / 50; if (d < bd) { bd = d; h = x; } }
+    if (!h) return null;
+    const q = h.getBoundingClientRect(), xc = (q.left + q.right) / 2;
+    if (xc > 0 && xc < innerWidth && y > 0 && y < innerHeight) for (const c of document.elementsFromPoint(xc, y)) { // lo que está en esa columna y esa fila (aunque la ventana de la curva lo tape)
+      if (c.closest('#bnr-panel,#bnr-win,.bnr-pin,[data-bnr]')) continue; const v = vNum(c.innerText); if (v != null) { let a = c; while (a && !a.contains(el)) a = a.parentElement; if (a && a.getBoundingClientRect().height <= Math.max(60, r.height * 3)) return v; break; } /* solo si es de la misma fila */ if ((c.innerText || '').length > 40) break;
+    }
+    let hc = h; while (hc.parentElement && hc.parentElement.children.length < 4) hc = hc.parentElement; // fuera de la vista: misma posición de celda que el encabezado
+    const hr = hc.parentElement; if (!hr) return null; const i = [...hr.children].indexOf(hc);
+    for (let b = el; b.parentElement && b !== document.body; b = b.parentElement) if (b.parentElement.children.length === hr.children.length && b.parentElement !== hr) { const c = b.parentElement.children[i]; return c ? vNum(c.innerText) : null; }
+    return null;
+  }
   function ultimoDe(el, k) { // el «Últ» de la fila del Mini-Panel donde está ese ticker (null: no es una fila del Mini-Panel)
+      const cu = colUlt(el); if (cu != null) return cu;
       for (let a = el.parentElement, i = 0; a && i < 5; i++, a = a.parentElement) {
         const tx = a.innerText || ''; if (/Cierre/i.test(tx)) break; // un recuadro con libro: su precio lo lee precioDe
         const t = tx.trim().split(/\s+/), j = t.findIndex((x) => x.toUpperCase() === k);
@@ -390,7 +410,7 @@
     setTimeout(() => {
       const r = tk(k), cs = r ? recuadros().filter((x) => x.k === r[0] && x.suf === r[1]) : [], c = pz ? cs.find((x) => plazoDe(x.el) === pz) || cs.find((x) => !plazoDe(x.el) && pz === '24') : cs[0], [p] = c ? precioDe(c) : [NaN];
       const lv = pz ? (PXP.k === k && PXP.pz === pz ? PXP.p : 0) : PXV[k] || ultP(k) || 0; // el último operado en Primary (el mismo que muestra Matriz), si la ventana lo tiene en vivo
-      const q0 = p > 0 ? String(p).replace('.', ',') : pz === 'ci' ? '' : ultimoFila(k), q = q0 || (lv > 0 ? String(lv).replace('.', ',') : ''); // siempre el ÚLTIMO operado: del recuadro (en un pase, el de ese plazo), del Mini-Panel o, si no está a la vista, de Primary
+      const q0 = !pz && PXV[k] > 0 ? '' : p > 0 ? String(p).replace('.', ',') : pz === 'ci' ? '' : ultimoFila(k), q = (!pz && PXV[k] > 0 ? String(PXV[k]).replace('.', ',') : '') || q0 || (lv > 0 ? String(lv).replace('.', ',') : ''); /* primero el último operado en Primary del punto tocado (esté o no en pantalla); si no, el de pantalla (columna «Últ») */ // siempre el ÚLTIMO operado: del recuadro (en un pase, el de ese plazo), del Mini-Panel o, si no está a la vista, de Primary
       const pf = PFIJO; PFIJO = 0; if (pf > 0) { poner(campo('precio'), String(pf).replace('.', ',')); } // el precio escrito en la ficha fija
       const PM = CFG.pm === 'm' || pf > 0, QM = CFG.qm === 'm' && !(cant > 0); // en ⚙: precio y/o cantidad a mano (queda el cursor ahí para tipear); lo escrito en la ficha fija gana
       if (PM || QM) { if (!PM && q) poner(campo('precio'), q); const n = cant > 0 ? cant : CFG.qty; if (!QM && n > 0) poner(campo('cantidad'), n); const pa = PM && !(pf > 0); // falta a mano: el precio (si no vino de la ficha) y/o la cantidad
@@ -401,8 +421,9 @@
       if (q || qc) poner(campo('precio'), q || qc);
       const n = cant > 0 ? cant : CFG.qty; if (n > 0) poner(campo('cantidad'), n);
       if (qc) aviso('Boleta: ' + k + ' sin precio en pantalla; puse el cierre de Bonerío (' + (b.fecha || FECHA) + '): revisalo antes de mandar', 1);
-      else if (!q0 && q) aviso('Boleta: ' + k + ' con el último operado en Primary (no está en un recuadro ni en el Mini-Panel)');
-      else if (!q) aviso('Boleta: ' + k + ' cargado; sin precio en pantalla (no operó o no está en un recuadro ni en el Mini-Panel)');
+      else if (!q0 && q) aviso('Boleta: ' + k + ' con el último operado en Primary');
+      else if (!q) { const x = campo('precio'); if (x && x.value) { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(x, ''); ['input', 'change'].forEach((t) => x.dispatchEvent(new Event(t, { bubbles: true }))); } } /* sin precio: se borra el que quedó de otro activo */
+      if (!q && !qc) aviso('Boleta: ' + k + ' cargado; sin precio en pantalla (no operó o no está en un recuadro ni en el Mini-Panel)');
     }, 500);
   }
   let tEst = 0, PXV = {}, PXA = {}, PXP = {}, PFIJO = 0;
