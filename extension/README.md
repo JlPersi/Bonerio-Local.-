@@ -16,6 +16,11 @@ TIR al cierre, TIR estimada al precio de la pantalla o de la boleta, duration, d
 
 **A la boleta:** «→ Boleta» o un clic en un punto de un gráfico o en una fila de una tabla de la ventana escribe el ticker en «Instrumento» de Matriz y elige la sugerencia de 24 hs, en la moneda elegida en ⚙ (pesos, MEP «D» o CCL «C») para los bonos en dólares. Después completa «Precio» con el último (o el cierre anterior) del recuadro de ese ticker en Matriz o, si no hay recuadro, con el «Últ» del Mini-Panel de precios (y, si tampoco está, con el cierre de Bonerío, avisando en el panel) y «Cantidad» con la cantidad por defecto (⚙). No aprieta Comprar ni Vender: eso lo hace el usuario.
 
+## 1.2.1
+- Al tocar un punto de la curva, la boleta se llena con el último operado en Primary de ese bono, sin importar en qué pestaña de Matriz estés.
+- En las tablas (BYMA → Bonos, Favoritos) el precio sale de la columna «Últ», no de Vol. C.
+- Si no hay precio, se borra el que quedó de otro activo en la boleta.
+
 ## 1.2.0
 - El selector Pesos / MEP / CCL de la ventana de curvas ahora cambia la curva en dólares (MEP usa las D, CCL las C), igual que en la página. La curva se actualiza en vivo cada 30 s.
 
