@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Valor nominal en circulación de las ONs y provinciales (data/ons.json y data/pvs.json), de la ficha técnica de BYMA (datos abiertos, sin credenciales).
 Sirve para el Calendario de cobros: lo que paga cada emisor = flujo cada 100 VN × VN en circulación.
-Sale data/ons_vn.json: {"act": fecha, "t": {ticker: [VN emitido, VN residual, moneda, lámina mínima, ley, país de la ley, ISIN]}} (montoNominal, montoResidual, denominacionMinima, ley, paisLey y codigoIsin de BYMA; VN en unidades). Lo que BYMA no devuelve se conserva de la corrida anterior.
+Sale data/ons_vn.json: {"act": fecha, "t": {ticker: [VN emitido, VN residual, moneda, lámina mínima, ley, país de la ley, ISIN, mínimo Primary, múltiplo Primary]}} (montoNominal, montoResidual, denominacionMinima, ley, paisLey y codigoIsin de BYMA; VN en unidades). Lo que BYMA no devuelve se conserva de la corrida anterior.
 Uso: python3 scripts/save_ons_vn.py [--max N] [--log]   (corre en el Action "ONs: VN en circulación"; desde el sandbox BYMA no responde)"""
 import datetime as dt, json, os, re, sys, time, urllib.request
 
 D = os.path.join(os.path.dirname(__file__), "..", "data")
 OUT = os.path.join(D, "ons_vn.json")
+LAM = "https://bonerio-vivo.persijuanluis.workers.dev/lam"
 URL = "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/bnown/fichatecnica/especies/general"
 H = {"User-Agent": "Mozilla/5.0", "Accept": "application/json", "Content-Type": "application/json", "Origin": "https://open.bymadata.com.ar", "Referer": "https://open.bymadata.com.ar/"}
 
@@ -80,6 +81,22 @@ def main():
             ok += 1
         time.sleep(0.15)
     print(f"{ok} de {len(keys)} con VN de BYMA")
+    try:  # el mínimo y el múltiplo de cada especie en 24 hs, de la lista de instrumentos de Primary (la sirve el Worker en /lam; no son precios)
+        with urllib.request.urlopen(urllib.request.Request(LAM, headers={"User-Agent": "Mozilla/5.0"}), timeout=60) as r:
+            LJ = json.loads(r.read().decode("utf-8", "replace"))
+        L = LJ.get("d") or {}
+        if log:
+            print("Primary campos:", LJ.get("campos"))
+        nl = 0
+        for k in T:
+            v = next((L[s] for s in (esp.get(k), k + "D", k) if s and s in L), None)
+            if v:
+                T[k] = (T[k] + [None] * 7)[:7] + [v[0], v[1]]
+                nl += 1
+        print(f"{nl} con mínimo y múltiplo de Primary")
+        ok = ok or nl
+    except Exception as e:
+        print("Primary /lam:", str(e)[:160])
     if ok:
         json.dump({"act": dt.date.today().isoformat(), "t": T}, open(OUT, "w"), ensure_ascii=False, separators=(",", ":"))
 
