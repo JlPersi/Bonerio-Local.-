@@ -392,6 +392,11 @@ export default {
     const u = new URL(req.url), h = cors(req, env);
     if (u.pathname === '/v1' || u.pathname.startsWith('/v1/') || u.pathname === '/mcp') return api(req, u); // API pública con key (ver arriba)
     if (req.method === 'OPTIONS') return new Response(null, { headers: h });
+    if (u.pathname === '/lam') { // lámina mínima y múltiplo de cada especie de BYMA (de la lista de instrumentos de Primary, una vez por día; no son precios)
+      const hb = Object.assign({}, h, { 'Cache-Control': 'public, max-age=3600' });
+      try { const L = await instruments(env), o = {}, k0 = {}; L.forEach((i) => { const m = /^MERV - XMEV - (.+) - 24hs$/.exec((i.instrumentId || {}).symbol || ''); if (!m) return; Object.keys(i).forEach((k) => { k0[k] = 1; }); o[m[1]] = [i.minTradeVolume != null ? i.minTradeVolume : i.minTradeVol != null ? i.minTradeVol : null, i.roundLot != null ? i.roundLot : null, i.maxTradeVolume != null ? i.maxTradeVolume : i.maxTradeVol != null ? i.maxTradeVol : null, i.instrumentSizePrecision != null ? i.instrumentSizePrecision : null]; });
+        return new Response(JSON.stringify({ t: Date.now(), campos: Object.keys(k0).sort(), d: o }), { headers: hb }); } catch (e) { return new Response(JSON.stringify({ error: String(e.message || e) }), { status: 502, headers: hb }); }
+    }
     if (u.pathname === '/diag') { // chequeo: login, websocket y una foto de AL30 y GD30 (no muestra la clave)
       const d = { usuario: !!env.ROFEX_USER, clave: !!env.ROFEX_PASS, url: base(env), ultimoError: LASTERR };
       try { await token(env); d.login = 'ok'; } catch (e) { d.login = String(e.message || e); return new Response(JSON.stringify(d, null, 1), { headers: h }); }
