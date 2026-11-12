@@ -10298,7 +10298,7 @@ window.USTX = (function () {
     var proU = 'x'; setInterval(function () { var v = window.BLPROU ? window.BLPROU() : null; if (v !== proU) { proU = v; try { parent.postMessage({ t: 'bnrPro', p: v }, '*'); } catch (er) { } } }, 2000); // extensión de Matriz: si la cuenta tiene PRO
     /* Extensión de Matriz: los precios que muestra la Matriz del usuario (recuadros y Mini-Panel, en vivo) mandan sobre los de Bonerío.
        MXPX[especie] = { h: [último, compra, venta] en 24 hs, ci: [...] en CI }; 0 = no se ve. Se aplican a las filas del stream y a lo que trae data912 (solo si el precio es parecido: misma unidad). */
-    var MX = window.MXPX = {}, mxJ = '';
+    var MX = window.MXPX = {}, mxJ = '', D9 = {};
     var mxAp = function (r) { var m = r && MX[r.symbol] && MX[r.symbol].h, ch = 0; if (!m) return 0;
       [['c', 0], ['px_bid', 1], ['px_ask', 2]].forEach(function (x) { var v = m[x[1]]; if (v > 0 && r[x[0]] !== v && (!(r[x[0]] > 0) || Math.abs(v / r[x[0]] - 1) < 0.25)) { r[x[0]] = v; ch = 1; } }); return ch; };
     var mxPx = function (px) { var o = {}, ok = function (a) { return Array.isArray(a) && a.length === 3 && a.every(function (v) { return typeof v === 'number' && v >= 0 && v < 1e9; }) ? a : null; };
@@ -10308,7 +10308,8 @@ window.USTX = (function () {
       if (ch && B.ok) B.n++; // la página redibuja lo que usa esos precios (como con cada operación nueva)
       var j = JSON.stringify(o); if (j !== mxJ) { mxJ = j; if (window.CIMX && window.CIMX.draw) try { window.CIMX.draw(); } catch (er) { } } };
     var F2 = window.fetch; window.fetch = function (u) { var p = F2.apply(this, arguments); if (typeof u !== 'string' || !/^https:\/\/data912\.com\/live\/arg_/.test(u)) return p;
-      return p.then(function (r) { if (!Object.keys(MX).length) return r; return r.clone().json().then(function (a) { if (!Array.isArray(a)) return r; a.forEach(mxAp); return new Response(JSON.stringify(a), { headers: { 'Content-Type': 'application/json' } }); }).catch(function () { return r; }); }); };
+      return p.then(function (r) { return r.clone().json().then(function (a) { if (!Array.isArray(a)) return r; a.forEach(function (x) { if (x && typeof x.symbol === 'string' && +x.c > 0) D9[x.symbol] = +x.c; }); /* el último de data912: si no hay stream en vivo (fuera de horario, sin PRO) la boleta igual tiene precio */ if (!Object.keys(MX).length) return r; a.forEach(mxAp); return new Response(JSON.stringify(a), { headers: { 'Content-Type': 'application/json' } }); }).catch(function () { return r; }); }); };
+    if (parent !== window) setTimeout(function () { ['bonds', 'notes', 'corp'].forEach(function (u) { window.fetch('https://data912.com/live/arg_' + u).catch(function () { }); }); }, 1500); /* dentro de la extensión: el último de cada especie desde el arranque (después lo refresca la página) */
     window.addEventListener('message', function (e) { // extensión de Matriz: alto del gráfico (llena la ventana) y opciones de la sección (plazo máximo de la curva)
       var d = e.data; if (e.source !== parent || !d) return;
       if (d.t === 'bnrCvH') { var st = document.getElementById('embCvH'); if (!st) { st = document.createElement('style'); st.id = 'embCvH'; document.head.appendChild(st); } var hh = Math.round(+d.h || 0); st.textContent = hh > 120 && hh < 3000 ? 'html.emb #embCv{height:' + hh + 'px!important;min-height:0!important;max-height:none!important}' : ''; }
@@ -10339,8 +10340,8 @@ window.USTX = (function () {
         if (typeof d.$bg0 === 'string' && /^#[0-9a-f]{6}$/i.test(d.$bg0)) d.backgroundColor = d.$bg0 + '99'; }); } }; // semitransparentes: se ven las que se pisan
     var bubUp = function () { if (window.Chart && Chart.instances) Object.keys(Chart.instances).forEach(function (i) { try { Chart.instances[i].update('none'); } catch (er) { } }); };
     (function reg() { if (window.Chart && Chart.register) { try { Chart.register(bubPl); } catch (er) { } } else setTimeout(reg, 300); })();
-    var lvPx = window.BLLV = function (k) { var B = window.BLS, o = {}; if (!B || !B.ok || B.dem || !B.by) return o; // en vivo (PRO): el último de cada especie del bono
-      var b = /O$/.test(k) ? k.slice(0, -1) : k; [k, k + 'D', k + 'C', b + 'D', b + 'C'].forEach(function (s) { var r = B.by[s]; if (r && r.c > 0) o[s] = r.c; }); return o; };
+    var lvPx = window.BLLV = function (k) { var B = window.BLS, o = {}, vv = B && B.ok && !B.dem && B.by; // en vivo (PRO): el último de cada especie del bono; si no, el de data912
+      var b = /O$/.test(k) ? k.slice(0, -1) : k; [k, k + 'D', k + 'C', b + 'D', b + 'C'].forEach(function (s) { var r = vv && B.by[s]; if (r && r.c > 0) o[s] = r.c; else if (D9[s] > 0) o[s] = D9[s]; }); return o; };
     document.addEventListener('click', function (e) { // extensión de Matriz: el ticker del punto del gráfico o de la fila que se tocó, para cargarlo en la boleta
       var k = null, c = e.target.closest && e.target.closest('canvas'), ch = c && window.Chart && Chart.getChart && Chart.getChart(c);
       if (ch) { var pos = Chart.helpers.getRelativePosition(e, ch), L = [].concat(ch.getElementsAtEventForMode(e, 'nearest', { intersect: true }, false), ch.tooltip && ch.tooltip.getActiveElements ? ch.tooltip.getActiveElements() : [], (function () { var o = []; ch.data.datasets.forEach(function (d, i) { if (!ch.isDatasetVisible(i)) return; ch.getDatasetMeta(i).data.forEach(function (p, j) { var r = Math.hypot(p.x - pos.x, p.y - pos.y); if (r < 22) o.push({ datasetIndex: i, index: j, r: r }); }); }); return o.sort(function (a, b) { return a.r - b.r; }); })()); // el punto tocado, el del tooltip o el más cercano a menos de 22 px (las líneas de la curva no tienen ticker y se saltean)
