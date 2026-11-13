@@ -416,6 +416,7 @@
       if (ses && /[?&](code|reset)=/.test(location.search)) history.replaceState(null, '', back() + location.hash);
       if (ses && ses.user && (RESET || ev === 'PASSWORD_RECOVERY')) { RESET = true; user = ses.user; lock(); if (V !== 'reset') view('reset'); return; } // primero elige la contraseña nueva
       if (ev === 'INITIAL_SESSION' && ses && ses.user && !RESET && window.top === window) setTimeout(function () { sb.auth.refreshSession().catch(function () { }); }, 0); // al abrir, renueva la sesión: así toma un PRO dado de alta después de entrar (app_metadata viaja en el token)
+      if (ev === 'SIGNED_IN' && ses && ses.user && !RESET && window.top === window) { try { if (sessionStorage.getItem('blOnly') !== ses.user.id) { sessionStorage.setItem('blOnly', ses.user.id); sb.auth.signOut({ scope: 'others' }).catch(function () { }); } } catch (e) { } } // una sola sesión por cuenta: al entrar en un dispositivo se cierran las demás (se cortan al vencer su token, como mucho en una hora)
       if (ses && ses.user) { user = ses.user; unlock(); try { document.dispatchEvent(new Event('bl-auth')); } catch (e) { } try { sync(); } catch (e) { } }
       else if ((ev === 'SIGNED_OUT' || ev === 'INITIAL_SESSION') && !RESET) { user = null; ['blUser', 'alBell'].forEach(function (i) { var c = document.getElementById(i); if (c) c.remove(); }); lock(); }
     });
