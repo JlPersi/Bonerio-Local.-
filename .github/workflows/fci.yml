@@ -1,0 +1,25 @@
+name: "FCI: valor de cuotaparte (CAFCI)"
+on:
+  schedule:
+    - cron: "45 21 * * 1-5"  # CAFCI publica la planilla diaria a eso de las 18 (hora Argentina)
+    - cron: "30 1 * * 2-6"   # repaso por si la de la tarde no corrió o la planilla salió tarde
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q openpyxl
+      - name: Planilla diaria
+        run: python3 scripts/save_fci.py
+      - name: Commit
+        run: |
+          if [ -n "$(git status --porcelain data)" ]; then
+            git config user.name "cierre-bot"
+            git config user.email "bot@users.noreply.github.com"
+            git add data
+            git commit -q -m "fci: VCP $(date -u +%F)"
+            for k in 1 2 3 4; do git pull --rebase -q origin main && git push -q && break; sleep $(( 5 * k )); done
+          fi
