@@ -6513,7 +6513,9 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   var DAPI = null, dapiT = 0; // el spot en vivo desde el navegador: el mayorista de dolarapi.com (la misma referencia que usa el Action cuando Primary no tiene el de A3)
   function dapi() { if (Date.now() - dapiT < 120000) return; dapiT = Date.now(); fetch('https://dolarapi.com/v1/dolares/mayorista', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (o) { var v = o && (o.venta > 0 ? o.venta : o.compra > 0 ? o.compra : null); if (v) { DAPI = { v: v, ts: o.fechaActualizacion || new Date().toISOString() }; if (isAct()) render(); } }).catch(function () { }); }
   function spotHoy(d) { // el spot de hoy: el de A3 (Primary) si es de hoy, si no el mayorista de dolarapi
-    var vv = TJ && TJ.vivo; if (vv && vv.spot > 0 && String(vv.ts || '').slice(0, 10) === d) return { v: vv.spot, f: vv.spotF === 'A3' ? 'A3' : 'mayorista' };
+    var vv = TJ && TJ.vivo; if (vv && vv.spotF === 'A3' && vv.spot > 0 && String(vv.ts || '').slice(0, 10) === d) return { v: vv.spot, f: 'A3' };
+    if (TJ && TJ.a3500 && TJ.a3500[d] > 0) return { v: TJ.a3500[d], f: 'A3500' }; // el de hoy del BCRA, cuando ya salió (después del cierre del MULC)
+    if (vv && vv.spot > 0 && String(vv.ts || '').slice(0, 10) === d) return { v: vv.spot, f: vv.spotF === 'A3' || vv.spotF === 'A3500' ? vv.spotF : 'mayorista' };
     dapi(); if (DAPI) return { v: DAPI.v, f: 'mayorista' };
     return vv && vv.spot > 0 ? { v: vv.spot, f: vv.spotF === 'A3' ? 'A3' : 'mayorista' } : null;
   }
@@ -6876,7 +6878,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     // caución: el plazo más corto de cada rueda (1 día hábil: 1 día corrido, 3 los viernes o 4 si hay feriado)
     var shortest = function (o) { var r = {}; keys(o).forEach(function (d) { var x = (o[d] || []).filter(function (q) { return q && q[0] <= 10; }).sort(function (a, b) { return (b[4] || 0) - (a[4] || 0); })[0]; if (x) r[d] = x; }); return r; }; // el plazo corto con más monto (antes de un feriado largo el de 1 día casi no opera: el 05/11, $ 13 mil M a 1 día contra $ 2,9 billones a 6)
     var curve = function (d, rows, live) {
-      var Sp = live && V.spot > 0 ? V.spot : spot(d)[1], base = d; // en la rueda: el spot de A3 por Primary o el del último cierre
+      var a35 = live && TJ.a3500 && TJ.a3500[d] > 0 ? TJ.a3500[d] : null, Sp = live && V.spotF === 'A3' && V.spot > 0 ? V.spot : a35 || (live && V.spot > 0 ? V.spot : spot(d)[1]), base = d; // en la rueda: el spot de A3 por Primary; si no, el A3500 de hoy (con el que liquidan los futuros, sale después del cierre del MULC) o el mayorista; si no, el del último cierre
       return (rows || []).map(function (r) {
         var F = live ? (r[4] || (r[2] && r[3] ? (r[2] + r[3]) / 2 : null) || r[5]) : r[2], dd = r[1] ? dn(r[1]) - dn(base) : null;
         if (!(dd > 0)) return null;
@@ -6932,7 +6934,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       return null; } };
   }
   var LBL = function () { return window.PSX && window.PSX.LABELS ? [window.PSX.LABELS] : []; }; // rótulos con el ticker, sin superponerse (los de Curva Pesos)
-  var futH = function (ts) { var t = String(ts || '').slice(11, 16); return t >= '15:00' ? 'cerró a las 15' : t; }; // los futuros de A3 operan hasta las 15: la foto de después es la rueda ya cerrada
+  var futH = function (ts) { var t = String(ts || '').slice(11, 16); return t >= '17:00' ? 'cerró a las 17' : t; }; // los futuros de dólar de A3 operan hasta las 17 (el MULC cierra a las 15): la foto de después es la rueda ya cerrada
   function smooth(F, a, b, n) { var r = []; n = n || 90; for (var i = 0; i <= n; i++) { var x = a + (b - a) * Math.pow(i / n, 1.4); r.push({ x: x, y: F(x) }); } return r; }
   var FIX = [['CAUCION', 'Caución en pesos'], ['CAUCION USD', 'Caución en dólares (MEP)'], ['CAUCION CABLE', 'Caución en dólares cable'], ['PLAZO FIJO', 'Plazo fijo a 30 días'], ['TAMAR', 'TAMAR bancos privados'],
     ['BADLAR', 'BADLAR bancos privados'], ['A3500', 'Dólar mayorista A3500'], ['TASA FUTURO 3M', 'Dólar futuro: tasa implícita a 3 meses'], ['DEVALUACION', 'Devaluación mensual implícita']];
@@ -7509,7 +7511,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
           '<td>' + cnt(vol) + '</td><td>' + cnt(oi) + '</td><td class="' + cls(doi) + '">' + (doi == null ? '—' : sg(doi, 0)) + '</td><td><b>' + P(t) + '</b></td><td>' + P(tea(t, d)) + '</td><td>' + P(dv) + '</td></tr>';
       });
       document.getElementById('tfFut').innerHTML = h + '</tbody>';
-      document.getElementById('tfT3').textContent = 'Futuros de dólar · ' + (live ? 'rueda de hoy (' + futH(S.V.ts) + ')' : 'cierre del ' + fr(S.df)) + ' · spot $ ' + nf((S.futV && S.futV.length ? S.futV : S.fut)[0] ? (S.futV && S.futV.length ? S.futV : S.fut)[0].sp : S.spot[1], 2);
+      document.getElementById('tfT3').textContent = 'Futuros de dólar · ' + (live ? 'rueda de hoy (' + futH(S.V.ts) + ')' : 'cierre del ' + fr(S.df)) + ' · spot ' + (function () { var c = (S.futV && S.futV.length ? S.futV : S.fut)[0], v = c ? c.sp : S.spot[1], d = c ? c.base : null; return (d && TJ.a3500 && TJ.a3500[d] === v ? 'A3500 ' : S.futV && S.futV.length && S.V.spotF === 'A3' && S.V.spot === v ? 'A3 ' : S.futV && S.futV.length && S.V.spot === v ? 'mayorista ' : '') + '$ ' + nf(v, 2); })();
       var cpv = {}; (S.cfPrev || []).forEach(function (r) { cpv[r[0]] = r[2]; });
       var lc = {}; if (S.vivoOk) (S.V.cfut || []).forEach(function (r) { lc[key(r[0])] = r; }); var lcv = Object.keys(lc).length;
       var x2 = function (v) { return v ? nf(v, 2) + '%' : '—'; };
