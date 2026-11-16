@@ -8283,7 +8283,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   var isAct = function () { return root.classList.contains('active'); };
   var _oc = window.dlOnClone; window.dlOnClone = function (doc, id) { if (_oc) _oc(doc, id); if (id !== 'pfPick') return; var w = doc.querySelector('#pfPick .pfw'); if (w) { w.style.maxHeight = 'none'; w.style.overflow = 'visible'; } }; // la imagen lleva todos los bonos de la lista, no solo los que entran en el recuadro con scroll
   var PKEY = 'pfSets1', PS = (function () { try { var o = JSON.parse(localStorage.getItem(PKEY) || 'null'); if (o && o.s && o.cur) return o; } catch (e) {} return { cur: 'Mi portfolio', s: {} }; })(); // varios portfolios con nombre; el elegido es el de pfFav1 (lo leen las otras pestañas)
-  var save = function () { try { PS.s[PS.cur] = FAV; localStorage.setItem(PKEY, JSON.stringify(PS)); localStorage.setItem(FKEY, JSON.stringify(FAV)); localStorage.setItem(SKEY, JSON.stringify({ lqP: ST.lqP, lqD: ST.lqD, ccy: ST.ccy, conf: ST.conf, hz: ST.hz, win: ST.win, wv: ST.wv, wt: ST.wt, grp: ST.grp, sc: ST.sc, scM: ST.scM, scTo: ST.scTo, shk: ST.shk, sub: ST.sub })); } catch (e) {} };
+  var save = function () { try { PS.s[PS.cur] = FAV; localStorage.setItem(PKEY, JSON.stringify(PS)); localStorage.setItem(FKEY, JSON.stringify(FAV)); localStorage.setItem(SKEY, JSON.stringify({ simF: ST.simF, lqP: ST.lqP, lqD: ST.lqD, ccy: ST.ccy, conf: ST.conf, hz: ST.hz, win: ST.win, wv: ST.wv, wt: ST.wt, grp: ST.grp, sc: ST.sc, scM: ST.scM, scTo: ST.scTo, shk: ST.shk, sub: ST.sub })); } catch (e) {} };
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var pc = function (v, d) { return v == null || !isFinite(v) ? 'n/a' : fm(v * 100, d == null ? 2 : d) + '%'; };
   var dfull = function (t) { return bxDayStr(t).split('-').reverse().join('/'); };
@@ -8535,7 +8535,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   }
 
   // subpestañas, como en Acciones: qué tarjetas muestra cada una
-  var PSUB = [['cart', 'Cartera', ['pfMine', 'pfEmi', 'pfPick']], ['rend', 'Rendimiento', ['pfPerf']], ['esc', 'Escenarios de tasas', ['pfScen']], ['dur', 'Duración', ['pfRisk']], ['flujo', 'Flujo de fondos', ['pfFlow']], ['var', 'Value at Risk', ['pfVar']]];
+  var PSUB = [['cart', 'Cartera', ['pfMine', 'pfEmi', 'pfPick']], ['sim', 'Simulador', ['pfSim']], ['rend', 'Rendimiento', ['pfPerf']], ['esc', 'Escenarios de tasas', ['pfScen']], ['dur', 'Duración', ['pfRisk']], ['flujo', 'Flujo de fondos', ['pfFlow']], ['var', 'Value at Risk', ['pfVar']]];
   function psub(g) {
     if (!PSUB.some(function (x) { return x[0] === g; })) g = 'cart'; ST.sub = g; save();
     PSUB.forEach(function (x) { x[2].forEach(function (id, i) { var e = document.getElementById(id); if (!e) return; e.style.display = x[0] === g ? '' : 'none'; e.style.marginTop = i ? '24px' : '0'; }); });
@@ -8576,6 +8576,9 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
         '<div class="pfw" style="max-height:none"><table class="pft" id="pfTab"></table></div><div class="pfchips" id="pfChips" style="margin-top:14px"></div>', 'Portfolio') +
       cardH('pfEmi', 'Riesgo emisor y liquidez', 'Quién te debe la plata (Tesoro, cada provincia, cada empresa) y cuánto tardarías en salir de cada posición sin mover el precio: tu tenencia contra el volumen diario promedio de las últimas 20 ruedas, sumando sus especies en pesos, MEP y cable.',
         '<div class="pfchips" id="pfEmC"></div><div class="pfg"><div style="overflow:auto"><table class="pft" id="pfEmT"></table></div><div style="overflow:auto"><div class="pfc" style="margin:0 0 8px"><label title="Qué parte del volumen de cada rueda suponés que podés vender sin mover el precio">Vendés hasta<select id="pfLqP"><option value="0.1">10% del volumen diario</option><option value="0.25">25% del volumen diario</option><option value="0.5">50% del volumen diario</option></select></label><label>Alerta si tarda más de<select id="pfLqD"><option value="1">1 rueda</option><option value="3">3 ruedas</option><option value="5">5 ruedas</option><option value="10">10 ruedas</option></select></label></div><table class="pft" id="pfLqT"></table></div></div><p class="pfnote" id="pfEmN"></p>', 'Emisor_liquidez') +
+      cardH('pfSim', 'Simulador de operaciones', 'Probá compras y ventas antes de hacerlas: cargá las operaciones y comparás tu cartera de hoy con cómo quedaría (caja, TIR, duración, DV01, VaR, cobros, emisor y liquidez). No cambia tu portfolio hasta que tocás Aplicar.',
+        '<div class="pfc"><label title="Con caja: lo que comprás sale de la caja que cargaste en Flujo de fondos y lo que vendés entra. Sin caja: solo cambia la tenencia.">La plata<select id="pfSimF"><option value="caja">Sale y entra de la caja</option><option value="no">No toca la caja</option></select></label><button class="act" id="pfSimA" data-html2canvas-ignore="true">+ Operación</button><button class="act" id="pfSimOk" data-html2canvas-ignore="true" title="Pasa los nominales simulados a tu portfolio (y la caja, si la usa)">Aplicar al portfolio</button><button class="act" id="pfSimX" data-html2canvas-ignore="true">Limpiar</button></div><datalist id="pfSimL"></datalist>' +
+        '<div style="overflow:auto"><table class="pft" id="pfSimO"></table></div><div class="pfchips" id="pfSimC" style="margin-top:14px"></div><div class="pfg"><div style="overflow:auto"><table class="pft" id="pfSimT"></table></div><div class="pfcv"><canvas id="pfSimG"></canvas></div></div><p class="pfnote" id="pfSimN"></p>', 'Simulador_portfolio') +
       cardH('pfPerf', 'Rendimiento acumulado', 'Cargá la fecha en que compraste cada bono (y el precio, si no fue el cierre de ese día): ves cuánto ganaste con precio, cupones y amortizaciones cobrados, y qué hubiera hecho esa misma plata en un plazo fijo, en caución, ajustada por inflación o pasada a dólar MEP.',
         '<div class="pfchips" id="pfPfC"></div><div class="pfw" style="max-height:none;margin-top:14px"><table class="pft" id="pfPfT"></table></div><p class="pfnote" id="pfPfN"></p>', 'Rendimiento_portfolio') +
       cardH('pfScen', 'Escenarios de tasas', 'El impacto de un cambio de tasas en tu cartera: elegí cuántos pb se mueve cada plazo de la curva (o un escenario armado) y se revalúa cada bono con sus flujos, sin aproximaciones de duración.',
@@ -8607,6 +8610,13 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     g('pfHz').onchange = function () { ST.hz = +this.value; save(); render(); };
     g('pfW').onchange = function () { ST.win = +this.value; save(); render(); };
     g('pfWt').onchange = function () { ST.wt = this.value; save(); render(); };
+    g('pfSimF').onchange = function () { ST.simF = this.value; save(); render(); };
+    g('pfSimA').onclick = function () { simOf().push({ k: '', s: 'c', u: 'vn', q: 0 }); saveSim(); render(); setTimeout(function () { var x = document.querySelectorAll('#pfSimO input[data-f="k"]'); if (x.length) x[x.length - 1].focus(); }, 50); };
+    g('pfSimX').onclick = function () { SIM[PS.cur] = []; saveSim(); render(); };
+    g('pfSimOk').onclick = function () { var mep = mepNow(), S = simApply(mep); if (!S.ops.some(function (x) { return x.vn; })) return; ask('Aplicar al portfolio', 'Los nominales de «' + PS.cur + '» pasan a ser los simulados' + ((ST.simF || 'caja') === 'caja' ? ' y la caja de Flujo de fondos queda con lo que entra y sale de las operaciones' : '') + '. Las operaciones se borran del simulador.', null, 'Aplicar', function () {
+      Object.keys(S.F).forEach(function (k) { if (S.F[k] > 0) FAV[k] = S.F[k]; else delete FAV[k]; }); if ((ST.simF || 'caja') === 'caja') { var PY = payOf(), f = PY.cc === ST.ccy ? 1 : ST.ccy === 'USD' ? mep : 1 / mep; PY.cash = Math.round(((+PY.cash || 0) + S.dc * f) * 100) / 100; savePay(); } SIM[PS.cur] = []; saveSim(); save(); render(); }); };
+    root.addEventListener('change', function (e) { var i = e.target.closest('.pfsm'); if (!i) return; var o = simOf()[+i.dataset.i]; if (!o) return; var f = i.dataset.f; o[f] = f === 'k' ? i.value.trim().toUpperCase() : f === 'q' ? impNum(i.value) || 0 : i.value; saveSim(); render(); });
+    root.addEventListener('click', function (e) { var b = e.target.closest('.pfsmd'); if (!b) return; simOf().splice(+b.dataset.i, 1); saveSim(); render(); });
     g('pfLqP').value = String(ST.lqP || 0.25); g('pfLqD').value = String(ST.lqD || 5); g('pfLqP').onchange = function () { ST.lqP = +this.value; save(); render(); }; g('pfLqD').onchange = function () { ST.lqD = +this.value; save(); render(); };
     g('pfScS').value = ST.sc; g('pfScM').value = ST.scM; g('pfScTo').value = ST.scTo;
     g('pfScS').onchange = function () { ST.sc = this.value; if (ST.sc !== 'custom') ST.shk = null; save(); render(); };
@@ -8655,11 +8665,11 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     });
     document.getElementById('pfAll').innerHTML = h + (rows.length ? '' : '<tr><td colspan="11" class="pfe">No hay bonos con ese filtro.</td></tr>') + (q ? '' : '<tr><td colspan="11" class="pfe">Las ONs y los provinciales aparecen cuando los buscás por ticker o emisor.</td></tr>') + '</tbody>';
   }
-  function holdings(mep) {
-    var fx = ST.ccy === 'USD' ? (mep ? 1 / mep : null) : 1;
-    return U.filter(function (r) { return FAV[r.k] != null; }).map(function (r) {
+  function holdings(mep, F) {
+    var fx = ST.ccy === 'USD' ? (mep ? 1 / mep : null) : 1; F = F || FAV;
+    return U.filter(function (r) { return F[r.k] != null; }).map(function (r) {
       if (r.xr && !r.kr) { var a = krd(r.krFl, r.s, r.krP, r.krY); r.kr = a.kr; r.conv = a.conv; }
-      var n = +FAV[r.k] || 0, v = r.pars != null && fx != null ? n * r.pars / 100 * fx : null;
+      var n = +F[r.k] || 0, v = r.pars != null && fx != null ? n * r.pars / 100 * fx : null;
       return Object.assign({}, r, { n: n, val: v });
     }).sort(function (a, b) { return ORDER.indexOf(a.grp) - ORDER.indexOf(b.grp) || a.mat - b.mat; });
   }
@@ -8949,6 +8959,53 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       for (var j = 0, acc = 0; j < o.i.length; j++) { acc += o.i[j]; if (acc >= n - 20 && o.e[j] > 0) { tot += usd ? o.e[j] * (M && M[acc] > 0 ? M[acc] : mep || 0) : o.e[j]; got = true; } } });
     return got ? tot / 20 : 0;
   }
+  var SIM = (function () { try { var o = JSON.parse(localStorage.getItem('pfSim1') || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } })(), simOf = function () { return SIM[PS.cur] || (SIM[PS.cur] = []); }, saveSim = function () { try { localStorage.setItem('pfSim1', JSON.stringify(SIM)); } catch (e) {} };
+  function simApply(mep) { // los nominales y la caja después de las operaciones simuladas
+    var F = Object.assign({}, FAV), fx = ST.ccy === 'USD' ? (mep ? 1 / mep : null) : 1, dc = 0, by = {}; U.forEach(function (r) { by[r.k] = r; });
+    var ops = simOf().map(function (o) { var r = by[o.k], q = +o.q || 0, x = { o: o, r: r, vn: 0, m: 0, err: '' };
+      if (!o.k) return x; if (!r) { x.err = 'No está en la lista de bonos'; return x; } if (!(r.pars > 0) || fx == null) { x.err = 'Sin precio'; return x; }
+      var u = r.pars / 100 * fx; x.vn = o.u === 'm' ? Math.floor(q / u) : q;
+      if (o.s === 'v') { var have = +F[o.k] || 0; if (x.vn > have) { x.err = 'Tenés ' + fm(have, 0) + ' VN: vende todo'; x.vn = have; } }
+      x.m = x.vn * u; F[o.k] = Math.max(0, (+F[o.k] || 0) + (o.s === 'v' ? -x.vn : x.vn)); dc += o.s === 'v' ? x.m : -x.m; return x; });
+    return { F: F, ops: ops, dc: dc };
+  }
+  function simMet(Hh, mep, cash) {
+    var H = Hh.filter(function (h) { return h.val > 0; }), tot = H.reduce(function (a, h) { return a + h.val; }, 0), wa = function (f) { var s = 0, w = 0; H.forEach(function (x) { if (x[f] != null && isFinite(x[f])) { s += x[f] * x.val; w += x.val; } }); return w ? s / w : null; };
+    var fxF = function (r) { return ST.ccy === 'USD' ? (r.fccy === 'USD' ? 1 : 1 / mep) : (r.fccy === 'USD' ? mep : 1); }, s0 = H.length ? H[0].s : null, mo = {}, c12 = 0;
+    H.forEach(function (x) { if (!x.fl) return; var f = fxF(x); if (!(f > 0) || !isFinite(f)) return; x.fl.forEach(function (c) { if (c[0] <= x.s) return; var v = x.n * c[1] / 100 * f, k = bxDayStr(c[0]).slice(0, 7); mo[k] = (mo[k] || 0) + v; if (c[0] - x.s <= 365) c12 += v; }); });
+    var E = {}; H.forEach(function (h) { var e = h.em || 'Tesoro Nacional'; E[e] = (E[e] || 0) + h.val; }), te = Object.keys(E).sort(function (a, b) { return E[b] - E[a]; })[0];
+    var wd = null, wk = ''; H.forEach(function (h) { var a = adtv(h.k, mep); if (!(a > 0)) return; var d = h.n * (h.pars || 0) / 100 / a / (ST.lqP || 0.25); if (wd == null || d > wd) { wd = d; wk = h.k; } });
+    var vr = null; if (H.length && VD) { try { vr = varCalc(H, U); } catch (e) {} }
+    var md = wa('md');
+    return { tot: tot, cash: cash, all: tot + (cash || 0), n: H.length, tir: wa('tir'), md: md, cv: wa('conv'), dv01: md != null ? md * tot * 1e-4 : null, d: wa('d'), varH: vr ? vr.hVar : null, c12: c12, mo: mo, em: te, emW: te && tot ? E[te] / tot : null, wd: wd, wk: wk };
+  }
+  function renderSim(Hh, mep) {
+    var ot = document.getElementById('pfSimO'); if (!ot || !document.getElementById('pfSim').offsetParent) return;
+    var dl = document.getElementById('pfSimL'); if (dl.childElementCount !== U.length) dl.innerHTML = U.map(function (r) { return '<option value="' + r.k + '">' + esc(r.tipo) + '</option>'; }).join('');
+    document.getElementById('pfSimF').value = ST.simF || 'caja';
+    var S = simApply(mep), PY = payOf(), c0 = (+PY.cash || 0) * (PY.cc === ST.ccy ? 1 : ST.ccy === 'USD' ? (mep ? 1 / mep : 0) : mep || 0), useC = (ST.simF || 'caja') === 'caja';
+    ot.innerHTML = '<thead><tr><th class="l">Bono</th><th class="l">Operación</th><th class="l">Cargás</th><th>Cantidad</th><th>Nominales</th><th>Monto</th><th></th></tr></thead><tbody>' + (S.ops.length ? S.ops.map(function (x, i) { var o = x.o;
+      return '<tr><td class="l"><input class="pfsm" style="width:120px;text-align:right;font:inherit;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx)" data-i="' + i + '" data-f="k" list="pfSimL" value="' + esc(o.k || '') + '" placeholder="Ticker"></td><td class="l"><select class="pfsm" data-i="' + i + '" data-f="s"><option value="c"' + (o.s !== 'v' ? ' selected' : '') + '>Compra</option><option value="v"' + (o.s === 'v' ? ' selected' : '') + '>Venta</option></select></td><td class="l"><select class="pfsm" data-i="' + i + '" data-f="u"><option value="vn"' + (o.u !== 'm' ? ' selected' : '') + '>Nominales</option><option value="m"' + (o.u === 'm' ? ' selected' : '') + '>Monto (' + (ST.ccy === 'USD' ? 'US$' : '$') + ')</option></select></td>' +
+        '<td><input class="pfsm" style="width:120px;text-align:right;font:inherit;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx)" data-i="' + i + '" data-f="q" inputmode="decimal" value="' + (o.q ? fm(o.q, 0) : '') + '" placeholder="0"></td><td>' + (x.vn ? fm(x.vn, 0) : '—') + '</td><td>' + (x.m ? money(x.m) : '—') + (x.err ? '<br><small style="color:var(--bad)">' + x.err + '</small>' : '') + '</td><td><button class="pfs on pfsmd" data-i="' + i + '" title="Sacar">×</button></td></tr>'; }).join('') : '<tr><td colspan="7" class="pfe">Tocá + Operación para simular una compra o una venta.</td></tr>') + '</tbody>';
+    var A = simMet(Hh, mep, c0), B = simMet(holdings(mep, S.F), mep, useC ? c0 + S.dc : c0);
+    var row = function (t, a, b, f, good, df) { var d = a != null && b != null ? b - a : null, c = d == null || Math.abs(d) < 1e-9 || !good ? '' : (d > 0) === (good > 0) ? 'var(--ok)' : 'var(--bad)'; return '<tr><td class="l">' + t + '</td><td>' + (a == null ? '—' : f(a)) + '</td><td><b>' + (b == null ? '—' : f(b)) + '</b></td><td style="color:' + (c || 'var(--mu)') + '">' + (d == null || Math.abs(d) < 1e-9 ? '—' : (d > 0 ? '+' : '−') + (df || f)(Math.abs(d))) + '</td></tr>'; };
+    var rd = function (v) { return v < 0.1 ? '< 0,1' : fm(v, v < 10 ? 1 : 0); };
+    document.getElementById('pfSimT').innerHTML = '<thead><tr><th class="l">Métrica</th><th>Hoy</th><th>Simulado</th><th>Cambio</th></tr></thead><tbody>' +
+      row('Bonos (valor de mercado)', A.tot, B.tot, money) + row('Caja', A.cash, B.cash, money, 0) + row('Bonos + caja', A.all, B.all, money) +
+      row('TIR ponderada', A.tir, B.tir, function (v) { return pc(v, 2); }, 1, function (v) { return fm(v * 1e4, 0) + ' pb'; }) + row('Duración modificada', A.md, B.md, function (v) { return fm(v, 2); }) + row('Convexidad', A.cv, B.cv, function (v) { return fm(v, 2); }) +
+      row('DV01', A.dv01, B.dv01, money, -1) + row('VaR histórico (' + fm(ST.conf * 100, 0) + '%, ' + (ST.hz === 1 ? '1 día' : ST.hz + ' ruedas') + ')', A.varH, B.varH, money, -1) + row('Cobros próximos 12 meses', A.c12, B.c12, money, 1) +
+      row('Plazo promedio (días)', A.d, B.d, function (v) { return fm(v, 0); }) + row('Mayor emisor (' + (B.em || A.em || '—') + ')', A.emW, B.emW, function (v) { return pc(v, 1); }, 0, function (v) { return fm(v * 100, 1) + ' pp'; }) + row('Ruedas para salir (peor posición)', A.wd, B.wd, rd, -1, function (v) { return fm(v, v < 10 ? 2 : 0); }) + '</tbody>';
+    var nop = function (v) { var n = S.ops.filter(function (x) { return (x.o.s === 'v') === v && x.vn; }).length; return n === 1 ? '1 operación' : n + ' operaciones'; };
+    var buy = S.ops.reduce(function (a, x) { return a + (x.o.s !== 'v' ? x.m : 0); }, 0), sell = S.ops.reduce(function (a, x) { return a + (x.o.s === 'v' ? x.m : 0); }, 0);
+    document.getElementById('pfSimC').innerHTML = chip('Comprás', money(buy), nop(false)) + chip('Vendés', money(sell), nop(true)) +
+      chip('Caja después', useC ? money(B.cash) : 'sin cambio', useC ? (B.cash < 0 ? '<b style="color:var(--bad)">te falta ' + money(-B.cash) + ': cargá la caja en Flujo de fondos</b>' : 'era ' + money(A.cash)) : 'las operaciones no tocan la caja') +
+      chip('TIR ponderada', B.tir != null && A.tir != null ? (B.tir >= A.tir ? '+' : '') + fm((B.tir - A.tir) * 1e4, 0) + ' pb' : '—', 'de ' + pc(A.tir, 2) + ' a ' + pc(B.tir, 2));
+    kill('pfSimG'); var ks = {}; [A.mo, B.mo].forEach(function (m) { Object.keys(m).forEach(function (k) { ks[k] = 1; }); }); var K = Object.keys(ks).sort().slice(0, 36);
+    if (K.length && window.Chart) { var tx = css('--tx'), bd = css('--bd'), lab = K.map(function (k) { return new Date(k + '-15T00:00:00Z').toLocaleDateString('es-AR', { month: 'short', year: '2-digit', timeZone: 'UTC' }); });
+      CH.pfSimG = new Chart(document.getElementById('pfSimG'), { type: 'bar', data: { labels: lab, datasets: [{ label: 'Hoy', data: K.map(function (k) { return A.mo[k] || 0; }), backgroundColor: css('--mu'), maxBarThickness: 18 }, { label: 'Simulado', data: K.map(function (k) { return B.mo[k] || 0; }), backgroundColor: css('--ac'), maxBarThickness: 18 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: tx, usePointStyle: true } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + money(c.raw); } } } }, scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: true }, grid: { display: false } }, y: { ticks: { color: tx, callback: function (v) { return money(v); } }, grid: { color: bd }, title: { display: true, text: 'Cobros por mes (renta y amortización)', color: css('--mu') } } } } }); }
+    document.getElementById('pfSimN').textContent = 'Precios de ahora, sin comisiones ni derechos de mercado. Montos en ' + (ST.ccy === 'USD' ? 'dólares MEP' : 'pesos') + '; un bono en dólares se compra a su precio en pesos. La TIR ponderada mezcla cada bono en su moneda (como en Tu portfolio). VaR con la confianza, el horizonte y la ventana de la pestaña Value at Risk. Los cobros, sin escenarios: la proyección de cada bono y el MEP de hoy.';
+  }
   function renderEmi(Hh, mep) {
     var et = document.getElementById('pfEmT'), lt = document.getElementById('pfLqT'), ch = document.getElementById('pfEmC'), nt = document.getElementById('pfEmN'); if (!et) return;
     var H = Hh.filter(function (h) { return h.val > 0; }), tot = H.reduce(function (a, h) { return a + h.val; }, 0); if (!H.length) { et.innerHTML = lt.innerHTML = ch.innerHTML = ''; nt.textContent = ''; return; }
@@ -9152,11 +9209,11 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   }
   function render() {
     try {
-      var pa = document.getElementById('pfAll'), pt = document.getElementById('port'); if (pt && !pt.offsetParent && !['pfMine', 'pfEmi', 'pfPick', 'pfPerf', 'pfScen', 'pfRisk', 'pfFlow', 'pfVar'].some(function (id) { var e = document.getElementById(id); return e && e.offsetParent; })) return; // oculto (ni la pestaña ni ninguna tarjeta a la vista, p. ej. en el Dashboard): no arma nada ni baja el historial (data/volumen.json) hasta que se ve
+      var pa = document.getElementById('pfAll'), pt = document.getElementById('port'); if (pt && !pt.offsetParent && !['pfMine', 'pfEmi', 'pfPick', 'pfSim', 'pfPerf', 'pfScen', 'pfRisk', 'pfFlow', 'pfVar'].some(function (id) { var e = document.getElementById(id); return e && e.offsetParent; })) return; // oculto (ni la pestaña ni ninguna tarjeta a la vista, p. ej. en el Dashboard): no arma nada ni baja el historial (data/volumen.json) hasta que se ve
       if (!pa) html();
       U = universe(); renderPick();
       var mep = mepNow(), Hh = holdings(mep);
-      var P = renderMine(Hh, mep); LASTP = P; try { renderEmi(Hh, mep); } catch (e) { console.error('port emisor', e); } try { renderPerf(Hh, mep); } catch (e) { console.error('port rend', e); } renderScen(P); renderRisk(P); renderFlow(P, mep); renderVar(P);
+      var P = renderMine(Hh, mep); LASTP = P; try { renderSim(Hh, mep); } catch (e) { console.error('port sim', e); } try { renderEmi(Hh, mep); } catch (e) { console.error('port emisor', e); } try { renderPerf(Hh, mep); } catch (e) { console.error('port rend', e); } renderScen(P); renderRisk(P); renderFlow(P, mep); renderVar(P);
       if (!VD) loadVol();
     } catch (e) { console.error('port', e); var s = document.getElementById('pfMineSub'); if (s) s.textContent = 'Error: ' + e.message; }
   }
@@ -9170,7 +9227,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   window.switchTab = function (id) { _sw(id); var gc = document.getElementById('globalControls'); if (id === 'port') { if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
   var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(render, 0); };
   if (window.applySettle) { var _as = window.applySettle; window.applySettle = function () { var r = _as.apply(this, arguments); if (isAct()) later(); return r; }; }
-  setInterval(function () { if (isAct() && !(document.activeElement && document.activeElement.classList && (/^pf(n|pd|pp|py)$/.test(document.activeElement.className.split(' ')[0]) || document.activeElement.id === 'pfCash'))) render(); }, 60000);
+  setInterval(function () { if (isAct() && !(document.activeElement && document.activeElement.classList && (/^pf(n|pd|pp|py|sm)$/.test(document.activeElement.className.split(' ')[0]) || document.activeElement.id === 'pfCash'))) render(); }, 60000);
 })();
 /*@@PORT_END@@*/
 /* =====================================================================
