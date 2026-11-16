@@ -1,6 +1,7 @@
 """Alta PRO: marca a un usuario (por mail) como PRO hasta una fecha, en app_metadata.pro_hasta de Supabase Auth.
    Se corre a mano desde Actions («Alta PRO»): mail y meses (1, 6 o 12; 0 = quitar PRO). Si ya era PRO, suma desde su vencimiento.
    Opcional: desde (AAAA-MM-DD) = los meses cuentan desde esa fecha y pisan el vencimiento anterior (ej.: pagó durante la prueba gratis).
+   Si no tiene cuenta, se la crea y le manda invitación por mail.
    Secret: SUPABASE_SERVICE_KEY."""
 import datetime as dt, json, os, sys, urllib.request
 
@@ -44,8 +45,11 @@ def main():
     if not KEY:
         sys.exit("Falta SUPABASE_SERVICE_KEY")
     u = buscar(mail)
+    if not u and meses > 0:
+        u = http(f"{SB}/auth/v1/invite", {"email": mail}, "POST")
+        print(f"{mail}: no tenía cuenta, se le mandó invitación por mail")
     if not u:
-        sys.exit(f"No hay ningún usuario con el mail {mail} (tiene que registrarse primero en la página).")
+        sys.exit(f"No hay ningún usuario con el mail {mail}.")
     hoy = (dt.datetime.utcnow() - dt.timedelta(hours=3)).date()
     am = u.get("app_metadata") or {}
     if meses <= 0:
