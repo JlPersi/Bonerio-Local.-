@@ -16,7 +16,8 @@
 - vivo: foto de la rueda por la API de Primary con la cuenta de Bull (secrets ROFEX_USER, ROFEX_PASS, ROFEX_URL; sin ellos no se toma):
     fut y cfut: [contrato, vencimiento, compra, venta, último, ajuste, interés abierto, volumen, apertura, máximo, mínimo]
     cau: caución de BYMA en pesos por plazo, [días, compra, venta, última, volumen nominal]
-    spot: el spot de A3 de hoy por Primary (spotF "A3") o, si Primary no tiene uno de hoy, el mayorista de dolarapi.com (spotF "mayorista")
+    spot: el spot de A3 de hoy por Primary (spotF "A3"); si Primary no tiene uno de hoy, el A3500 de hoy del BCRA (spotF "A3500", sale después de las 15)
+          o el mayorista de dolarapi.com (spotF "mayorista")
 data/intra.json: el intradiario de las últimas ruedas, {fecha: {"cau": {"ARS"|"USD"|"EXT": [[minuto del día, tasa, monto]]}, "cd": {moneda: días},
   "fut": {contrato: [[minuto, último, cantidad]]}}}. La caución es el plazo más corto de BYMA en cada corrida del Action (cada 10 minutos);
   los futuros de dólar y de caución, todas las operaciones del día por Primary agrupadas cada 5 minutos.
@@ -321,6 +322,8 @@ if U and P and not os.environ.get("SIN_VIVO"):
             d = (md("DLR/SPOT") or {}).get("LA")
             if isinstance(d, dict) and de_hoy(d.get("date")):
                 viv["spot"], viv["spotF"] = px(d), "A3"
+        if not viv.get("spot") and num(db["a3500"].get(today.isoformat())):  # si no, el A3500 de hoy (con el que liquidan los futuros; el BCRA lo publica después del cierre del MULC)
+            viv["spot"], viv["spotF"] = db["a3500"][today.isoformat()], "A3500"
         if not viv.get("spot"):  # si no, el mayorista de hoy
             try:
                 m = get(MAY, t=20)
