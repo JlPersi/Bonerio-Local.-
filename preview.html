@@ -8239,7 +8239,8 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   var ORDER = ['usd', 'fija', 'cer', 'tamar', 'dl', 'dual'];
   var GC = { usd: '#c9a0ff', fija: '#ffc542', cer: '#2fd4a7', tamar: '#5cc8ff', dl: '#c9a0ff', dual: '#ff8fb3' };
   var KR = [0.25, 0.5, 1, 2, 3, 5, 7, 10, 15, 20], KRL = ['3m', '6m', '1a', '2a', '3a', '5a', '7a', '10a', '15a', '20a']; // nodos de Fabozzi hasta 20 años (más 6m por la curva corta en pesos)
-  var FKEY = 'pfFav1', SKEY = 'pfSt1';
+  var FKEY = 'pfFav1', SKEY = 'pfSt1', CKEY = 'pfCost1', COST = (function () { try { var o = JSON.parse(localStorage.getItem('pfCost1') || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } })(); // fecha y precio de compra de cada bono, por portfolio
+  var costOf = function () { return COST[PS.cur] || (COST[PS.cur] = {}); }, saveCost = function () { try { localStorage.setItem(CKEY, JSON.stringify(COST)); } catch (e) {} };
   var FAV = (function () { try { var o = JSON.parse(localStorage.getItem(FKEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } })();
   try { if (!localStorage.getItem('pfMigQ')) { localStorage.setItem('pfMigQ', '1'); var qv = JSON.parse(localStorage.getItem('quant_vn') || '{}'); if (qv && !Object.keys(FAV).length) { Object.keys(qv).forEach(function (k) { if (+qv[k] > 0) FAV[k] = +qv[k]; }); localStorage.setItem(FKEY, JSON.stringify(FAV)); } } } catch (e) {} // la cartera de Flujos y Total Return se unificó acá: sus nominales cargados pasan al portfolio (una vez, si estaba vacío)
   var ST = { ccy: 'ARS', conf: 0.95, hz: 1, win: 500, wt: 'eq', grp: 'all', q: '', sort: 'mat', sc: 'par', scM: 100, scTo: 'all', shk: null };
@@ -8503,7 +8504,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   }
 
   // subpestañas, como en Acciones: qué tarjetas muestra cada una
-  var PSUB = [['cart', 'Cartera', ['pfMine', 'pfPick']], ['esc', 'Escenarios de tasas', ['pfScen']], ['dur', 'Duración', ['pfRisk']], ['flujo', 'Flujo de fondos', ['pfFlow']], ['var', 'Value at Risk', ['pfVar']]];
+  var PSUB = [['cart', 'Cartera', ['pfMine', 'pfPick']], ['rend', 'Rendimiento', ['pfPerf']], ['esc', 'Escenarios de tasas', ['pfScen']], ['dur', 'Duración', ['pfRisk']], ['flujo', 'Flujo de fondos', ['pfFlow']], ['var', 'Value at Risk', ['pfVar']]];
   function psub(g) {
     if (!PSUB.some(function (x) { return x[0] === g; })) g = 'cart'; ST.sub = g; save();
     PSUB.forEach(function (x) { x[2].forEach(function (id, i) { var e = document.getElementById(id); if (!e) return; e.style.display = x[0] === g ? '' : 'none'; e.style.marginTop = i ? '24px' : '0'; }); });
@@ -8542,6 +8543,8 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
         '<div class="pfc"><label>Portfolio<select id="pfP"></select></label><button class="act" id="pfNew" data-html2canvas-ignore="true">Guardar como…</button><button class="act" id="pfImp" data-html2canvas-ignore="true" title="Traé tu tenencia del broker: Excel, CSV o copiar y pegar">Importar…</button><button class="act" id="pfDel" data-html2canvas-ignore="true">Borrar este</button><label>Moneda<select id="pfC"><option value="ARS">Pesos</option><option value="USD">Dólares (MEP)</option></select></label>' +
         '<button class="act" id="pfDist" data-html2canvas-ignore="true" disabled>Ver distribución</button><button class="act" id="pfShp" data-html2canvas-ignore="true" disabled>Ver estructura</button><button class="act" id="pfClr" data-html2canvas-ignore="true">Vaciar portfolio</button></div>' +
         '<div class="pfw" style="max-height:none"><table class="pft" id="pfTab"></table></div><div class="pfchips" id="pfChips" style="margin-top:14px"></div>', 'Portfolio') +
+      cardH('pfPerf', 'Rendimiento acumulado', 'Cargá la fecha en que compraste cada bono (y el precio, si no fue el cierre de ese día): ves cuánto ganaste con precio, cupones y amortizaciones cobrados, y qué hubiera hecho esa misma plata en un plazo fijo, en caución, ajustada por inflación o pasada a dólar MEP.',
+        '<div class="pfchips" id="pfPfC"></div><div class="pfw" style="max-height:none;margin-top:14px"><table class="pft" id="pfPfT"></table></div><p class="pfnote" id="pfPfN"></p>', 'Rendimiento_portfolio') +
       cardH('pfScen', 'Escenarios de tasas', 'El impacto de un cambio de tasas en tu cartera: elegí cuántos pb se mueve cada plazo de la curva (o un escenario armado) y se revalúa cada bono con sus flujos, sin aproximaciones de duración.',
         '<div class="pfc"><label>Escenario<select id="pfScS"><option value="par">Parallel shift (todas las tasas igual)</option><option value="bullst">Bull steepening (bajan, más los cortos · el más común en bajas)</option><option value="bearst">Bear steepening (suben, más los largos)</option><option value="bullfl">Bull flattening (bajan, más los largos)</option><option value="bearfl">Bear flattening (suben, más los cortos · el más común en subas)</option><option value="pbfly">Butterfly positiva (puntas suben, panza baja)</option><option value="nbfly">Butterfly negativa (puntas bajan, panza sube)</option><option value="custom">Personalizado</option></select></label>' +
         '<label title="En parallel shift el signo manda (negativo = baja). En el resto es cuánto se mueve el nodo que más se mueve.">Magnitud (pb)<input type="number" id="pfScM" step="25" style="width:110px"></label><label>Aplicar a<select id="pfScTo"><option value="all">Todas las curvas</option>' + ORDER.map(function (g) { return '<option value="' + g + '">Solo ' + GN[g] + '</option>'; }).join('') + '</select></label></div>' +
@@ -8591,6 +8594,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       var tm = e.target.closest('#pfTab th[data-m]'); if (tm) { var m = tm.getAttribute('data-m'); ST.msort = m === 'grp' ? (ST.msort === 'grp' ? '-grp' : ST.msort === '-grp' ? '' : 'grp') : ST.msort === m ? '-' + m : ST.msort === '-' + m ? '' : m; render(); return; }
       var th = e.target.closest('#pfAll th[data-s]'); if (th) { var s = th.getAttribute('data-s'); ST.sort = ST.sort === s ? '-' + s : s; renderPick(); }
     });
+    root.addEventListener('change', function (e) { var i = e.target.closest('.pfpd,.pfpp'); if (!i) return; var k = i.getAttribute('data-k'), C = costOf(), o = C[k] || (C[k] = {}); if (i.classList.contains('pfpd')) { if (i.value) o.d = i.value; else delete o.d; } else { var v = parseFloat(String(i.value).replace(/\./g, '').replace(',', '.')); if (v > 0) o.px = v; else delete o.px; } if (!o.d && !o.px) delete C[k]; saveCost(); render(); });
     root.addEventListener('change', function (e) { var i = e.target.closest('.pfn'); if (!i || i.classList.contains('pfsh')) return; var v = parseFloat(String(i.value).replace(/\./g, '').replace(',', '.')); FAV[i.getAttribute('data-k')] = isFinite(v) && v > 0 ? v : 0; save(); render(); });
   }
 
@@ -8621,7 +8625,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   var dvT = 0, dvc = function (v, t) { return v == null || !isFinite(v) ? '—' : '<span style="color:var(' + (v > 0 ? '--ok' : v < 0 ? '--bad' : '--mu') + ')">' + t + '</span>'; };
   function renderMine(Hh, mep) {
     var H = Hh.filter(function (h) { return h.val > 0; }), tot = H.reduce(function (a, h) { return a + h.val; }, 0);
-    document.getElementById('pfMineSub').textContent = Hh.length ? 'Cargá los nominales (valor nominal, no pesos) de cada bono. Valuado a precio de hoy' + (mep ? ' · MEP $ ' + fm(mep, 2) : '') + '. Var. día: contra el cierre anterior, en la moneda de cada bono y con los cupones cobrados. Quedan guardados en este navegador.' : 'Todavía no sumaste bonos. Tocá el + al lado de cada bono en la lista de arriba.';
+    document.getElementById('pfMineSub').textContent = Hh.length ? 'Cargá los nominales (valor nominal, no pesos) de cada bono. Valuado a precio de hoy' + (mep ? ' · MEP $ ' + fm(mep, 2) : '') + '. Var. día: contra el cierre anterior, en la moneda de cada bono y con los cupones cobrados. Quedan guardados en tu cuenta.' : 'Todavía no sumaste bonos. Tocá el + al lado de cada bono en la lista de arriba.';
     var DV = window.vardAll ? window.vardAll(function () { if (!dvT) dvT = setTimeout(function () { dvT = 0; render(); }, 300); }) : {}, dR = 0, dB = 0; // variación del día contra el cierre anterior (la misma de Variación diaria, con cupones y amortizaciones)
     var dvF = function (r) { if (!VD || r.pccy === 'USD' || !(r.P > 0)) return null; var C = closes(r.k); if (!C) return null; var j = C.length - 1; if (VD.dates[j] === bxDayStr(bxToday())) j--; j = prevIdx(C, j); if (j >= 0 && typeof mktStarted === 'function' && !mktStarted() && Math.abs(r.P / C[j] - 1) < 1e-9) j = prevIdx(C, j - 1); return j < 0 ? null : r.P / C[j] - 1; }; // antes de la apertura el precio es el cierre de ayer: se compara con la rueda anterior // los que no están en Variación diaria (provinciales en pesos, Badlar): contra el último cierre de data/volumen.json
     Hh.forEach(function (r) { var q = DV[r.k]; r.dv = q ? q.dpct / 100 : dvF(r); if (r.dv != null && !(Math.abs(r.dv) < 0.3)) r.dv = null; r.dr = r.dv != null && r.val ? r.val * r.dv / (1 + r.dv) : null; if (r.dr != null) { dR += r.dr; dB += r.val - r.dr; } });
@@ -8891,6 +8895,53 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       'En TAMAR y duales el shock mueve también la TAMAR proyectada de cada mes (la de su plazo): lo ya devengado queda fijo, así que su duración es la efectiva y no la del bono a tasa fija; la inflación y el dólar del escenario no cambian, y en los duales gana la rama que corresponda después del shock. El riesgo de margen está en la tarjeta de tu portfolio. Editá cualquier celda para armar tu propio escenario.';
   }
 
+  var TAS = null, TASp = null;
+  function loadTas() { if (!TASp) TASp = fetch('data/tasas.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : {}; }).then(function (j) { TAS = j || {}; later(); }, function () { TAS = {}; }); }
+  function xirr(cf) { // cf: [[día, monto]]; TEA que hace cero el valor presente
+    if (cf.length < 2) return null; var t0 = cf[0][0], f = function (r) { return cf.reduce(function (a, c) { return a + c[1] / Math.pow(1 + r, (c[0] - t0) / 365); }, 0); }, lo = -0.99, hi = 50, flo = f(lo), fhi = f(hi);
+    if (!isFinite(flo) || !isFinite(fhi) || flo * fhi > 0) return null; for (var i = 0; i < 200; i++) { var m = (lo + hi) / 2, fm_ = f(m); if (Math.abs(fm_) < 1e-9) return m; if (fm_ * flo > 0) { lo = m; flo = fm_; } else hi = m; } return (lo + hi) / 2;
+  }
+  function rateFac(map, pick, t0, t1, per) { // capitaliza día a día la TNA vigente (la última publicada) entre dos días; per = días del plazo (1 caución, 30 plazo fijo)
+    if (!map) return null; var ks = Object.keys(map).sort(), v = [], i, f = 1, j = 0, cur = null;
+    for (i = 0; i < ks.length; i++) { var x = pick(map[ks[i]]); if (x > 0) v.push([bxDayNum(ks[i]), x]); } if (!v.length || t0 < v[0][0]) return null;
+    for (var t = t0; t < t1; t++) { while (j < v.length && v[j][0] <= t) { cur = v[j][1]; j++; } if (cur == null) return null; f *= Math.pow(1 + cur / 100 * per / 365, 1 / per); }
+    return f;
+  }
+  function renderPerf(Hh, mep) {
+    var tb = document.getElementById('pfPfT'), ch = document.getElementById('pfPfC'), nt = document.getElementById('pfPfN'); if (!tb) return;
+    if (!VD) { loadVol(); tb.innerHTML = '<tbody><tr><td class="l">Cargando los cierres…</td></tr></tbody>'; return; } if (!TAS) loadTas();
+    var CO = costOf(), D = VD.dates, T = D.map(bxDayNum), nD = D.length, M = volMep(), today = bxToday(), usd = ST.ccy === 'USD', H = Hh.filter(function (h) { return h.n > 0; }), CF = [], TOT = { c: 0, v: 0, p: 0 }, BM = { pf: 0, cau: 0, cer: 0, mep: 0 }, bmOk = { pf: true, cau: true, cer: true, mep: true }, unk = false, any = false;
+    var fx = function (j) { return usd ? (j == null ? (mep ? 1 / mep : NaN) : 1 / (M && M[j] > 0 ? M[j] : NaN)) : 1; };
+    var cerAt = function (t) { var c = X.cerD ? X.cerD(t) : null, k = 0; while (!(c > 0) && k++ < 15) c = X.cerD(t - k); return c > 0 ? c : null; };
+    var rows = H.map(function (h) {
+      var o = CO[h.k] || {}, d = o.d, j0 = -1, i; if (d) for (i = 0; i < nD; i++) if (D[i] >= d) { j0 = i; break; }
+      var inp = '<td><input type="date" class="pfpd" data-k="' + h.k + '" value="' + (d || '') + '" min="' + D[0] + '" max="' + bxDayStr(today) + '" style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:7px;padding:4px 6px;font:inherit;font-size:13px"></td>';
+      var C = closes(h.k), cl = j0 >= 0 && C ? C[j0] : NaN; if (j0 >= 0 && !(cl > 0) && C) for (i = j0; i < Math.min(nD, j0 + 6); i++) if (C[i] > 0) { cl = C[i]; break; }
+      var px = o.px > 0 ? o.px : cl, pin = '<td><input class="pfpp" data-k="' + h.k + '" inputmode="decimal" value="' + (o.px > 0 ? fm(o.px, 2) : '') + '" placeholder="' + (cl > 0 ? fm(cl, 2) : 'precio') + '" title="Precio de compra en pesos cada 100 VN. Vacío: el cierre de ese día." style="width:96px;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:7px;padding:4px 6px;font:inherit;font-size:13px;text-align:right"></td>';
+      var head = '<td class="k">' + h.k + '</td>' + inp + pin + '<td>' + fm(h.n, 0) + '</td>';
+      if (!d || j0 < 0 || !(px > 0) || !(h.pars > 0)) return '<tr>' + head + '<td colspan="6" class="l" style="color:var(--mu)">' + (!d ? 'Cargá la fecha de compra' : j0 < 0 ? 'Sin cierres para esa fecha (hay desde ' + D[0].split('-').reverse().join('/') + ')' : 'Sin precio: cargalo a mano') + '</td></tr>';
+      any = true; var cost = h.n * px / 100 * fx(j0), val = h.n * h.pars / 100 * fx(null), pay = payFn(h), cob = 0, nul = false, t0 = T[j0], cf = [[t0, -cost]];
+      for (i = j0 + 1; i < nD; i++) { var y = pay(T[i - 1], T[i], i); if (y == null) { nul = true; continue; } if (y > 0) { var a = h.n * y / 100 * fx(i); cob += a; cf.push([T[i], a]); } }
+      if (today > T[nD - 1]) { var y2 = pay(T[nD - 1], today, nD - 1); if (y2 == null) nul = true; else if (y2 > 0) { var a2 = h.n * y2 / 100 * fx(null); cob += a2; cf.push([today, a2]); } }
+      cf.push([today, val]); CF = CF.concat(cf); if (nul) unk = true;
+      var res = val + cob - cost, r = res / cost, ds = Math.max(1, today - t0), tea = xirr(cf);
+      TOT.c += cost; TOT.v += val; TOT.p += cob;
+      var costARS = h.n * px / 100, k1;
+      k1 = TAS && rateFac(TAS.pf, function (x) { return +x; }, t0, today, 30); if (k1) BM.pf += costARS * k1; else bmOk.pf = false;
+      k1 = TAS && rateFac(TAS.cau, function (x) { var q = (x || []).filter(function (e) { return e[0] === 1; })[0]; return q ? q[1] : null; }, t0, today, 1); if (k1) BM.cau += costARS * k1; else bmOk.cau = false;
+      var c0 = cerAt(t0), c1 = cerAt(today); if (c0 && c1) BM.cer += costARS * c1 / c0; else bmOk.cer = false;
+      if (M && M[j0] > 0 && mep > 0) BM.mep += costARS / M[j0] * mep; else bmOk.mep = false;
+      return '<tr>' + head + '<td>' + money(cost) + '</td><td>' + money(val) + '</td><td>' + (nul ? '<span title="TAMAR o dual con pagos intermedios: no sumamos lo cobrado">n/d</span>' : money(cob)) + '</td><td>' + dvc(res, money(res)) + '</td><td>' + dvc(r, sg(r * 100, 2) + '%') + '</td><td>' + (tea == null || ds < 30 ? '—' : dvc(tea, sg(tea * 100, 1) + '%')) + '</td></tr>';
+    });
+    tb.innerHTML = H.length ? '<thead><tr><th class="l">Bono</th><th class="l">Compra</th><th>Precio ($ c/100 VN)</th><th>VN</th><th>Costo</th><th>Valor hoy</th><th>Cobrado</th><th>Resultado</th><th>Rend.</th><th title="Tasa efectiva anual que hace equivaler lo pagado con lo cobrado más el valor de hoy">TEA</th></tr></thead><tbody>' + rows.join('') + '</tbody>' +
+      (any ? '<tfoot><tr><td class="l" colspan="4">Total</td><td>' + money(TOT.c) + '</td><td>' + money(TOT.v) + '</td><td>' + money(TOT.p) + '</td><td>' + dvc(TOT.v + TOT.p - TOT.c, money(TOT.v + TOT.p - TOT.c)) + '</td><td>' + dvc(TOT.v + TOT.p - TOT.c, sg((TOT.v + TOT.p) / TOT.c * 100 - 100, 2) + '%') + '</td><td></td></tr></tfoot>' : '') : '<tbody><tr><td class="l">Sumá bonos a tu portfolio en Cartera.</td></tr></tbody>';
+    if (!any) { ch.innerHTML = ''; nt.textContent = H.length ? 'Cargá la fecha de compra de al menos un bono.' : ''; return; }
+    CF.sort(function (a, b) { return a[0] - b[0]; }); var tea = xirr(CF), mine = TOT.v + TOT.p, cv = usd ? 1 / mep : 1;
+    var bm = function (k, t, sub) { if (!bmOk[k]) return chip(t, '—', 'sin datos para todo el período'); var b = BM[k] * cv, d = mine - b; return chip(t, money(b), (d >= 0 ? 'le ganás por ' : 'te gana por ') + money(Math.abs(d)) + ' · ' + sub); };
+    ch.innerHTML = chip('Resultado', dvc(mine - TOT.c, money(mine - TOT.c)), sg(mine / TOT.c * 100 - 100, 2) + '% sobre ' + money(TOT.c) + ' invertidos') + chip('TEA de tu cartera', tea == null ? '—' : dvc(tea, sg(tea * 100, 1) + '%'), 'con las fechas de cada compra y cobro') +
+      bm('pf', 'En plazo fijo', 'renovando a 30 días') + bm('cau', 'En caución', 'a 1 día, todos los días') + bm('cer', 'Ajustado por inflación', 'con el CER') + bm('mep', 'Pasado a dólar MEP', 'al MEP de cada compra');
+    nt.innerHTML = 'Cada fila: lo que pagaste (VN × precio de compra), lo que vale hoy y los cupones y amortizaciones que cobraste desde la compra' + (usd ? ', en dólares al MEP de cada fecha' : ', en pesos (los de bonos en dólares, al MEP de cada pago)') + '. Las comparaciones ponen la misma plata, el mismo día de cada compra, en la otra alternativa: plazo fijo y caución con la tasa de cada día (TNA de bancos y caución a 1 día de BYMA), sin impuestos ni comisiones.' + (unk ? ' En TAMAR y duales con pagos intermedios no sumamos lo cobrado (n/d).' : '');
+  }
   function renderFlow(P, mep) {
     kill('pfFlC'); var cv = document.getElementById('pfFlC'); if (!P) return;
     var g0 = SCN && X.fxAt ? X.fxAt(P.H[0].s, SCN) : NaN, dv = function (t) { var g = SCN && X.fxAt ? X.fxAt(t, SCN) / g0 : NaN; return isFinite(g) && g > 0 ? g : 1; }; // el MEP de cada fecha: el de hoy con la devaluación del escenario de Curva Pesos (la brecha queda igual)
@@ -8953,11 +9004,11 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   }
   function render() {
     try {
-      var pa = document.getElementById('pfAll'), pt = document.getElementById('port'); if (pt && !pt.offsetParent && !['pfMine', 'pfPick', 'pfScen', 'pfRisk', 'pfFlow', 'pfVar'].some(function (id) { var e = document.getElementById(id); return e && e.offsetParent; })) return; // oculto (ni la pestaña ni ninguna tarjeta a la vista, p. ej. en el Dashboard): no arma nada ni baja el historial (data/volumen.json) hasta que se ve
+      var pa = document.getElementById('pfAll'), pt = document.getElementById('port'); if (pt && !pt.offsetParent && !['pfMine', 'pfPick', 'pfPerf', 'pfScen', 'pfRisk', 'pfFlow', 'pfVar'].some(function (id) { var e = document.getElementById(id); return e && e.offsetParent; })) return; // oculto (ni la pestaña ni ninguna tarjeta a la vista, p. ej. en el Dashboard): no arma nada ni baja el historial (data/volumen.json) hasta que se ve
       if (!pa) html();
       U = universe(); renderPick();
       var mep = mepNow(), Hh = holdings(mep);
-      var P = renderMine(Hh, mep); LASTP = P; renderScen(P); renderRisk(P); renderFlow(P, mep); renderVar(P);
+      var P = renderMine(Hh, mep); LASTP = P; try { renderPerf(Hh, mep); } catch (e) { console.error('port rend', e); } renderScen(P); renderRisk(P); renderFlow(P, mep); renderVar(P);
       if (!VD) loadVol();
     } catch (e) { console.error('port', e); var s = document.getElementById('pfMineSub'); if (s) s.textContent = 'Error: ' + e.message; }
   }
@@ -8971,7 +9022,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   window.switchTab = function (id) { _sw(id); var gc = document.getElementById('globalControls'); if (id === 'port') { if (gc) gc.style.display = 'none'; setTimeout(render, 0); } };
   var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(render, 0); };
   if (window.applySettle) { var _as = window.applySettle; window.applySettle = function () { var r = _as.apply(this, arguments); if (isAct()) later(); return r; }; }
-  setInterval(function () { if (isAct() && !(document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('pfn'))) render(); }, 60000);
+  setInterval(function () { if (isAct() && !(document.activeElement && document.activeElement.classList && /^pf(n|pd|pp)$/.test(document.activeElement.className.split(' ')[0]))) render(); }, 60000);
 })();
 /*@@PORT_END@@*/
 /* =====================================================================
@@ -8980,7 +9031,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
    ===================================================================== */
 ;(function () {
   var TAB_NAMES = { brc: 'Brecha_canje', ons: 'ONs', onsf: 'ONs_flujos_total_return', pvs: 'Provinciales', pvsf: 'Provinciales_flujos_total_return', tabla: 'Tabla_Retornos', desglose: 'Flujos_TotalReturn', curva: 'Curva_Spreads', pesos: 'Pesos', vard: 'Variacion_diaria', port: 'Portfolio', fav: 'Favoritos', rot: 'Rotacion', vol: 'Volumen', dol: 'Dolar' };
-  var TABLE_NAMES = { pfAll: 'Portfolio_bonos', pfTab: 'Portfolio', pfKrT: 'Portfolio_KRD', pfStress: 'Portfolio_stress', pfGrpT: 'Portfolio_grupos', pfVarT: 'Portfolio_VaR', dxTab: 'Dolar_ruedas', dxVar: 'Dolar_variaciones', vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', vlRot: 'Volumen_flujo', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', psFwT1: 'Fija_tasas_implicitas', psFwT2: 'CER_tasas_implicitas', psFwT3: 'TAMAR_margen_implicito', psFwT4: 'DL_tasas_implicitas', psOptT: 'Duales_valor_opcion', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
+  var TABLE_NAMES = { pfAll: 'Portfolio_bonos', pfTab: 'Portfolio', pfKrT: 'Portfolio_KRD', pfStress: 'Portfolio_stress', pfGrpT: 'Portfolio_grupos', pfVarT: 'Portfolio_VaR', pfPfT: 'Portfolio_rendimiento', dxTab: 'Dolar_ruedas', dxVar: 'Dolar_variaciones', vdTable: 'Variacion_diaria', vlTab: 'Volumen_ranking', vlFam: 'Volumen_familias', vlRot: 'Volumen_flujo', psFija: 'Tasa_fija', psCer: 'CER', psTamar: 'TAMAR', psDl: 'Dolar_linked', psDual: 'Duales', psFwT1: 'Fija_tasas_implicitas', psFwT2: 'CER_tasas_implicitas', psFwT3: 'TAMAR_margen_implicito', psFwT4: 'DL_tasas_implicitas', psOptT: 'Duales_valor_opcion', t: 'Tabla_Retornos', cfTable: 'Flujos', breakdownTable: 'Desglose_TR', qCarry: 'Carry_RollDown', qScen: 'Escenarios', qPort: 'Cartera', qVol: 'Volatilidad', qCorr_x: 'Correlaciones' };
 
   function parse(raw) {
     var s = raw.replace(/−/g, '-').replace(/ /g, ' ').replace(/^US\$\s*/, '').replace(/^([+-])\s+/, '$1').trim();
@@ -10807,7 +10858,7 @@ window.USTX = (function () {
   function render() {
     built = true; var b = cur(); if (b) ST.cur = b.id;
     var IC2 = function (p) { return ICON(p, 16); };
-    root.innerHTML = '<div class="card dbT" data-norf><div><h2>Dashboard</h2><p>Tus propios monitores: traé cualquier sección de la página, el ticker de un bono o el volumen del día, y se actualizan solos. Quedan guardados en este navegador.</p></div>' +
+    root.innerHTML = '<div class="card dbT" data-norf><div><h2>Dashboard</h2><p>Tus propios monitores: traé cualquier sección de la página, el ticker de un bono o el volumen del día, y se actualizan solos. Quedan guardados en tu cuenta.</p></div>' +
       (ST.b.length ? '<div class="dbC">' + ST.b.map(function (x) { return '<button type="button" data-b="' + x.id + '" class="' + (b && x.id === b.id ? 'on' : '') + '">' + esc(x.n) + '</button>'; }).join('') + '<button type="button" class="nw" data-nb>' + IC2(I.plus) + 'Nuevo tablero</button></div>' +
         '<div class="dbR"><input id="dbName" maxlength="40" value="' + esc(b.n) + '" aria-label="Nombre del tablero" title="Tocá para cambiarle el nombre"><span class="dbL" role="group" aria-label="Acomodo"><button type="button" data-lay="auto" class="' + (b.lay === 'free' ? '' : 'on') + '" title="Los widgets se acomodan solos en la grilla; arrastralos desde el título para cambiar el orden">Automático</button><button type="button" data-lay="free" class="' + (b.lay === 'free' ? 'on' : '') + '" title="Cada widget queda donde lo sueltes: arrastralo desde el título y cambiale el tamaño desde la esquina">Libre</button></span><button type="button" class="dbB pr" data-add>' + IC2(I.plus) + 'Nuevo widget</button><button type="button" class="dbB dg" data-del>' + IC2(I.trash) + '<span>Borrar tablero</span></button></div>' : '') +
       '</div><div class="dbG" id="dbGrid"></div>';
