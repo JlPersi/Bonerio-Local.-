@@ -380,7 +380,7 @@
   // arranque: quien ya entró ve la terminal directo; el resto, la portada
   /* --- tus datos en tu cuenta: carteras, tableros, favoritos, trades y preferencias viajan con el mail (tabla preferencias de Supabase, cada uno ve solo la suya por RLS) ---
      al entrar se trae lo de la cuenta; si es más nuevo que lo de este navegador, se aplica y la página se recarga una vez. Cada cambio se sube a los 3 segundos */
-  var SK = ['pfSets1', 'pfFav1', 'pfSt1', 'pfCost1', 'pfPay1', 'pfSim1', 'dbBoards1', 'dbFloat1', 'blTrades1', 'bnFav1', 'beProj1', 'beProjOn1', 'cerFix1', 'settle3', 'dlMode', 'psEsc', 'psOpt', 'calSt1'], SYN = { on: false, uid: null, t: null, no: false };
+  var SK = ['pfSets1', 'pfFav1', 'pfSt1', 'pfCost1', 'pfPay1', 'pfSim1', 'pfLed1', 'dbBoards1', 'dbFloat1', 'blTrades1', 'bnFav1', 'beProj1', 'beProjOn1', 'cerFix1', 'settle3', 'dlMode', 'psEsc', 'psOpt', 'calSt1'], SYN = { on: false, uid: null, t: null, no: false };
   var lsT = function () { try { return +localStorage.getItem('blSyncT') || 0; } catch (e) { return 0; } };
   function pack() { var o = {}; SK.forEach(function (k) { try { var v = localStorage.getItem(k); if (v != null) o[k] = v; } catch (e) { } }); return o; }
   function push() { if (!sb || !user || SYN.no || !SYN.on) return; var t = lsT() || Date.now(); sb.from('preferencias').upsert({ user_id: user.id, datos: pack(), actualizado: new Date(t).toISOString() }, { onConflict: 'user_id' }).then(function (r) { if (r.error) { console.warn('preferencias', r.error.message); if (/does not exist|schema cache|relation/i.test(r.error.message)) SYN.no = true; } }, function () { }); }
