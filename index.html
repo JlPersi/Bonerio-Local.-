@@ -1194,6 +1194,12 @@ window.curveFitUSD = function (pts, model, minN) {
       <table id="t"></table>
       <div class="tins" id="read"></div>
       <p class="note xp" id="tNote" style="margin: 14px 2px 0; line-height: 1.55; text-align: left;"><b>TIR de salida (exit TIR)</b>: las columnas de 5,0% a 25,0% son la TIR a la que suponés que el bono cotiza en la fecha de corte, cuando lo vendés. Cada celda es el retorno total en USD hasta esa fecha (precio de venta más cupones cobrados), comprando hoy al precio de la tabla. <b>Ret. TIR constante</b> es el caso en que la TIR de salida es igual a la de hoy. <b>BE retorno 0</b> es la TIR de salida a la que ganás 0%; <b>BE vs reinv.</b>, la que iguala lo que rendiría reinvertir a la tasa de reinversión; y <b>Colchón</b>, los puntos básicos que puede subir la TIR desde hoy hasta el BE retorno 0. Los números en las celdas remiten a los recuadros de arriba. Con la convención <b>IRR S.A.</b> (la de Bloomberg y las pantallas internacionales) las TIR son semestrales y cada celda es la IRR anual semestral de los flujos (compra, cupones y amortizaciones en su fecha y venta al corte), sin importar si reinvertís los cupones.</p>
+      <div id="tParW" style="border-top:1px solid var(--bd);margin-top:18px;padding-top:16px;text-align:left">
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px 16px;flex-wrap:wrap"><div><p class="qh" style="margin:0;font-size:17px">Escenarios por paridad de salida</p><p class="note" id="tParS" style="margin:4px 0 0;text-align:left"></p></div>
+          <label class="note" style="margin:0;display:flex;gap:8px;align-items:center" title="Paridades de salida, en % del valor técnico, separadas por coma">Paridades (%)<input id="tParI" value="35, 50, 70, 90" style="width:150px;padding:6px 9px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit;font-size:13px"></label></div>
+          <div class="sc" style="margin-top:12px"><table id="tPar"></table></div>
+          <p class="note xp" style="margin:10px 2px 0;line-height:1.55;text-align:left"><b>Cómo se calcula</b>: comprás hoy al precio de la tabla y vendés en la fecha de corte a esa paridad (precio ÷ valor técnico, el residual más el interés corrido de ese día). Retorno directo en dólares = (precio de venta + amortizaciones y cupones cobrados hasta el corte) ÷ precio de compra − 1, sin reinvertir lo cobrado. <b>Paridad de equilibrio</b>: la de salida con la que no ganás ni perdés. Los que vencen antes del corte cobran todo y no dependen de la paridad.</p>
+      </div>
       <details class="xp" style="border-top:1px solid var(--bd);margin-top:14px;padding-top:14px;text-align:left">
           <summary>Precios de mercado base (editables, USD por 100 VN)</summary>
           <div class="ctl" id="pr" style="margin-top:14px;"></div>
@@ -1859,6 +1865,27 @@ function calcSA(b, d0, d1, u) { // convención internacional: TIR semestral (S.A
  return { tir: sa(tir), cst: tir == null ? null : irr(tir), g: G.map(function (g) { return irr(ef(g)); }), be0: sa(ok(be0)), beu: sa(ok(beu)), ven: b.f[b.f.length - 1][0] };
 }
 
+function bxVT(k, t) { // valor técnico cada 100 VN originales: residual después de los pagos hasta t, más el interés corrido
+ var sc = PX.S[k]; if (!sc) return null; var res = 100; for (var i = 0; i < sc.r.length; i++) { if (sc.r[i][0] <= t) res = sc.r[i][3]; else break; } return res + bxAccr(k, t);
+}
+function drawPar(rows, d0, d1) { // escenarios por paridad de salida: retorno directo en dólares comprando hoy y vendiendo al corte
+ var raw = ($('tParI').value || ''), PL = raw.split(/[;,\s]+/).map(function (x) { return parseFloat(x.replace(',', '.')); }).filter(function (x) { return x > 0 && x <= 200; }).slice(0, 8); if (!PL.length) PL = [35, 50, 70, 90];
+ try { localStorage.setItem('tPar1', PL.join(', ')); } catch (e) {}
+ var fd = function (t) { return bxDayStr(t).split('-').reverse().join('/'); }, n1 = function (v, d) { return v == null || !isFinite(v) ? '—' : v.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+ var h = '<thead><tr><th rowspan="2">Bono</th><th rowspan="2">Vencimiento</th><th rowspan="2">MD</th><th rowspan="2">TIR</th><th rowspan="2">Paridad hoy</th><th colspan="2">Cobros hasta el corte</th><th rowspan="2" title="Paridad de salida con la que el retorno da cero">Paridad de equilibrio</th><th colspan="' + PL.length + '">Retorno según paridad de salida</th></tr><tr><th>Amortización</th><th>Cupones</th>' + PL.map(function (p) { return '<th>' + n1(p, 0) + '%</th>'; }).join('') + '</tr></thead><tbody>';
+ rows.forEach(function (x) {
+  var b = x.b, sc = PX.S[b.k], P = b.p; if (!sc || !(P > 0)) return;
+  var am = 0, cp = 0; sc.r.forEach(function (q) { if (q[0] > d0 && q[0] <= d1) { am += q[2]; cp += q[1]; } });
+  var mat = sc.r[sc.r.length - 1][0], vt0 = bxVT(b.k, d0), par0 = vt0 > 0 ? P / vt0 : null, gone = mat <= d1, vt1 = gone ? 0 : bxVT(b.k, d1), cash = am + cp;
+  var be = gone || !(vt1 > 0) ? null : (P - cash) / vt1, ret = function (p) { return ((gone ? 0 : p / 100 * vt1) + cash) / P - 1; };
+  h += '<tr><td class="t">' + b.k + '</td><td>' + fd(mat) + '</td><td>' + n1(x.r0.modD, 1) + '</td><td>' + pc(x.r0.tir) + '</td><td style="font-weight:700">' + (par0 == null ? '—' : n1(par0 * 100, 1) + '%') + '</td><td>' + n1(am, 2) + '</td><td>' + n1(cp, 2) + '</td><td>' + (gone ? '<span style="color:var(--mu)">vence antes</span>' : be == null ? '—' : n1(Math.max(0, be) * 100, 1) + '%') + '</td>' +
+   PL.map(function (p) { var v = ret(p); return '<td style="' + col(v) + '">' + (v > 0 ? '+' : '') + n1(v * 100, 1) + '%</td>'; }).join('') + '</tr>';
+ });
+ $('tPar').innerHTML = h + '</tbody>';
+ $('tParS').textContent = 'Comprás el ' + fd(d0) + ' y vendés el ' + fd(d1) + ' · retorno directo en dólares ' + ((typeof especie !== 'undefined' && especie === 'C') ? 'cable' : 'MEP') + ' · cada 100 VN originales';
+}
+(function () { var i = $('tParI'); if (!i) return; try { var v = localStorage.getItem('tPar1'); if (v) i.value = v; } catch (e) {} i.addEventListener('change', function () { try { draw(); } catch (e) { console.error(e); } }); })();
+
 function col(v) { 
     if (v == null || !isFinite(v)) return ''; 
     const a = Math.min(1, Math.abs(v) / .3) * 0.8; 
@@ -1923,6 +1950,7 @@ function draw() {
        '<td class="b" style="font-weight:600;">' + pc(r.be0) + '</td><td' + mkAt(b.k, 'u') + '>' + pc(r.beu) + '</td><td' + mkAt(b.k, 'c') + '>' + (x.colch == null ? 'n/a' : pb(x.colch)) + '</td></tr>';
  });
  $('t').innerHTML = h;
+ try { drawPar(rows, d0, d1); } catch (e) { console.error('paridad', e); }
  const card = function (n, t, v, txt) { return '<div class="ti"><small><i class="n">' + n + '</i>' + t + '</small><b>' + v + '</b><span>' + txt + '</span></div>'; };
  $('read').innerHTML = (best ? card(1, 'Mayor colchón', '<em>' + best.k + '</em> · ' + pb(best.colch) + ' pb', 'Su TIR puede subir ' + pb(best.colch) + ' pb hasta el ' + fc + ' antes de que el retorno en USD pase a ser negativo.') : '') +
   (worst ? card(2, 'Menor colchón', '<em>' + worst.k + '</em> · ' + pb(worst.colch) + ' pb', 'Si su TIR sube más que eso hasta el ' + fc + ', el retorno en USD pasa a ser negativo: es el más expuesto a una suba de tasas.') : '') +
