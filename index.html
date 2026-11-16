@@ -14640,7 +14640,7 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
   var a = document.querySelector('.tab-content.active'); show(a ? a.id : null);
 })();
 (function () { // MEP o Cable: va en las pestañas que muestran bonos en dólares, junto a sus controles (antes estaba arriba de todo)
-  var sp = document.getElementById('spBar'), L = document.getElementById('spL'), T = /^(home|dash|res|vard|vol|rot|port|curva|tabla|desglose|ons|onsf|pvs|pvsf|thist|scr|cim)$/;
+  var sp = document.getElementById('spBar'), L = document.getElementById('spL'), T = /^(vard|vol|rot|port|curva|tabla|desglose|ons|onsf|pvs|pvsf|thist|scr|cim)$/; // Inicio, Dashboard y Resumen no: ahí lo trae cada gráfico
   if (!sp || !L) return;
   var vis = function (el) { return el && el.style.display !== 'none' && getComputedStyle(el).display !== 'none'; };
   var place = function (id) {
@@ -14651,6 +14651,20 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
   };
   var _sw = window.switchTab; window.switchTab = function (id) { var r = _sw.apply(this, arguments); setTimeout(function () { place(id); }, 0); return r; };
   var a = document.querySelector('.tab-content.active'); place(a ? a.id : null);
+  // y un MEP / CCL chico arriba a la derecha de cada gráfico con bonos en dólares (al lado de Ampliar): viaja con el gráfico al Dashboard y al Resumen
+  var M = document.getElementById('bmep'), C = document.getElementById('bccl'), G = '#curva,#ons,#pvs,#vard,#rot,#port,#thist,#desglose,#onsf,#pvsf';
+  var st = document.createElement('style'); st.textContent = '.spm{position:absolute;top:6px;right:42px;z-index:6;height:30px;display:flex;border:1px solid var(--bd);border-radius:8px;background:var(--bg);overflow:hidden;opacity:.85}.spm:hover{opacity:1}.spm button{border:0;margin:0;padding:0 8px;height:100%;background:transparent;color:var(--mu);font-size:11px;font-weight:600;cursor:pointer;box-shadow:none;border-radius:0}.spm button.on{background:var(--tx);color:var(--bg)}html.emb .spm{right:6px}#ampBx .spm{display:none}'; document.head.appendChild(st);
+  var syncM = function () { var c = C.classList.contains('on'); [].forEach.call(document.querySelectorAll('.spm button'), function (b) { b.classList.toggle('on', (b.getAttribute('data-sp') === 'C') === c); }); };
+  [M, C].forEach(function (b) { b.addEventListener('click', function () { setTimeout(syncM, 0); }); });
+  var addM = function (cv) {
+    var box = cv && cv.parentNode; if (!box || box.nodeType !== 1 || !box.closest || !box.closest(G) || box.querySelector(':scope > .spm')) return;
+    if (getComputedStyle(box).position === 'static') box.style.position = 'relative';
+    var d = document.createElement('div'); d.className = 'spm'; d.setAttribute('data-html2canvas-ignore', 'true'); d.title = 'Especie de los bonos en dólares: MEP (D) o Cable (C)';
+    d.innerHTML = '<button type="button" data-sp="D">MEP</button><button type="button" data-sp="C">CCL</button>';
+    d.onclick = function (e) { e.stopPropagation(); var b = e.target.closest('[data-sp]'); if (!b || b.classList.contains('on')) return; (b.getAttribute('data-sp') === 'C' ? C : M).click(); };
+    box.appendChild(d); syncM();
+  };
+  if (window.Chart && M && C) { Chart.register({ id: 'spMini', afterInit: function (c) { try { addM(c.canvas); } catch (e) {} } }); try { Object.values(Chart.instances || {}).forEach(function (c) { addM(c.canvas); }); } catch (e) {} }
 })();
 </script>
 <script>
