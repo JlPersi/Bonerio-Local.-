@@ -8538,7 +8538,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
         '<div class="pfc"><label>Grupo<select id="pfG"><option value="all">Todos</option>' + ORDER.map(function (g) { return '<option value="' + g + '">' + GN[g] + '</option>'; }).join('') + '</select></label>' +
         '<label>Buscar<input type="search" id="pfQ" placeholder="Ticker o tipo"></label></div><div class="pfw"><table class="pft" id="pfAll"></table></div>', 'Portfolio_bonos') +
       cardH('pfMine', 'Tu portfolio', '#pfMineSub',
-        '<div class="pfc"><label>Portfolio<select id="pfP"></select></label><button class="act" id="pfNew" data-html2canvas-ignore="true">Guardar como…</button><button class="act" id="pfDel" data-html2canvas-ignore="true">Borrar este</button><label>Moneda<select id="pfC"><option value="ARS">Pesos</option><option value="USD">Dólares (MEP)</option></select></label>' +
+        '<div class="pfc"><label>Portfolio<select id="pfP"></select></label><button class="act" id="pfNew" data-html2canvas-ignore="true">Guardar como…</button><button class="act" id="pfImp" data-html2canvas-ignore="true" title="Traé tu tenencia del broker: Excel, CSV o copiar y pegar">Importar…</button><button class="act" id="pfDel" data-html2canvas-ignore="true">Borrar este</button><label>Moneda<select id="pfC"><option value="ARS">Pesos</option><option value="USD">Dólares (MEP)</option></select></label>' +
         '<button class="act" id="pfDist" data-html2canvas-ignore="true" disabled>Ver distribución</button><button class="act" id="pfShp" data-html2canvas-ignore="true" disabled>Ver estructura</button><button class="act" id="pfClr" data-html2canvas-ignore="true">Vaciar portfolio</button></div>' +
         '<div class="pfw" style="max-height:none"><table class="pft" id="pfTab"></table></div><div class="pfchips" id="pfChips" style="margin-top:14px"></div>', 'Portfolio') +
       cardH('pfScen', 'Escenarios de tasas', 'El impacto de un cambio de tasas en tu cartera: elegí cuántos pb se mueve cada plazo de la curva (o un escenario armado) y se revalúa cada bono con sus flujos, sin aproximaciones de duración.',
@@ -8583,7 +8583,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       });
     };
     g('pfDel').onclick = function () { var ks = Object.keys(PS.s); if (ks.length < 2) return; ask('Borrar portfolio', '¿Borrar \u00ab' + PS.cur + '\u00bb? No se puede deshacer.', null, 'Borrar', function () { delete PS.s[PS.cur]; PS.cur = ks.filter(function (n) { return n !== PS.cur; })[0]; FAV = PS.s[PS.cur]; save(); fillP(); render(); }); };
-    g('pfDist').onclick = openDist; g('pfShp').onclick = openShape;
+    g('pfDist').onclick = openDist; g('pfShp').onclick = openShape; g('pfImp').onclick = function () { openImp(fillP, useP); };
     g('pfClr').onclick = function () { if (!Object.keys(FAV).length) return; ask('Vaciar portfolio', '¿Sacar todos los bonos de \u00ab' + PS.cur + '\u00bb?', null, 'Vaciar', function () { FAV = {}; save(); render(); }); };
     root.addEventListener('click', function (e) {
       var b = e.target.closest('.pfs'); if (b) { var k = b.getAttribute('data-k'); if (FAV[k] != null) delete FAV[k]; else FAV[k] = 0; save(); render(); return; }
@@ -8685,6 +8685,64 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       if (inp) { inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); }); setTimeout(function () { inp.focus(); inp.select(); }, 0); } else setTimeout(function () { ov.querySelector('#askOk').focus(); }, 0);
       return [];
     }, null, 'x');
+  }
+  function impNum(v) { // 1.234.567,89 · 1,234,567.89 · 1234567 → número
+    if (typeof v === 'number') return v; var t = String(v == null ? '' : v).replace(/[\s$]|US\$|VN/gi, ''); if (!/^-?[\d.,]+$/.test(t) || !/\d/.test(t)) return NaN;
+    var c = t.lastIndexOf(','), d = t.lastIndexOf('.');
+    if (c >= 0 && d >= 0) t = c > d ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+    else if (c >= 0) t = /^-?\d{1,3}(,\d{3})+$/.test(t) ? t.replace(/,/g, '') : t.replace(',', '.');
+    else if (d >= 0 && /^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+    return parseFloat(t);
+  }
+  function impParse(rows) { // filas (arrays de celdas) → {ok: {ticker: VN}, no: [textos sin reconocer]}
+    var K = {}; U.forEach(function (r) { K[r.k] = 1; });
+    var tk = function (cell) { var w = String(cell == null ? '' : cell).toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean); for (var i = 0; i < w.length; i++) { var x = w[i]; if (K[x]) return x; if (/[DC]$/.test(x) && K[x.slice(0, -1)]) return x.slice(0, -1); } return null; };
+    var qc = -1, ok = {}, no = [], ord = [];
+    rows.forEach(function (row) {
+      if (!row || !row.length) return; var cells = row.map(function (c) { return c == null ? '' : c; });
+      if (qc < 0) { var h = cells.map(function (c) { return String(c).toLowerCase(); }); for (var i = 0; i < h.length; i++) if (/^(cantidad|cant\.?|nominal(es)?|v\.?\s?n\.?|valor nominal|tenencia|q|qty|quantity|disponible|saldo)$/.test(h[i].trim()) || /cantidad|nominales|valor nominal/.test(h[i])) { qc = i; return; } }
+      var ti = -1, t = null; for (var j = 0; j < cells.length && !t; j++) { t = tk(cells[j]); if (t) ti = j; }
+      if (!t) { var raw = cells.join(' ').trim(); if (raw && /[A-Za-z]/.test(raw) && cells.some(function (c) { return isFinite(impNum(c)) && impNum(c) > 0; })) no.push(raw.slice(0, 60)); return; }
+      var q = qc >= 0 ? impNum(cells[qc]) : NaN; if (!(q > 0)) for (var m = ti + 1; m < cells.length; m++) { var z = impNum(cells[m]); if (z > 0 && !(/^20\d\d$/.test(String(cells[m]).trim()) && m < cells.length - 1)) { q = z; break; } } // salta un año suelto («Bonar 2030»)
+      if (!(q > 0)) { no.push(String(cells[ti]).slice(0, 60) + ' (sin cantidad)'); return; }
+      if (ok[t] == null) { ok[t] = 0; ord.push(t); } ok[t] += q;
+    });
+    return { ok: ok, ord: ord, no: no };
+  }
+  function openImp(fillP, useP) { // importar la tenencia del broker
+    var css = 'width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--bd);border-radius:9px;background:var(--bg);color:var(--tx);font:inherit;font-size:14px';
+    popup('Importar tenencia', '<p class="pfnote" style="margin:0 0 12px;font-size:14px;color:var(--tx)">Subí el Excel o CSV de tenencia que bajás del broker, o copiá la tabla de su web y pegala acá. Reconocemos el ticker y la cantidad (valor nominal) de cada fila; las especies en dólares (AL30D, GD30C) cuentan como el bono.</p>' +
+      '<input type="file" id="impF" accept=".xlsx,.xls,.csv,.txt" style="margin:0 0 10px;font:inherit;font-size:14px;color:var(--mu)"><textarea id="impT" rows="7" placeholder="AL30    10.000&#10;TZX26    250.000&#10;…" style="' + css + ';resize:vertical;font-family:ui-monospace,monospace;font-size:13px"></textarea>' +
+      '<div id="impR" style="margin-top:12px"></div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:flex-end;margin-top:16px"><label class="pfnote" style="margin:0;display:flex;gap:8px;align-items:center">Cargar en<select id="impD" style="' + css + ';width:auto;padding:8px 10px"><option value="new">Un portfolio nuevo</option><option value="rep">Reemplazar «' + esc(PS.cur) + '»</option><option value="add">Sumar a «' + esc(PS.cur) + '»</option></select></label><input id="impN" maxlength="40" placeholder="Nombre" value="Importado" style="' + css + ';width:160px;padding:8px 10px"><button type="button" class="act" id="impNo">Cancelar</button><button type="button" class="act" id="impOk" style="border-color:var(--ac);color:var(--ac)" disabled>Importar</button></div>',
+      'width:min(640px,94%);height:auto', function (ov) {
+        var dl = ov.querySelector('#ampDl'); if (dl) dl.remove();
+        var q = function (id) { return ov.querySelector('#' + id); }, x = function () { q('ampX').click(); }, RES = null;
+        var show = function (rows) {
+          RES = impParse(rows); var n = RES.ord.length; q('impOk').disabled = !n;
+          q('impR').innerHTML = !n && !RES.no.length ? '' : (n ? '<div style="max-height:220px;overflow:auto"><table class="pft"><thead><tr><th class="l">Bono</th><th>Valor nominal</th></tr></thead><tbody>' + RES.ord.map(function (k) { return '<tr><td class="k">' + esc(k) + '</td><td>' + fm(RES.ok[k], 0) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<p class="pfnote" style="margin:0">No encontré bonos del sitio en lo que pegaste.</p>') +
+            (RES.no.length ? '<p class="pfnote">Quedan afuera (' + RES.no.length + '): ' + RES.no.slice(0, 6).map(esc).join(' · ') + (RES.no.length > 6 ? ' …' : '') + '. El portfolio es de renta fija: acciones y CEDEARs no entran. Si alguno es un bono, sumalo a mano con el +.</p>' : '');
+        };
+        var csv = function (l, sep) { var o = [], c = '', qq = false; for (var i = 0; i < l.length; i++) { var ch = l[i]; if (ch === '"') { if (qq && l[i + 1] === '"') { c += '"'; i++; } else qq = !qq; } else if (ch === sep && !qq) { o.push(c); c = ''; } else c += ch; } o.push(c); return o; };
+        var fromText = function (t) { show(String(t || '').split(/\r?\n/).map(function (l) { return l.indexOf('\t') >= 0 ? l.split('\t') : l.indexOf(';') >= 0 ? csv(l, ';') : l.indexOf('"') >= 0 || /,\S.*,/.test(l) && !/\s{2,}/.test(l) ? csv(l, ',') : l.trim().split(/\s{2,}|\s+(?=[\d.,]+\s*$)|\s+/); })); };
+        q('impT').addEventListener('input', function () { fromText(this.value); });
+        q('impF').addEventListener('change', function () {
+          var f = this.files && this.files[0]; if (!f) return;
+          if (/\.(csv|txt)$/i.test(f.name)) { f.text().then(function (t) { q('impT').value = t; fromText(t); }); return; }
+          var go = function () { f.arrayBuffer().then(function (b) { var wb = XLSX.read(b, { type: 'array' }), all = []; wb.SheetNames.forEach(function (n) { all = all.concat(XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' })); }); show(all); }).catch(function () { q('impR').innerHTML = '<p class="pfnote">No pude leer ese archivo.</p>'; }); };
+          if (typeof XLSX !== 'undefined') go(); else window.needLib(window.LIB_XLSX).then(go, function () { q('impR').innerHTML = '<p class="pfnote">No pude cargar el lector de Excel. Copiá la tabla y pegala.</p>'; });
+        });
+        q('impD').onchange = function () { q('impN').style.display = this.value === 'new' ? '' : 'none'; };
+        q('impNo').onclick = x;
+        q('impOk').onclick = function () {
+          if (!RES || !RES.ord.length) return; var d = q('impD').value, H = {}; RES.ord.forEach(function (k) { H[k] = RES.ok[k]; });
+          if (d === 'add') { Object.keys(H).forEach(function (k) { FAV[k] = (+FAV[k] || 0) + H[k]; }); save(); x(); render(); return; }
+          if (d === 'rep') { FAV = H; save(); x(); render(); return; }
+          var n = (q('impN').value || '').trim().slice(0, 40) || 'Importado', b = n, i = 2; while (PS.s[n]) n = b + ' ' + i++;
+          PS.s[n] = H; x(); useP(n);
+        };
+        setTimeout(function () { q('impT').focus(); }, 0); return [];
+      }, null, 'x');
   }
   function openDist() { // la torta: el peso de cada bono
     if (!PIE || !PIE.H.length) return; var H = PIE.H, tot = PIE.tot;
