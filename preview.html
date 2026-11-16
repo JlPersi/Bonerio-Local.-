@@ -11738,7 +11738,8 @@ window.USTX = (function () {
   try { Object.assign(CST, JSON.parse(localStorage.getItem('calSt1') || '{}')); } catch (e) { }
   var CFAM = [['all', 'Todas'], ['usd', 'Dólares'], ['ars', 'Pesos'], ['on', 'ONs'], ['pv', 'Provinciales']];
   var famOf = function (r) { return r.grp === 'on' || r.grp === 'pv' || r.grp === 'usd' ? r.grp : 'ars'; };
-  var pfVN = function () { try { var o = JSON.parse(localStorage.getItem('pfFav1') || '{}'), out = {}; Object.keys(o || {}).forEach(function (k) { if (+o[k] > 0) out[k] = +o[k]; }); return out; } catch (e) { return {}; } };
+  var pfSets = function () { try { var o = JSON.parse(localStorage.getItem('pfSets1') || 'null'); if (!o || !o.s) return null; var N = Object.keys(o.s); if (o.cur && N.indexOf(o.cur) < 0) N.unshift(o.cur); o.N = N; return o; } catch (e) { return null; } }; // los portfolios con nombre de la pestaña Portfolio
+  var pfVN = function () { try { var P = pfSets(); if (CST.pfn && !(P && P.N.indexOf(CST.pfn) >= 0)) CST.pfn = ''; var o = CST.pfn && P && P.cur !== CST.pfn ? P.s[CST.pfn] : JSON.parse(localStorage.getItem('pfFav1') || '{}'), out = {}; Object.keys(o || {}).forEach(function (k) { if (+o[k] > 0) out[k] = +o[k]; }); return out; } catch (e) { return {}; } };
   var nextBiz = function (t) { var n = 0; while (!bxIsBiz(t) && n++ < 10) t++; return t; }; // si cae feriado o fin de semana, se cobra el hábil siguiente
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   function calFlows(src) { // [{t, k, r, usd, renta, amort, total, vn}]
@@ -11770,11 +11771,11 @@ window.USTX = (function () {
     var emS = function (L, usd) { return L.filter(function (f) { return f.usd === usd; }).reduce(function (a, f) { var v = em(f); return a + (v || 0); }, 0); }, mm = function (v, c) { if (c === '$ ') { v /= 1e3; return c + fm(v, v >= 100 ? 0 : 1) + ' MM'; } return c + fm(v, v >= 100 ? 0 : 1) + ' M'; }; // dólares en millones; pesos en miles de millones
     var sum = function (L, usd) { return L.filter(function (f) { return f.usd === usd; }).reduce(function (a, f) { return a + amt(f); }, 0); };
     var seg = function (key, opts, val) { return '<div class="fvSp">' + opts.map(function (o) { return '<button type="button" data-cal-' + key + '="' + o[0] + '" class="' + (o[0] === val ? 'on' : '') + '">' + o[1] + '</button>'; }).join('') + '</div>'; };
-    var srcs = [['pf', 'Mi portfolio'], ['fav', 'Favoritos'], ['all', 'Todos los bonos']];
+    var PS = pfSets(), srcs = (PS && PS.N.length > 1 ? PS.N.map(function (n) { var q = String(n).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); return ['pf|' + q, '★ ' + q]; }) : [['pf', 'Mi portfolio']]).concat([['fav', 'Favoritos'], ['all', 'Todos los bonos']]), srcV = pf && PS && PS.N.length > 1 ? 'pf|' + String(CST.pfn || PS.cur).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;') : CST.src;
     var head = '<div data-norf class="card fvTop"><div><h2>Calendario de cobros</h2><p>Cupones y amortizaciones de cada bono, en el día hábil en que se cobran. ' +
       (pf ? 'Con los nominales que cargaste en Portfolio, en la moneda de cada bono.' : 'Montos por cada 100 de valor nominal, en la moneda de cada bono.') +
       ' Los de tasa variable, CER y dólar linked son estimados con el último índice. Tocá un ticker para abrir su ficha.</p></div>' +
-      '<div class="calCt">' + seg('src', srcs.filter(function (s) { return s[0] !== 'pf' || hasPf; }), CST.src) + seg('fam', CFAM, CST.fam) + '</div></div>';
+      '<div class="calCt">' + seg('src', srcs.filter(function (s) { return s[0] !== 'pf' || hasPf; }), srcV) + seg('fam', CFAM, CST.fam) + '</div></div>';
     if (!F.length) {
       cRoot.innerHTML = head + '<div data-norf class="card fvEmpty"><h3>' + (CST.src === 'fav' ? 'Tus favoritos no tienen cobros pendientes' : 'No hay cobros para mostrar') + '</h3><p>' + (CST.src === 'fav' ? 'Marcá bonos con la estrella del buscador o pasá a «Todos los bonos».' : 'Probá con otra familia.') + '</p></div>';
       return;
@@ -11816,10 +11817,10 @@ window.USTX = (function () {
     var b = e.target.closest('[data-cal-src],[data-cal-fam],[data-cal-mv],[data-cal-go],[data-cal-day]'); if (!b) return;
     if (b.hasAttribute('data-cal-day')) { var dd = +b.getAttribute('data-cal-day'); CST.day = CST.day === dd ? null : dd; renderCal(); return; }
     if (b.hasAttribute('data-cal-go')) { open(b.getAttribute('data-cal-go'), ''); return; }
-    if (b.hasAttribute('data-cal-src')) CST.src = b.getAttribute('data-cal-src');
+    if (b.hasAttribute('data-cal-src')) { var sv = b.getAttribute('data-cal-src'); CST.src = sv.indexOf('pf|') ? sv : 'pf'; CST.pfn = sv.indexOf('pf|') ? '' : sv.slice(3); }
     if (b.hasAttribute('data-cal-fam')) CST.fam = b.getAttribute('data-cal-fam');
     if (b.hasAttribute('data-cal-mv')) { var mv = +b.getAttribute('data-cal-mv'), d = new Date(bxToday() * 864e5), now = d.getUTCFullYear() * 12 + d.getUTCMonth(); CST.m = mv ? (CST.m || now) + mv : null; if (CST.m === now) CST.m = null; }
-    try { localStorage.setItem('calSt1', JSON.stringify({ src: CST.src, fam: CST.fam })); } catch (e2) { }
+    try { localStorage.setItem('calSt1', JSON.stringify({ src: CST.src, fam: CST.fam, pfn: CST.pfn || '' })); } catch (e2) { }
     renderCal();
   });
   setInterval(function () { if (cRoot && cRoot.classList.contains('active')) renderCal(); }, 60000);
