@@ -7667,7 +7667,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       var X = window.PSX, sn = null; try { sn = X && X.snap ? X.snap(1) : null; } catch (e) { sn = null; }
       var all = sn ? sn.S : [], s0 = sn ? sn.s : null; if (!all.length) return null;
       var by = function (f) { return all.filter(function (o) { return f(o) && !o.miss && o.P > 0; }).sort(function (a, b) { return a.d - b.d; }); };
-      var fija = by(function (o) { return o.ins.k === 'cap' && o.tnas != null && o.d >= 7; }); // los CER con el índice fijado entran solo con la opción «CER fijados como tasa fija» if (!fija.length) return null;
+      var fija = by(function (o) { return o.ins.k === 'cap' && o.tnas != null && o.d >= 7; }); if (!fija.length) return null; // los CER con el índice fijado entran solo con la opción «CER fijados como tasa fija»
       var c = fc(), Sp = c.length ? c[0].sp : null, base = c.length ? dp(c[0].base) : s0;
       var D = { s0: s0, fija: fija, c: c, Sp: Sp, dls: by(function (o) { return o.ins.k === 'dl' && o.usdTea != null && o.d >= 7; }) };
       var a3 = at(S.fx, '9999'); D.fx = a3[1] || (D.dls[0] && D.dls[0].fx0) || Sp; D.fxD = a3[1] ? a3[0] : null; // el A3500: con el que el dollar linked da su tasa en dólares, así el sintético se compara igual
@@ -12418,7 +12418,7 @@ window.USTX = (function () {
     pjCard(NI, IX); paidT(r, T, vn);
     if (!cv || typeof Chart === 'undefined') return; kill('fl');
     var col = FAM[r.grp][1], mu = css('--mu'), bd = css('--bd'), L = rows.map(function (x) { return dmy(x.t).slice(3); });
-    var ds = split ? [{ label: 'Renta', data: rows.map(function (x) { return x.renta; }), backgroundColor: css('--c-cup') || col, borderRadius: 3, stack: 's', maxBarThickness: 64 }, { label: 'Amortización', data: rows.map(function (x) { return x.amort; }), backgroundColor: css('--c-cap') || col, borderRadius: 3, stack: 's', maxBarThickness: 64 }] : // renta y amortización con los colores de siempre (verde y violeta), no dos tonos de la familia [{ label: 'Pago', data: rows.map(function (x) { return x.total; }), backgroundColor: col, borderRadius: 3, maxBarThickness: 64 }];
+    var ds = split ? [{ label: 'Renta', data: rows.map(function (x) { return x.renta; }), backgroundColor: css('--c-cup') || col, borderRadius: 3, stack: 's', maxBarThickness: 64 }, { label: 'Amortización', data: rows.map(function (x) { return x.amort; }), backgroundColor: css('--c-cap') || col, borderRadius: 3, stack: 's', maxBarThickness: 64 }] : /* renta y amortización con los colores de siempre (verde y violeta), no dos tonos de la familia */ [{ label: 'Pago', data: rows.map(function (x) { return x.total; }), backgroundColor: col, borderRadius: 3, maxBarThickness: 64 }];
     CH.fl = mkC(cv.getContext('2d'), { type: 'bar', data: { labels: L, datasets: ds }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: split, labels: { color: mu, boxWidth: 10 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + u + fm(c.parsed.y, 4); } } } }, scales: { x: { stacked: true, ticks: { color: mu, maxTicksLimit: 14 }, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { color: mu, callback: function (v) { return fm0(v, Math.abs(v - Math.round(v)) < 1e-9 ? 0 : 1); } }, grid: { color: bd }, title: { display: true, text: (usd ? 'US$' : '$') + ' cada 100 VN', color: mu } } } } });
   }
 
@@ -16640,7 +16640,7 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
       var d = dt(x.mat);
       if (o.k === 'call' || o.k === 'put') { var m = /[CV](\d+(?:[.,]\d+)?)\.?([A-Z]{2})$/.exec(o.n); if (m) { if (!o.K) o.K = +m[1].replace(',', '.'); var mo = MES[m[2]]; if (!d && mo) { var y = new Date().getUTCFullYear(); d = third(y, mo); if (d < Date.now() - 864e5) d = third(y + 1, mo); } } }
       o.mat = d; o.dd = d ? Math.max(0, (d - Date.now()) / 864e5) : null;
-      if (o.k === 'etf') e = o; else if (o.k === 'idx') { if (!ix || !ix.p || /MMSCI/.test(o.n) && o.p) ix = o; } // el índice: el que tenga precio, y si hay varios el MMSCI de Primary else if (o.k === 'fut' && o.dd != null) F.push(o); else if ((o.k === 'call' || o.k === 'put') && o.K && o.dd != null) O.push(o);
+      if (o.k === 'etf') e = o; else if (o.k === 'idx') { if (!ix || !ix.p || /MMSCI/.test(o.n) && o.p) ix = o; } /* el índice: el que tenga precio, y si hay varios el MMSCI de Primary */ else if (o.k === 'fut' && o.dd != null) F.push(o); else if ((o.k === 'call' || o.k === 'put') && o.K && o.dd != null) O.push(o);
     });
     F.sort(function (a, b) { return a.dd - b.dd; });
     var nav = window.MVK && window.MVK.cp > 0 ? window.MVK.cp : null, S = e && e.p ? e.p : nav;
