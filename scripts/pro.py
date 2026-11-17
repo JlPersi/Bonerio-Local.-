@@ -1,6 +1,7 @@
 """Alta PRO: marca a un usuario (por mail) como PRO hasta una fecha, en app_metadata.pro_hasta de Supabase Auth.
    Se corre a mano desde Actions («Alta PRO»): mail y meses (1, 6 o 12; 0 = quitar PRO). Si ya era PRO, suma desde su vencimiento.
    Opcional: desde (AAAA-MM-DD) = los meses cuentan desde esa fecha y pisan el vencimiento anterior (ej.: pagó durante la prueba gratis).
+   Opcional: link = imprime un link para elegir contraseña (para mandárselo por WhatsApp).
    Si no tiene cuenta, se la crea y le manda invitación por mail.
    Secret: SUPABASE_SERVICE_KEY."""
 import datetime as dt, json, os, sys, urllib.request
@@ -42,6 +43,7 @@ def sumar_meses(d, n):
 def main():
     mail, meses = sys.argv[1].strip().lower(), int(sys.argv[2] or 1)
     desde = (sys.argv[3] if len(sys.argv) > 3 else "").strip()
+    link = (sys.argv[4] if len(sys.argv) > 4 else "").strip().lower() == "true"
     if not KEY:
         sys.exit("Falta SUPABASE_SERVICE_KEY")
     u = buscar(mail)
@@ -63,6 +65,9 @@ def main():
             base = hoy
         hasta = sumar_meses(base, meses).isoformat()
     http(f"{SB}/auth/v1/admin/users/{u['id']}", {"app_metadata": {"pro_hasta": hasta}}, "PUT")
+    if link:  # link para elegir contraseña, para pasarle a mano (cuando su servidor de mail bloquea los nuestros)
+        j = http(f"{SB}/auth/v1/admin/generate_link", {"type": "recovery", "email": mail, "redirect_to": "https://boneriolocal.com.ar/?reset=1"}, "POST") or {}
+        print("LINK (vence en 24 h, un solo uso): " + str(j.get("action_link") or (j.get("properties") or {}).get("action_link")))
     print(f"{mail}: " + (f"PRO hasta el {hasta}" if hasta else "PRO quitado"))
 
 
