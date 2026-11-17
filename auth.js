@@ -17,7 +17,8 @@
     if (!ON) return false;
     try { var s = JSON.parse(localStorage.getItem('sb-' + REF + '-auth-token') || 'null'); return !!(s && s.refresh_token); } catch (e) { return false; }
   }
-  var returning = /[?&]code=/.test(location.search); // vuelve del login de Google o del link del mail
+  var HT = /[#&]access_token=/.test(location.hash) && /[#&]refresh_token=/.test(location.hash); // links generados por el admin (invitación / link manual) traen la sesión en el # y no en ?code=
+  var returning = /[?&]code=/.test(location.search) || HT; // vuelve del login de Google o del link del mail
   var RESET = returning && /[?&]reset=1\b/.test(location.search); // vuelve del link para elegir una contraseña nueva
 
   var css = '' +
@@ -420,6 +421,7 @@
       if (ses && ses.user) { user = ses.user; unlock(); try { document.dispatchEvent(new Event('bl-auth')); } catch (e) { } try { sync(); } catch (e) { } }
       else if ((ev === 'SIGNED_OUT' || ev === 'INITIAL_SESSION') && !RESET) { user = null; ['blUser', 'alBell'].forEach(function (i) { var c = document.getElementById(i); if (c) c.remove(); }); lock(); }
     });
+    if (HT) { try { var hp = new URLSearchParams(location.hash.slice(1)); history.replaceState(null, '', back() + location.search); sb.auth.setSession({ access_token: hp.get('access_token'), refresh_token: hp.get('refresh_token') }).catch(function (e) { console.error(e); }); } catch (e) { } } // PKCE no lee el #: se carga la sesión a mano
   };
   s.onerror = function () { if (!stored()) lock(); else unlock(); }; // sin el servicio de cuentas, quien ya había entrado sigue entrando
   document.head.appendChild(s);
