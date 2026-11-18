@@ -140,6 +140,7 @@ async function main() {
   const page = await b.newPage({ viewport: { width: 760, height: 1300 }, deviceScaleFactor: 2, colorScheme: 'dark', serviceWorkers: 'block' });
   await page.route('**/supabase-js@*/**', r => r.fulfill({ body: STUB, contentType: 'application/javascript' }));
   page.on('pageerror', e => console.log('error en la página:', e.message));
+  await page.route('**/index.html', r => r.fulfill({ body: fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').replace(/var FREE_HASTA = '[^']*'/, "var FREE_HASTA = '2099-01-01'"), contentType: 'text/html' })); // el robot lee las pestañas PRO (Variación diaria) sin sesión: sin esto, desde el 11/11 no se armaba el reporte ni data/api/curvas.json
   await page.goto(base + '/index.html');
   await until(page, () => window.vardData && window.PXQ && Object.keys(window.PXQ).length > 50, null, 60000); await wait(4000);
   const out = await extract(page);
