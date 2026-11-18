@@ -7499,13 +7499,14 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       var pv = A(S.futV && S.futV.length ? S.fut : S.futPrev), c0 = c[0], pvD = pv.length && c0 ? fr(pv[0].base).slice(0, 5) : ''; // la rueda anterior, contra los mismos vencimientos
       var prevL = function (key, col) { if (!pvD) return null; var pts = pv.map(function (f) { return { x: dn(f.v) - dn(c0.v) + c0.d, y: f[key] }; }).filter(function (p) { return p.y != null && p.x > 0; });
         if (pts.length < 2) return null; var l = fitL(pts, col, { borderWidth: 1.4, borderDash: [5, 4], order: 5, noLeg: false }); l.label = 'Cierre del ' + pvD; l.pointStyle = 'line'; return l; };
+      var PVs = {}; pv.forEach(function (f) { PVs[f.s] = f; }); var kc = function (f, key) { var o = PVs[f.s], v = o && o[key] != null && f[key] != null ? (f[key] - o[key]) * 100 : null; return sh(f.s) + (v == null ? '' : ' ' + sg(v, 0) + ' pb'); }; /* el rótulo con el cambio contra el cierre anterior */
       if (isT) {
-        var fp = c.filter(function (f) { return f.t != null; }).map(function (f) { return { x: f.d, y: f.t, s: name(f.s), k: sh(f.s) }; });
+        var fp = c.filter(function (f) { return f.t != null; }).map(function (f) { return { x: f.d, y: f.t, s: name(f.s), k: kc(f, 't') }; });
         sets = [fitL(fp, C_FUT)].concat(split(fp, C_FUT, 'Dólar futuro' + (S.futV ? ' (en vivo)' : ' (cierre ' + fr(S.df).slice(0, 5) + ')')));
         var pl = prevL('t', css('--mu') || '#a1a1aa'); if (pl) sets.push(pl);
         yt = 'Tasa implícita (TNA %)'; yf = function (v) { return nf(v, 1) + '%'; }; tp = tip('TNA');
       } else {
-        var dp2 = c.filter(function (f) { return f.dev != null; }).map(function (f) { return { x: f.d, y: f.dev, s: name(f.s), k: sh(f.s) }; });
+        var dp2 = c.filter(function (f) { return f.dev != null; }).map(function (f) { return { x: f.d, y: f.dev, s: name(f.s), k: kc(f, 'dev') }; });
         sets = [fitL(dp2, C_DEV)].concat(split(dp2, C_DEV, 'Devaluación mensual implícita'));
         var pl2 = prevL('dev', css('--mu') || '#a1a1aa'); if (pl2) sets.push(pl2);
         yt = 'Devaluación mensual implícita (%)'; yf = function (v, i, t) { var st = t && t.length > 1 ? Math.abs(t[1].value - t[0].value) : 0.1; return nf(v, st < 0.1 ? 2 : 1) + '%'; }; tp = tip('Devaluación mensual');
@@ -7538,7 +7539,8 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       var prev = {}; S.futPrev.forEach(function (f) { prev[f.s] = f.F; });
       var oiOld = live && !S.fut.some(function (f) { var L = lv[f.s]; return L && L.raw && L.raw[6] != null && f.oi != null && L.raw[6] !== f.oi; }); // A3 publica el I.A. recién al cierre
       var x1 = function (v) { return v ? nf(v, 1) : '—'; }, cls = function (v) { return v > 0 ? 'up' : v < 0 ? 'dn' : 'mu'; };
-      var h = '<thead><tr><th class="l">Contrato</th><th>Vence</th><th>Días</th>' + (live ? '<th>Compra</th><th>Venta</th>' : '') + '<th>Apertura</th><th>Mín.</th><th>Máx.</th><th' + (live ? ' class="lc"' : '') + '>Último</th>' + (live ? '<th>Ajuste anterior</th>' : '<th class="lc">Ajuste</th>') + '<th>Var. %</th><th>Volumen</th><th>I.A.</th><th>Var. I.A.</th><th>TNA</th><th>TEA</th><th>Dev. mensual</th></tr></thead><tbody>';
+      var h = '<thead><tr><th class="l">Contrato</th><th>Vence</th><th>Días</th>' + (live ? '<th>Compra</th><th>Venta</th>' : '') + '<th>Apertura</th><th>Mín.</th><th>Máx.</th><th' + (live ? ' class="lc"' : '') + '>Último</th>' + (live ? '<th>Ajuste anterior</th>' : '<th class="lc">Ajuste</th>') + '<th>Var. %</th><th>Volumen</th><th>I.A.</th><th>Var. I.A.</th><th>TNA</th><th title="Cambio de la tasa implícita contra el cierre anterior del mismo contrato">Δ TNA</th><th>TEA</th><th>Dev. mensual</th><th title="Cambio de la devaluación mensual implícita contra el cierre anterior">Δ dev.</th></tr></thead><tbody>';
+      var PT = {}; A(live ? S.fut : S.futPrev || []).forEach(function (x) { PT[x.s] = x; }); var dpb = function (a, b) { return a != null && b != null ? (a - b) * 100 : null; }, pbC = function (v) { return '<td class="' + cls(v) + '">' + (v == null ? '—' : sg(v, 0) + ' pb') + '</td>'; };
       var inF = {}; S.fut.forEach(function (f) { inF[f.s] = 1; });
       A(S.fut).concat(live ? A(S.futV).filter(function (L) { return !inF[L.s]; }).map(function (L) { return { s: L.s, v: L.v, d: L.d, t: L.t, dev: L.dev, F: null, oi: null, raw: [] }; }) : []).forEach(function (f) { // un contrato que se listó hoy todavía no tiene ajuste anterior: entra con lo de la rueda
         var r = f.raw, L = lv[f.s], q = L ? L.raw : null, t = L && L.t != null ? L.t : f.t, dv = L && L.dev != null ? L.dev : f.dev, d = L ? L.d : f.d;
@@ -7547,7 +7549,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
         else { op = r[6]; hi = r[7]; lo = r[8]; la = r[9]; aj = f.F; ch = prev[f.s] ? (f.F / prev[f.s] - 1) * 100 : null; vol = r[4]; oi = r[3]; doi = r[10]; }
         h += '<tr data-qv="' + f.s + '"><td class="l"><b>' + name(f.s) + '</b></td><td>' + fr(f.v) + '</td><td>' + d + '</td>' + (live ? '<td>' + x1(q && q[2]) + '</td><td>' + x1(q && q[3]) + '</td>' : '') +
           '<td>' + x1(op) + '</td><td>' + x1(lo) + '</td><td>' + x1(hi) + '</td><td' + (live ? ' class="lc"' : '') + '>' + x1(la) + '</td><td' + (live ? '' : ' class="lc"') + '>' + x1(aj) + '</td><td class="' + cls(ch) + '">' + (ch == null ? '—' : sg(ch, 2) + '%') + '</td>' +
-          '<td>' + cnt(vol) + '</td><td>' + cnt(oi) + '</td><td class="' + cls(doi) + '">' + (doi == null ? '—' : sg(doi, 0)) + '</td><td><b>' + P(t) + '</b></td><td>' + P(tea(t, d)) + '</td><td>' + P(dv) + '</td></tr>';
+          '<td>' + cnt(vol) + '</td><td>' + cnt(oi) + '</td><td class="' + cls(doi) + '">' + (doi == null ? '—' : sg(doi, 0)) + '</td><td><b>' + P(t) + '</b></td>' + pbC(dpb(t, PT[f.s] && PT[f.s].t)) + '<td>' + P(tea(t, d)) + '</td><td>' + P(dv) + '</td>' + pbC(dpb(dv, PT[f.s] && PT[f.s].dev)) + '</tr>';
       });
       document.getElementById('tfFut').innerHTML = h + '</tbody>';
       document.getElementById('tfT3').textContent = 'Futuros de dólar · ' + (live ? 'rueda de hoy (' + futH(S.V.ts) + ')' : 'cierre del ' + fr(S.df)) + ' · spot ' + (function () { var c = (S.futV && S.futV.length ? S.futV : S.fut)[0], v = c ? c.sp : S.spot[1], d = c ? c.base : null; return (d && TJ.a3500 && TJ.a3500[d] === v ? 'A3500 ' : S.futV && S.futV.length && S.V.spotF === 'A3' && S.V.spot === v ? 'A3 ' : S.futV && S.futV.length && S.V.spot === v ? 'mayorista ' : '') + '$ ' + nf(v, 2); })();
