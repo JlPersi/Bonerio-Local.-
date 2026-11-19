@@ -6653,6 +6653,8 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
         if (rd && IH && i > 0) { var a = intra(ST.a, d, IH), b = ST.b === 'OFI' ? [[600, B[d]]] : intra(ST.b, d, IH), k = 0, va = null, vb = null; if (!a.length && /^FUT/.test(ST.a)) a = intra(ST.a, d); if (!b.length && /^FUT/.test(ST.b)) b = intra(ST.b, d);
           if (a.length && b.length) for (var m = 645; m < 1020; m += 15) { while (a.length && a[0][0] <= m) va = a.shift()[1]; while (k < b.length && b[k][0] <= m) vb = b[k++][1]; var y = comb(va, vb); if (y != null) o.push({ x: i - 1 + (m - 630) / 390, y: y, lab: fr(d) + ' ' + hm(m) }); } }
         o.push({ x: i, y: comb(A[d], B[d]), lab: fr(d) + (rd && IH && i > 0 ? ' · cierre' : '') }); });
+      var LA = live(ST.a), LB = live(ST.b), yv = ds.length && ds[ds.length - 1] < t.d && t.m >= 630 ? comb(LA.last, LB.last) : null; // la rueda de hoy: el último en vivo, hasta que quede su cierre
+      if (yv != null && isFinite(yv)) { if (ST.w && o.length && ds.length >= ST.w) { var x0 = o[0].x; o = o.filter(function (q) { return q.x >= x0 + 1; }); } o.push({ x: ds.length, y: yv, lab: fr(t.d) + ' · en vivo' }); }
       return o;
     }
     // intradiario: cada 5 minutos, cada serie con su último dato; las ruedas guardadas, una al lado de la otra
