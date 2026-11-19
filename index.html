@@ -6333,6 +6333,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       '<label class="ck"><input type="checkbox" id="dxL"> Incluir la rueda de hoy</label></div>' +
       '<div class="rs" id="dxS1"><div style="' + HD + '"><h4 id="dxT1">Cotización y brecha</h4><span style="display:flex;gap:12px;align-items:center"><label data-html2canvas-ignore="true" style="flex-direction:row;align-items:center;gap:6px;font-size:12px;color:var(--mu);margin:0" title="Con escala logarítmica, una misma suba porcentual ocupa la misma altura en 2023 que hoy"><input type="checkbox" id="dxLg" style="width:auto;margin:0"> Escala logarítmica</label>' + dl('dxS1', 'Soberanos_Dolar_Cotizacion', 'Descargar la cotización y la brecha en HD') + '</span></div>' +
       '<div class="rchips" id="dxChips"></div>' +
+      '<div style="margin-top:18px"><p class="note" id="dxTkT" style="margin:0 0 6px;color:var(--tx);font-weight:600">Rueda de hoy, tick a tick</p><div style="position:relative;height:300px"><canvas id="dxTk"></canvas></div></div>' +
       '<div class="rg" style="margin-top:18px"><div style="position:relative;height:340px"><canvas id="dxCh1"></canvas></div><div style="position:relative;height:340px"><canvas id="dxCh2"></canvas></div></div></div>' +
       '<div class="rs" id="dxS2"><div style="' + HD + '"><h4 id="dxT2">Flujo de dólares vía AL30</h4>' + dl('dxS2', 'Soberanos_Dolar_Flujo', 'Descargar el flujo en HD') + '</div>' +
       '<div class="rg"><div style="position:relative;height:340px"><canvas id="dxCh3"></canvas></div><div style="position:relative;height:340px"><canvas id="dxCh4"></canvas></div></div></div>' +
@@ -6403,7 +6404,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
         chip('Brecha CCL', PC(bC(e)), vs, dC[0], dC[1], ser(bC)) +
         chip('Canje CCL/MEP', PC(cj(e)), vs, dJ[0], dJ[1], ser(cj)) +
         chip('Flujo neto estimado', MS(fM + fC), (fM + fC >= 0 ? 'compra' : 'venta') + ' de dólares ' + (w === 1 ? 'en la rueda' : 'acumulada en las últimas ' + w + ' ruedas'), null, '', ser(function (i) { cum += i >= a0 ? (S.fM[i] || 0) + (S.fC[i] || 0) : 0; return cum; }));
-      charts(a0, w); table(a0); stats();
+      charts(a0, w); table(a0); stats(); tkDraw();
     } catch (x) { console.error('dol', x); var s2 = document.getElementById('dxSub'); if (s2) s2.textContent = 'Error: ' + x.message; }
   }
 
@@ -6415,6 +6416,20 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     el.textContent = t;
   }
 
+  var TKC = null;
+  function tkDraw() { // la rueda de hoy: cada 3 minutos lo guardado y, después, cada precio nuevo del stream
+    var el = document.getElementById('dxTk'); if (!el || !window.BRFX || !window.Chart) return; window.BRFX.boot();
+    var hm = function (m) { var s = Math.round((m % 1) * 60); return Math.floor(m / 60) + ':' + ('0' + Math.floor(m % 60)).slice(-2) + (s ? ':' + ('0' + s).slice(-2) : ''); };
+    var M = window.BRFX.day('MEP:AL30').map(function (q) { return { x: q[0], y: q[1] }; }), C = window.BRFX.day('CCL:AL30').map(function (q) { return { x: q[0], y: q[1] }; });
+    var lm = M.length ? M[M.length - 1].y : null, lc = C.length ? C[C.length - 1].y : null, mm = M.map(function (p) { return p.y; });
+    document.getElementById('dxTkT').textContent = 'Rueda de hoy, tick a tick · MEP ' + (lm ? '$ ' + nf(lm, 2) + ' (mín. ' + nf(Math.min.apply(null, mm), 2) + ' / máx. ' + nf(Math.max.apply(null, mm), 2) + ')' : '—') + ' · CCL ' + (lc ? '$ ' + nf(lc, 2) : '—');
+    if (TKC && TKC.canvas !== el) { try { TKC.destroy(); } catch (e) { } TKC = null; } if (TKC) { TKC.data.datasets[0].data = M; TKC.data.datasets[1].data = C; TKC.update('none'); return; }
+    var tx = css('--mu') || '#a1a1aa', bd = 'rgba(161,161,170,.12)', ln = function (l, d, c, ax) { return { label: l, data: d, borderColor: c, backgroundColor: c, borderWidth: 1.6, pointRadius: 0, tension: 0, yAxisID: ax }; };
+    TKC = new Chart(el.getContext('2d'), { type: 'line', data: { datasets: [ln('MEP (AL30)', M, C_MEP, 'y'), ln('CCL (AL30)', C, C_CCL, 'y2')] }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, tooltip: { callbacks: { title: function (it) { return it.length ? hm(it[0].parsed.x) : ''; }, label: function (c) { return c.dataset.label + ': $ ' + nf(c.parsed.y, 2); } } } },
+      scales: { x: { type: 'linear', min: 630, max: 1020, ticks: { color: tx, stepSize: 30, callback: function (v) { return hm(v); } }, grid: { color: bd } }, y: { ticks: { color: tx, callback: function (v) { return nf(v, 0); } }, grid: { color: bd }, title: { display: true, text: 'MEP', color: tx } }, y2: { position: 'right', ticks: { color: tx, callback: function (v) { return nf(v, 0); } }, grid: { display: false }, title: { display: true, text: 'CCL', color: tx } } } } });
+  }
+  setInterval(function () { if (isAct()) tkDraw(); }, 4000);
   function charts(a0, w) {
     Object.keys(CH).forEach(function (k) { if (CH[k]) CH[k].destroy(); }); CH = {};
     var n = S.n, span = ST.w === 0 ? n : Math.min(n, Math.max(w, 60)), c0 = n - span, D = S.dates, tx = css('--tx'), bd = css('--bd'), mu = css('--mu'), i;
@@ -6607,7 +6622,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     if (p[0] === 'FUT') {
       var nm = futName(id, t.d), row = vivoFut().filter(function (r) { return r[0] === nm; })[0], o = { bid: null, ask: null, last: null, legs: [] }; if (!row) return o;
       var vt = String(TJ.vivo.ts || ''), hoy = vt.slice(0, 10) === t.d, tr = IJ && IJ[t.d] && IJ[t.d].fut && IJ[t.d].fut[nm];
-      o.bid = hoy ? row[2] : null; o.ask = hoy ? row[3] : null; o.last = tr && tr.length ? tr[tr.length - 1][1] : row[4] || row[5]; o.legs = [[nm, o.bid, o.ask, o.last]]; return o;
+      o.bid = hoy ? row[2] : null; o.ask = hoy ? row[3] : null; o.last = tr && tr.length ? tr[tr.length - 1][1] : row[4] || row[5]; var fq = FQ[nm]; if (fq && Date.now() - fq.t < 30000) { if (fq.bid > 0) o.bid = fq.bid; if (fq.ask > 0) o.ask = fq.ask; if (fq.last > 0) o.last = fq.last; } /* el websocket, más fresco que el json de la rueda */ o.legs = [[nm, o.bid, o.ask, o.last]]; return o;
     }
     if (p[0] === 'DL') { var Lq = q[p[1]] || {}, d1 = function (x) { return x > 0 ? x / 100 : null; }; return { bid: d1(Lq.bid), ask: d1(Lq.ask), last: d1(Lq.c), legs: [[p[1], Lq.bid, Lq.ask, Lq.c]] }; } // dollar linked: pesos por dólar que paga hoy el mercado
     if (p[0] === 'USD') { var U = q[p[1] + 'D'] || {}; return { bid: U.bid > 0 ? U.bid : null, ask: U.ask > 0 ? U.ask : null, last: U.c > 0 ? U.c : null, legs: [[p[1] + 'D', U.bid, U.ask, U.c]] }; } // el bono en dólares MEP (para ley NY contra local)
@@ -6644,7 +6659,25 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   var unit = function () { return ST.op === 'dif' ? ' $' : '%'; }, fmtV = function (v) { return v == null ? '—' : ST.op === 'dif' ? (v < 0 ? '−' : '+') + '$ ' + nf(Math.abs(v), 2) : sg(v, 2) + '%'; };
   var tickF = function (pct) { return function (v, i, T) { var st = T && T.length > 1 ? Math.abs(T[1].value - T[0].value) : 1, d = st < 0.095 ? 2 : st < 0.95 ? 1 : 0; return (pct ? '' : '') + nf(v, d) + (pct ? '%' : ''); }; }; // los decimales según el paso del eje: en intradiario, 0,52% / 0,54%
 
-  var LT = {}; // hoy: los ratios de cada precio nuevo, por par de patas
+  var FQ = {}, fqB = 0; // los futuros en vivo: la mejor punta y el último, por el websocket del Worker (cada 4 s mientras la página está a la vista)
+  var tkPush = function (lk, y, mt) { if (y == null || !isFinite(y)) return 0; var TK = LT[lk] || (LT[lk] = []); if (TK.length && TK[TK.length - 1][1] === y && mt - TK[TK.length - 1][0] <= 0.5) return 0; TK.push([mt, y]); if (TK.length > 4000) TK.splice(0, 1000); if (Date.now() - LTs > 5000) { LTs = Date.now(); try { localStorage.setItem('brLT1', JSON.stringify(LT)); } catch (e) { } } return 1; };
+  function rec() { // cada precio nuevo, un punto de cada ratio armado (no solo del que se mira) y del MEP y el CCL
+    var t = nowAR(); if (t.m < 630 || t.m > 1020 || !TJ) return 0; if (LT.$d !== t.d) { Object.keys(LT).forEach(function (k) { if (k !== '$d') delete LT[k]; }); LT.$d = t.d; }
+    var mt = t.m + new Date().getSeconds() / 60, keep = { a: ST.a, b: ST.b, op: ST.op }, nw = 0;
+    try { fixDL(); PRE.filter(function (q) { return q[2] !== 'DL:?'; }).map(function (q) { return [q[2], q[3], q[4]]; }).concat([[keep.a, keep.b, keep.op]]).forEach(function (q) { ST.a = q[0]; ST.b = q[1]; ST.op = q[2]; var y = comb(live(q[0]).last, live(q[1]).last); if (tkPush(q.join('|'), y, mt) && q[0] === keep.a && q[1] === keep.b && q[2] === keep.op) nw = 1; });
+      ['MEP:AL30', 'CCL:AL30', 'MEP:GD30', 'CCL:GD30'].forEach(function (id) { tkPush('L|' + id, live(id).last, mt); });
+    } catch (e) { } finally { ST.a = keep.a; ST.b = keep.b; ST.op = keep.op; }
+    return nw;
+  }
+  function futPoll() {
+    var t = nowAR(); if (document.hidden || fqB || !TJ || t.m < 625 || t.m > 1020) return;
+    var N = ['FUT:1', 'FUT:2', ST.a, ST.b].filter(function (id) { return /^FUT:/.test(id); }).map(function (id) { return futName(id, t.d); }).filter(function (x, i, a) { return x && a.indexOf(x) === i; }); if (!N.length) return; fqB = 1;
+    fetch((window.BL_LIVE || 'https://bonerio-vivo.persijuanluis.workers.dev').replace(/\/+$/, '') + '/cim?s=' + N.map(encodeURIComponent).join(','), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      fqB = 0; if (j && j.d) Object.keys(j.d).forEach(function (k) { var h = j.d[k].h; if (h) FQ[k] = { bid: h[0] ? h[0][0] : null, ask: h[1] ? h[1][0] : null, last: h[2], t: Date.now() }; });
+    }).catch(function () { fqB = 0; });
+  }
+  setInterval(function () { futPoll(); if (rec() && isAct() && ST.tf !== 'd') draw(); }, 4000);
+  var LT = {}, LTs = 0; try { LT = JSON.parse(localStorage.getItem('brLT1') || '{}') || {}; } catch (e) { LT = {}; } // hoy: los ratios de cada precio nuevo, por par de patas (se guardan para no perder los ticks al recargar)
   function series() { // la serie del ratio que se grafica: [{x, y, lab}]
     var t = nowAR();
     if (ST.tf === 'd') {
@@ -6663,7 +6696,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     var days = Object.keys(IB || {}).concat(Object.keys(IJ || {})).filter(function (d, i, a) { return a.indexOf(d) === i && d <= t.d; }).sort().slice(-(ST.wi || 2)), out = [], x = 0;
     var LA = live(ST.a), LB = live(ST.b), mt = t.m + new Date().getSeconds() / 60, lk = ST.a + '|' + ST.b + '|' + ST.op, TK = LT[lk] || (LT[lk] = []); // hoy, cada precio nuevo del stream es un punto (no espera los 5 minutos)
     if (LT.$d !== t.d) { Object.keys(LT).forEach(function (k) { if (k !== '$d') LT[k] = []; }); LT.$d = t.d; TK = LT[lk]; }
-    var yl = t.m >= 630 && t.m <= 1020 ? comb(LA.last, LB.last) : null; if (yl != null && (!TK.length || TK[TK.length - 1][1] !== yl || mt - TK[TK.length - 1][0] > 0.5)) { TK.push([mt, yl]); if (TK.length > 4000) TK.splice(0, 1000); }
+    var yl = t.m >= 630 && t.m <= 1020 ? comb(LA.last, LB.last) : null; tkPush(lk, yl, mt); TK = LT[lk] || TK;
     if (TK.length && days.indexOf(t.d) < 0) days = days.concat([t.d]).slice(-(ST.wi || 2)); // hoy todavía sin intradiario guardado: solo lo del stream
     days.forEach(function (d) {
       var a = intra(ST.a, d), b = intra(ST.b, d), hoy = d === t.d, tk = hoy ? TK.filter(function (q) { return !a.length || !b.length || q[0] > Math.min(a[a.length - 1][0], b[b.length - 1][0]); }) : [];
@@ -6778,10 +6811,10 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       };
       document.getElementById('brHw').innerHTML = side(true) + side(false);
       // gráfico
-      var S = series(), ys = S.map(function (p) { return p.y; }), n = ys.length, mean = n ? ys.reduce(function (s, y) { return s + y; }, 0) / n : null, sd = n > 1 ? Math.sqrt(ys.reduce(function (s, y) { return s + (y - mean) * (y - mean); }, 0) / (n - 1)) : null;
+      var S = series(), dlh = (function (d) { return d.slice(8, 10) + '/' + d.slice(5, 7) + ' '; })(nowAR().d), hoyS = ST.tf !== 'd' && S.some(function (p) { return p.lab.indexOf(dlh) === 0; }), ys = S.filter(function (p) { return ST.tf === 'd' ? p.x === Math.round(p.x) : !hoyS || p.lab.indexOf(dlh) === 0; /* intradiario: las estadísticas, de la rueda de hoy (máximo y mínimo del día) */ }).map(function (p) { return p.y; }), n = ys.length, /* las estadísticas, con un dato por rueda (el cierre, y hoy el en vivo): los puntos de cada 15 minutos son solo para ver la rueda */ mean = n ? ys.reduce(function (s, y) { return s + y; }, 0) / n : null, sd = n > 1 ? Math.sqrt(ys.reduce(function (s, y) { return s + (y - mean) * (y - mean); }, 0) / (n - 1)) : null;
       var last = n ? ys[n - 1] : null, pct = n ? Math.round(ys.filter(function (y) { return y < last; }).length / n * 100) : null;
       document.getElementById('brT').textContent = name + ' · ' + (ST.tf === 'd' ? (ST.w && ST.w <= 20 && IH && Object.keys(IH).length ? 'cada 15 minutos y cierre de cada rueda (lo intradiario, desde el 05/11/26)' : 'cierre de cada rueda') : 'cada 5 minutos' + (LT[ST.a + '|' + ST.b + '|' + ST.op] && LT[ST.a + '|' + ST.b + '|' + ST.op].length ? ' y hoy en vivo' : '')) + ' (' + (ST.op === 'dif' ? 'pesos por dólar' : '%') + ')';
-      document.getElementById('brSt').textContent = ST.tf === 'd' ? 'En el gráfico (' + n + ' ruedas)' : 'En el gráfico (intradiario)';
+      document.getElementById('brSt').textContent = ST.tf === 'd' ? 'En el gráfico (' + n + ' ruedas)' : hoyS ? 'Rueda de hoy (' + n + ' datos)' : 'En el gráfico (intradiario)';
       var mn = n ? Math.min.apply(null, ys) : null, mx = n ? Math.max.apply(null, ys) : null;
       document.getElementById('brSs').innerHTML = n ? '<span>Último</span><b>' + fmtV(last) + '</b><span>Promedio</span><b>' + fmtV(mean) + '</b><span>Desvío (±1σ)</span><b>' + (ST.op === 'dif' ? nf(sd, 2) : nf(sd, 2) + '%') + '</b><span>Mínimo / máximo</span><b>' + fmtV(mn) + ' / ' + fmtV(mx) + '</b><span>Percentil del último</span><b>' + pct + '</b><span>Contra el promedio</span><b>' + (sd ? sg((last - mean) / sd, 1) + ' σ' : '—') + '</b>' : '<span>Sin datos para este ratio en el período.</span>';
       document.getElementById('brN').textContent = (ST.tf === 'd' ? 'Cierres: bonos desde 2023 (data/volumen.json), futuros desde 2025 (ajuste diario), oficial spot (data/tasas.json; donde falta, A3500). Con «1.er futuro», cada día se toma el contrato más cercano que no venció: el día que rota, el ratio salta.' : 'Intradiario: los bonos cada 3 minutos (lo que guarda la rueda) y la última operación de cada futuro; cada serie sigue con su último dato hasta el siguiente.') + ' La línea punteada es el promedio y la franja, ±1 desvío.';
@@ -6896,6 +6929,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       return '<tr data-pre="' + r.p[0] + '" class="' + (r.p[0] === ST.p ? 'on' : '') + '"><td class="l"><b>' + r.p[1] + '</b></td><td><b>' + f(r, r.v) + '</b></td><td>' + f(r, r.lo) + '</td><td>' + f(r, r.sh) + '</td><td>' + f(r, r.prev) + '</td><td>' + f(r, r.m) + '</td><td>' + (r.pc == null ? '—' : r.pc) + '</td><td>' + (r.z == null ? '—' : sg(r.z, 1)) + '</td><td class="l">' + lect(r) + '</td></tr>';
     }).join('') + '</tbody>';
   }
+  window.BRFX = { boot: function () { load(); }, day: function (id) { var t = nowAR(), a = intra(id, t.d), tk = (LT.$d === t.d && LT['L|' + id]) || [], m0 = a.length ? a[a.length - 1][0] : 0; return a.filter(function (q) { return q[0] >= 630; }).concat(tk.filter(function (q) { return q[0] > m0; })); } }; // el Dólar: la rueda de hoy del MEP y el CCL
   var _sw = window.switchTab;
   window.switchTab = function (id) { _sw(id); if (id === 'brc') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; setTimeout(draw, 60); } };
   var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(draw, 60); };
