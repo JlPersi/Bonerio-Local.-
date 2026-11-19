@@ -6563,6 +6563,8 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     ['bo', 'Brecha MEP vs oficial', 'MEP:AL30', 'OFI', 'pct', 'Long: comprás MEP contra el oficial (por ejemplo, dejás de comprar al oficial y comprás MEP) cuando la brecha está baja.', 'Short: vendés MEP y comprás oficial cuando la brecha está alta.'],
     ['ny', 'GD30 vs AL30 (ley NY vs local)', 'USD:GD30', 'USD:AL30', 'pct', 'Long: comprás GD30 y vendés AL30 (los dos en dólares MEP). Ganás si la ley NY se encarece contra la local; conviene con el ratio bajo contra su historia.', 'Short: vendés GD30 y comprás AL30. Ganás si la diferencia de ley se achica; conviene con el ratio alto.'],
     ['n35', 'GD35 vs AL35 (ley NY vs local)', 'USD:GD35', 'USD:AL35', 'pct', 'Long: comprás GD35 y vendés AL35 (en dólares MEP). Ganás si la ley NY se encarece contra la local.', 'Short: vendés GD35 y comprás AL35. Ganás si la diferencia de ley se achica.'],
+    ['dlo', 'Dólar linked vs oficial', 'DL:?', 'OFI', 'pct', 'Long: comprás el dollar linked (su precio / 100 es un dólar a su vencimiento) contra el oficial de hoy. Ganás si se espera más devaluación: conviene con el ratio bajo contra su historia.', 'Short: vendés el dollar linked. Ganás si la devaluación esperada se achica.'],
+    ['dlm', 'Dólar linked vs MEP', 'DL:?', 'MEP:AL30', 'pct', 'Long: comprás el dólar oficial a futuro (dollar linked) contra el MEP de hoy. Ganás si la brecha implícita se cierra a favor del oficial.', 'Short: vendés el dollar linked y comprás MEP.'],
     ['ps', 'Pase entre futuros (2.º vs 1.º)', 'FUT:2', 'FUT:1', 'dif', 'Long pase: comprás el segundo futuro y vendés el primero. Ganás si la tasa implícita entre los dos sube.', 'Short pase: vendés el segundo y comprás el primero.']
   ];
   var KEY = 'brfSt2', ST = { p: 'bm', a: 'MEP:AL30', b: 'FUT:1', op: 'dif', tf: 'in', w: 120, hw: 120 };
@@ -6683,6 +6685,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     return out;
   }
 
+  var fixDL = function () { var L = dlList(), MO = 'EFMAYJLGSOND', v = function (k) { var m = /^D(\d{2})([A-Z])(\d)$/.exec(k); return m[3] + ('0' + (MO.indexOf(m[2]) + 1)).slice(-2) + m[1]; }; if (!L.length) return; var lim = String(new Date(Date.now() + 30 * 864e5).toISOString().slice(3, 10)).replace(/-/g, ''); L = L.slice().sort(function (a, b) { var A = v(a) >= lim, B = v(b) >= lim; return A !== B ? (A ? -1 : 1) : v(a) < v(b) ? -1 : 1; }); /* el más corto con al menos 30 días */ PRE.forEach(function (p) { if (p[2] === 'DL:?' || p.dl) { p.dl = 1; p[2] = 'DL:' + L[0]; } }); if (ST.a === 'DL:?') ST.a = 'DL:' + L[0]; }; // los botones con dollar linked usan el más corto que opera
   function dlList() { // los dollar linked que operaron en las últimas 10 ruedas y no vencieron: su precio / 100 es un dólar implícito (cobran el A3500 al vencimiento)
     if (!VD || !VD.t) return []; var MO = 'EFMAYJLGSOND', hoy = nowAR().d, n0 = VD.dates.length;
     return Object.keys(VD.t).filter(function (k) { var m = /^D(\d{2})([EFMAYJLGSOND])(\d)$/.exec(k); if (!m) return false; var v = '202' + m[3] + '-' + ('0' + (MO.indexOf(m[2]) + 1)).slice(-2) + '-' + m[1]; if (v < hoy) return false;
@@ -6742,7 +6745,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     if (!TJ || !VD) { document.getElementById('brT').textContent = 'Cargando los bonos y los futuros…'; return; }
     try {
       var pre = PRE.filter(function (x) { return x[0] === ST.p; })[0];
-      document.getElementById('brPre').innerHTML = PRE.map(function (p) { return '<button data-pre="' + p[0] + '" class="' + (p[0] === ST.p ? 'on' : '') + '">' + p[1] + '</button>'; }).join('');
+      fixDL(); document.getElementById('brPre').innerHTML = PRE.filter(function (p) { return p[2] !== 'DL:?'; }).map(function (p) { return '<button data-pre="' + p[0] + '" class="' + (p[0] === ST.p ? 'on' : '') + '">' + p[1] + '</button>'; }).join('');
       document.getElementById('brA1').innerHTML = opts(ST.a); document.getElementById('brB1').innerHTML = opts(ST.b);
       document.getElementById('brOp').value = ST.op; document.getElementById('brW').value = ST.tf === 'd' ? 'd' + ST.w : 'i' + (ST.wi || 2);
       var name = pre ? pre[1] : label(ST.a) + (ST.op === 'dif' ? ' − ' : ' ÷ ') + label(ST.b);
@@ -6751,6 +6754,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       document.getElementById('brH').textContent = name;
       document.getElementById('brV').innerHTML = fmtV(v) + (ST.op === 'dif' && v != null && LB.last ? ' <span style="font-size:15px;color:var(--mu);font-weight:600">' + sg(v / LB.last * 100, 2) + '%</span>' : '');
       document.getElementById('brE').innerHTML = (lo != null ? 'Entrás <b>long</b> a ' + fmtV(lo) + ' · <b>short</b> a ' + fmtV(sh) : 'Sin puntas de las dos patas para el long y el short') + '<br>' + label(ST.a) + ': ' + nf(LA.last, 2) + ' · ' + label(ST.b) + ': ' + nf(LB.last, 2);
+      var ux = function (id) { return /^USD:/.test(id) ? 'px' : 'fx'; }; if (ux(ST.a) !== ux(ST.b)) document.getElementById('brE').innerHTML = '<b style="color:var(--bad)">Ojo: las patas no se comparan.</b> ' + label(/^USD:/.test(ST.a) ? ST.a : ST.b) + ' es el precio del bono en dólares (US$ cada 100 VN), no un tipo de cambio. Para dólares contra dólares usá MEP, CCL, futuro, oficial o dollar linked.'; // precio en US$ contra un dólar en pesos: el ratio no tiene sentido
       var lg = LA.legs.concat(LB.legs);
       document.getElementById('brLg').innerHTML = '<thead><tr><th class="l">Ticker</th><th>Compra</th><th>Venta</th><th>Último</th></tr></thead><tbody>' + lg.map(function (r) { var d = r[3] > 1000 ? 1 : 2; return '<tr><td class="l"><b>' + r[0] + '</b></td><td style="color:var(--ok)">' + nf(r[1], d) + '</td><td style="color:var(--bad)">' + nf(r[2], d) + '</td><td>' + nf(r[3], d) + '</td></tr>'; }).join('') + '</tbody>';
       // escenarios del simulador: cierres del período elegido (120 ruedas si el gráfico es intradiario)
@@ -6879,7 +6883,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   }
   function all() { // la tabla con todos los ratios armados
     document.getElementById('brAw').value = String(ST.hw == null ? 120 : ST.hw);
-    var keep = { a: ST.a, b: ST.b, op: ST.op }, rows = PRE.map(function (p) {
+    fixDL(); var keep = { a: ST.a, b: ST.b, op: ST.op }, rows = PRE.filter(function (p) { return p[2] !== 'DL:?'; }).map(function (p) {
       ST.a = p[2]; ST.b = p[3]; ST.op = p[4];
       var LA = live(p[2]), LB = live(p[3]), v = comb(LA.last, LB.last), A = daily(p[2]), B = daily(p[3]), ds = Object.keys(A).filter(function (d) { return B[d] != null && d < nowAR().d; }).sort().slice(-(ST.hw || 1e6)), ys = ds.map(function (d) { return comb(A[d], B[d]); });
       var n = ys.length, m = n ? ys.reduce(function (s, y) { return s + y; }, 0) / n : null, sd = n > 1 ? Math.sqrt(ys.reduce(function (s, y) { return s + (y - m) * (y - m); }, 0) / (n - 1)) : null;
