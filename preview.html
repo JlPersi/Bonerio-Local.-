@@ -3440,7 +3440,7 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
   }
   function snapshot(s, sc) {
     var out = [];
-    Object.keys(INST).forEach(function (k) { var ins = INST[k], mat = ins.r[ins.r.length - 1][0]; if (!bxCum(mat, s)) return; var sp = SUPON && SUP[k] > 0, o = metrics(k, s, sc, sp ? SUP[k] : PRICE[k]); if (sp) { o.sup = SUP[k]; o.mkt = metrics(k, s, sc, PRICE[k]); } out.push(o); }); // con precio supuesto: el bono rinde con tu precio y guarda cómo rendía a mercado
+    Object.keys(INST).forEach(function (k) { var ins = INST[k], mat = ins.r[ins.r.length - 1][0]; if (!bxCum(mat, s)) return; if (ins.k === 'dl') { var fq = IDX.FX.v[IDX.FX.v.length - 1], rq = (PRICE[k] || 0) / 100 / fq; if (!(rq > 0.6 && rq < 1.4)) return; } /* dollar linked con un precio que no es un dólar (primer día de cotización, sin precio o mal cargado): afuera, si no rompe la escala */ var sp = SUPON && SUP[k] > 0, o = metrics(k, s, sc, sp ? SUP[k] : PRICE[k]); if (sp) { o.sup = SUP[k]; o.mkt = metrics(k, s, sc, PRICE[k]); } out.push(o); }); // con precio supuesto: el bono rinde con tu precio y guarda cómo rendía a mercado
     return out;
   }
   function curveFija(S) {
