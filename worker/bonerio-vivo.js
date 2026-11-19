@@ -153,11 +153,25 @@ export class Feed {
     ws.addEventListener('message', (e) => this.onMd(e.data));
     const lost = () => { if (this.ws !== ws) return; this.ws = null; if (this.alive()) setTimeout(() => this.connect().catch((x) => (LASTERR = String(x.message || x))), 3000); };
     ws.addEventListener('close', lost); ws.addEventListener('error', lost);
-    this.sub(Object.keys(this.idx));
+    this.sub(Object.keys(this.idx)); if (this.fx && this.fx.length) this.sub(this.fx);
   }
-  alive() { return this.cl.size > 0 || this.cd.size > 0 || Date.now() - this.seen < 10 * 60e3; }
+  alive() { return this.cl.size > 0 || this.cd.size > 0 || Date.now() - this.seen < 10 * 60e3 || !cerrado(); } // en horario de rueda queda conectado aunque no haya nadie: graba los ticks
+  async recSet() { // lo que se graba tick a tick (para la brecha y el dólar): AL30/GD30 en pesos, MEP y cable, AL35D/GD35D, los dollar linked y los 4 futuros de dólar más cercanos
+    const hoy = diaBA(Date.now()); if (this.recD === hoy && this.rec) return; const R = new Set(); ['AL30', 'AL30D', 'AL30C', 'GD30', 'GD30D', 'GD30C', 'AL35D', 'GD35D'].forEach((t) => R.add(sym(t)));
+    Object.keys(this.idx).forEach((k) => { if (/^MERV - XMEV - D\d{2}[A-Z]\d - 24hs$/.test(k)) R.add(k); });
+    let F = []; try { F = (await instruments(this.env)).map((i) => [(i.instrumentId || {}).symbol || '', String(i.maturityDate || '')]).filter((x) => /^DLR\/[A-Z]{3}\d{2}$/.test(x[0]) && x[1].replace(/-/g, '') >= hoy.replace(/-/g, '')).sort((a, b) => (a[1] < b[1] ? -1 : 1)).slice(0, 4).map((x) => x[0]); } catch (e) { LASTERR = String(e.message || e); }
+    F.forEach((k) => R.add(k)); this.fx = F; this.rec = R; this.recD = hoy; this.lp = this.lp || {};
+    try { this.ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS tk (d TEXT, s TEXT, m REAL, p REAL)'); this.ctx.storage.sql.exec('CREATE INDEX IF NOT EXISTS tkd ON tk (d, s)');
+      const lim = diaBA(Date.now() - 45 * 864e5); this.ctx.storage.sql.exec('DELETE FROM tk WHERE d < ?', lim); } catch (e) { LASTERR = String(e.message || e); } // 45 días
+    if (this.ws && F.length) this.sub(F);
+  }
+  recTk(k) { // un tick: el último operado cuando cambia (hora de Buenos Aires, en minutos con decimales)
+    const md = this.md[k] || {}, p = md.LA && md.LA.price > 0 ? md.LA.price : null; if (!p || this.lp[k] === p) return; const x = new Date(Date.now() - 3 * 3600e3), m = x.getUTCHours() * 60 + x.getUTCMinutes() + x.getUTCSeconds() / 60; if (m < 630 || m > 1022) return;
+    if (md.LA.date && Date.now() - md.LA.date > 6 * 3600e3) return; // el último de otra rueda
+    this.lp[k] = p; try { this.ctx.storage.sql.exec('INSERT INTO tk VALUES (?, ?, ?, ?)', x.toISOString().slice(0, 10), nm(k), Math.round(m * 1000) / 1000, p); } catch (e) { LASTERR = String(e.message || e); }
+  }
   start() {
-    if (!this.go) this.go = (async () => { await this.lists(); await this.connect(); await this.ctx.storage.setAlarm(Date.now() + 60e3); })().catch((e) => { LASTERR = String(e.message || e); this.go = null; });
+    if (!this.go) this.go = (async () => { await this.lists(); await this.connect(); await this.recSet(); await this.ctx.storage.setAlarm(Date.now() + 60e3); })().catch((e) => { LASTERR = String(e.message || e); this.go = null; });
     return this.go;
   }
   onMd(data) {
@@ -168,6 +182,7 @@ export class Feed {
       const o = this.md5[k] || (this.md5[k] = {}), deep = ['BI', 'OF'].some((e) => Array.isArray(md[e]) && md[e].length > 1);
       Object.keys(md).forEach((e) => { if ((e === 'BI' || e === 'OF') && !deep && Array.isArray(o[e]) && o[e].length > 1 && Date.now() - (this.t5[k] || 0) < 15000) return; o[e] = md[e]; });
       if (deep) this.t5[k] = Date.now(); const w = this.w5[k]; if (w) { delete this.w5[k]; w.forEach((f) => f()); } }
+    if (this.rec && this.rec.has(k)) this.recTk(k);
     const dd = new Date().toISOString().slice(0, 10); if (this.nd !== dd) { this.nd = dd; this.nm = 0; } this.nm++; // mensajes de hoy (UTC), para ver el consumo en /diag
     if (!this.cl.size) return;
     this.dirty.add(k); if (!this.tm) this.tm = setTimeout(() => this.flush(), 250);
@@ -191,8 +206,10 @@ export class Feed {
   }
   merged(ep) { return (this.rows[ep] || []).map((r) => patch(r, this.md[sym(r.symbol)])); }
   async alarm() {
-    if (!this.alive()) { const w = this.ws; this.ws = null; this.go = null; try { w && w.close(1000, 'sin visitantes'); } catch (e) {} return; }
+    if (!this.alive()) { const w = this.ws; this.ws = null; this.go = null; try { w && w.close(1000, 'sin visitantes'); } catch (e) {} const x = new Date(Date.now() - 3 * 3600e3), m = x.getUTCHours() * 60 + x.getUTCMinutes(); await this.ctx.storage.setAlarm(Date.now() + ((m < 600 ? 600 : 1440 + 600) - m) * 60e3); return; } // se despierta solo a las 10 del día siguiente (o de hoy) para grabar la rueda
+    if (!this.go) { await this.start(); return; }
     if (Date.now() - this.lists_t > 10 * 60e3) await this.lists();
+    try { await this.recSet(); } catch (e) { LASTERR = String(e.message || e); }
     try { this.shot(); } catch (e) { LASTERR = String(e.message || e); }
     if (!this.ws && this.go) await this.connect().catch((x) => (LASTERR = String(x.message || x)));
     await this.ctx.storage.setAlarm(Date.now() + 60e3);
@@ -217,6 +234,12 @@ export class Feed {
       const pend = all.filter((k) => !this.md5[k] && Date.now() - this.a5[k] < ms); // los que nunca mandaron nada se esperan solo la primera vez
       if (pend.length) await Promise.race([Promise.all(pend.map((k) => new Promise((ok) => (this.w5[k] = (this.w5[k] || []).concat([ok]))))), new Promise((ok) => setTimeout(ok, ms))]);
       const out = {}; all.forEach((k) => { if (this.md5[k]) out[k] = this.md5[k]; }); return new Response(JSON.stringify(out));
+    }
+    if (u.pathname === '/ticks') { // los ticks grabados de una rueda: {símbolo: [[minuto, precio]]}
+      const d = u.searchParams.get('d') || '', S = (u.searchParams.get('s') || '').split(',').filter(Boolean).slice(0, 40), o = {}; if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return new Response('{}');
+      try { await this.recSet(); const rows = S.length ? this.ctx.storage.sql.exec('SELECT s, m, p FROM tk WHERE d = ? AND s IN (' + S.map(() => '?').join(',') + ') ORDER BY m', d, ...S).toArray() : this.ctx.storage.sql.exec('SELECT s, m, p FROM tk WHERE d = ? ORDER BY m', d).toArray();
+        rows.forEach((r) => (o[r.s] = o[r.s] || []).push([r.m, r.p])); } catch (e) { return new Response(JSON.stringify({ error: String(e.message || e) }), { status: 500 }); }
+      return new Response(JSON.stringify(o));
     }
     if (u.pathname === '/stats') return new Response(JSON.stringify({ dia: this.nd || null, mensajes: this.nm || 0, visitantes: this.cl.size, demorados: this.cd.size, simbolos: Object.keys(this.idx).length }));
     const ep = u.pathname.replace(/^\/live\//, '');
@@ -406,7 +429,13 @@ export default {
       return new Response(JSON.stringify(d, null, 1), { headers: h });
     }
     const P = await esPro(u.pathname === '/cim' && !u.searchParams.has('s') ? null : u.searchParams.get('t')); // en /cim las especies van en ?s= (antes iban en ?t= y pisaban el token) // quien no es PRO: precios de hace 20 minutos (ver arriba)
-    if (!P && (u.pathname.startsWith('/book/') || u.pathname.startsWith('/merv') || u.pathname === '/cim')) return new Response('{"error":"pro"}', { status: 403, headers: Object.assign({}, h, { 'Cache-Control': 'no-store' }) });
+    if (!P && (u.pathname.startsWith('/book/') || u.pathname.startsWith('/merv') || u.pathname === '/cim' || u.pathname === '/ticks')) return new Response('{"error":"pro"}', { status: 403, headers: Object.assign({}, h, { 'Cache-Control': 'no-store' }) });
+    if (u.pathname === '/ticks' && env.FEED) { // tick a tick de una rueda, grabado por el Feed (se guarda 10 segundos)
+      const hb = Object.assign({}, h, { 'Cache-Control': 'no-store' }), d = u.searchParams.get('d') || '', S = [...new Set((u.searchParams.get('s') || '').toUpperCase().split(','))].filter((x) => /^([A-Z0-9]{2,10}|DLR\/[A-Z]{3}\d{2})$/.test(x)).slice(0, 40).sort(), k = '/ticks?' + d + '|' + S.join(','), m = MEM[k];
+      if (m && Date.now() - m.t < (d < diaBA(Date.now()) ? 3600e3 : 10000)) return new Response(m.b, { headers: hb });
+      try { const r = await env.FEED.get(env.FEED.idFromName('main')).fetch(new Request(u.origin + '/ticks?d=' + encodeURIComponent(d) + '&s=' + encodeURIComponent(S.join(',')))); const body = await r.text(); if (r.ok) MEM[k] = { t: Date.now(), b: body }; return new Response(body, { status: r.status, headers: hb }); }
+      catch (e) { return new Response(JSON.stringify({ error: String(e.message || e) }), { status: 502, headers: hb }); }
+    }
     if (u.pathname === '/cim') { // monitor CI vs 24 hs: la mejor punta y el último de las dos liquidaciones, hasta 60 especies, por el websocket (se guarda 3 segundos)
       const hb = Object.assign({}, h, { 'Cache-Control': 'no-store' }), T = [...new Set((u.searchParams.get('s') || '').toUpperCase().split(','))].filter((x) => /^([A-Z0-9]{2,10}|DLR\/[A-Z]{3}\d{2})$/.test(x)).slice(0, 60), k = '/cim?' + T.join(','), m = MEM[k];
       if (m && Date.now() - m.t < 3000) return new Response(m.b, { headers: hb });

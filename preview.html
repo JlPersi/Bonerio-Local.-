@@ -6647,6 +6647,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   function intra(id, d, src) { // [[minuto, valor]] de esa rueda (src: data/intra_hist.json, cada 15 minutos)
     if (id === 'OFI') return [];
     var p = id.split(':');
+    if (p[0] === 'FUT' && src && src[d]) { var nf2 = futName(id, d); return ((nf2 && src[d][nf2]) || []).map(function (x) { return [x[0], x[1]]; }); }
     if (p[0] === 'FUT') { var nm = futName(id, d), tr = nm && IJ && IJ[d] && IJ[d].fut && IJ[d].fut[nm]; return (tr || []).map(function (x) { return [x[0], x[1]]; }); }
     var SR = src || IB, ib = SR && SR[d]; if (!ib) return [];
     if (p[0] === 'USD') return (ib[p[1] + 'D'] || []).map(function (x) { return [x[0], x[1]]; });
@@ -6678,6 +6679,13 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     }).catch(function () { fqB = 0; });
   }
   setInterval(function () { futPoll(); if (rec() && isAct() && ST.tf !== 'd') draw(); }, 4000);
+  var TKS = {}, TKT = {}; // los ticks que grabó el Worker, por rueda
+  var mrg = function (A, B) { var ms = {}, i = 0, k = 0, va = null, vb = null, o = []; A.concat(B).forEach(function (x) { ms[x[0]] = 1; }); Object.keys(ms).map(Number).sort(function (x, y) { return x - y; }).forEach(function (m) { while (i < A.length && A[i][0] <= m) va = A[i++][1]; while (k < B.length && B[k][0] <= m) vb = B[k++][1]; var y = comb(va, vb); if (y != null) o.push([m, y]); }); return o; };
+  var tkSyms = function (d) { var s = {}; PRE.map(function (q) { return [q[2], q[3]]; }).concat([[ST.a, ST.b]]).forEach(function (q) { q.forEach(function (id) { var p = id.split(':'); if (p[0] === 'MEP' || p[0] === 'CCL') { s[p[1]] = 1; s[p[1] + (p[0] === 'MEP' ? 'D' : 'C')] = 1; } else if (p[0] === 'USD') s[p[1] + 'D'] = 1; else if (p[0] === 'DL' && p[1] !== '?') s[p[1]] = 1; else if (p[0] === 'FUT') { var n = futName(id, d); if (n) s[n] = 1; } }); }); return Object.keys(s); };
+  function tkLoad(d, cb) { // hoy cada 15 s; las ruedas pasadas, una vez
+    var hoy = d === nowAR().d; if (TKT[d] && (!hoy || Date.now() - TKT[d] < 15000)) return; TKT[d] = Date.now();
+    fetch((window.BL_LIVE || 'https://bonerio-vivo.persijuanluis.workers.dev').replace(/\/+$/, '') + '/ticks?d=' + d + '&s=' + tkSyms(d).map(encodeURIComponent).join(','), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (o) { if (o && !o.error && Object.keys(o).length) { TKS[d] = o; if (cb) cb(); } }).catch(function () { });
+  }
   var LT = {}, LTs = 0; try { LT = JSON.parse(localStorage.getItem('brLT1') || '{}') || {}; } catch (e) { LT = {}; } // hoy: los ratios de cada precio nuevo, por par de patas (se guardan para no perder los ticks al recargar)
   function series() { // la serie del ratio que se grafica: [{x, y, lab}]
     var t = nowAR();
@@ -6703,10 +6711,12 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     if (LT.$d !== t.d) { Object.keys(LT).forEach(function (k) { if (k !== '$d') LT[k] = []; }); LT.$d = t.d; TK = LT[lk]; }
     var yl = t.m >= 630 && t.m <= 1020 ? comb(LA.last, LB.last) : null; tkPush(lk, yl, mt); TK = LT[lk] || TK;
     if (TK.length && days.indexOf(t.d) < 0) days = days.concat([t.d]).slice(-(ST.wi || 2)); // hoy todavía sin intradiario guardado: solo lo del stream
-    days.forEach(function (d) {
+    days.forEach(function (d) { tkLoad(d, function () { if (isAct()) draw(); });
       var a = intra(ST.a, d), b = intra(ST.b, d), hoy = d === t.d, tk = hoy ? TK.filter(function (q) { return !a.length || !b.length || q[0] > Math.min(a[a.length - 1][0], b[b.length - 1][0]); }) : [];
       if (hoy && !tk.length && yl != null) { if (LA.last) a.push([t.m, LA.last]); if (LB.last) b.push([t.m, LB.last]); }
       if (ST.b === 'OFI') { var so = d === t.d ? spotHoy(d) : null, sp = so ? so.v : (TJ && TJ.spot && TJ.spot[d]) || (DJ && DJ.A3500 && DJ.A3500[d]); if (sp) b = [[600, sp]]; }
+      var sva = TKS[d] && intra(ST.a, d, TKS), svb = TKS[d] && (ST.b === 'OFI' ? b : intra(ST.b, d, TKS)), sv = sva && svb && sva.length && svb.length ? mrg(sva, svb) : []; /* la rueda grabada tick a tick por el Worker: reemplaza la de cada 5 minutos */
+      if (sv.length > 5) { tk = sv.concat(hoy ? (LT[lk] || []).filter(function (q) { return q[0] > sv[sv.length - 1][0]; }) : []); a = []; b = []; }
       if ((!a.length || !b.length) && !tk.length) return;
       var dl = d.slice(8, 10) + '/' + d.slice(5, 7) + ' ';
       if (a.length && b.length) {
@@ -6934,7 +6944,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       return '<tr data-pre="' + r.p[0] + '" class="' + (r.p[0] === ST.p ? 'on' : '') + '"><td class="l"><b>' + r.p[1] + '</b></td><td><b>' + f(r, r.v) + '</b></td><td>' + f(r, r.lo) + '</td><td>' + f(r, r.sh) + '</td><td>' + f(r, r.prev) + '</td><td>' + f(r, r.m) + '</td><td>' + (r.pc == null ? '—' : r.pc) + '</td><td>' + (r.z == null ? '—' : sg(r.z, 1)) + '</td><td class="l">' + lect(r) + '</td></tr>';
     }).join('') + '</tbody>';
   }
-  window.BRFX = { boot: function () { load(); }, day: function (id) { var t = nowAR(), a = intra(id, t.d), tk = (LT.$d === t.d && LT['L|' + id]) || [], m0 = a.length ? a[a.length - 1][0] : 0; return a.filter(function (q) { return q[0] >= 630; }).concat(tk.filter(function (q) { return q[0] > m0; })); } }; // el Dólar: la rueda de hoy del MEP y el CCL
+  window.BRFX = { boot: function () { load(); }, day: function (id) { var t = nowAR(); tkLoad(t.d); var a = TKS[t.d] && intra(id, t.d, TKS).length > 5 ? intra(id, t.d, TKS) : intra(id, t.d), tk = (LT.$d === t.d && LT['L|' + id]) || [], m0 = a.length ? a[a.length - 1][0] : 0; return a.filter(function (q) { return q[0] >= 630; }).concat(tk.filter(function (q) { return q[0] > m0; })); } }; // el Dólar: la rueda de hoy del MEP y el CCL
   var _sw = window.switchTab;
   window.switchTab = function (id) { _sw(id); if (id === 'brc') { var gc = document.getElementById('globalControls'); if (gc) gc.style.display = 'none'; setTimeout(draw, 60); } };
   var _tt = window.toggleTheme; window.toggleTheme = function () { _tt(); if (isAct()) setTimeout(draw, 60); };
