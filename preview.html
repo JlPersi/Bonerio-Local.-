@@ -25,8 +25,11 @@
   var TAB = null, TABT = 0, FL = 0;
   var flash = function (el, a, b) {
     if (!FL || !el || el.nodeType !== 1 || el.childNodes.length > 3) return; var x = num(a), y = num(b); if (x == null || y == null || x === y) return;
-    el.classList.remove('tk-up', 'tk-dn'); void el.offsetWidth; el.classList.add(y > x ? 'tk-up' : 'tk-dn');
-    clearTimeout(el.__tk); el.__tk = setTimeout(function () { el.classList.remove('tk-up', 'tk-dn'); }, 900);
+    if (FQ.length > 400) return; FQ.push([el, y > x ? 'tk-up' : 'tk-dn']); if (!FR) FR = requestAnimationFrame(fdo); // en tanda: un solo reflow por cuadro (antes uno por número, y las tablas grandes se trababan)
+  };
+  var FQ = [], FR = 0, fdo = function () {
+    var q = FQ; FQ = []; FR = 0; q.forEach(function (z) { z[0].classList.remove('tk-up', 'tk-dn'); }); if (q.length) void document.body.offsetWidth;
+    q.forEach(function (z) { var el = z[0]; el.classList.add(z[1]); clearTimeout(el.__tk); el.__tk = setTimeout(function () { el.classList.remove('tk-up', 'tk-dn'); }, 900); });
   };
   var attrs = function (a, b) {
     var i, n, ab = b.attributes, aa = a.attributes;
