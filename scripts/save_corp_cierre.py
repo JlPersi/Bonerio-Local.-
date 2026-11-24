@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cierre diario de ONs y bonos provinciales con data912 (/live/arg_corp y /live/arg_bonds) en data/ons_cierre.json y
+"""Cierre diario de ONs y bonos provinciales con data912 y el Worker de Primary (/live/arg_corp y /live/arg_bonds; el Worker suma las especies nuevas que data912 todavía no lista) en data/ons_cierre.json y
 data/pvs_cierre.json: precio, TIR (None: la página la calcula), monto del día, monto promedio y ruedas operadas de las
 últimas 20. Los montos diarios quedan en data/corp_montos.json; mientras no hay 20 ruedas guardadas, el promedio mezcla
 lo que traía la foto anterior. Lo que no operó hoy conserva su último precio. Sin operaciones (feriado) o si falla la fuente, no pisa nada."""
@@ -19,9 +19,21 @@ else:
     hoy = ahora.date().isoformat()
 
 
+VIVO = "https://bonerio-vivo.persijuanluis.workers.dev/live/"  # el Worker: la lista de data912 más lo que Primary tiene y data912 todavía no (ONs nuevas)
 def get(u):
-    req = urllib.request.Request("https://data912.com/live/" + u, headers={"User-Agent": "Mozilla/5.0"})
-    return {r["symbol"]: r for r in json.load(urllib.request.urlopen(req, timeout=40)) if r.get("symbol")}
+    out = {}
+    for base in ("https://data912.com/live/", VIVO):  # data912 de base; lo de Primary completa y actualiza
+        try:
+            req = urllib.request.Request(base + u, headers={"User-Agent": "Mozilla/5.0", "Origin": "https://boneriolocal.com.ar"})
+            rows = json.load(urllib.request.urlopen(req, timeout=40))
+        except Exception as e:
+            print(base, u, "no disponible:", str(e)[:120]); continue
+        for r in rows:
+            if r.get("symbol") and (base == VIVO and (r.get("c") or 0) > 0 or r["symbol"] not in out):
+                out[r["symbol"]] = r
+    if not out:
+        raise RuntimeError("sin datos de data912 ni del Worker")
+    return out
 
 
 def syms(fn):
