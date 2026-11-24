@@ -171,7 +171,7 @@ export class Feed {
     this.lp[k] = p; try { this.ctx.storage.sql.exec('INSERT INTO tk VALUES (?, ?, ?, ?)', x.toISOString().slice(0, 10), nm(k), Math.round(m * 1000) / 1000, p); } catch (e) { LASTERR = String(e.message || e); }
   }
   start() {
-    if (!this.go) this.go = (async () => { await this.lists(); await this.connect(); await this.recSet(); await this.ctx.storage.setAlarm(Date.now() + 60e3); })().catch((e) => { LASTERR = String(e.message || e); this.go = null; });
+    if (!this.go) this.go = (async () => { await this.lists(); await this.connect(); await this.recSet(); await this.ctx.storage.setAlarm(Date.now() + 60e3); })().catch((e) => { LASTERR = String(e.message || e); this.go = null; return this.ctx.storage.setAlarm(Date.now() + 60e3).catch(() => {}); }); // si falla (login, red), se reintenta en un minuto: si no, la cadena de alarmas se cortaba y la rueda no se grababa hasta que entrara alguien
     return this.go;
   }
   onMd(data) {
@@ -207,12 +207,13 @@ export class Feed {
   merged(ep) { return (this.rows[ep] || []).map((r) => patch(r, this.md[sym(r.symbol)])); }
   async alarm() {
     if (!this.alive()) { const w = this.ws; this.ws = null; this.go = null; try { w && w.close(1000, 'sin visitantes'); } catch (e) {} const x = new Date(Date.now() - 3 * 3600e3), m = x.getUTCHours() * 60 + x.getUTCMinutes(); await this.ctx.storage.setAlarm(Date.now() + ((m < 600 ? 600 : 1440 + 600) - m) * 60e3); return; } // se despierta solo a las 10 del día siguiente (o de hoy) para grabar la rueda
-    if (!this.go) { await this.start(); return; }
-    if (Date.now() - this.lists_t > 10 * 60e3) await this.lists();
-    try { await this.recSet(); } catch (e) { LASTERR = String(e.message || e); }
-    try { this.shot(); } catch (e) { LASTERR = String(e.message || e); }
-    if (!this.ws && this.go) await this.connect().catch((x) => (LASTERR = String(x.message || x)));
-    await this.ctx.storage.setAlarm(Date.now() + 60e3);
+    try { // pase lo que pase, la próxima alarma queda puesta (sin ella no se graba la rueda)
+      if (!this.go) { await this.start(); return; }
+      if (Date.now() - this.lists_t > 10 * 60e3) await this.lists();
+      try { await this.recSet(); } catch (e) { LASTERR = String(e.message || e); }
+      try { this.shot(); } catch (e) { LASTERR = String(e.message || e); }
+      if (!this.ws && this.go) await this.connect().catch((x) => (LASTERR = String(x.message || x)));
+    } catch (e) { LASTERR = String(e.message || e); } finally { await this.ctx.storage.setAlarm(Date.now() + 60e3); }
   }
   async fetch(req) {
     const u = new URL(req.url); this.seen = Date.now(); await this.start();
@@ -241,7 +242,8 @@ export class Feed {
         rows.forEach((r) => (o[r.s] = o[r.s] || []).push([r.m, r.p])); } catch (e) { return new Response(JSON.stringify({ error: String(e.message || e) }), { status: 500 }); }
       return new Response(JSON.stringify(o));
     }
-    if (u.pathname === '/stats') return new Response(JSON.stringify({ dia: this.nd || null, mensajes: this.nm || 0, visitantes: this.cl.size, demorados: this.cd.size, simbolos: Object.keys(this.idx).length }));
+    if (u.pathname === '/stats') { let tk = {}; try { this.ctx.storage.sql.exec('SELECT d, COUNT(*) AS n, MIN(m) AS m0, MAX(m) AS m1 FROM tk GROUP BY d ORDER BY d DESC LIMIT 10').toArray().forEach((r) => (tk[r.d] = { ticks: r.n, desde: Math.floor(r.m0 / 60) + ':' + ('0' + Math.floor(r.m0 % 60)).slice(-2), hasta: Math.floor(r.m1 / 60) + ':' + ('0' + Math.floor(r.m1 % 60)).slice(-2) })); } catch (e) { tk = String(e.message || e); } // cuántos ticks se grabaron por rueda y de qué hora a qué hora (sin precios)
+      return new Response(JSON.stringify({ dia: this.nd || null, mensajes: this.nm || 0, visitantes: this.cl.size, demorados: this.cd.size, simbolos: Object.keys(this.idx).length, conectado: !!this.ws, ticks: tk })); }
     const ep = u.pathname.replace(/^\/live\//, '');
     if (u.searchParams.get('d') === '1') { const d = SEPS.includes(ep) && this.dsnap(); return d && d.s[ep] ? new Response(JSON.stringify(d.s[ep])) : new Response('', { status: 204 }); }
     if (!this.ok() || !this.rows[ep] || !SEPS.includes(ep)) return new Response('', { status: 204 });
