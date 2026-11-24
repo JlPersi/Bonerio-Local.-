@@ -16382,15 +16382,17 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
       ['Volumen diario', mny(vt), vp > 0 ? '<span' + col(vt / vp - 1) + '>' + nf(vt / vp, 2) + '× su promedio</span>' : '']];
     var i0 = Math.max(0, e0 - 62), rng = function (f) { var a = []; for (var i = i0; i <= e0; i++) a.push(f(i)); return a; }; // la serie de los últimos 3 meses (hasta el fin del período) para la línea chica
     var SPK = [rng(rpv), rng(function (i) { return i === e0 ? mep1 : MEP[i]; }), rng(function (i) { return i === e0 ? ccl1 : CCL[i]; }), rng(function (i) { var c = i === e0 ? ccl1 : CCL[i], a = a35(i); return c && a ? (c / a - 1) * 100 : null; })];
+    var fb = e0 > i0 ? Math.max(0, (b0 - i0) / (e0 - i0)) * 100 : 0; // dónde arranca el período elegido dentro de la línea chica
     var spk = function (a, inv) { // SVG sin Chart, como las tarjetas de Mercado de dinero; sube = rojo en riesgo país, dólar y brecha
       a = (a || []).filter(function (v) { return v != null && isFinite(v); }); if (a.length < 3) return '';
       var mn = Math.min.apply(null, a), mx = Math.max.apply(null, a), rg = mx - mn || 1, c = (a[a.length - 1] >= a[0]) !== !!inv ? '#34d399' : '#ff6b8b';
       var pts = a.map(function (v, i) { return (i / (a.length - 1) * 100).toFixed(2) + ',' + (27 - (v - mn) / rg * 22).toFixed(2); });
-      return '<svg class="sp" viewBox="0 0 100 30" preserveAspectRatio="none"><polygon points="0,30 ' + pts.join(' ') + ' 100,30" fill="' + c + '" fill-opacity=".13"/><polyline points="' + pts.join(' ') + '" fill="none" stroke="' + c + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>';
+      return '<svg class="sp" viewBox="0 0 100 30" preserveAspectRatio="none"><rect x="' + fb.toFixed(2) + '" y="0" width="' + (100 - fb).toFixed(2) + '" height="30" fill="' + c + '" fill-opacity=".1"/><line x1="' + fb.toFixed(2) + '" x2="' + fb.toFixed(2) + '" y1="0" y2="30" stroke="' + c + '" stroke-opacity=".7" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"/><polygon points="0,30 ' + pts.join(' ') + ' 100,30" fill="' + c + '" fill-opacity=".13"/><polyline points="' + pts.join(' ') + '" fill="none" stroke="' + c + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>';
     };
     var SUB = ['spread de los globales', 'AL30 / AL30D', 'AL30 / AL30C', 'CCL contra el A3500', 'bonos con más operaciones', 'renta fija, ' + (live ? 'hoy' : 'en el período')];
+    var fdd = function (i) { return ds[i].slice(8, 10) + '/' + ds[i].slice(5, 7); }, BV = [rp0 != null ? nf(rp0) + ' pb' : null, MEP[b0] ? '$' + nf(MEP[b0], 0) : null, CCL[b0] ? '$' + nf(CCL[b0], 0) : null, br0 != null ? nf(br0 * 100, 1) + '%' : null]; // el valor al inicio del período: así se ve contra qué se compara
     $o('resKp').innerHTML = K.map(function (k, i) {
-      var ex = i === 4 ? '<span class="s">suben / bajan</span>' + (up + dn ? '<span class="br"><i style="width:' + (up / (up + dn) * 100).toFixed(1) + '%"></i></span>' : '') : '<span class="s">' + (i === 5 && k[2] ? k[2].replace('>', ' class="vx">') : SUB[i]) + '</span>' + (SPK[i] ? spk(SPK[i], 1) : '');
+      var ex = i === 4 ? '<span class="s">suben / bajan</span>' + (up + dn ? '<span class="br"><i style="width:' + (up / (up + dn) * 100).toFixed(1) + '%"></i></span>' : '') : '<span class="s">' + (i === 5 && k[2] ? k[2].replace('>', ' class="vx">') : i < 4 && BV[i] ? 'desde ' + BV[i] + ' el ' + fdd(b0) + ' · ' + SUB[i] : SUB[i]) + '</span>' + (SPK[i] ? spk(SPK[i], 1) : '');
       return '<div class="rkp' + (SPK[i] || i === 4 ? '' : ' np') + '"><small>' + k[0] + '</small><span class="v"><b>' + k[1] + '</b>' + (i >= 4 ? '' : '<em>' + (k[2] || '') + '</em>') + '</span>' + ex + '</div>';
     }).join('');
 
