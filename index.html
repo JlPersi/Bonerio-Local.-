@@ -12932,7 +12932,7 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
   var xlb = function (fn, t) { return '<button class="icon-btn" data-html2canvas-ignore="true" style="flex:none;width:auto;padding:0 10px;font-size:12px;font-weight:700" onclick="if(window.onsXLS) window.onsXLS(\'' + fn + '\')" title="' + t + '">XLS</button>'; };
   var TIPOS = [['usd', 'Hard dollar'], ['dl', 'Dollar linked'], ['tamar', 'TAMAR'], ['badlar', 'BADLAR'], ['cer', 'CER'], ['fija', 'Tasa fija']], TN = {}; TIPOS.forEach(function (t) { TN[t[0]] = t[1]; });
   var spG = function () { var b = document.getElementById('bccl'); return b && b.classList.contains('on') ? 'C' : 'D'; }; // especie: la del selector MEP / Cable de arriba
-  var KEY = 'onsSt1', ST = { tp: 'usd', liq: 'op', ax: 'md', vw: 'tir', q: '', sort: 'v', dir: -1 };
+  var KEY = 'onsSt2', ST = { tp: 'usd', liq: 'all', ax: 'md', vw: 'tir', q: '', sort: 'v', dir: -1 };
   try { Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
   if (!ST.axV) { if (ST.ax === 'mdd') ST.ax = 'md'; ST.axV = 1; } // una vez: el eje pasa a duración modificada en años
   var save = function () { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } };
@@ -13104,7 +13104,7 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
         if (e.tir != null && (e.tir > 3 || e.tir < -0.5)) e.odd = true; var du2 = e.tir != null ? bxDur(fl, s, e.tir) : null; e.md = du2 ? du2.md : null; e.mac = du2 ? du2.mac : null;
         if (fl.length && e.fm > 0) { var nx2 = fl[0], lc2 = dn(o.lc || o.iss); e.ai = nx2[2] > 0 && nx2[0] > lc2 ? nx2[2] * Math.max(0, s - lc2) / (nx2[0] - lc2) * e.fm : 0; e.vt = o.res * e.fm + e.ai; e.par = e.vt > 0 ? p / e.vt : null; } // en pesos: corridos y valor técnico (CER y dollar linked, con el índice de hoy)
       }
-      e.wal = fl.length ? wal(fl, s) : null; e.lq = liq(e); if (e.tir != null && e.tir < (e.t === 'cer' || e.t === 'dl' ? -0.15 : 0)) e.odd = true; e.old = !e.live && !(e.v > 0) && e.n20 != null && e.n20 < 5; // TIR negativa = el precio supera lo que falta cobrar (precio de antes de un pago): fuera. Y los que operaron menos de 5 de las últimas 20 ruedas (precio viejo) no van a las curvas
+      e.wal = fl.length ? wal(fl, s) : null; e.lq = liq(e); if (e.tir != null && e.tir < (e.t === 'cer' || e.t === 'dl' ? -0.15 : 0)) e.odd = true; e.old = !e.live && !(e.v > 0) && e.n20 != null && e.n20 < 5 && !(e.iss && Date.now() - Date.parse(e.iss) < 35 * 864e5); // las recién emitidas (menos de 35 días) entran aunque todavía no sumen 5 ruedas; TIR negativa = el precio supera lo que falta cobrar (precio de antes de un pago): fuera. Y los que operaron menos de 5 de las últimas 20 ruedas (precio viejo) no van a las curvas
       out.push(e);
     });
     return out;
@@ -13125,23 +13125,23 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
     var lvN = R.filter(function (e) { return e.live; }).length;
     $('onsSub').textContent = (usd ? 'ONs hard dollar en ' + (spG() === 'D' ? 'MEP (especie D)' : 'cable (especie C)') + ': TIR, duración y paridad con sus flujos y el precio de ' + (lvN ? 'ahora' : 'cierre') + '.' : 'ONs ' + TN[ST.tp] + ': precio en pesos y ' + tirTx() + '.') + (lvT && lvN ? ' En vivo: ' + lvT.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) + '.' : '');
     // indicadores
-    var P = R.filter(function (e) { return e.tir != null && !e.odd && !e.old && e.d >= 45 && xOf(e) > 0 && yOf(e) != null; });
+    var PA = R.filter(function (e) { return e.tir != null && !e.odd && e.d >= 45 && xOf(e) > 0 && yOf(e) != null; }), P = PA.filter(function (e) { return !e.old; }); // PA: también las de precio viejo (van a la curva huecas, sin pesar en el ajuste ni en los indicadores)
     var tirs = P.map(function (e) { return e.tir; }), sprs = P.filter(function (e) { return e.spr != null; }).map(function (e) { return e.spr; }), vt = R.reduce(function (a, e) { return a + (e.v || 0); }, 0), best = P.slice().sort(function (a, b) { return b.tir - a.tir; })[0];
     $('onsK').innerHTML = '<div><small>ONs</small><b>' + R.length + '</b><span>' + (lvN ? lvN + ' con precio de hoy' : 'precio del cierre') + '</span></div>' +
       '<div><small>TIR mediana</small><b>' + (tirs.length ? nf(med(tirs) * 100, 2) + '%' : '—') + '</b><span>' + (usd ? 'en dólares, TEA' : ST.tp === 'dl' ? 'en dólares, A3500 constante' : 'en pesos, TEA') + '</span></div>' +
       (usd ? '<div><small>Spread mediano</small><b>' + (sprs.length ? sg(med(sprs), 0) + ' pb' : '—') + '</b><span>contra los Globales</span></div>' : '') +
       '<div><small>Mayor TIR</small><b>' + (best ? best.k : '—') + '</b><span>' + (best ? nf(best.tir * 100, 2) + '%' : '') + '</span></div>' +
       '<div><small>Monto operado</small><b>' + (vt ? (usd ? 'USD ' : '$ ') + nf(vt / 1e6, 1) + ' M' : '—') + '</b><span>' + (lvN ? 'en lo que va de hoy' : 'en el último cierre') + '</span></div>';
-    rat(); chart(P); chartSv(R); chartRt(); table(); ficha();
+    rat(); chart(PA); chartSv(R); chartRt(); table(); ficha();
   }
   function chart(P) {
     if (CH) { CH.destroy(); CH = null; } if (!window.Chart) return;
     var tx = css('--tx'), mu = css('--mu'), bd = css('--bd'), GR = '#34d399', RD = '#ff6b8b', W = '#e4e4e7', CO = css('--c-on') || '#f0abfc', sp = spV(), k = sp ? 1 : 100, MU = ST.em.length >= 2 || ST.sec === '*'; // k: unidades del eje a pb; MU: varias empresas
     var pts = P.map(function (e) { return { x: xOf(e), y: yOf(e), k: e.k, e: e, g: grp(e), c: gCol(grp(e)) }; });
-    var fitOf = function (q) { return slf(q); }; // desde 2 ONs, para que siempre haya curva
+    var fitOf = function (q) { return slf(q.filter(function (p) { return !p.e.old; })); }; // desde 2 ONs, para que siempre haya curva; las de precio viejo no pesan
     var fit = MU ? null : fitOf(pts), sets = [], sd = null, nOut = 0, s0 = null;
     if (MU) (ST.sec === '*' ? OSEC.map(function (x) { return x[0]; }).concat('otr') : ST.em).forEach(function (n) { // una curva por empresa (o por sector), en su color
-      var q = pts.filter(function (p) { return p.g === n; }), f = q.length >= 2 ? robFit(q) : null, c = gCol(n), cu = [];
+      var q = pts.filter(function (p) { return p.g === n; }), qf = q.filter(function (p) { return !p.e.old; }), f = qf.length >= 2 ? robFit(qf) : null, c = gCol(n), cu = [];
       if (f) { q.forEach(function (p) { p.res = p.y - f.f(p.x); }); var qx = q.map(function (p) { return p.x; }), a = Math.min.apply(null, qx), b = Math.max.apply(null, qx); for (var i = 0; i <= 120; i++) { var xx = a + (b - a) * i / 120; cu.push({ x: xx, y: f.f(xx) }); } }
       if (q.length) sets.push({ type: 'line', label: gNm(n) + (ST.sec === '*' ? ' (' + q.length + ')' : ''), data: cu, borderColor: c, backgroundColor: c, borderWidth: 2.5, pointRadius: 0, fill: false, cubicInterpolationMode: 'monotone', borderCapStyle: 'round', order: 3 });
     });
@@ -13159,7 +13159,7 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
     var rsd = pts.filter(function (p) { return p.res != null; }).map(function (p) { return Math.abs(p.res); }).sort(function (a, b) { return a - b; }), sdy = fit ? sd : rsd.length >= 5 ? 1.4826 * rsd[rsd.length >> 1] * 1.4 : 0; // con una curva por grupo, el desvío robusto (MAD) de los residuos
     var yb = null; if (sdy > 0 && pts.length >= 8) { var inn = pts.filter(function (p) { return p.res != null && Math.abs(p.res) <= 3 * sdy; }).map(function (p) { return p.y; }); if (inn.length) { var lo = Math.min.apply(null, inn), hi = Math.max.apply(null, inn), pd = Math.max((hi - lo) * 0.08, sp ? 20 : 0.5); var st = sp ? 50 : 1; lo = Math.floor((lo - pd) / st) * st; hi = Math.ceil((hi + pd) / st) * st; pts.forEach(function (p) { if (p.y < lo || p.y > hi) { p.yr = p.y; p.clip = p.y < lo ? -1 : 1; p.y = p.y < lo ? lo : hi; } }); yb = [lo, hi]; } } // la escala la marcan las que están cerca de la curva; las muy alejadas van como triángulo en el borde
     var col = function (p) { if (MU) return p.c || mu; return p.res == null || !(sd > 1e-6) || Math.abs(p.res) < 0.25 * sd ? W : p.res > 0 ? GR : RD; };
-    sets.unshift({ type: 'scatter', label: 'ONs', data: pts, backgroundColor: pts.map(col), borderColor: pts.map(function (p) { return p.k === SEL ? (MU ? tx : CO) : col(p); }), borderWidth: pts.map(function (p) { return p.k === SEL ? 3 : 1; }), pointRadius: pts.map(function (p) { return p.k === SEL ? 8 : 5.5; }), pointStyle: pts.map(function (p) { return p.clip ? 'triangle' : 'circle'; }), rotation: pts.map(function (p) { return p.clip < 0 ? 180 : 0; }), clip: false, hoverRadius: 8, order: 1 });
+    sets.unshift({ type: 'scatter', label: 'ONs', data: pts, backgroundColor: pts.map(function (p) { return p.e.old ? 'transparent' : col(p); }), borderColor: pts.map(function (p) { return p.k === SEL ? (MU ? tx : CO) : col(p); }), borderWidth: pts.map(function (p) { return p.k === SEL ? 3 : p.e.old ? 1.5 : 1; }), pointRadius: pts.map(function (p) { return p.k === SEL ? 8 : 5.5; }), pointStyle: pts.map(function (p) { return p.clip ? 'triangle' : 'circle'; }), rotation: pts.map(function (p) { return p.clip < 0 ? 180 : 0; }), clip: false, hoverRadius: 8, order: 1 });
     var lab = { id: 'onsLab', afterDatasetsDraw: function (c) { var m = c.getDatasetMeta(0), g = c.ctx, A = c.chartArea, box = []; g.save(); g.font = '600 11px Inter, sans-serif'; g.fillStyle = tx; g.textBaseline = 'middle'; // etiquetas sin encimarse: primero la elegida, las fuera de escala y las más alejadas de la curva
       m.data.forEach(function (el) { box.push([el.x - 5, el.y - 5, el.x + 5, el.y + 5]); });
       pts.map(function (p, i) { return i; }).sort(function (a, b) { var pa = pts[a], pb = pts[b]; return (pb.k === SEL) - (pa.k === SEL) || (!!pb.clip) - (!!pa.clip) || Math.abs(pb.res || 0) - Math.abs(pa.res || 0); }).forEach(function (i) { var p = pts[i], el = m.data[i]; if (!el) return; var t = p.k + (p.clip ? ' (' + (sp ? nf(p.yr, 0) : nf(p.yr, 1) + '%') + ')' : ''), w = g.measureText(t).width, x = el.x + 8, y = el.y; if (x + w > A.right) x = el.x - 8 - w; var r = [x - 2, y - 7, x + w + 2, y + 7]; if (p.k !== SEL && box.some(function (b, j) { return j !== i && r[0] < b[2] && r[2] > b[0] && r[1] < b[3] && r[3] > b[1]; })) return; box.push(r); g.fillText(t, x, y); }); g.restore(); } };
@@ -13281,7 +13281,7 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
   }
 
   /* ---------- ficha de una ON ---------- */
-  function pick(k) { SEL = k; ficha(); table(); if (CH) chart(ROWS.filter(vis).filter(function (e) { return e.tir != null && !e.odd && !e.old && e.d >= 45 && xOf(e) > 0 && yOf(e) != null; })); setTimeout(function () { $('onsF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30); }
+  function pick(k) { SEL = k; ficha(); table(); if (CH) chart(ROWS.filter(vis).filter(function (e) { return e.tir != null && !e.odd && e.d >= 45 && xOf(e) > 0 && yOf(e) != null; })); setTimeout(function () { $('onsF').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30); }
   document.addEventListener('bllam', function () { try { if (ROWS.length) { if (ST.ley) draw(); else { table(); if (SEL) ficha(); } } } catch (x) { } });
   function ficha() {
     var box = $('onsF'); if (CHF) { CHF.destroy(); CHF = null; }
@@ -13681,7 +13681,7 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
         if (e.tir != null && (e.tir > 3 || e.tir < -0.5)) e.odd = true; var du2 = e.tir != null ? bxDur(fl, s, e.tir) : null; e.md = du2 ? du2.md : null; e.mac = du2 ? du2.mac : null;
         if (fl.length && e.fm > 0) { var nx2 = fl[0], lc2 = dn(o.lc || o.iss); e.ai = nx2[2] > 0 && nx2[0] > lc2 ? nx2[2] * Math.max(0, s - lc2) / (nx2[0] - lc2) * e.fm : 0; e.vt = o.res * e.fm + e.ai; e.par = e.vt > 0 ? p / e.vt : null; } // en pesos: corridos y valor técnico (CER y dollar linked, con el índice de hoy)
       }
-      e.wal = fl.length ? wal(fl, s) : null; e.lq = liq(e); if (e.tir != null && e.tir < (e.t === 'cer' || e.t === 'dl' ? -0.15 : 0)) e.odd = true; e.old = !e.live && !(e.v > 0) && e.n20 != null && e.n20 < 5; // TIR negativa = el precio supera lo que falta cobrar (precio de antes de un pago): fuera. Y los que operaron menos de 5 de las últimas 20 ruedas (precio viejo) no van a las curvas
+      e.wal = fl.length ? wal(fl, s) : null; e.lq = liq(e); if (e.tir != null && e.tir < (e.t === 'cer' || e.t === 'dl' ? -0.15 : 0)) e.odd = true; e.old = !e.live && !(e.v > 0) && e.n20 != null && e.n20 < 5 && !(e.iss && Date.now() - Date.parse(e.iss) < 35 * 864e5); // las recién emitidas (menos de 35 días) entran aunque todavía no sumen 5 ruedas; TIR negativa = el precio supera lo que falta cobrar (precio de antes de un pago): fuera. Y los que operaron menos de 5 de las últimas 20 ruedas (precio viejo) no van a las curvas
       out.push(e);
     });
     return out;
