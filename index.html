@@ -4506,8 +4506,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
 ;(function () {
   var root = document.getElementById('vard'); if (!root || !window.PSX) return;
   var X = window.PSX, fm = X.fm, sg = X.sg, css = X.css, rgba = X.rgba;
-  var GN = { usd: 'Hard Dollar', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dl: 'Dólar linked', dual: 'Duales', on: 'ONs hard dollar', pv: 'Provinciales hard dollar', acc: 'Acciones' };
-  var ORDER = ['usd', 'fija', 'cer', 'tamar', 'dl', 'dual', 'on', 'pv', 'acc'];
+  var GN = { usd: 'Hard Dollar', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dl: 'Dólar linked', fut: 'Futuros de dólar', dual: 'Duales', on: 'ONs hard dollar', pv: 'Provinciales hard dollar', acc: 'Acciones' };
+  var ORDER = ['usd', 'fija', 'cer', 'tamar', 'dl', 'fut', 'dual', 'on', 'pv', 'acc'];
   var CORP = function (g) { return g === 'on' || g === 'pv'; }; // ONs y provinciales: se suman solo si se eligen
   var GR = '#34d399', RD = '#ff6b8b', NE = '#a1a1aa';
   var ST = { n: 1, vm: 'acum', grp: 'usd', sort: 'dpct', dir: -1, mU: window.USD_MODEL || 'log', mP: 'log', cap: 0, dual: '0', ax: 'md', axU: 'md', sh: 'hide', b0: 0, e1: 0, bub: true }, PCT = {}, BUB = null, REF1 = 0, DATA = null, CH = null, timer = null;
@@ -4925,11 +4925,11 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       if (typeof Chart === 'undefined') return;
       if (!document.getElementById('vdChart')) html();
       if (ST.grp === 'all') { ST.grp = 'usd'; document.getElementById('vdG').value = 'usd'; }
-      var acc = ST.grp === 'acc', ac = document.getElementById('vdAccCard'); document.getElementById('vdCurveCard').hidden = acc; ac.hidden = !acc; ['vdKL', 'vdAxL', 'vdXL'].forEach(function (id) { document.getElementById(id).style.display = acc ? 'none' : ''; });
+      var acc = ST.grp === 'acc' || ST.grp === 'fut', ac = document.getElementById('vdAccCard'); document.getElementById('vdCurveCard').hidden = acc; ac.hidden = !acc; ['vdKL', 'vdAxL', 'vdXL'].forEach(function (id) { document.getElementById(id).style.display = acc ? 'none' : ''; }); ['vdBubL', 'vdFxL'].forEach(function (id) { var e = document.getElementById(id); if (e && ST.grp === 'fut') e.style.display = 'none'; });
       if (acc) { // acciones: su propia vista (barras y monto operado), armada por la pestaña Acciones
         document.getElementById('vdDL').style.display = document.getElementById('vdShL').style.display = 'none'; document.getElementById('vdN').value = ST.mes ? 'm' : String(ST.n);
         document.getElementById('vdTit').textContent = ST.n === 1 ? 'Variación diaria contra el cierre anterior' : ST.mes ? 'Variación contra un mes atrás (' + ST.n + ' ruedas)' : 'Variación contra ' + ST.n + ' ruedas atrás';
-        var v = window.ACCQ && window.ACCQ.vard ? window.ACCQ.vard(ac, ST.n, later) : { info: 'Las acciones no están disponibles.', chips: '' };
+        var PQ = ST.grp === 'fut' ? window.FUTQ : window.ACCQ, v = PQ && PQ.vard ? PQ.vard(ac, ST.n, later) : { info: ST.grp === 'fut' ? 'Los futuros no están disponibles.' : 'Las acciones no están disponibles.', chips: '' }; /* acciones y futuros de dólar: su propia vista, armada por su pestaña */
         document.getElementById('vdInfo').textContent = v.info; document.getElementById('vdChips').innerHTML = v.chips; return;
       }
       DATA = build();
@@ -7058,10 +7058,42 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     return { cd: cd, dc: dc, dcD: dcD, df: df, dcf: dcf, corta: shortest(TJ.cau), cortaD: shortest(TJ.cauD), f90: f90, fut: fut, futPrev: futPrev, futV: futV, vivoOk: vivoOk, V: V, vd: vd, B: B, bts: V && V.bts,
       spot: spot(df), fx: fx, cau: TJ.cau[dc] || [], cauPrev: cd.length > 1 ? TJ.cau[cd[cd.length - 2]] : [], cauD: (TJ.cauD || {})[dcD] || [], cauDPrev: cdD.length > 1 ? TJ.cauD[cdD[cdD.length - 2]] : [],
       cfut: (TJ.cfut[dcf] || []), cfPrev: cf.length > 1 ? TJ.cfut[cf[cf.length - 2]] : [], cfHist: shortest2(TJ.cfut), hist: hist, rowOf: rowOf, ago: ago, futAgo: ago ? curve(ago, TJ.fut[ago]) : [],
-      pf: at(TJ.pf, '9999'), bad: at(TJ.badlar, '9999'), tam: at(IX.TAMAR, '9999') };
+      pf: at(TJ.pf, '9999'), bad: at(TJ.badlar, '9999'), tam: at(IX.TAMAR, '9999'), curve: curve };
   }
   function shortest2(o) { var r = {}; keys(o).forEach(function (d) { var x = (o[d] || []).filter(function (q) { return q[1] && dn(q[1]) - dn(d) >= 10; })[0]; if (x) r[d] = x[2]; }); return r; } // futuro de caución más cercano (10 días o más)
   function getS() { if (!SS && TJ) SS = build(); return SS; }
+  window.FUTQ = { /* Variación diaria, grupo «Futuros de dólar»: la curva de tasas implícitas de hoy contra la de N ruedas atrás, contrato por contrato */
+    vard: function (el, n, cb) {
+      if (!TJ) { if (!err) load(function () { SS = null; cb(); }); el.innerHTML = '<p class="qs" style="padding:24px 0">' + (err ? 'No se pudieron leer los futuros.' : 'Cargando los futuros de dólar…') + '</p>'; return { info: err ? '' : 'Cargando los futuros de dólar…', chips: '' }; }
+      var S = getS(), live = !!(S.futV && S.futV.length), cur = live ? S.futV : S.fut, cD = live ? S.vd : S.df, fd = keys(TJ.fut).filter(function (d) { return d < cD; }), pD = fd[Math.max(0, fd.length - Math.max(1, n || 1))];
+      var prev = pD ? S.curve(pD, TJ.fut[pD]) : [], PV = {}; prev.forEach(function (f) { PV[f.s] = f; });
+      var FMIN = 15, sh = function (k) { return name(k).replace(/^DLR /, ''); }, R = cur.filter(function (f) { return f.t != null && f.d >= FMIN; }).map(function (f) { var o = PV[f.s], dt = o && o.t != null ? (f.t - o.t) * 100 : null; return { k: f.s, d: f.d, t: f.t, t0: o ? o.t : null, dt: dt, dv: f.dev, dv0: o ? o.dev : null, vol: f.vol || 0 }; });
+      var out = cur.filter(function (f) { return f.t != null && f.d < FMIN; }).length, W = R.filter(function (r) { return r.dt != null; }), up = W.filter(function (r) { return r.dt > 0.5; }), dn2 = W.filter(function (r) { return r.dt < -0.5; });
+      var med = W.length ? W.map(function (r) { return r.dt; }).sort(function (a, b) { return a - b; })[Math.floor(W.length / 2)] : null, hi = W.slice().sort(function (a, b) { return b.dt - a.dt; })[0], lo = W.slice().sort(function (a, b) { return a.dt - b.dt; })[0];
+      var GR = '#34d399', RD = '#ff6b8b', GY = '#a1a1aa', col = function (v) { return v == null || Math.abs(v) <= 0.5 ? GY : v > 0 ? RD : GR; }, pb = function (v) { return v == null ? '—' : sg(v, 0) + ' pb'; };
+      var c = function (t, v, s2, cl) { return '<div class="vdchip"><small>' + t + '</small><b style="color:' + (cl || 'var(--tx)') + '">' + v + '</b><span>' + (s2 || '&nbsp;') + '</span></div>'; };
+      var sp0 = prev[0] && prev[0].sp, sp1 = cur[0] && cur[0].sp;
+      var chips = c('Suben / bajan', up.length + ' / ' + dn2.length, 'la tasa implícita, de ' + W.length + ' contratos') + c('Tasa (mediana)', pb(med), 'cambio de la TNA implícita', col(med)) +
+        (hi ? c(hi.dt >= 0 ? 'Mayor suba' : 'Menor baja', sh(hi.k), pb(hi.dt), col(hi.dt)) : '') + (lo ? c(lo.dt <= 0 ? 'Mayor baja' : 'Menor suba', sh(lo.k), pb(lo.dt), col(lo.dt)) : '') + (sp0 && sp1 ? c('Dólar spot', '$ ' + nf(sp1, 2), sg((sp1 / sp0 - 1) * 100, 2) + '% contra el ' + fr(pD).slice(0, 5)) : '');
+      el.innerHTML = '<div class="vdleg" style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--mu);margin-bottom:8px"><span>Tamaño del punto: volumen' + (live ? ' de hoy hasta ahora' : ' de la rueda') + '</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + GR + '"></i> La tasa bajó</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + RD + '"></i> La tasa subió</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid ' + GY + '"></i> ' + (n > 1 ? 'Hace ' + n + ' ruedas' : 'Cierre del ' + fr(pD).slice(0, 5)) + '</span><span><i style="display:inline-block;width:16px;height:2px;background:' + C_FUT + ';vertical-align:middle"></i> Curva hoy</span><span><i style="display:inline-block;width:16px;border-top:2px dashed ' + GY + ';vertical-align:middle"></i> Curva ' + (n > 1 ? 'hace ' + n + ' ruedas' : 'anterior') + '</span></div>' +
+        (out ? '<p class="qs" style="margin:0 0 8px">No se muestra' + (out > 1 ? 'n ' + out + ' contratos que vencen' : ' 1 contrato que vence') + ' en menos de ' + FMIN + ' días: con tan poco plazo, cualquier diferencia de precio dispara la tasa.</p>' : '') + '<div class="chart-wrap" style="height:560px;margin-top:0"><canvas id="vdFutC" data-nosp></canvas></div>' +
+        '<p class="ft" style="margin-top:10px">Tasa implícita (TNA) de cada contrato de dólar futuro contra el spot (A3500): (futuro / spot − 1) × 365 / días. El punto hueco es la tasa del mismo contrato ' + (n > 1 ? 'hace ' + n + ' ruedas' : 'en la rueda anterior') + ', a los días de hoy, para comparar vencimiento contra vencimiento. Más detalle en la pestaña Futuros.</p>';
+      if (window.Chart && R.length) { var cv = document.getElementById('vdFutC'), old = Chart.getChart(cv); if (old) old.destroy(); var mv = Math.max.apply(null, R.map(function (r) { return r.vol; }).concat([1])), tx = css('--tx') || '#e4e4e7', mu = css('--mu') || GY, bd = 'rgba(161,161,170,.12)', card = css('--card') || '#0a0a0b';
+        var P0 = R.filter(function (r) { return r.t0 != null; });
+        var sets = [{ type: 'line', label: 'hoy', data: R.map(function (r) { return { x: r.d, y: r.t }; }), borderColor: C_FUT, borderWidth: 2, pointRadius: 0, cubicInterpolationMode: 'monotone', order: 3 },
+          { type: 'line', label: 'antes', data: P0.map(function (r) { return { x: r.d, y: r.t0 }; }), borderColor: GY, borderDash: [5, 4], borderWidth: 1.4, pointRadius: 0, cubicInterpolationMode: 'monotone', order: 4 },
+          { type: 'scatter', label: 'antes·p', data: P0.map(function (r) { return { x: r.d, y: r.t0, r: r }; }), pointRadius: 4, pointStyle: 'circle', backgroundColor: card, borderColor: GY, borderWidth: 1.5, order: 2 },
+          { type: 'scatter', label: 'hoy·p', data: R.map(function (r) { return { x: r.d, y: r.t, r: r }; }), pointRadius: R.map(function (r) { return 5 + Math.sqrt(r.vol / mv) * 11; }), backgroundColor: R.map(function (r) { return col(r.dt) + 'cc'; }), borderColor: card, borderWidth: 1.5, order: 1 }];
+        var lab = { id: 'vdFutL', afterDatasetsDraw: function (ch) { var x = ch.scales.x, y = ch.scales.y, cx = ch.ctx; cx.save(); cx.setLineDash([2, 3]); cx.strokeStyle = 'rgba(161,161,170,.6)'; cx.lineWidth = 1; P0.forEach(function (r) { cx.beginPath(); cx.moveTo(x.getPixelForValue(r.d), y.getPixelForValue(r.t0)); cx.lineTo(x.getPixelForValue(r.d), y.getPixelForValue(r.t)); cx.stroke(); }); cx.setLineDash([]);
+          R.forEach(function (r, i) { var px = x.getPixelForValue(r.d), py = y.getPixelForValue(r.t), up2 = r.t0 == null || r.t >= r.t0, oy = (up2 ? -1 : 1) * (14 + Math.sqrt(r.vol / mv) * 11); cx.font = '600 12px Inter, system-ui, sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; var t1 = sh(r.k), t2 = r.dt == null ? '' : ' ' + pb(r.dt), w1 = cx.measureText(t1).width; cx.font = '500 11px Inter, system-ui, sans-serif'; var w2 = cx.measureText(t2).width, x0 = px - (w1 + w2) / 2;
+            cx.textAlign = 'left'; cx.font = '600 12px Inter, system-ui, sans-serif'; cx.fillStyle = tx; cx.fillText(t1, x0, py + oy); cx.font = '500 11px Inter, system-ui, sans-serif'; cx.fillStyle = mu; cx.fillText(t2, x0 + w1, py + oy); }); cx.restore(); } };
+        var ys = R.map(function (r) { return r.t; }).concat(P0.map(function (r) { return r.t0; })), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys), pd = Math.max((y1 - y0) * 0.12, 0.5);
+        new Chart(cv.getContext('2d'), { data: { datasets: sets }, plugins: [lab], options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: true, layout: { padding: { top: 10, right: 30, left: 6 } }, plugins: { legend: { display: false },
+          tooltip: { filter: function (it) { return it.dataset.type === 'scatter'; }, callbacks: { title: function (it) { var r = it[0] && it[0].raw.r; return r ? name(r.k) + ' · ' + r.d + ' días' : ''; }, label: function (it) { var r = it.raw.r; return it.dataset.label === 'hoy·p' ? 'Hoy: ' + nf(r.t, 2) + '% TNA' + (r.dt != null ? ' (' + pb(r.dt) + ')' : '') + (r.dv != null ? ' · devaluación ' + nf(r.dv, 2) + '% mensual' : '') : (n > 1 ? 'Hace ' + n + ' ruedas: ' : 'Cierre anterior: ') + nf(r.t0, 2) + '% TNA'; } } } },
+          scales: { x: { type: 'linear', min: 0, title: { display: true, text: 'Días al vencimiento', color: mu }, ticks: { color: mu, stepSize: 30 }, grid: { color: bd } }, y: { min: y0 - pd, max: y1 + pd, title: { display: true, text: 'Tasa implícita (TNA %)', color: mu }, ticks: { color: mu, callback: function (v) { return nf(v, 1) + '%'; } }, grid: { color: bd } } } } }); }
+      return { info: 'Hoy ' + fr(cD) + (live ? ' (en vivo)' : '') + ' contra el cierre del ' + fr(pD) + (n > 1 ? ' (' + n + ' ruedas)' : '') + ' · ' + R.length + ' contratos de dólar futuro (A3) · tasa implícita contra el A3500', chips: chips };
+    }
+  };
   window.BLFUT = function (k) { var S = getS(); if (!S) return 0; var f = [].concat(S.futV || [], S.fut || []).filter(function (x) { return x.s === k; })[0]; return f && f.F > 0 ? f.F : 0; }; // extensión de Matriz: el último del futuro (en vivo o el cierre de la última rueda)
   var cp = function (r) { return r ? (r[3] || r[4] || r[5] || (r[1] && r[2] ? (r[1] + r[2]) / 2 : null)) : null; }; // tasa de una fila de BYMA: última, cierre, vwap o punto medio
   function intraOf(kind, k) { // la última rueda con intradiario de ese instrumento: {d, p: [[minuto, valor, cantidad]], dias}
