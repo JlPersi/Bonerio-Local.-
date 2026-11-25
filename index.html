@@ -5069,7 +5069,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       document.getElementById('vdTit').textContent = ST.n === 1 ? 'Variación diaria contra el cierre anterior' : ST.mes ? 'Variación contra un mes atrás (' + ST.n + ' ruedas)' : 'Variación contra ' + ST.n + ' ruedas atrás'; document.getElementById('vdN').value = ST.mes ? 'm' : String(ST.n);
       REF1 = t1; BUB = null; if (ST.bub) { vjLoad(); var dsB = bxDayStr(t1); BUB = VJ && VJ.dates.indexOf(dsB) >= 0 ? volDay(dsB) : t1 >= bxToday() ? (HM != null && volAt(dsB, HM)) || volLive() : null; /* a una hora elegida: lo operado hasta esa hora */ if (BUB && !Object.keys(BUB).length) BUB = null; } // burbujas: el monto de la última rueda del gráfico
       var gdV = curveView(rows, ST.grp) || []; if (PRE) return; // armando las fotos de la animación: solo el gráfico
-      volView(gdV, ST.n > 1 ? prevBiz(t1) : t0, t1); // con N ruedas, el volumen compara el promedio de las últimas N contra las N anteriores
+      volView(gdV, ST.n > 1 || H0 != null && hrOk() ? prevBiz(t1) : t0, t1); /* con «desde» una hora de hoy, el volumen sigue contra la rueda anterior */ // con N ruedas, el volumen compara el promedio de las últimas N contra las N anteriores
       table(rows, t0);
       if (HM != null || H0 != null && hrOk()) { var vi = document.getElementById('vdInfo'); if (HM != null) vi.textContent = vi.textContent.replace(/^Hoy (\S+)/, 'Hoy $1 a las ' + hhmm(HM)); if (H0 != null && hrOk()) vi.textContent = vi.textContent.replace(/contra el cierre del \S+/, 'contra las ' + hhmm(H0)); }
     } catch (e) { console.error('vard', e); var i = document.getElementById('vdInfo'); if (i) i.textContent = 'Error: ' + e.message; }
