@@ -8076,6 +8076,106 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   var _sw = window.switchTab; window.switchTab = function (id) { var r = _sw.apply(this, arguments); if (id === 'expd') { tries = 0; setTimeout(go, 300); } return r; };
   window.PRT = { draw: draw };
 })();
+/* ---------- Devaluación implícita: brecha esperada (dollar linked contra Bonares) y cobertura cambiaria sobre M2 ----------
+   Brecha: el dollar linked paga dólares oficiales y el Bonar dólares MEP (o cable); a igual duración, (1 + brecha hoy) × ((1 + TIR DL) / (1 + TIR Bonar))^t − 1
+   es la brecha al vencimiento que los deja iguales. Cobertura: interés abierto de futuros de A3 + stock de dollar linked (deuda en circulación), en pesos al A3500,
+   sobre el M2 del BCRA (data/monetario.json, scripts/save_monetario.py). */
+(function () {
+  var CB = null, CC = null, $ = function (i) { return document.getElementById(i); };
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : v.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  var pc = function (v, d) { return v == null || !isFinite(v) ? '—' : nf(v, d == null ? 1 : d) + '%'; }, sg = function (v, d) { return v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : '') + nf(v, d == null ? 1 : d); };
+  var css = function (n) { try { return getComputedStyle(document.body).getPropertyValue(n).trim(); } catch (e) { return ''; } };
+  var fr = function (s) { return s ? s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(2, 4) : ''; }, ds = function (n) { return new Date(n * 864e5).toISOString().slice(0, 10); };
+  var DLI = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>';
+  var kp = function (t, v, s, c) { return '<div style="border:1px solid var(--bd);border-radius:10px;padding:9px 12px;min-width:0"><small style="display:block;color:var(--mu);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">' + t + '</small><b style="display:block;font-size:19px;font-variant-numeric:tabular-nums;margin-top:2px' + (c ? ';color:' + c : '') + '">' + v + '</b><span style="display:block;color:var(--mu);font-size:11.5px">' + s + '</span></div>'; };
+  var card = function (id, t, sub, ct, cs, h) { return '<div class="card sx" id="' + id + '" style="margin-top:24px"><div class="sxh" style="flex-wrap:nowrap;align-items:center;margin-bottom:6px"><div style="min-width:0"><p class="qh" style="margin:0">' + t + '</p></div><div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'' + id + '\', \'' + id + '\')" title="Descargar en HD">' + DLI + '</button></div></div>' +
+    '<p class="qs" style="margin:0 0 14px">' + sub + '</p><div id="' + id + 'L" style="border-left:3px solid var(--ac);background:rgba(161,161,170,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:15px;line-height:1.55;color:var(--tx);margin-bottom:12px">Calculando…</div>' +
+    '<div id="' + id + 'K" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:16px"></div>' +
+    '<div style="border:1px solid var(--bd);border-radius:12px;padding:14px 14px 10px;background:var(--bg)"><p style="margin:0 0 2px;font-weight:600;color:var(--tx);font-size:14px">' + ct + '</p><p style="margin:0 0 8px;color:var(--mu);font-size:12px">' + cs + '</p><div class="chart-wrap" style="height:' + h + 'px"><canvas id="' + id + 'C"></canvas></div></div>' +
+    '<div id="' + id + 'T" style="overflow-x:auto;margin-top:14px"></div><div id="' + id + 'N" class="qs" style="margin-top:12px;line-height:1.6"></div></div>'; };
+  var th = 'style="padding:6px 9px;text-align:right;color:var(--mu);font-size:12px;border-bottom:1px solid var(--bd);white-space:nowrap"', td = 'style="padding:6px 9px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums"';
+  var lst = function (items) { return '<p style="margin:0 0 6px"><b style="color:var(--tx)">Cómo se lee</b></p><ul style="margin:0;padding-left:20px">' + items.map(function (x) { return '<li>' + x.replace(/^([^:]+):/, '<b style="color:var(--tx)">$1</b>:') + '</li>'; }).join('') + '</ul>'; };
+  var J = {}, get = function (u, cb) { if (J[u]) return cb(J[u]); fetch(u + '?v=' + Math.floor(Date.now() / 6e5), { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j) J[u] = j; cb(j); }).catch(function () { cb(null); }); };
+  function mount() {
+    var host = $('expd'); if (!host) return false; if ($('bceW')) return true;
+    var w = document.createElement('div'); w.innerHTML = card('bceW', 'Brecha esperada: dollar linked contra Bonares', 'El dollar linked paga dólares oficiales y el Bonar paga dólares MEP. A igual duración, la diferencia de tasas dice qué brecha entre el MEP y el oficial deja indiferente entre los dos al vencimiento.', 'Brecha MEP / oficial que descuenta cada dollar linked al vencimiento', 'La línea punteada es la brecha de hoy. Arriba: el mercado espera que la brecha se abra; abajo, que se cierre.', 300) +
+      card('cobW', 'Cobertura cambiaria sobre M2', 'Cuánta cobertura contra una devaluación hay en el mercado (futuros de dólar de A3 más el stock de dollar linked del Tesoro) y qué parte del M2 representa: un termómetro de la demanda de dólares que se canaliza sin tocar el spot.', 'Cobertura en USD millones (áreas) y su peso sobre el M2 (líneas, eje derecho)', 'Desde el corte trimestral de la deuda (30/06/2026), que es desde cuando tenemos el stock de dollar linked día por día.', 340);
+    while (w.firstChild) host.appendChild(w.firstChild); return true;
+  }
+  function brecha() {
+    if (!window.ROTX || !window.PSX || !window.PSX.fairFit) return false;
+    var U = window.ROTX.uni('usd').filter(function (o) { return o.grp === 'Local' && o.mdur > 0.3 && o.nat > 0 && o.nat < 60; }), D = window.ROTX.uni('dl').filter(function (o) { return o.d >= 45 && o.nat != null && isFinite(o.nat) && Math.abs(o.nat) < 50; });
+    if (U.length < 3 || !D.length) return false;
+    var q = null; try { q = window.PSX.fairFit(U.map(function (o) { return { x: o.mdur * 365, y: o.nat, k: o.k }; }), 'auto'); } catch (e) { q = null; } if (!q) return false;
+    var ux0 = Math.min.apply(null, U.map(function (o) { return o.mdur; })), ux1 = Math.max.apply(null, U.map(function (o) { return o.mdur; }));
+    var cbl = typeof especie !== 'undefined' && especie === 'C', nm = cbl ? 'CCL' : 'MEP';
+    get('data/dolar.json', function (dj) {
+      if (!dj || !dj.d || !dj.A3500) { $('bceWL').textContent = 'Sin el dólar de hoy.'; return; }
+      var dd = Object.keys(dj.d).sort(), dl = null, px = null; for (var i = dd.length - 1; i >= 0 && !px; i--) { var x = dj.d[dd[i]], v = cbl ? x.ccl && x.ccl.vw : x.mep && x.mep.AL30 && x.mep.AL30.close; if (v > 0 && dj.A3500[dd[i]] > 0) { px = v; dl = dd[i]; } }
+      if (!px) { $('bceWL').textContent = 'Sin el dólar de hoy.'; return; }
+      var fx = dj.A3500[dl], b0 = px / fx - 1;
+      var R = D.slice().sort(function (a, b) { return a.d - b.d; }).map(function (o) { var m = o.mdur, ok = m >= ux0 - 0.25 && m <= ux1, yb = ok ? q.f(Math.max(ux0, m) * 365) : null, t = o.d / 365, bt = yb == null ? null : ((1 + b0) * Math.pow((1 + o.nat / 100) / (1 + yb / 100), t) - 1) * 100; return { o: o, yb: yb, bt: bt, v: ds(o.mat) }; });
+      var G = R.filter(function (r) { return r.bt != null; }); if (!G.length) { $('bceWL').textContent = 'Sin dollar linked dentro de la curva de Bonares.'; return; }
+      var el = G.slice().sort(function (a, b) { return Math.abs(a.v.localeCompare('2027-10-24')) - 0 || Math.abs(Date.parse(a.v) - Date.parse('2027-10-24')) - Math.abs(Date.parse(b.v) - Date.parse('2027-10-24')); })[0], lg = G[G.length - 1];
+      el = G.reduce(function (a, b) { return Math.abs(Date.parse(b.v) - Date.parse('2027-10-24')) < Math.abs(Date.parse(a.v) - Date.parse('2027-10-24')) ? b : a; });
+      $('bceWL').innerHTML = 'Hoy la brecha ' + nm + ' / oficial es <b>' + pc(b0 * 100) + '</b> (' + nm + ' $ ' + nf(px, 0) + ' contra A3500 $ ' + nf(fx, 0) + '). El ' + el.o.k + ', que vence el ' + fr(el.v) + ', descuenta una brecha de <b>' + pc(el.bt) + '</b> a su vencimiento' + (G.length > 1 && lg !== el ? ' y el ' + lg.o.k + ' (' + fr(lg.v) + '), de <b>' + pc(lg.bt) + '</b>' : '') + '. ' + (el.bt < b0 * 100 ? 'Negativa o menor que la de hoy quiere decir que el Bonar paga más de lo que justifica la brecha: buena parte de esa diferencia es prima de crédito en dólares.' : 'El mercado espera que la brecha se abra.');
+      $('bceWK').innerHTML = kp('Brecha hoy', pc(b0 * 100), nm + ' AL30 / A3500 · ' + fr(dl)) + kp('Esperada ' + el.o.k, pc(el.bt), 'al ' + fr(el.v) + ' · el más cercano a las elecciones', el.bt > b0 * 100 ? '#ff6b8b' : '#34d399') + kp('Esperada ' + lg.o.k, pc(lg.bt), 'al ' + fr(lg.v) + ' · el más largo', lg.bt > b0 * 100 ? '#ff6b8b' : '#34d399') + kp('Dollar linked comparados', G.length + ' de ' + R.length, 'los demás quedan fuera de la curva de Bonares');
+      var tx = css('--tx') || '#ddd', bd = css('--bd') || 'rgba(128,128,128,.2)', mu = css('--mu') || '#a1a1aa';
+      var vlb = { id: 'bceV', afterDatasetsDraw: function (ch) { var c = ch.ctx, m = ch.getDatasetMeta(0); c.save(); c.font = '600 11.5px Inter,system-ui,sans-serif'; c.textAlign = 'center'; c.fillStyle = tx; m.data.forEach(function (b, i) { var v = G[i].bt; c.textBaseline = v >= 0 ? 'bottom' : 'top'; c.fillText(pc(v), b.x, b.y + (v >= 0 ? -4 : 4)); }); c.restore(); } };
+      if (CB) CB.destroy();
+      CB = new Chart($('bceWC').getContext('2d'), { type: 'bar', data: { labels: G.map(function (r) { return r.o.k + ' · ' + fr(r.v).slice(3); }), datasets: [{ label: 'Brecha esperada', data: G.map(function (r) { return r.bt; }), backgroundColor: G.map(function (r) { return r.bt > b0 * 100 ? '#ff6b8bcc' : '#34d399cc'; }), borderRadius: 4, maxBarThickness: 54 }, { type: 'line', label: 'Brecha hoy', data: G.map(function () { return b0 * 100; }), borderColor: mu, borderDash: [5, 4], borderWidth: 1.6, pointRadius: 0 }] }, plugins: [vlb],
+        options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { top: 18 } }, plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + pc(c.parsed.y); } } } }, scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: false }, grid: { display: false } }, y: { title: { display: true, text: 'Brecha (%)', color: tx }, ticks: { color: tx, callback: function (v) { return nf(v, 0) + '%'; } }, grid: { color: bd } } } } });
+      $('bceWT').innerHTML = '<table style="border-collapse:collapse;width:100%;font-size:13.5px"><thead><tr><th ' + th.replace('right', 'left') + '>Dollar linked</th><th ' + th + '>Vence</th><th ' + th + '>Días</th><th ' + th + '>MD</th><th ' + th + '>TIR en USD oficiales</th><th ' + th + '>Bonar (curva, misma MD)</th><th ' + th + '>Brecha esperada al vencimiento</th></tr></thead><tbody>' +
+        R.map(function (r) { return '<tr style="border-top:1px solid var(--bd)"><td ' + td.replace('right', 'left') + '><b>' + r.o.k + '</b></td><td ' + td + '>' + fr(r.v) + '</td><td ' + td + '>' + r.o.d + '</td><td ' + td + '>' + nf(r.o.mdur, 2) + '</td><td ' + td + '>' + pc(r.o.nat, 2) + '</td><td ' + td + '>' + (r.yb == null ? '<span style="color:var(--mu)">fuera de la curva</span>' : pc(r.yb, 2)) + '</td><td ' + td + '><b>' + (r.bt == null ? '—' : pc(r.bt)) + '</b></td></tr>'; }).join('') + '</tbody></table>';
+      $('bceWN').innerHTML = lst(['La cuenta: con US$ 100 ' + nm + ' comprás un Bonar o los pasás a pesos y comprás un dollar linked. El dollar linked te devuelve pesos al oficial; para volver a dólares ' + nm + ' pagás la brecha de ese día. Los dos terminan iguales si (1 + brecha al vencimiento) = (1 + brecha hoy) × ((1 + TIR DL) ÷ (1 + TIR Bonar))<sup>años</sup>.',
+        'TIR del dollar linked: la de la tabla, en dólares oficiales con el A3500 constante. TIR del Bonar: la curva de Bonares de ley local (especie ' + (cbl ? 'C' : 'D') + ') a la misma duración modificada.',
+        'El matiz: el Bonar tiene riesgo de pago en dólares que el dollar linked (deuda en pesos) casi no tiene. Esa prima de crédito empuja la brecha esperada para abajo, y por eso puede dar menor que la de hoy o negativa: no es sólo expectativa cambiaria.',
+        'Qué entra: dollar linked a más de 45 días y dentro del rango de duración de la curva de Bonares.']);
+    });
+    return true;
+  }
+  function cobertura() {
+    if (!window.BLOUTH) return false;
+    window.BLOUTH(function (rows) {
+      get('data/tasas.json', function (tj) { get('data/monetario.json', function (mo) { get('data/dolar.json', function (dj) {
+        if (!tj || !tj.fut || !mo || !mo.M2 || !dj || !dj.A3500) { $('cobWL').textContent = 'Faltan datos (futuros, M2 o A3500).'; return; }
+        var DLR = rows.filter(function (r) { return r.c === 'dl' || r.c === 'dualdl'; }), dn = function (s) { return Math.round(Date.parse(s + 'T00:00:00Z') / 864e5); };
+        var at = function (r, D) { if (r.v <= dn(D)) return 0; var h = (r.h || []).filter(function (e) { return e.f && e.f <= D && e.x != null; }).sort(function (a, b) { return a.f < b.f ? -1 : 1; }); return h.length ? h[h.length - 1].x : r.f <= D ? r.x : 0; };
+        var le = function (o, d) { var k = null; Object.keys(o).forEach(function (x) { if (x <= d && (!k || x > k)) k = x; }); return k; };
+        var c0 = (DLR.map(function (r) { return r.h && r.h[0] && r.h[0].f; }).filter(Boolean).sort()[0]) || '2026-06-30', m2L = Object.keys(mo.M2).sort().pop();
+        var S = Object.keys(tj.fut).sort().filter(function (d) { return d >= c0 && d <= m2L; }).map(function (d) {
+          var fu = (tj.fut[d] || []).reduce(function (a, r) { return a + (/^DLR/.test(r[0]) ? r[3] || 0 : 0); }, 0) / 1000, dl = 0, dp = 0; DLR.forEach(function (r) { var x = at(r, d); dl += x; if (ds(r.v) > '2027-12-31') dp += x; });
+          var mk = le(mo.M2, d), fk = le(dj.A3500, d); if (!mk || !fk) return null; var m2 = mo.M2[mk], fx = dj.A3500[fk];
+          return { d: d, fu: fu, dl: dl, dp: dp, t: fu + dl, r: (fu + dl) * fx / m2 * 100, r2: (fu + dl - dp) * fx / m2 * 100, m2d: mk };
+        }).filter(function (x) { return x && x.t > 0; });
+        if (S.length < 2) { $('cobWL').textContent = 'Todavía no hay suficiente historia.'; return; }
+        var L = S[S.length - 1], F = S[0], mx = S.reduce(function (a, b) { return b.r > a.r ? b : a; });
+        $('cobWL').innerHTML = 'Al ' + fr(L.d) + ' la cobertura suma <b>USD ' + nf(L.t, 0) + ' millones</b>: ' + pc(L.dl / L.t * 100, 0) + ' en dollar linked y ' + pc(L.fu / L.t * 100, 0) + ' en futuros. Es el <b>' + pc(L.r) + ' del M2</b> (' + pc(L.r2) + ' sin los dollar linked que vencen después de 2027), contra ' + pc(F.r) + ' al ' + fr(F.d) + (mx !== L ? '; el máximo del período fue ' + pc(mx.r) + ' el ' + fr(mx.d) : '; es el máximo del período') + '.';
+        $('cobWK').innerHTML = kp('Cobertura total', 'USD ' + nf(L.t, 0) + ' M', 'futuros ' + nf(L.fu, 0) + ' + dollar linked ' + nf(L.dl, 0)) + kp('En dollar linked', pc(L.dl / L.t * 100, 0), 'del total; el resto, interés abierto de futuros') + kp('Cobertura / M2', pc(L.r), 'M2 del ' + fr(L.m2d) + ' · ' + sg(L.r - F.r) + ' pp desde ' + fr(F.d), L.r > F.r ? '#ff6b8b' : '#34d399') + kp('Sin DL post 2027', pc(L.r2), 'sin ' + DLR.filter(function (r) { return ds(r.v) > '2027-12-31' && at(r, L.d) > 0; }).map(function (r) { return r.t; }).join(', ') + ' (USD ' + nf(L.dp, 0) + ' M)');
+        var tx = css('--tx') || '#ddd', bd = css('--bd') || 'rgba(128,128,128,.2)';
+        if (CC) CC.destroy();
+        CC = new Chart($('cobWC').getContext('2d'), { type: 'line', data: { labels: S.map(function (x) { return fr(x.d).slice(0, 5); }), datasets: [
+          { label: 'Futuros (interés abierto)', data: S.map(function (x) { return x.fu; }), borderColor: '#1e3a8a', backgroundColor: 'rgba(30,58,138,.55)', fill: 'origin', pointRadius: 0, borderWidth: 1, stack: 's', yAxisID: 'y' },
+          { label: 'Dollar linked', data: S.map(function (x) { return x.dl; }), borderColor: '#5cc8ff', backgroundColor: 'rgba(92,200,255,.35)', fill: '-1', pointRadius: 0, borderWidth: 1, stack: 's', yAxisID: 'y' },
+          { label: 'Cobertura / M2', data: S.map(function (x) { return x.r; }), borderColor: '#ffc542', borderWidth: 2.2, pointRadius: 0, fill: false, yAxisID: 'y2', stack: 'a' },
+          { label: 'Sin DL post 2027 / M2', data: S.map(function (x) { return x.r2; }), borderColor: '#ff8fb3', borderWidth: 2, borderDash: [5, 4], pointRadius: 0, fill: false, yAxisID: 'y2', stack: 'b' }] },
+          options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + (c.dataset.yAxisID === 'y2' ? pc(c.parsed.y) : 'USD ' + nf(c.parsed.y, 0) + ' M'); } } } },
+            scales: { x: { ticks: { color: tx, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }, grid: { display: false } }, y: { stacked: true, title: { display: true, text: 'USD millones', color: tx }, ticks: { color: tx, callback: function (v) { return nf(v, 0); } }, grid: { color: bd } }, y2: { position: 'right', title: { display: true, text: '% del M2', color: tx }, ticks: { color: tx, callback: function (v) { return nf(v, 0) + '%'; } }, grid: { display: false } } } } });
+        var last = DLR.map(function (r) { return { t: r.t, v: ds(r.v), x: at(r, L.d) }; }).filter(function (r) { return r.x > 0; }).sort(function (a, b) { return a.v < b.v ? -1 : 1; });
+        $('cobWT').innerHTML = '<table style="border-collapse:collapse;width:100%;font-size:13.5px"><thead><tr><th ' + th.replace('right', 'left') + '>Al ' + fr(L.d) + '</th><th ' + th + '>Vence</th><th ' + th + '>USD millones</th><th ' + th + '>% de la cobertura</th></tr></thead><tbody>' +
+          last.map(function (r) { return '<tr style="border-top:1px solid var(--bd)"><td ' + td.replace('right', 'left') + '><b>' + r.t + '</b>' + (r.v > '2027-12-31' ? ' <span style="color:var(--mu);font-size:12px">post 2027</span>' : '') + '</td><td ' + td + '>' + fr(r.v) + '</td><td ' + td + '>' + nf(r.x, 0) + '</td><td ' + td + '>' + pc(r.x / L.t * 100) + '</td></tr>'; }).join('') +
+          '<tr style="border-top:1px solid var(--bd)"><td ' + td.replace('right', 'left') + '><b>Futuros de dólar</b></td><td ' + td + '>todos los contratos</td><td ' + td + '>' + nf(L.fu, 0) + '</td><td ' + td + '>' + pc(L.fu / L.t * 100) + '</td></tr></tbody></table>';
+        $('cobWN').innerHTML = lst(['Cobertura: interés abierto de todos los contratos de dólar futuro de A3 (cada contrato es USD 1.000) más el valor nominal en circulación de las letras y bonos dollar linked del Tesoro (incluido el dual TAMAR / dollar linked).',
+          'Cobertura / M2: la cobertura pasada a pesos al A3500 del día, sobre el M2 (circulante y depósitos a la vista en pesos) que publica el BCRA, que sale con unos días de demora. Cuanto más alto, más pesos están cubiertos contra una devaluación sin haber comprado dólares.',
+          'Sin DL post 2027: saca los dollar linked que vencen después de 2027, que cubren más allá de las elecciones.',
+          'Qué no está: la posición propia del BCRA en futuros (la publica una vez por mes). El interés abierto es el total del mercado, compradores y vendedores.']);
+      }); }); });
+    });
+    return true;
+  }
+  var tries = 0, go = function () { if (!$('expd') || !$('expd').classList.contains('active') || !mount()) return; if (typeof Chart === 'undefined' || !(brecha() && cobertura()) && tries++ < 25) setTimeout(go, 1300); };
+  var _sw = window.switchTab; window.switchTab = function (id) { var r = _sw.apply(this, arguments); if (id === 'expd') { tries = 0; setTimeout(go, 900); } return r; };
+})();
 /*@@CARRY_START@@*/
 /* =====================================================================
    PESTAÑA CARRY TRADE: cuánto rinde en dólares una Lecap o Boncap según dónde termine el dólar
@@ -16701,11 +16801,12 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
   var nf = function (v, d) { return v == null ? '—' : v.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
   var INS = function () { try { return PSD.INST || {}; } catch (e) { return {}; } }, HDX = function () { try { return PX.S || {}; } catch (e) { return {}; } };
   var vtoOf = function (o) { return o && o.r && o.r.length ? o.r[o.r.length - 1][0] : null; };
-  function rows() {
+  function rows(all) {
+    var dlk = function (d, v) { return /DUAL/i.test(d || '') ? null : 'D' + v.slice(8, 10) + 'EFMAYJLGSOND'[+v.slice(5, 7) - 1] + v.slice(3, 4); }; // dollar linked ya vencidos (sin ticker en el panel): para la historia de la cobertura
     var I = INS(), H = HDX(), q = J.trim || {}, fx = J.fx, R = {}, hoy = Math.floor(Date.now() / 864e5), corte = q.corte || '';
     var match = function (r) { var v = dn(r.v), c = r.c, m = Object.keys(I).filter(function (k) { var t = vtoOf(I[k]); return I[k].k === c && t != null && Math.abs(t - v) <= 3; }); return m.length === 1 ? m[0] : (m = m.filter(function (k) { return /P$/.test(k); })).length === 1 ? m[0] : null; }; // DICP/DIP0, PARP/PAP0: el de la serie P
     (q.rows || []).forEach(function (r) {
-      var t = r.t || match(r) || ((r.d || '').match(/\/([A-Z]{2}\d{2})$/) || [])[1]; if (!t) return; var usd = r.c === 'usd' || r.c === 'dl'; // sin precio en el panel (PR17): el ticker sale de la descripción
+      var t = r.t || match(r) || ((r.d || '').match(/\/([A-Z]{2}\d{2})$/) || [])[1] || (all && r.c === 'dl' ? dlk(r.d, r.v) : null); if (!t) return; var usd = r.c === 'usd' || r.c === 'dl'; // sin precio en el panel (PR17): el ticker sale de la descripción
       var fl = (H[t] || I[t] || {}).r, cd = dn(corte), am = function (d) { return (fl || []).reduce(function (a, x) { return a + (x[0] <= d ? x[2] || 0 : 0); }, 0); }, fa = fl ? (100 - am(hoy)) / Math.max(1e-9, 100 - am(cd)) : 1; // amortizaciones pagadas desde el corte
       var x = (usd ? r.vn / 1e3 : r.vn * fx / 1e3) * (fa > 0 && fa <= 1 ? fa : 1); if (R[t]) { R[t].x += x; R[t].h[0].x = R[t].x; return; } // el mismo bono en dos decretos (Discount y Par)
       R[t] = { t: t, c: r.c === 'usd' ? (/^GD/.test(t) ? 'gd' : 'al') : r.c, v: dn(r.v), x: x, u: usd ? 'USD' : 'ARS', f: corte, s: fa < 0.999 ? 'trimA' : 'trim', d: r.d, h: [{ f: corte, s: 'Stock de Finanzas al corte' + (fa < 0.999 ? ' (menos lo amortizado después)' : ''), x: x }] };
@@ -16714,7 +16815,7 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
     (C.ops || []).forEach(function (e) { // colocaciones (ONCP) después del corte trimestral: licitaciones, conversiones y canjes, con su fecha de liquidación
       if (e[0] <= corte) return; var v = dn(e[2]), t = null;
       if (e[3] === 'usd') t = Object.keys(H).filter(function (k) { return /^A[ON]\d\d$/.test(k) && Math.abs((vtoOf(H[k]) || 0) - v) <= 3; })[0];
-      else t = match({ c: e[3], v: e[2] }); if (!t) return;
+      else t = match({ c: e[3], v: e[2] }) || (all && e[3] === 'dl' ? dlk(e[1], e[2]) : null); if (!t) return;
       var o = R[t]; if (!o) { var ins = I[t], k0 = ins ? ins.k : e[3]; o = R[t] = { t: t, c: e[3] === 'usd' ? 'al' : k0 === 'dual' && e[5] === 'USD' ? 'dualdl' : k0, v: v, x: 0, u: e[5], f: e[0], s: 'col', h: [] }; }
       if (o.u !== e[5]) return; o.x += e[4]; o.f = e[0] > o.f ? e[0] : o.f; o.s = 'col'; o.h.push({ f: e[0], s: e[4] >= 0 ? 'Colocación (Crédito Público)' : 'Baja (Crédito Público)', m: e[4], x: o.x });
     });
@@ -16730,8 +16831,12 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
       o.x += e[2]; o.h.push({ f: e[0], s: 'Canje / conversión', m: e[2], x: o.x });
     });
     Object.keys(R).forEach(function (t) { (L[t] || []).forEach(function (a) { if (a[0] > corte && a[2] === R[t].u) R[t].h.push({ f: a[0], s: 'Licitación: VNO total en circulación', x: a[1], l: 1 }); }); }); // las licitaciones, con el total que informa cada comunicado
-    return Object.keys(R).map(function (k) { return R[k]; }).filter(function (r) { return r.v > hoy && r.x > 0; }).sort(function (a, b) { return a.v - b.v; });
+    return Object.keys(R).map(function (k) { return R[k]; }).filter(function (r) { return (all || r.v > hoy) && r.x > 0; }).sort(function (a, b) { return a.v - b.v; });
   }
+  window.BLOUTH = function (cb) { // para la cobertura cambiaria: todos los bonos (también los ya vencidos) con su historia de stock
+    var f = function () { var r = []; try { r = rows(true); } catch (e) { r = []; } cb(r); };
+    if (J) return f(); fetch('data/outstanding.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j) J = j; f(); }).catch(function () { cb([]); });
+  };
   window.BLOUT = function (cb) { // para el Calendario de cobros: VN en circulación de cada bono del Tesoro (millones, en su moneda) y qué parte del VN original queda
     var f = function () { var m = {}, I = INS(), H = HDX(), hoy = Math.floor(Date.now() / 864e5); try { rows().forEach(function (r) { var fl = (H[r.t] || I[r.t] || {}).r, am = (fl || []).reduce(function (a, x) { return a + (x[0] <= hoy ? x[2] || 0 : 0); }, 0), rf = fl ? (100 - am) / 100 : 1; m[r.t] = { x: r.x, u: r.u, rf: rf > 0.001 && rf <= 1 ? rf : 1, f: r.f }; }); } catch (e) { } cb(m); };
     if (J) return f(); fetch('data/outstanding.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j) J = j; if (J) f(); else cb({}); }).catch(function () { cb({}); });
