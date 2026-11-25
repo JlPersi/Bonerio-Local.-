@@ -172,6 +172,16 @@ def validate(inst, usd):
         sys.exit("la planilla tiene errores:\n  " + "\n  ".join(err))
 
 
+def a3500(n):  # A3500 del día n (o el último anterior), de data/dolar.json
+    try:
+        A = json.load(open(os.path.join(ROOT, "data", "dolar.json"), encoding="utf-8")).get("A3500", {})
+    except Exception:
+        return None
+    d = n2d(n).isoformat()
+    k = [x for x in A if x <= d]
+    return A[max(k)] if k else None
+
+
 def build(write=True):
     inst, usd, old, px = read_planilla()
     validate(inst, usd)
@@ -183,7 +193,14 @@ def build(write=True):
         n, a, o, b = P["PSD"]; o["INST"] = inst
         for t, ins in inst.items():  # bono nuevo sin historia: la serie arranca en la emisión, con su precio
             if t not in o["H"] and t in px:
-                o["H"][t] = {"s": ins["iss"], "d": [0], "p": [px[t]]}
+                p0 = px[t]
+                if ins["k"] == "dl" and p0 < 1000:  # dollar linked: el precio de licitación es en dólares cada 100 VN; la serie va en pesos al A3500 de la emisión
+                    fx = a3500(ins["iss"])
+                    if not fx:
+                        print("ojo: %s sin A3500 del %s, no arranco su serie" % (t, n2d(ins["iss"])))
+                        continue
+                    p0 = round(p0 * fx, 1)
+                o["H"][t] = {"s": ins["iss"], "d": [0], "p": [p0]}
         new[n] = a + dump(o) + b
         n, a, o, b = P["PSOLD"]; o["INST"] = old; new[n] = a + dump(o) + b
         if any(lines[k] != v for k, v in new.items()):
