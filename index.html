@@ -15668,17 +15668,16 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
     var dn = s.deuda_financiera != null && s.caja_inversiones != null ? ss('deuda_financiera') - ss('caja_inversiones') : null;
     var ebA = rs.resultado_operativo != null && rs.depreciaciones != null ? cs((rs.resultado_operativo + rs.depreciaciones) * R.s, c) * an : null;
     var roe = rs.resultado_neto != null && s.patrimonio_neto > 0 ? rs.resultado_neto * an / s.patrimonio_neto : null;
-    var kp = function (n, v, y, x) { return '<div><small>' + n + '</small><b>' + v + '</b>' + (y !== undefined ? '<small class="' + (y == null ? '' : y >= 0 ? 'up' : 'dn') + '">' + (y == null ? 'sin dato del año anterior' : pc(y) + ' interanual') + '</small>' : x ? '<small>' + x + '</small>' : '') + '</div>'; };
-    h += '<h5>Snapshot</h5><div class="kp">' +
-      kp('Ventas', fm(g('ventas')), g('ventas') == null ? undefined : yoy('ventas')) +
-      kp('EBITDA', fm(g('ebitda')), g('ebitda') == null ? undefined : yoy('ebitda')) +
-      kp('Resultado operativo', fm(g('resultado_operativo')), g('resultado_operativo') == null ? undefined : yoy('resultado_operativo')) +
-      kp('Ganancia neta', fm(g('resultado_neto')), yoy('resultado_neto')) +
+    var kp = function (n, v, y, x) { return '<div><small>' + n + '</small><b>' + v + '</b>' + (y !== undefined ? '<small class="' + (y == null || typeof y === 'string' ? '' : y >= 0 ? 'up' : 'dn') + '">' + (typeof y === 'string' ? y : y == null ? 'sin dato del año anterior' : pc(y) + ' interanual') + '</small>' : x ? '<small>' + x + '</small>' : '') + '</div>'; };
+    var yo = function (k) { var a = g(k), b = g0(k); return a != null && b != null && (b <= 0 || a < 0) ? 'hace un año ' + fm(b) : yoy(k); }; // contra una pérdida (o si cambió de signo) la variación no se lee: el dato de hace un año
+    var kq = function (n, k) { return g(k) == null ? '' : kp(n, fm(g(k)), yo(k)); }; // sin el dato (un banco no informa ventas ni EBITDA): sin la tarjeta
+    h += '<h5>Snapshot</h5><div class="kp">' + kq('Ventas', 'ventas') + kq('EBITDA', 'ebitda') + kq('Resultado operativo', 'resultado_operativo') +
+      kp(N != null && N < 0 ? 'Pérdida neta' : 'Ganancia neta', fm(g('resultado_neto')), yo('resultado_neto')) +
       (V > 0 && g('ebitda') != null ? kp('Margen EBITDA', pc(g('ebitda') / V).replace('+', ''), undefined, Q0 && Q0.ebitda != null && Q0.ventas > 0 ? 'hace un año ' + pc(Q0.ebitda / Q0.ventas).replace('+', '') : '') : '') +
       (V > 0 ? kp('Margen neto', pc(N / V).replace('+', ''), undefined, Q0 && Q0.resultado_neto != null && Q0.ventas > 0 ? 'hace un año ' + pc(Q0.resultado_neto / Q0.ventas).replace('+', '') : '') : '') +
-      kp('Deuda neta', fm(dn), undefined, dn != null && ebA > 0 ? (dn / ebA).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + 'x EBITDA anualizado' : 'deuda financiera − caja e inversiones') +
+      (dn == null ? (V == null && s.activo_total != null ? kp('Activo total', fm(ss('activo_total')), undefined, 'al cierre del trimestre') : '') : kp('Deuda neta', fm(dn), undefined, dn != null && ebA > 0 ? (dn / ebA).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + 'x EBITDA anualizado' : 'deuda financiera − caja e inversiones')) +
       kp('Patrimonio neto', fm(ss('patrimonio_neto')), undefined, roe != null ? 'ROE anualizado ' + pc(roe).replace('+', '') : '') +
-      (g('flujo_operativo') != null ? kp('Flujo de caja operativo', fm(g('flujo_operativo')), yoy('flujo_operativo')) : '') + '</div>';
+      kq('Flujo de caja operativo', 'flujo_operativo') + '</div>';
     h += '<p class="note" style="margin-top:8px">El trimestre sale de restar al acumulado de ' + m + ' meses el acumulado anterior del mismo ejercicio. ' + (usd ? 'En dólares: los resultados al ' + (off ? 'oficial (A3500)' : 'CCL') + ' promedio de cada trimestre ($ ' + Math.round(k1).toLocaleString('es-AR') + ' en este) y los saldos al del cierre' + (off ? ', como lo presenta la empresa (moneda funcional dólar)' : '') + '. Las depreciaciones van dentro del costo de ventas; la planilla de la CNV agrupa algunos rubros distinto que el comunicado de la empresa, así que puede haber diferencias chicas. ' : 'En pesos nominales (M = millones, B = billones): la variación interanual incluye la inflación. ') + 'Fuente: ' + esc(R.p.fuente || 'CNV') + '. <a href="#" data-nbf="' + esc(t) + '">Ver la ficha de ' + esc(t) + '</a>.</p>';
     return h;
   }
