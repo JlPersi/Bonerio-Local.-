@@ -4625,12 +4625,23 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var pb = document.getElementById('vdPl'); if (pb) { pb.style.display = ''; pb.innerHTML = '<button type="button" data-pl="p" title="Ver la rueda"' + (REC ? ' disabled' : '') + '>' + (HPLAY && !REC ? '&#10074;&#10074;' : '&#9654;') + '</button><button type="button" data-pl="v" title="' + (REC ? 'Cortar la grabación' : 'Descargar la rueda en video') + '">' + (REC ? '&#9632; REC' : '&#11015; Video') + '</button>'; }
   }
   var REC = null; // la grabación en curso (MediaRecorder sobre el canvas del gráfico)
-  function hrStop() { if (HPLAY) { clearInterval(HPLAY); HPLAY = null; } LOCK = null; if (REC && REC.state === 'recording') REC.stop(); }
-  function hrPlay(done) { // recorre la rueda de 5 en 5 minutos; done: al terminar (la grabación)
-    if (HPLAY || REC && !done) { hrStop(); hrUI(); return; } var sp = hrSpan(); if (!sp) return;
-    HM = sp[0]; LOCK = {}; render(); hrUI();
-    var go = function () { HPLAY = setInterval(function () { var sp2 = hrSpan() || sp; HM += 5; if (HM >= sp2[1]) { HM = null; clearInterval(HPLAY); HPLAY = null; render(); LOCK = null; hrUI(); if (done) setTimeout(done, 1800); return; } render(); hrUI(); }, 420); };
-    if (done) setTimeout(go, 1000); else go(); // grabando: el primer cuadro queda un segundo
+  var PRE = false, HMD = null; // PRE: armando las fotos (sin tabla ni volumen); HMD: el minuto que se dibuja entre foto y foto
+  function hrStop() { if (HPLAY) { cancelAnimationFrame(HPLAY.raf); HPLAY = null; } HMD = null; LOCK = null; if (REC && REC.state === 'recording') REC.stop(); }
+  function hrPlay(done) { // la rueda de 5 en 5 minutos, interpolada cuadro a cuadro: primero arma las fotos (con los ejes de toda la rueda) y después desliza puntos y curvas entre una y otra; done: al terminar (la grabación)
+    if (HPLAY || REC && !done) { var keep = HPLAY && HPLAY.K; if (keep && HMD != null) HM = Math.min(Math.round(HMD / 5) * 5, hrSpan() ? hrSpan()[1] - 5 : HMD); hrStop(); if (keep) render(); hrUI(); return; } var sp = hrSpan(); if (!sp) return;
+    var K = [], snap = function (m) { return { m: m, d: CH ? CH.data.datasets.map(function (d) { return { data: (d.data || []).map(function (p) { return p && typeof p === 'object' ? Object.assign({}, p) : p; }), bg: d.backgroundColor, bc: d.borderColor }; }) : null }; };
+    LOCK = {}; PRE = true; try { for (var m = sp[0]; ; m += 5) { var last = m >= sp[1]; HM = last ? null : m; render(); K.push(snap(last ? sp[1] : m)); if (last) break; } } finally { PRE = false; }
+    if (!CH || K.length < 2 || K.some(function (k) { return !k.d || k.d.length !== K[0].d.length; })) { HM = null; LOCK = null; render(); hrUI(); return; }
+    var NUM = ['x', 'y', 'y0', 'dv', 'p', 'm'], R = document.getElementById('vdHrR'), T = document.getElementById('vdHrT');
+    var put = function (i, a) { var A = K[i], B = K[Math.min(i + 1, K.length - 1)]; CH.data.datasets.forEach(function (ds, j) { var da = A.d[j], db = B.d[j];
+      ds.data = da.data.length === db.data.length ? da.data.map(function (p, n) { var q = db.data[n]; if (!p || typeof p !== 'object' || !q) return a < 0.5 ? p : q; var o = Object.assign({}, a < 0.5 ? p : q); NUM.forEach(function (f) { if (isFinite(p[f]) && isFinite(q[f])) o[f] = p[f] + (q[f] - p[f]) * a; }); return o; }) : (a < 0.5 ? da : db).data;
+      ds.backgroundColor = a < 0.5 ? da.bg : db.bg; ds.borderColor = a < 0.5 ? da.bc : db.bc; });
+      HMD = A.m + (B.m - A.m) * a; CH.update('none'); var mm = Math.round(HMD); if (R) R.value = mm; if (T) T.innerHTML = '<b>' + hhmm(mm) + '</b>'; };
+    var SEG = 330, t0 = 0, H = HPLAY = { K: K, raf: 0 }; HM = sp[0]; put(0, 0); hrUI();
+    var step = function (now) { if (HPLAY !== H) return; if (!t0) t0 = now; var f = (now - t0) / SEG, i = Math.floor(f);
+      if (i >= K.length - 1) { put(K.length - 1, 0); HPLAY = null; HMD = null; HM = null; render(); LOCK = null; hrUI(); if (done) setTimeout(done, 1800); return; }
+      put(i, f - i); H.raf = requestAnimationFrame(step); };
+    setTimeout(function () { if (HPLAY === H) H.raf = requestAnimationFrame(step); }, done ? 1000 : 250); // grabando: el primer cuadro queda un segundo
   }
   function hrRec() { // graba la animación del gráfico y la descarga como video (MP4 si el navegador lo graba; si no, WebM)
     if (REC) { hrStop(); return; } var cv = document.getElementById('vdChart');
@@ -4915,7 +4926,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var HRP = { id: 'vdHrp', afterInit: function (ch) { if (inAmp) ch.$amp = 1; }, /* ampliado: el gráfico se rearma en cada cuadro y conserva la marca */ beforeDraw: function (ch) { if (!REC) return; var c = ch.ctx; c.save(); c.fillStyle = card || '#131314'; c.fillRect(0, 0, ch.width, ch.height); c.restore(); }, // grabando: con fondo (si no, el video queda negro)
       afterDraw: function (ch) {
         if (REC && !inAmp && window.addBrandMark) try { addBrandMark(ch.canvas, ch.currentDevicePixelRatio || 1, 6); } catch (e) {}
-        if (HM == null && !REC) return; var c = ch.ctx, A = ch.chartArea, m = HM != null ? HM : Math.min(hmNow(), 1020), big = HM == null && m >= 1020 ? 'Cierre' : hhmm(m);
+        if (HM == null && HMD == null && !REC) return; var c = ch.ctx, A = ch.chartArea, m = HMD != null ? Math.round(HMD) : HM != null ? HM : Math.min(hmNow(), 1020), big = HM == null && m >= 1020 ? 'Cierre' : hhmm(m);
         c.save(); c.textBaseline = 'top'; c.fillStyle = tx; c.font = '700 30px Inter, system-ui, sans-serif'; c.fillText(big, A.left + 14, A.top + 10);
         c.font = '500 13px Inter, system-ui, sans-serif'; c.fillStyle = css('--mu') || tx; c.fillText(GN[grp] + ' · ' + dfull(bxToday()) + ' contra el cierre anterior', A.left + 14, A.top + 46); c.restore(); } };
     CH = new Chart(cvE.getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [X.LABELS, LINK, HRP], options: {
@@ -5018,6 +5029,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   /* ---------- render ---------- */
   function render() {
     if (!isAct()) return;
+    if (HPLAY && HPLAY.K && !PRE) return; // mientras corre la animación no se rearma (los precios en vivo esperan)
     try {
       if (typeof Chart === 'undefined') return;
       if (!document.getElementById('vdChart')) html();
@@ -5051,7 +5063,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       REF = (function () { var c = {}; rows.forEach(function (r) { var k = r.t0 + '|' + r.t1; c[k] = (c[k] || 0) + 1; }); var k = Object.keys(c).sort(function (a, b) { return c[b] - c[a]; })[0]; return k ? k.split('|').map(Number) : [t0, t1]; })(); // las fechas del grupo que se muestra
       document.getElementById('vdTit').textContent = ST.n === 1 ? 'Variación diaria contra el cierre anterior' : ST.mes ? 'Variación contra un mes atrás (' + ST.n + ' ruedas)' : 'Variación contra ' + ST.n + ' ruedas atrás'; document.getElementById('vdN').value = ST.mes ? 'm' : String(ST.n);
       REF1 = t1; BUB = null; if (ST.bub) { vjLoad(); var dsB = bxDayStr(t1); BUB = VJ && VJ.dates.indexOf(dsB) >= 0 ? volDay(dsB) : t1 >= bxToday() ? (HM != null && volAt(dsB, HM)) || volLive() : null; /* a una hora elegida: lo operado hasta esa hora */ if (BUB && !Object.keys(BUB).length) BUB = null; } // burbujas: el monto de la última rueda del gráfico
-      volView(curveView(rows, ST.grp) || [], ST.n > 1 ? prevBiz(t1) : t0, t1); // con N ruedas, el volumen compara el promedio de las últimas N contra las N anteriores
+      var gdV = curveView(rows, ST.grp) || []; if (PRE) return; // armando las fotos de la animación: solo el gráfico
+      volView(gdV, ST.n > 1 ? prevBiz(t1) : t0, t1); // con N ruedas, el volumen compara el promedio de las últimas N contra las N anteriores
       table(rows, t0);
       if (HM != null) { var vi = document.getElementById('vdInfo'); vi.textContent = vi.textContent.replace(/^Hoy (\S+)/, 'Hoy $1 a las ' + hhmm(HM)); }
     } catch (e) { console.error('vard', e); var i = document.getElementById('vdInfo'); if (i) i.textContent = 'Error: ' + e.message; }
