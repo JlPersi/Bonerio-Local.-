@@ -1361,6 +1361,8 @@ window.curveFitUSD = function (pts, model, minN) {
     <canvas id="yieldCurveChart"></canvas>
   </div>
 
+  <div class="card" id="usdCT" style="margin-top: 4px; overflow-x: auto;"></div>
+
   <div class="card" style="margin-top: 24px;">
       <p style="margin: 0 0 18px 0; color: var(--tx); font-size: 16px; font-weight: 600;" id="spreadsTitle">Spread de Legislación en puntos básicos (Ley Local vs Ley NY)</p>
       <div id="spreadsGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;"></div>
@@ -2319,6 +2321,33 @@ window.updateSimTir = function(source) {
     window.updateChart(); 
 };
 
+function usdCurveTable(d0, d1, u, ax, regNY, regLoc) { // debajo de la curva: cada Bonar y Global con su precio y TIR en MEP (D) y en cable (C), y la distancia a la curva
+  const el = $('usdCT'); if (!el) return; const M = Object.assign({}, window.PXQ || {}, window.USDQ || {});
+  const op = function (r) { return r && r.c > 0 && ((r.q_op || 0) > 0 || (r.v || 0) > 0); };
+  const fxI = {}; ['D', 'C'].forEach(function (sp) { const a = []; B.forEach(function (b) { const r = M[b.k + sp], p = M[b.k]; if (op(r) && op(p)) a.push(p.c / r.c); }); a.sort(function (x, y) { return x - y; }); fxI[sp] = a.length >= 3 ? a[Math.floor(a.length / 2)] : null; });
+  const px = function (b, sp) { if (sp === especie && b.p > 0) return { p: b.p }; const r = M[b.k + sp], p = M[b.k]; if (op(r)) return { p: r.c }; if (fxI[sp] && op(p)) return { p: p.c / fxI[sp], i: 1 }; return r && r.c > 0 ? { p: r.c, v: 1 } : null; };
+  const nf = function (v, d) { return v == null || !isFinite(v) ? '—' : v.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  const fd = function (n) { const x = new Date(n * 864e5); return String(x.getUTCDate()).padStart(2, '0') + '/' + String(x.getUTCMonth() + 1).padStart(2, '0') + '/' + x.getUTCFullYear(); };
+  const R = B.filter(function (b) { return b.f[b.f.length - 1][0] > d0; }).map(function (b) {
+    const o = { k: b.k, ny: /^GD/.test(b.k), v: b.f[b.f.length - 1][0], b: b, q: { D: px(b, 'D'), C: px(b, 'C') } }; return o; });
+  const rs = R.filter(function (o) { return o.q.D && o.q.C && !o.q.D.i && !o.q.D.v && !o.q.C.i && !o.q.C.v; }).map(function (o) { return o.q.D.p / o.q.C.p; }).sort(function (x, y) { return x - y; }), rDC = rs.length >= 2 ? rs[Math.floor(rs.length / 2)] : null; // MEP / cable implícito de los que operaron en las dos
+  R.forEach(function (o) { const b = o.b, ot = especie === 'C' ? 'D' : 'C', a = o.q[especie], z = o.q[ot]; // la otra especie: si no está o se aleja más de 5% del canje de las demás (un precio viejo), sale de la del gráfico a ese canje
+    if (rDC && a && !a.i && !a.v) { const e = ot === 'C' ? a.p / rDC : a.p * rDC; if (!z || Math.abs(z.p / e - 1) > 0.05) o.q[ot] = { p: e, i: 1 }; }
+    ['D', 'C'].forEach(function (sp) { const q = o.q[sp]; if (!q) return; const r = calc(b, d0, d1, u, q.p); o[sp] = { p: q.p, i: q.i || q.v, t: r.tir, md: r.modD }; });
+    const c = o[especie]; if (c && c.t != null && c.md != null) { const reg = o.ny ? regNY : regLoc, x = xaxVal(ax, o.v - d0, c.md * (1 + c.t) * 365, c.md); o.md = c.md; if (reg && c.md >= 1.1) o.dv = (c.t * 100 - reg.f(x)) * 100; }
+  }); R.sort(function (a, b) { return a.ny - b.ny || a.v - b.v; });
+  const th = function (t, tt, hl) { return '<th style="padding:10px 12px;text-align:right;font-size:12px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap;color:' + (hl ? 'var(--acc,#ffc542)' : 'var(--mu)') + '"' + (tt ? ' title="' + tt + '"' : '') + '>' + t + '</th>'; };
+  const td = function (v, st) { return '<td style="padding:11px 12px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;border-top:1px solid var(--bd);' + (st || '') + '">' + v + '</td>'; };
+  const tir = function (q, hl) { return td(q && q.t != null ? nf(q.t * 100, 2) + '%' : '—', hl ? 'color:var(--acc,#ffc542);font-weight:700' : ''); };
+  const pr = function (q) { return td(q ? nf(q.p, 2) + (q.i ? '<sup title="Sin precio propio hoy: sale de la otra especie (o de pesos) al tipo de cambio implícito de los que sí operaron" style="color:var(--mu)">*</sup>' : '') : '—'); };
+  const hD = especie === 'D', hC = especie === 'C';
+  let h = '<p style="margin:0 0 4px;color:var(--tx);font-size:16px;font-weight:600">Bonares y Globales</p><p class="note" style="margin:0 0 12px">TIR efectiva con el precio de cada especie: MEP (D) y cable (C). Lo resaltado es la especie del gráfico. «vs. curva» es la distancia a la curva de su ley en el gráfico (positivo: rinde más que la curva, barato); los de menos de 1,1 años de duración quedan afuera del ajuste.</p>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr>' + th('Ticker').replace('right', 'left') + th('Ley').replace('right', 'left') + th('Vencimiento') + th('Precio (D)') + th('TIR (D)', '', hD) + th('Precio (C)') + th('TIR (C)', '', hC) + th('C − D', 'TIR en cable menos TIR en MEP, en puntos básicos') + th('MD', 'Duración modificada, en años') + th('vs. curva', 'Distancia a la curva de su ley (pb), en la especie del gráfico') + '</tr></thead><tbody>';
+  R.forEach(function (o) { const dc = o.C && o.D && o.C.t != null && o.D.t != null ? (o.C.t - o.D.t) * 1e4 : null;
+    h += '<tr>' + td('<b style="color:' + (o.ny ? 'var(--c-s1)' : 'var(--c-s2)') + '">' + o.k + '</b>', 'text-align:left') + td(o.ny ? 'NY' : 'Local', 'text-align:left;color:var(--mu)') + td(fd(o.v)) + pr(o.D) + tir(o.D, hD) + pr(o.C) + tir(o.C, hC) + td(dc == null ? '—' : (dc > 0 ? '+' : '') + nf(dc, 0) + ' pb') + td(nf(o.md, 2)) +
+      td(o.dv == null ? '—' : (o.dv > 0 ? '+' : '') + nf(o.dv, 0) + ' pb', o.dv == null ? '' : 'font-weight:600;color:' + (o.dv >= 50 ? '#34d399' : o.dv <= -50 ? '#ff6b8b' : 'var(--tx)')) + '</tr>'; });
+  el.innerHTML = h + '</tbody></table>' + (R.some(function (o) { return (o.D && o.D.i) || (o.C && o.C.i); }) ? '<p class="note" style="margin:10px 2px 0">* Sin precio propio confiable hoy en esa especie (no operó, o su último precio se aleja más de 5% del canje MEP / cable de los demás): sale de la otra especie, o de la de pesos, al tipo de cambio implícito de los que sí operaron.</p>' : '');
+}
 window.updateCurveChart = function() {
     const canvas = $('yieldCurveChart');
     if (!canvas || typeof Chart === 'undefined') return;
@@ -2352,6 +2381,7 @@ window.updateCurveChart = function() {
     const line = function (reg, a) { const r = span(a), o = []; if (!reg || !r) return o; for (let i = 0; i <= 150; i++) { const x = r[0] + (r[1] - r[0]) * i / 150; o.push({ x: x, y: reg.f(x) }); } return o; };
     let lineNY = line(regNY, dataNY), lineLoc = line(regLoc, dataLoc);
 
+    try { usdCurveTable(d0, d1, u, ax, regNY, regLoc); } catch (e) { console.error('tabla de la curva', e); }
     const style = getComputedStyle(document.body);
     const colorAc = style.getPropertyValue('--c-s1').trim(); // ley NY
     const colorOk = style.getPropertyValue('--c-s2').trim(); // ley local
@@ -2591,7 +2621,7 @@ window.fetchLive = async function() {
       let changed = false;
       
       // la especie en dólares que no operó hoy (las C de los Bonares casi no operan) queda con un precio viejo: se usa la de pesos al tipo de cambio implícito de las que sí operaron
-      const M = {}; arr.forEach(function (r) { if (r && r.symbol) M[r.symbol] = r; });
+      const M = {}; arr.forEach(function (r) { if (r && r.symbol) M[r.symbol] = r; }); window.USDQ = Object.assign(window.USDQ || {}, M); // todas las especies (D, C y pesos): la tabla de la curva hard dollar muestra la TIR en MEP y en cable
       const op = function (r) { return r && r.c > 0 && ((r.q_op || 0) > 0 || (r.v || 0) > 0); };
       const fxs = []; arr.forEach(function (r) { if (!r || !r.symbol || !r.symbol.endsWith(especie)) return; const a = M[r.symbol.slice(0, -1)]; if (op(r) && op(a)) fxs.push(a.c / r.c); });
       fxs.sort(function (x, y) { return x - y; }); const FXI = fxs.length >= 3 ? fxs[Math.floor(fxs.length / 2)] : null; window.FX_IMPL = window.FX_IMPL || {}; window.FX_IMPL[especie] = FXI;
@@ -12790,6 +12820,7 @@ window.USTX = (function () {
     px.innerHTML = '<b>' + unit + fm(last, 2) + '</b>' + (ch != null ? '<span class="' + (ch > 0 ? 'up' : ch < 0 ? 'dn' : 'mu') + '">' + (ch > 0 ? '▲ +' : ch < 0 ? '▼ ' : '') + fm(ch, 2) + '%</span>' : '') +
       '<small>' + (CQ ? 'Contado inmediato (Primary)' + (CIR && CIR.k === K && CIR.ciPay ? ', con el pago del ' + new Date(CIR.ciPay[0] * 864e5).toISOString().slice(0, 10).split('-').reverse().slice(0, 2).join('/') + ' (' + unit + fm(CIR.ciPay[1], 2) + ' c/100 VN) que en 24 hs ya no se cobra' : '') + ' · ' : CIM && CIQ[sym] && CIQ[sym].none ? 'Sin precio de contado inmediato: se muestra 24 hs · ' : '') + (live ? 'Último operado hoy' : pre ? (pv ? 'Cierre del ' + dd(pv) : 'Último operado') + ' · todavía no abrió la rueda de hoy' : h.length ? 'Cierre del ' + dd(h[h.length - 1]) : r.corp ? 'Último precio conocido' : 'Sin precio') + (ref ? ' · cierre anterior ' + unit + fm(ref[1], 2) + (pre ? ' (' + dd(ref) + ')' : '') : '') + '</small>';
     var spr = Q.bid && Q.ask ? (Q.ask / Q.bid - 1) * 100 : null, monto = Q.v && Q.c ? Q.v * Q.c / 100 : null, qq = function (v) { return v ? 'por ' + big(v) + ' VN' : '&nbsp;'; };
+    if (!bk) return; // la tarjeta de puntas todavía no está (o no aplica a este bono)
     var dp = bk.querySelector('.bnDeep'); bk.innerHTML = (Q.bid || Q.ask ? '<div class="bnBk"><div class="bi"><small>Compra</small><b>' + fm(Q.bid, 2) + '</b><span>' + qq(Q.qb) + '</span></div><div class="as"><small>Venta</small><b>' + fm(Q.ask, 2) + '</b><span>' + qq(Q.qa) + '</span></div></div>'
       : '<p class="bnNt" style="margin:0 0 12px">' + (Object.keys(window.PXQ || {}).length ? 'No hay puntas de ' + esc(sym) + ' en este momento.' : 'Sin precios en vivo: el mercado está cerrado o data912 no responde. Abajo, el último cierre.') + '</p>') +
       (pre ? '<p class="bnNt" style="margin:0 0 12px">Todavía no abrió la rueda de hoy: los datos son de la rueda' + (pv ? ' del ' + dd(pv) : ' anterior') + '.</p>' : '') +
