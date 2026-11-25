@@ -89,10 +89,12 @@ let PEX = null, PEXT = 0;
 async function pextra(env) {
   if (PEX && Date.now() - PEXT < 3600e3) return PEX;
   const L = await instruments(env), out = {}; EPS.forEach((e) => (out[e] = []));
+  const T = new Set(L.map((i) => (/^MERV - XMEV - ([A-Z0-9.]+) - 24hs$/.exec((i.instrumentId || {}).symbol || '') || [])[1]).filter(Boolean));
+  const esON = (t) => /^[A-Z0-9]{4}O$/.test(t) || /^[A-Z0-9]{4}[DC]$/.test(t) && T.has(t.slice(0, 4) + 'O'); // ticker de ON (STCIO, STCID): hay ONs cuya descripción en Primary no dice "ON"
   L.forEach((i) => {
     const m = /^MERV - XMEV - ([A-Z0-9.]+) - 24hs$/.exec((i.instrumentId || {}).symbol || ''); if (!m) return;
     const c = String(i.cficode || '').toUpperCase(), d = String(i.securityDescription || i.description || '').toUpperCase(), t = m[1];
-    const ep = c[0] === 'E' || c[0] === 'C' ? (c[1] === 'D' && c[0] === 'E' || /CEDEAR/.test(d) ? 'arg_cedears' : 'arg_stocks') : c[0] === 'D' ? (/^S\d{2}[A-Z]\d$/.test(t) ? 'arg_notes' : /OBLIGACI|(^|[^A-Z])O\.? ?N\.?([^A-Z]|$)/.test(d) ? 'arg_corp' : 'arg_bonds') : null;
+    const ep = c[0] === 'E' || c[0] === 'C' ? (c[1] === 'D' && c[0] === 'E' || /CEDEAR/.test(d) ? 'arg_cedears' : 'arg_stocks') : c[0] === 'D' ? (/^S\d{2}[A-Z]\d$/.test(t) ? 'arg_notes' : /OBLIGACI|(^|[^A-Z])O\.? ?N\.?([^A-Z]|$)/.test(d) || esON(t) ? 'arg_corp' : 'arg_bonds') : null;
     if (ep) out[ep].push(t);
   });
   if (L.length) { PEX = out; PEXT = Date.now(); }
