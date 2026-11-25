@@ -4622,8 +4622,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var S0 = document.getElementById('vdHr0'), kk = sp[0] + '-' + sp[1]; if (S0.getAttribute('data-k') !== kk) { var o = '<option value="">Cierre anterior</option>'; for (var m = Math.ceil(sp[0] / 5) * 5; m < sp[1]; m += 5) o += '<option value="' + m + '">' + hhmm(m) + '</option>'; S0.innerHTML = o.replace('Cierre anterior', 'Apertura'); S0.setAttribute('data-k', kk); } S0.value = H0 == null ? '' : String(H0); S0.disabled = !!HPLAY;
     document.getElementById('vdHrT').innerHTML = HM == null ? '<b>Ahora</b>' : '<b>' + hhmm(HM) + '</b>';
     document.getElementById('vdHrP').innerHTML = HPLAY && !REC ? '&#10074;&#10074; Pausa' : '&#9654; Ver la rueda'; document.getElementById('vdHrP').disabled = !!REC;
+    document.getElementById('vdHrL').style.display = HM != null || HPLAY ? '' : 'none';
     document.getElementById('vdHrV').innerHTML = REC ? '&#9632; Grabando… (cortar)' : '&#11015; Descargar video';
-    var pb = document.getElementById('vdPl'); if (pb) { pb.style.display = ''; pb.innerHTML = '<button type="button" data-pl="p" title="Ver la rueda"' + (REC ? ' disabled' : '') + '>' + (HPLAY && !REC ? '&#10074;&#10074;' : '&#9654;') + '</button><button type="button" data-pl="v" title="' + (REC ? 'Cortar la grabación' : 'Descargar la rueda en video') + '">' + (REC ? '&#9632; REC' : '&#11015; Video') + '</button>'; }
+    var pb = document.getElementById('vdPl'); if (pb) { pb.style.display = ''; pb.innerHTML = '<button type="button" data-pl="p" title="Ver la rueda"' + (REC ? ' disabled' : '') + '>' + (HPLAY && !REC ? '&#10074;&#10074;' : '&#9654;') + '</button><button type="button" data-pl="v" title="' + (REC ? 'Cortar la grabación' : 'Descargar la rueda en video') + '">' + (REC ? '&#9632; REC' : '&#11015; Video') + '</button>' + (HM != null || HPLAY ? '<button type="button" data-pl="l" class="vdlv" title="Volver a la curva en vivo">&#9679; En vivo</button>' : ''); }
   }
   var REC = null; // la grabación en curso (MediaRecorder sobre el canvas del gráfico)
   var PRE = false, HMD = null; // PRE: armando las fotos (sin tabla ni volumen); HMD: el minuto que se dibuja entre foto y foto
@@ -4645,6 +4646,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       put(i, f - i); H.raf = requestAnimationFrame(step); };
     setTimeout(function () { if (HPLAY === H) H.raf = requestAnimationFrame(step); }, done ? 1000 : 250); // grabando: el primer cuadro queda un segundo
   }
+  function hrLive() { hrStop(); HM = null; render(); hrUI(); } // vuelve a la curva en vivo (corta la animación o la grabación)
   function hrRec() { // graba la animación del gráfico y la descarga como video (MP4 si el navegador lo graba; si no, WebM)
     if (REC) { hrStop(); return; } var cv = document.getElementById('vdChart');
     if (!cv || !cv.captureStream || !window.MediaRecorder) { document.getElementById('vdHrT').innerHTML = 'Este navegador no graba video'; return; }
@@ -4757,6 +4759,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
   function html() {
     root.innerHTML =
       '<style>' +
+      '.vdw .vdhr .vdlv,.vdpl .vdlv{color:#34d399;border-color:#34d399}' +
       '.vdw .vdhr .vdh0{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--mu)}.vdw .vdhr .vdh0 select{width:auto;min-width:0;padding:5px 8px}' +
       '.vdw .vdhr{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:14px 0 4px}.vdw .vdhr button{font:inherit;font-size:13px;font-weight:600;padding:7px 14px;border-radius:99px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);cursor:pointer;white-space:nowrap}.vdw .vdhr input{flex:1 1 240px;min-width:0;accent-color:var(--ac)}.vdw .vdhr span{font-size:14px;min-width:52px;font-variant-numeric:tabular-nums}.vdw .vdhr small{flex-basis:100%;color:var(--mu);font-size:12px}' +
       '.vdpl{position:absolute;top:6px;left:64px;display:flex;gap:6px;z-index:2}.vdpl button{font:inherit;font-size:12px;font-weight:600;padding:5px 11px;border-radius:99px;border:1px solid var(--bd);background:var(--card);color:var(--tx);cursor:pointer}.vdpl button:disabled,.vdw .vdhr button:disabled{opacity:.45;cursor:default}' +
@@ -4785,7 +4788,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<label id="vdFxL" title="Separa la variación de cada bono en efecto tiempo (el punto se corre a la izquierda: devenga y le baja la duración, con la tasa quieta) y efecto tasa (el punto sube o baja: cambia la tasa)">Efectos<select id="vdFx"><option value="0">Juntos (precio total)</option><option value="1">Separar tiempo y tasa</option></select></label>' +
       '<label id="vdTopL" style="display:none" title="Con muchas ONs el gráfico se llena: se destacan las que más movieron la tasa y el resto va tenue, sin la marca de antes">Destacar<select id="vdTop"><option value="12">Las 12 que más se movieron</option><option value="25">Las 25 que más se movieron</option><option value="0">Todas por igual</option></select></label>' +
       '</div>' +
-      '<div class="vdhr" id="vdHr" style="display:none"><button type="button" id="vdHrP"></button><button type="button" id="vdHrV"></button><label class="vdh0">Desde<select id="vdHr0"></select></label><label class="vdh0">Hasta</label><input type="range" id="vdHrR" step="5" aria-label="Hora de la rueda"><span id="vdHrT"></span><small>La curva y la tabla con el último precio de cada bono hasta esa hora (el intradiario que se guarda cada pocos minutos). Siempre contra el cierre anterior; la animación y el video van de Desde a Hasta.</small></div>' +
+      '<div class="vdhr" id="vdHr" style="display:none"><button type="button" id="vdHrP"></button><button type="button" id="vdHrV"></button><button type="button" id="vdHrL" class="vdlv" style="display:none">&#9679; Volver a en vivo</button><label class="vdh0">Desde<select id="vdHr0"></select></label><label class="vdh0">Hasta</label><input type="range" id="vdHrR" step="5" aria-label="Hora de la rueda"><span id="vdHrT"></span><small>La curva y la tabla con el último precio de cada bono hasta esa hora (el intradiario que se guarda cada pocos minutos). Siempre contra el cierre anterior; la animación y el video van de Desde a Hasta.</small></div>' +
       '<div class="vdchips" id="vdChips" style="margin-bottom:16px"></div>' +
       '<div id="vdCurveCard"><div class="vdleg" id="vdLeg"></div><div class="chart-wrap" style="height:560px;margin-top:0"><canvas id="vdChart"></canvas><div class="vdpl" id="vdPl" data-html2canvas-ignore="true" style="display:none"></div></div>' +
       '<details class="vddet" id="vdDet"><summary><span id="vdDetS">Desplazamiento de la curva y detalle por bono</span></summary><div class="vdshift" id="vdShift"></div><div class="wrap" id="vdTblCard" style="margin-top:14px"><table class="vdt" id="vdTable"></table></div></details>' +
@@ -4806,7 +4809,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     try { ST.fx = localStorage.getItem('vdFx') === '1'; } catch (e) {} document.getElementById('vdFx').value = ST.fx ? '1' : '0';
     document.getElementById('vdTop').onchange = function () { ST.top = this.value; render(); };
     document.getElementById('vdHrP').onclick = function () { hrPlay(); }; document.getElementById('vdHrV').onclick = hrRec;
-    document.getElementById('vdPl').onclick = function (e) { var b = e.target.closest('[data-pl]'); if (!b) return; e.stopPropagation(); if (b.getAttribute('data-pl') === 'v') hrRec(); else hrPlay(); };
+    document.getElementById('vdPl').onclick = function (e) { var b = e.target.closest('[data-pl]'); if (!b) return; e.stopPropagation(); if (b.getAttribute('data-pl') === 'l') hrLive(); else if (b.getAttribute('data-pl') === 'v') hrRec(); else hrPlay(); };
+    document.getElementById('vdHrL').onclick = function () { hrLive(); };
     document.getElementById('vdHr0').onchange = function () { hrStop(); H0 = this.value === '' ? null : +this.value; if (H0 != null && HM != null && HM <= H0) HM = null; hrUI(); };
     document.getElementById('vdHrR').oninput = function () { hrStop(); var sp = hrSpan(), v = +this.value; HM = sp && v >= sp[1] ? null : v; hrUI(); later(); };
     var $e = function (id) { return document.getElementById(id); };
