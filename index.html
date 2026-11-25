@@ -4616,16 +4616,35 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     return Object.assign({}, o, { P1: p != null ? p : o.P0 });
   }
   function hrUI() {
-    var W = document.getElementById('vdHr'); if (!W) return; var sp = hrSpan(), on = hrOk() && sp && ST.grp !== 'acc' && ST.grp !== 'fut'; W.style.display = on ? '' : 'none'; if (!on) { if (HM != null || HPLAY) { hrStop(); HM = null; } return; }
+    var W = document.getElementById('vdHr'); if (!W) return; var sp = hrSpan(), on = hrOk() && sp && ST.grp !== 'acc' && ST.grp !== 'fut'; W.style.display = on ? '' : 'none'; if (!on && document.getElementById('vdPl')) document.getElementById('vdPl').style.display = 'none'; if (!on) { if (HM != null || HPLAY) { hrStop(); HM = null; } return; }
     var R = document.getElementById('vdHrR'); R.min = sp[0]; R.max = sp[1]; R.value = HM == null ? sp[1] : HM;
     document.getElementById('vdHrT').innerHTML = HM == null ? '<b>Ahora</b>' : '<b>' + hhmm(HM) + '</b>';
-    document.getElementById('vdHrP').innerHTML = HPLAY ? '&#10074;&#10074; Pausa' : '&#9654; Ver la rueda';
+    document.getElementById('vdHrP').innerHTML = HPLAY && !REC ? '&#10074;&#10074; Pausa' : '&#9654; Ver la rueda'; document.getElementById('vdHrP').disabled = !!REC;
+    document.getElementById('vdHrV').innerHTML = REC ? '&#9632; Grabando… (cortar)' : '&#11015; Descargar video';
+    var pb = document.getElementById('vdPl'); if (pb) { pb.style.display = ''; pb.innerHTML = '<button type="button" data-pl="p" title="Ver la rueda"' + (REC ? ' disabled' : '') + '>' + (HPLAY && !REC ? '&#10074;&#10074;' : '&#9654;') + '</button><button type="button" data-pl="v" title="' + (REC ? 'Cortar la grabación' : 'Descargar la rueda en video') + '">' + (REC ? '&#9632; REC' : '&#11015; Video') + '</button>'; }
   }
-  function hrStop() { if (HPLAY) { clearInterval(HPLAY); HPLAY = null; } LOCK = null; }
-  function hrPlay() {
-    if (HPLAY) { hrStop(); hrUI(); return; } var sp = hrSpan(); if (!sp) return;
+  var REC = null; // la grabación en curso (MediaRecorder sobre el canvas del gráfico)
+  function hrStop() { if (HPLAY) { clearInterval(HPLAY); HPLAY = null; } LOCK = null; if (REC && REC.state === 'recording') REC.stop(); }
+  function hrPlay(done) { // recorre la rueda de 5 en 5 minutos; done: al terminar (la grabación)
+    if (HPLAY || REC && !done) { hrStop(); hrUI(); return; } var sp = hrSpan(); if (!sp) return;
     HM = sp[0]; LOCK = {}; render(); hrUI();
-    HPLAY = setInterval(function () { var sp2 = hrSpan() || sp; if (HM == null) { hrStop(); hrUI(); return; } HM += 5; if (HM >= sp2[1]) { HM = null; hrStop(); } render(); hrUI(); }, 450);
+    var go = function () { HPLAY = setInterval(function () { var sp2 = hrSpan() || sp; HM += 5; if (HM >= sp2[1]) { HM = null; clearInterval(HPLAY); HPLAY = null; render(); LOCK = null; hrUI(); if (done) setTimeout(done, 1800); return; } render(); hrUI(); }, 420); };
+    if (done) setTimeout(go, 1000); else go(); // grabando: el primer cuadro queda un segundo
+  }
+  function hrRec() { // graba la animación del gráfico y la descarga como video (MP4 si el navegador lo graba; si no, WebM)
+    if (REC) { hrStop(); return; } var cv = document.getElementById('vdChart');
+    if (!cv || !cv.captureStream || !window.MediaRecorder) { document.getElementById('vdHrT').innerHTML = 'Este navegador no graba video'; return; }
+    var mt = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'].filter(function (m) { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } })[0], parts = [];
+    var k = Math.min(1, 1920 / cv.width), oc = document.createElement('canvas'), ox = oc.getContext('2d'), live = true; oc.width = Math.round(cv.width * k / 2) * 2; oc.height = Math.round(cv.height * k / 2) * 2; // el video sale de un lienzo fijo (par y hasta 1920 de ancho): el del gráfico cambia de tamaño cada vez que se rearma y el codificador se rompe
+    var cp = function () { if (!live) return; var c = document.getElementById('vdChart'); if (c && c.width > 0) { ox.fillStyle = css('--card') || '#131314'; ox.fillRect(0, 0, oc.width, oc.height); ox.drawImage(c, 0, 0, oc.width, oc.height); } requestAnimationFrame(cp); };
+    try { REC = new MediaRecorder(oc.captureStream(30), mt ? { mimeType: mt, videoBitsPerSecond: 8e6 } : undefined); } catch (e) { REC = null; return; } cp();
+    REC.ondataavailable = function (e) { if (e.data && e.data.size) parts.push(e.data); };
+    REC.onstop = function () {
+      live = false; var ty = (REC && REC.mimeType) || mt || 'video/webm', b = new Blob(parts, { type: ty }), a = document.createElement('a'); REC = null;
+      a.href = URL.createObjectURL(b); a.download = 'Bonerio_curva_' + GN[ST.grp].replace(/\s+/g, '_') + '_' + bxDayStr(bxToday()) + '.' + (/mp4/.test(ty) ? 'mp4' : 'webm'); document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 4000); render(); hrUI();
+    };
+    REC.start(); render(); hrUI(); hrPlay(function () { if (REC && REC.state === 'recording') REC.stop(); });
   }
   function pick(ser, sym) { return hrAdj(pick0(ser, sym), sym); }
   function pick0(ser, sym) { // [t1, P1, t0, P0, fuente]
@@ -4725,6 +4744,7 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     root.innerHTML =
       '<style>' +
       '.vdw .vdhr{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:14px 0 4px}.vdw .vdhr button{font:inherit;font-size:13px;font-weight:600;padding:7px 14px;border-radius:99px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);cursor:pointer;white-space:nowrap}.vdw .vdhr input{flex:1 1 240px;min-width:0;accent-color:var(--ac)}.vdw .vdhr span{font-size:14px;min-width:52px;font-variant-numeric:tabular-nums}.vdw .vdhr small{flex-basis:100%;color:var(--mu);font-size:12px}' +
+      '.vdpl{position:absolute;top:6px;left:64px;display:flex;gap:6px;z-index:2}.vdpl button{font:inherit;font-size:12px;font-weight:600;padding:5px 11px;border-radius:99px;border:1px solid var(--bd);background:var(--card);color:var(--tx);cursor:pointer}.vdpl button:disabled,.vdw .vdhr button:disabled{opacity:.45;cursor:default}' +
       '.vdw .vdc{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}.vdw .vdc label{min-width:0}.vdw .vdc select{width:210px}' +
       '.vdw .vdc .lbl{display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--mu);position:relative}.vdw .emB{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:10px 30px 10px 14px;font:inherit;width:210px;max-width:100%;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}.vdw .emB:after{content:"▾";position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--mu)}' +
       '.vdw .emP{position:absolute;top:100%;left:0;z-index:60;margin-top:6px;width:290px;max-width:calc(100vw - 32px);background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px;box-shadow:0 14px 34px rgba(0,0,0,.35)}.vdw .emP input[type=search]{width:100%;padding:8px 10px;font-size:13px;box-sizing:border-box}.vdw .emL{max-height:300px;overflow:auto;margin-top:8px}' +
@@ -4750,9 +4770,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       '<label id="vdFxL" title="Separa la variación de cada bono en efecto tiempo (el punto se corre a la izquierda: devenga y le baja la duración, con la tasa quieta) y efecto tasa (el punto sube o baja: cambia la tasa)">Efectos<select id="vdFx"><option value="0">Juntos (precio total)</option><option value="1">Separar tiempo y tasa</option></select></label>' +
       '<label id="vdTopL" style="display:none" title="Con muchas ONs el gráfico se llena: se destacan las que más movieron la tasa y el resto va tenue, sin la marca de antes">Destacar<select id="vdTop"><option value="12">Las 12 que más se movieron</option><option value="25">Las 25 que más se movieron</option><option value="0">Todas por igual</option></select></label>' +
       '</div>' +
-      '<div class="vdhr" id="vdHr" style="display:none"><button type="button" id="vdHrP"></button><input type="range" id="vdHrR" step="5" aria-label="Hora de la rueda"><span id="vdHrT"></span><small>La curva y la tabla con el último precio de cada bono hasta esa hora (el intradiario que se guarda cada pocos minutos)</small></div>' +
+      '<div class="vdhr" id="vdHr" style="display:none"><button type="button" id="vdHrP"></button><button type="button" id="vdHrV"></button><input type="range" id="vdHrR" step="5" aria-label="Hora de la rueda"><span id="vdHrT"></span><small>La curva y la tabla con el último precio de cada bono hasta esa hora (el intradiario que se guarda cada pocos minutos)</small></div>' +
       '<div class="vdchips" id="vdChips" style="margin-bottom:16px"></div>' +
-      '<div id="vdCurveCard"><div class="vdleg" id="vdLeg"></div><div class="chart-wrap" style="height:560px;margin-top:0"><canvas id="vdChart"></canvas></div>' +
+      '<div id="vdCurveCard"><div class="vdleg" id="vdLeg"></div><div class="chart-wrap" style="height:560px;margin-top:0"><canvas id="vdChart"></canvas><div class="vdpl" id="vdPl" data-html2canvas-ignore="true" style="display:none"></div></div>' +
       '<details class="vddet" id="vdDet"><summary><span id="vdDetS">Desplazamiento de la curva y detalle por bono</span></summary><div class="vdshift" id="vdShift"></div><div class="wrap" id="vdTblCard" style="margin-top:14px"><table class="vdt" id="vdTable"></table></div></details>' +
       '<div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--bd)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;margin-bottom:6px"><div style="font-weight:600;color:var(--tx)" id="vdVolT" data-dlh>Volumen de la rueda</div><label id="vdVolML" style="display:none;flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--mu);margin:0">Comparar<select id="vdVolM" style="min-width:0;width:auto;max-width:100%"><option value="acum"></option><option value="hoy"></option></select></label><span class="seg" id="vdVolH" style="display:none"><button data-vh="hora">A la misma hora</button><button data-vh="tot">Rueda anterior completa</button></span></div><p class="note" id="vdVolS" style="margin:0 0 10px;color:var(--tx)"></p><div class="chart-wrap" style="height:320px;margin-top:0"><canvas id="vdVolCh"></canvas></div></div></div><div id="vdAccCard" hidden></div></div>';
     var g = document.getElementById('vdG');
@@ -4770,7 +4790,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     document.getElementById('vdFx').onchange = function () { ST.fx = this.value === '1'; try { localStorage.setItem('vdFx', ST.fx ? '1' : '0'); } catch (e) {} render(); };
     try { ST.fx = localStorage.getItem('vdFx') === '1'; } catch (e) {} document.getElementById('vdFx').value = ST.fx ? '1' : '0';
     document.getElementById('vdTop').onchange = function () { ST.top = this.value; render(); };
-    document.getElementById('vdHrP').onclick = hrPlay;
+    document.getElementById('vdHrP').onclick = function () { hrPlay(); }; document.getElementById('vdHrV').onclick = hrRec;
+    document.getElementById('vdPl').onclick = function (e) { var b = e.target.closest('[data-pl]'); if (!b) return; e.stopPropagation(); if (b.getAttribute('data-pl') === 'v') hrRec(); else hrPlay(); };
     document.getElementById('vdHrR').oninput = function () { hrStop(); var sp = hrSpan(), v = +this.value; HM = sp && v >= sp[1] ? null : v; hrUI(); later(); };
     var $e = function (id) { return document.getElementById(id); };
     $e('vdEmB').onclick = function (ev) { ev.stopPropagation(); var p = $e('vdEmP'); p.hidden = !p.hidden; if (!p.hidden) { $e('vdEmQ').value = ''; emUI(); $e('vdEmQ').focus(); } };
@@ -4888,12 +4909,19 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
           ctx.fillStyle = FXT; ctx.beginPath(); ctx.arc(el.x, a.y, 2.6, 0, 6.3); ctx.fill(); ctx.setLineDash([2, 3]); ctx.lineWidth = 1.3; ctx.strokeStyle = rgba(tx.charAt(0) === '#' ? tx : '#e4e4e7', 0.7); return; }
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(el.x, el.y); ctx.stroke(); }); ctx.restore(); } }, FXT = tx || '#e4e4e7'; // el tiempo en el color del texto: no se confunde con las curvas ni con verde y rojo
     var logTicks = function (a) { var set = [10, 20, 30, 60, 90, 180, 365, 540, 730, 1000, 1500, 2000, 3000, 5000, 7000, 10000]; a.ticks = set.filter(function (v) { return v >= a.min && v <= a.max; }).map(function (v) { return { value: v }; }); };
-    if (LOCK) { var yy = []; sets.forEach(function (d) { (d.data || []).forEach(function (p) { if (p && isFinite(p.y) && !p.dim) yy.push(p.y); }); }); if (yy.length) { var lo = Math.min.apply(null, yy), hi = Math.max.apply(null, yy), pd = (hi - lo || 1) * 0.08; lo -= pd; hi += pd; LOCK.y = LOCK.y ? [Math.min(LOCK.y[0], lo), Math.max(LOCK.y[1], hi)] : [lo, hi]; } } // la animación no salta: el eje Y solo se agranda
-    CH = new Chart(document.getElementById('vdChart').getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [X.LABELS, LINK], options: {
-      responsive: true, maintainAspectRatio: false, animation: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2), layout: { padding: { right: 28, top: 6 } }, interaction: { mode: 'nearest', intersect: true },
+    if (LOCK) { var yy = []; sets.forEach(function (d) { (d.data || []).forEach(function (p) { if (p && isFinite(p.y) && !p.dim) yy.push(p.y); }); }); if (yy.length) { var lo = Math.min.apply(null, yy), hi = Math.max.apply(null, yy), pd = (hi - lo || 1) * 0.08; lo -= pd; hi += pd; LOCK.y = LOCK.y ? [Math.min(LOCK.y[0], lo), Math.max(LOCK.y[1], hi)] : [lo, hi]; } var xm = 0; sets.forEach(function (d) { (d.data || []).forEach(function (p) { if (p && isFinite(p.x) && p.x > xm) xm = p.x; }); }); if (xm > 0) LOCK.x = Math.max(LOCK.x || 0, xm * 1.06); } // la animación no salta: el eje Y solo se agranda
+    var cvE = document.getElementById('vdChart'), inAmp = !!cvE.closest('#ampOv'), hrOn = !!document.getElementById('vdPl') && document.getElementById('vdPl').style.display !== 'none';
+    var HRP = { id: 'vdHrp', afterInit: function (ch) { if (inAmp) ch.$amp = 1; }, /* ampliado: el gráfico se rearma en cada cuadro y conserva la marca */ beforeDraw: function (ch) { if (!REC) return; var c = ch.ctx; c.save(); c.fillStyle = card || '#131314'; c.fillRect(0, 0, ch.width, ch.height); c.restore(); }, // grabando: con fondo (si no, el video queda negro)
+      afterDraw: function (ch) {
+        if (REC && !inAmp && window.addBrandMark) try { addBrandMark(ch.canvas, ch.currentDevicePixelRatio || 1, 6); } catch (e) {}
+        if (HM == null && !REC) return; var c = ch.ctx, A = ch.chartArea, m = HM != null ? HM : Math.min(hmNow(), 1020), big = HM == null && m >= 1020 ? 'Cierre' : hhmm(m);
+        c.save(); c.textBaseline = 'top'; c.fillStyle = tx; c.font = '700 30px Inter, system-ui, sans-serif'; c.fillText(big, A.left + 14, A.top + 10);
+        c.font = '500 13px Inter, system-ui, sans-serif'; c.fillStyle = css('--mu') || tx; c.fillText(GN[grp] + ' · ' + dfull(bxToday()) + ' contra el cierre anterior', A.left + 14, A.top + 46); c.restore(); } };
+    CH = new Chart(cvE.getContext('2d'), { type: 'scatter', data: { datasets: sets }, plugins: [X.LABELS, LINK, HRP], options: {
+      responsive: true, maintainAspectRatio: false, animation: false, devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2), layout: { padding: { right: 28, top: inAmp ? 40 : hrOn || REC ? 38 : 6 } }, interaction: { mode: 'nearest', intersect: true },
       plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.dataset.tip; }, callbacks: { label: function (c) { var r = c.raw; return [r.k + ': ' + fm(r.y, 2) + '% hoy · ' + fm(r.y0, 2) + '% ' + AY(), sg(r.dv * 100, 0) + ' pb · precio ' + sg(r.p, 2) + '%'].concat(ST.fx && r.eT != null ? ['Efecto tiempo ' + sg(r.eT, 2) + '% · efecto tasa ' + sg(r.eR, 2) + '%'] : []).concat(r.m != null ? ['Operado: $ ' + fm(r.m / 1e6, r.m >= 1e8 ? 0 : 1) + ' M'] : []); } } } },
       scales: { x: useLog ? { type: 'logarithmic', title: { display: true, text: xaxTitle(ax, true), color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 0); } }, afterBuildTicks: logTicks, grid: { color: bd } }
-        : { title: { display: true, text: xaxTitle(ax), color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, yrs ? 1 : 0); } }, grid: { color: bd }, min: 0, grace: '6%' },
+        : { title: { display: true, text: xaxTitle(ax), color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, yrs ? 1 : 0); } }, grid: { color: bd }, min: 0, grace: '6%', max: LOCK && LOCK.x && !useLog ? LOCK.x : undefined },
         y: { title: { display: true, text: yl, color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 1) + '%'; } }, grid: { color: bd }, grace: '6%', min: LOCK && LOCK.y ? LOCK.y[0] : undefined, max: LOCK && LOCK.y ? LOCK.y[1] : undefined } } } });
 
     var sh = function (c, ico) { return '<i style="width:' + (ico === 'ring' ? 10 : 12) + 'px;height:' + (ico === 'ring' ? 10 : 12) + 'px;border-radius:50%;background:' + (ico === 'ring' ? 'transparent' : c) + ';border:' + (ico === 'ring' ? '1.5px solid var(--mu)' : '0') + '"></i>'; };
