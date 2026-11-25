@@ -4894,12 +4894,14 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     for (var t in D) { var a = D[t], c = 0, v = 0, i; for (i = 0; i < a.length; i++) { if (a[i].length > 2 && a[i][0] < f) f = a[i][0]; if (a[i][0] <= M) { c = a[i][1]; if (a[i].length > 2) v = a[i][2]; } } if (c > 0) out[t] = { e: v * c / 100, c: c }; }
     return f <= 640 ? out : null; // solo si el volumen se guardó desde el arranque de esa rueda
   }
+  var VUS = null, VCU = '$ ', VTX = function () { return VUS ? 'Monto en dólares de la especie ' + (VUS === 'C' ? 'Cable (C)' : 'MEP (D)') + '; cambia con MEP / CCL.' : 'Monto en pesos; las especies en dólares, al MEP o al CCL de AL30.'; };
   function montoOf(k, V) { // en pesos, sumando las especies del bono; las de dólares al MEP o CCL de AL30 (o GD30) de esa rueda
+    var vu = ST.grp === 'usd' ? (typeof especie !== 'undefined' && especie === 'C' ? 'C' : 'D') : null; if (vu) { var u = V[k + vu]; return u && u.e > 0 ? u.e : 0; }
     var fx = function (s) { var a = V.AL30, b = V['AL30' + s]; if (!(a && b && a.c > 0 && b.c > 0)) { a = V.GD30; b = V['GD30' + s]; } return a && b && a.c > 0 && b.c > 0 ? a.c / b.c : null; };
     var m = 0; [['', 1], ['D', fx('D')], ['C', fx('C')]].forEach(function (p) { var o = V[k + p[0]]; if (o && o.e > 0 && p[1]) m += o.e * p[1]; }); return m;
   }
   function volView(rows, t0, t1) {
-    vjLoad();
+    vjLoad(); VUS = ST.grp === 'usd' ? (typeof especie !== 'undefined' && especie === 'C' ? 'C' : 'D') : null; VCU = VUS ? 'US$ ' : '$ '; // hard dollar: el volumen de la especie elegida arriba (MEP o CCL), en dólares
     var hs = document.getElementById('vdVolH'); hs.style.display = 'none'; if (!hs.onclick) hs.onclick = function (e) { var b = e.target.closest('button[data-vh]'); if (b) { ST.vh = b.getAttribute('data-vh'); render(); } }; // con la rueda abierta: a la misma hora o contra toda la rueda anterior
     var el = document.getElementById('vdVolS'), tx = css('--tx'), bd = css('--bd'), mu = css('--mu'), ac = css('--ac'); if (CV) { CV.destroy(); CV = null; }
     if (!VJ) { el.textContent = vjAsk ? 'Cargando el volumen…' : 'No se pudo leer la serie de volumen.'; return; }
@@ -4913,9 +4915,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
       var liveN = false; if ((!D.length || D[D.length - 1] < ds1) && t1 >= bxToday()) { var LV0 = volLive(); if (Object.keys(LV0).length) { D.push(ds1); Vs.push(LV0); liveN = true; } }
       var L = D.length - 1, nA = hoyM ? 1 : N; if (L < nA + N - 1) { el.textContent = 'No hay volumen guardado de ' + (nA + N) + ' ruedas para comparar.'; return; }
       var avg = function (a, b) { var W = Vs.slice(a, b + 1); return rows.map(function (r) { return W.reduce(function (z, V) { return z + (V ? montoOf(r.k, V) : 0); }, 0) / W.length; }); };
-      var An = avg(L - nA + 1, L), Bn = avg(L - nA - N + 1, L - nA), san = An.reduce(function (z, x) { return z + x; }, 0), sbn = Bn.reduce(function (z, x) { return z + x; }, 0), Mn = function (v) { return '$ ' + fm(v / 1e6, 0) + ' M'; };
+      var An = avg(L - nA + 1, L), Bn = avg(L - nA - N + 1, L - nA), san = An.reduce(function (z, x) { return z + x; }, 0), sbn = Bn.reduce(function (z, x) { return z + x; }, 0), Mn = function (v) { return VCU + fm(v / 1e6, 0) + ' M'; };
       var f = function (d) { return dfull(bxDayNum(D[d])); }, openN = liveN && typeof mktOpen === 'function' && mktOpen(), pct = sbn > 0 ? ' (<b style="color:' + (san >= sbn ? 'var(--ok)' : 'var(--bad)') + '">' + sg((san / sbn - 1) * 100, 0) + '%</b>)' : '';
-      var tail = ', en los bonos del gráfico. ' + (liveN ? (openN ? 'La rueda de hoy va por la mitad: cuenta lo operado hasta ahora. ' : 'Hoy, con lo operado en la rueda. ') : '') + 'Monto en pesos; las especies en dólares, al MEP o al CCL de AL30.';
+      var tail = ', en los bonos del gráfico. ' + (liveN ? (openN ? 'La rueda de hoy va por la mitad: cuenta lo operado hasta ahora. ' : 'Hoy, con lo operado en la rueda. ') : '') + '' + VTX() + '';
       var lA = hoyM ? (liveN ? (openN ? 'Hoy (hasta ahora)' : 'Hoy') : 'Rueda del ' + dstr(bxDayNum(D[L]))) : 'Últimas ' + N + ' ruedas (promedio)', lB = N + ' ruedas anteriores (promedio)';
       document.getElementById('vdVolT').textContent = hoyM ? 'Volumen: ' + (liveN ? 'hoy' : 'la última rueda') + ' contra el promedio de las ' + N + ' anteriores' : 'Volumen: últimas ' + N + ' ruedas contra las ' + N + ' anteriores';
       el.innerHTML = (hoyM ? (liveN ? 'Monto de hoy' : 'Monto de la rueda del ' + f(L)) + ' contra el promedio por rueda de las ' + N + ' anteriores (' + f(L - N) + ' al ' + f(L - 1) + ')'
@@ -4931,12 +4933,12 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var open = live && typeof mktOpen === 'function' && mktOpen(), dur = function (m) { return Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) + ' min' : ''); };
     var vh = ST.vh || 'hora', noH = '', VW = open ? volAt(d0, 630 + el0) : null; // sin volumen por hora de la rueda anterior, no hay botones: solo se puede contra la rueda completa
     if (VW) { hs.style.display = 'inline-flex'; [].forEach.call(hs.children, function (b) { b.classList.toggle('on', b.getAttribute('data-vh') === vh); }); } else if (open) noH = ' No hay volumen por hora de toda la rueda del ' + dstr(t0) + ', así que compara contra la rueda completa.';
-    if (VW && vh === 'hora') { { var Bw = rows.map(function (r) { return montoOf(r.k, VW); }), sw = Bw.reduce(function (s, x) { return s + x; }, 0), Mw = function (v) { return '$ ' + fm(v / 1e6, 0) + ' M'; }; // misma ventana: hoy hasta ahora contra la rueda anterior hasta la misma hora
-      el.innerHTML = 'Hoy, hasta las ' + hm + ', contra la rueda del ' + dfull(t0) + ' hasta la misma hora: <b>' + Mw(sa) + '</b> contra ' + Mw(sw) + (sw > 0 ? ' (<b style="color:' + (sa >= sw ? 'var(--ok)' : 'var(--bad)') + '">' + sg((sa / sw - 1) * 100, 0) + '%</b>)' : '') + ', en los bonos del gráfico. Monto en pesos; las especies en dólares, al MEP o al CCL de AL30.';
+    if (VW && vh === 'hora') { { var Bw = rows.map(function (r) { return montoOf(r.k, VW); }), sw = Bw.reduce(function (s, x) { return s + x; }, 0), Mw = function (v) { return VCU + fm(v / 1e6, 0) + ' M'; }; // misma ventana: hoy hasta ahora contra la rueda anterior hasta la misma hora
+      el.innerHTML = 'Hoy, hasta las ' + hm + ', contra la rueda del ' + dfull(t0) + ' hasta la misma hora: <b>' + Mw(sa) + '</b> contra ' + Mw(sw) + (sw > 0 ? ' (<b style="color:' + (sa >= sw ? 'var(--ok)' : 'var(--bad)') + '">' + sg((sa / sw - 1) * 100, 0) + '%</b>)' : '') + ', en los bonos del gráfico. ' + VTX() + '';
       return volChart(rows, A, Bw, 'Hoy hasta las ' + hm, 'Rueda del ' + dstr(t0) + ' hasta las ' + hm, function (i) { return Bw[i] > 0 ? sg((A[i] / Bw[i] - 1) * 100, 0) + '% contra la rueda anterior a la misma hora' : ''; }); } }
-    var lab1 = live ? (open ? 'Hoy hasta las ' + hm : 'Hoy') : 'Rueda del ' + dstr(t1), lab0 = 'Rueda del ' + dstr(t0), M = function (v) { return '$ ' + fm(v / 1e6, 0) + ' M'; };
+    var lab1 = live ? (open ? 'Hoy hasta las ' + hm : 'Hoy') : 'Rueda del ' + dstr(t1), lab0 = 'Rueda del ' + dstr(t0), M = function (v) { return VCU + fm(v / 1e6, 0) + ' M'; };
     el.innerHTML = (live ? (open ? 'Hoy, hasta las ' + hm + ' (van ' + dur(el0) + ' de las 6 h 30 min de rueda), contra toda la rueda del ' : 'Hoy, con la rueda cerrada, contra la del ') : 'Rueda del ' + dfull(t1) + ' contra la del ') + dfull(t0) + ': ' +
-      '<b>' + M(sa) + '</b> contra ' + M(sb) + (sb > 0 ? ' (<b style="color:' + (sa >= sb ? 'var(--ok)' : 'var(--bad)') + '">' + (open ? fm(sa / sb * 100, 0) + '% de lo de la rueda del ' + dstr(t0) : sg((sa / sb - 1) * 100, 0) + '%') + '</b>)' : '') + ', en los bonos del gráfico. Monto en pesos; las especies en dólares, al MEP o al CCL de AL30.' + noH;
+      '<b>' + M(sa) + '</b> contra ' + M(sb) + (sb > 0 ? ' (<b style="color:' + (sa >= sb ? 'var(--ok)' : 'var(--bad)') + '">' + (open ? fm(sa / sb * 100, 0) + '% de lo de la rueda del ' + dstr(t0) : sg((sa / sb - 1) * 100, 0) + '%') + '</b>)' : '') + ', en los bonos del gráfico. ' + VTX() + '' + noH;
     volChart(rows, A, Bv, lab1, lab0, function (i) { return Bv[i] > 0 ? (open ? fm(A[i] / Bv[i] * 100, 0) + '% de lo de la rueda anterior' : sg((A[i] / Bv[i] - 1) * 100, 0) + '% contra la rueda anterior') : ''; });
   }
   function volChart(rows, A, Bv, lab1, lab0, foot) {
@@ -4950,8 +4952,8 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
         { label: lab1, data: A.map(function (v) { return v / 1e6; }), backgroundColor: rgba(ac, 0.85), borderColor: ac, borderWidth: 1, borderRadius: 3 },
         { label: lab0, data: Bv.map(function (v) { return v / 1e6; }), backgroundColor: rgba(mu, 0.45), borderColor: rgba(mu, 0.8), borderWidth: 1, borderRadius: 3 }] },
       options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': $ ' + fm(c.parsed.y, 0) + ' M'; }, footer: function (c) { return foot(c[0].dataIndex); } } } },
-        scales: { x: { ticks: { color: tx, maxRotation: 60, autoSkip: false, font: { size: 11 } }, grid: { display: false } }, y: { title: { display: true, text: 'Millones de pesos', color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 0); } }, grid: { color: bd }, beginAtZero: true } } } });
+        plugins: { legend: { labels: { color: tx, boxWidth: 12 } }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + VCU + fm(c.parsed.y, 0) + ' M'; }, footer: function (c) { return foot(c[0].dataIndex); } } } },
+        scales: { x: { ticks: { color: tx, maxRotation: 60, autoSkip: false, font: { size: 11 } }, grid: { display: false } }, y: { title: { display: true, text: (VUS ? 'Millones de US$' : 'Millones de pesos'), color: tx }, ticks: { color: tx, callback: function (v) { return fm(v, 0); } }, grid: { color: bd }, beginAtZero: true } } } });
   }
 
   /* ---------- render ---------- */
