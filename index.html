@@ -6775,6 +6775,8 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
           x++;
         }
       } else { mb = Math.ceil(tk[0][0] / 5) * 5 - 5; xb = x; }
+      if (tk.length) { var bk = {}, bo = []; tk.forEach(function (q) { var m5 = Math.ceil(q[0] / 5) * 5; if (!(m5 in bk)) bo.push(m5); bk[m5] = q; }); /* los ticks, a la misma grilla de 5 minutos que el resto (el último de cada tramo); hoy, el último tramo a la hora del último dato */
+        tk = bo.map(function (m5, j) { var q = bk[m5]; return [hoy && j === bo.length - 1 ? q[0] : m5, q[1]]; }); }
       tk.forEach(function (q) { var xq = xb + (q[0] - mb) / 5; if (out.length && xq <= out[out.length - 1].x) return; if (out.length && out[out.length - 1].y != null && xq - out[out.length - 1].x > 3 && out[out.length - 1].lab.indexOf(dl) === 0) out.push({ x: (xq + out[out.length - 1].x) / 2, y: null, lab: '' }); /* un hueco de más de 15 minutos sin datos: sin recta */ out.push({ x: xq, y: q[1], lab: dl + hm(Math.floor(q[0])) + ':' + ('0' + Math.floor((q[0] % 1) * 60)).slice(-2) }); x = Math.max(x, Math.ceil(xq) + 1); });
       x += 6; // un hueco entre ruedas
     });
