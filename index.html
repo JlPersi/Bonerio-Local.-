@@ -8003,6 +8003,79 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   })();
 })();
 /*@@TCOR_END@@*/
+/* ---------- Devaluación implícita: paridad de tasas reales, CER contra Bonares ----------
+   A igual duración, la TIR real del CER contra la TIR en dólares de los Bonares (ley local, mismo emisor): (1 + CER real) / (1 + Bonar) − 1 es la variación
+   real del oficial que deja indiferente entre los dos. Con la inflación esperada (breakeven Lecap/CER) sale el dólar de equilibrio. */
+(function () {
+  var CH = null, $ = function (i) { return document.getElementById(i); };
+  var nf = function (v, d) { return v == null || !isFinite(v) ? '—' : v.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  var pc = function (v, d) { return v == null || !isFinite(v) ? '—' : nf(v, d == null ? 2 : d) + '%'; }, sg = function (v, d) { return v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : '') + nf(v, d == null ? 1 : d); };
+  var css = function (n) { try { return getComputedStyle(document.body).getPropertyValue(n).trim(); } catch (e) { return ''; } };
+  var C_B = '#5cc8ff', C_C = '#2fd4a7';
+  function mount() {
+    var host = $('expd'); if (!host || $('prtW')) return !!host;
+    var d = document.createElement('div'); d.className = 'card sx'; d.id = 'prtW'; d.style.marginTop = '24px';
+    d.innerHTML = '<div class="sxh" style="flex-wrap:nowrap;align-items:center;margin-bottom:6px"><div style="min-width:0"><p class="qh" style="margin:0">Paridad de tasas reales: CER contra Bonares</p></div><div class="sxb"><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD(\'prtW\', \'Paridad_tasas_reales\')" title="Descargar en HD"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>' +
+      '<p class="qs" style="margin:0 0 14px">Si el CER rinde menos en términos reales que el Bonar en dólares, el mercado espera que el oficial suba menos que la inflación: esa diferencia, a igual duración, es la apreciación real que deja indiferente entre los dos.</p>' +
+      '<div id="prtL" style="border-left:3px solid var(--ac);background:rgba(161,161,170,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:15px;line-height:1.55;color:var(--tx);margin-bottom:12px"></div>' +
+      '<div id="prtK" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:16px"></div>' +
+      '<div style="border:1px solid var(--bd);border-radius:12px;padding:14px 14px 10px;background:var(--bg)"><p style="margin:0 0 2px;font-weight:600;color:var(--tx);font-size:14px">TIR real del CER y TIR en dólares de los Bonares, por duración</p><p style="margin:0 0 8px;color:var(--mu);font-size:12px">La distancia entre las dos curvas es la apreciación real del oficial que el mercado descuenta en cada plazo.</p><div class="chart-wrap" style="height:340px"><canvas id="prtC"></canvas></div></div>' +
+      '<div id="prtT" style="overflow-x:auto;margin-top:14px"></div><div id="prtN" class="qs" style="margin-top:12px;line-height:1.6"></div>';
+    host.appendChild(d); return true;
+  }
+  function draw() {
+    if (!mount() || typeof Chart === 'undefined' || !window.ROTX || !window.PSX || !window.PSX.fairFit) return false;
+    var U = window.ROTX.uni('usd').filter(function (o) { return o.grp === 'Local' && o.mdur > 0.3 && o.nat != null && isFinite(o.nat) && o.nat > 0 && o.nat < 60; }),
+      C = window.ROTX.uni('cer').filter(function (o) { return o.mdur > 0.3 && o.nat != null && isFinite(o.nat) && Math.abs(o.nat) < 40; }),
+      F = window.ROTX.uni('fija').filter(function (o) { return o.d >= 21 && o.nat != null && isFinite(o.nat); });
+    if (U.length < 3 || C.length < 3) return false;
+    var fit = function (L, x, y) { try { return window.PSX.fairFit(L.map(function (o) { return { x: x(o), y: y(o), k: o.k }; }), 'auto'); } catch (e) { return null; } };
+    var md = function (o) { return o.mdur * 365; };
+    var qU = fit(U, md, function (o) { return o.nat; }), qC = fit(C, md, function (o) { return o.nat; }); if (!qU || !qC) return false;
+    var cx0 = Math.min.apply(null, C.map(function (o) { return o.mdur; })), cx1 = Math.max.apply(null, C.map(function (o) { return o.mdur; }));
+    var cerAt = function (m) { return m >= cx0 - 0.1 && m <= cx1 + 0.3 ? qC.f(Math.min(cx1, Math.max(cx0, m)) * 365) : null; };
+    var apr = function (cer, usd) { return cer == null || usd == null ? null : ((1 + cer / 100) / (1 + usd / 100) - 1) * 100; };
+    // inflación esperada a 12 meses: Lecap contra CER a 365 días (los dos ajustados por días)
+    var qF = fit(F, function (o) { return o.d; }, function (o) { return o.nat; }), CD = window.ROTX.uni('cer').filter(function (o) { return o.d >= 60 && o.nat != null && isFinite(o.nat); }), qCd = fit(CD, function (o) { return o.d; }, function (o) { return o.nat; });
+    var inf12 = qF && qCd ? ((1 + qF.f(365) / 100) / (1 + qCd.f(365) / 100) - 1) * 100 : null;
+    var sn = null; try { sn = window.PSX && window.PSX.snap ? window.PSX.snap(1) : null; } catch (e) { sn = null; }
+    var fx = null; ((sn && sn.S) || []).some(function (o) { if (o.fx0 > 0) { fx = o.fx0; return true; } return false; });
+    var b1 = qU.f(365), c1 = cerAt(1), a1 = apr(c1, b1), eq = fx && inf12 != null && a1 != null ? fx * (1 + inf12 / 100) * (1 + a1 / 100) : null;
+    var rows = U.slice().sort(function (a, b) { return a.mdur - b.mdur; }).map(function (o) { var c = cerAt(o.mdur); return { o: o, c: c, sp: c == null ? null : o.nat - c, a: apr(c, o.nat) }; });
+    var inR = rows.filter(function (r) { return r.a != null; });
+    $('prtL').innerHTML = a1 == null ? 'Sin CER a un año para comparar.' : 'A un año, el Bonar rinde <b>' + pc(b1, 1) + '</b> en dólares y el CER <b>' + pc(c1, 1) + '</b> real: para que den lo mismo, el oficial tiene que ' + (a1 < 0 ? '<b>apreciarse ' + pc(-a1, 1) + ' real</b>' : '<b>depreciarse ' + pc(a1, 1) + ' real</b>') + ' en el año.' + (eq ? ' Con la inflación esperada de ' + pc(inf12, 1) + ', el <b>dólar de equilibrio a 12 meses es $ ' + nf(eq, 0) + '</b> (hoy $ ' + nf(fx, 0) + '): si el oficial termina abajo, ganó el CER; arriba, el Bonar.' : '');
+    var kp = function (t, v, s, c) { return '<div style="border:1px solid var(--bd);border-radius:10px;padding:9px 12px;min-width:0"><small style="display:block;color:var(--mu);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">' + t + '</small><b style="display:block;font-size:19px;font-variant-numeric:tabular-nums;margin-top:2px' + (c ? ';color:' + c : '') + '">' + v + '</b><span style="display:block;color:var(--mu);font-size:11.5px">' + s + '</span></div>'; };
+    $('prtK').innerHTML = kp('Bonar a 1 año', pc(b1, 2), 'TIR en dólares · curva de Bonares') + kp('CER a 1 año', pc(c1, 2), 'TIR real · curva CER') + kp('Variación real implícita', a1 == null ? '—' : sg(a1, 1) + '%', 'del oficial en 12 meses · (1 + CER) ÷ (1 + Bonar) − 1', a1 == null ? '' : a1 < 0 ? '#ff6b8b' : '#34d399') +
+      kp('Dólar de equilibrio 12 m', eq ? '$ ' + nf(eq, 0) : '—', eq ? 'oficial hoy $ ' + nf(fx, 0) + ' · inflación esperada ' + pc(inf12, 1) + ' (' + sg((eq / fx - 1) * 100, 1) + '% nominal)' : 'sin inflación esperada');
+    // gráfico
+    var smooth = function (q, a, b) { var r = []; for (var i = 0; i <= 60; i++) { var x = a + (b - a) * i / 60; r.push({ x: x, y: q.f(x * 365) }); } return r; };
+    var ux0 = Math.min.apply(null, U.map(function (o) { return o.mdur; })), ux1 = Math.max.apply(null, U.map(function (o) { return o.mdur; }));
+    var tx = css('--tx') || '#ddd', bd = css('--bd') || 'rgba(128,128,128,.2)', mu = css('--mu') || '#a1a1aa';
+    var lbl = { id: 'prtLbl', afterDatasetsDraw: function (ch) { var c = ch.ctx; c.save(); c.font = '600 11px Inter,system-ui,sans-serif'; c.textAlign = 'left'; ch.data.datasets.forEach(function (d, i) { if (!d.lbl) return; ch.getDatasetMeta(i).data.forEach(function (p, k) { var r = d.data[k]; if (r && r.k) { c.fillStyle = d.borderColor; c.fillText(r.k, p.x + 7, p.y - 6); } }); }); c.restore(); } };
+    var ds = [
+      { type: 'line', label: 'Curva Bonares (TIR en USD)', data: smooth(qU, ux0, ux1), borderColor: C_B, borderWidth: 2, pointRadius: 0, fill: false, tension: 0 },
+      { type: 'line', label: 'Curva CER (TIR real)', data: smooth(qC, cx0, cx1), borderColor: C_C, borderWidth: 2, pointRadius: 0, fill: false, tension: 0 },
+      { type: 'scatter', label: 'Bonares', lbl: 1, data: U.map(function (o) { return { x: o.mdur, y: o.nat, k: o.k }; }), borderColor: C_B, backgroundColor: C_B, pointRadius: 5, pointStyle: 'rectRot' },
+      { type: 'scatter', label: 'CER', lbl: 1, data: C.map(function (o) { return { x: o.mdur, y: o.nat, k: o.k }; }), borderColor: C_C, backgroundColor: C_C, pointRadius: 4 }];
+    if (CH) CH.destroy();
+    CH = new Chart($('prtC').getContext('2d'), { data: { datasets: ds }, plugins: [lbl], options: { responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { labels: { color: tx, usePointStyle: true, boxWidth: 10, filter: function (it) { return it.datasetIndex < 2; } } }, tooltip: { callbacks: { label: function (c) { var r = c.raw; return (r.k ? r.k + ': ' : c.dataset.label + ': ') + nf(r.y, 2) + '% · MD ' + nf(r.x, 2); } } } },
+      scales: { x: { type: 'linear', min: 0, title: { display: true, text: 'Duración modificada (años)', color: tx }, ticks: { color: tx }, grid: { color: bd } }, y: { title: { display: true, text: 'TIR (%)', color: tx }, ticks: { color: tx, callback: function (v) { return nf(v, 0) + '%'; } }, grid: { color: bd } } } } });
+    // tabla
+    var th = 'style="padding:6px 9px;text-align:right;color:var(--mu);font-size:12px;border-bottom:1px solid var(--bd);white-space:nowrap"', td = 'style="padding:6px 9px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums"';
+    $('prtT').innerHTML = '<table style="border-collapse:collapse;width:100%;font-size:13.5px"><thead><tr><th ' + th.replace('right', 'left') + '>Bonar</th><th ' + th + '>MD</th><th ' + th + '>TIR en USD</th><th ' + th + '>CER real (curva, misma MD)</th><th ' + th + '>Diferencial (pp)</th><th ' + th + '>Variación real implícita del oficial (anual)</th></tr></thead><tbody>' +
+      rows.map(function (r) { var c = r.a == null ? '' : r.a < 0 ? '#ff6b8b' : '#34d399'; return '<tr style="border-top:1px solid var(--bd)"><td ' + td.replace('right', 'left') + '><b>' + r.o.k + '</b></td><td ' + td + '>' + nf(r.o.mdur, 2) + '</td><td ' + td + '>' + pc(r.o.nat, 2) + '</td><td ' + td + '>' + (r.c == null ? '<span style="color:var(--mu)">fuera de la curva CER</span>' : pc(r.c, 2)) + '</td><td ' + td + '>' + (r.sp == null ? '—' : nf(r.sp, 2)) + '</td><td ' + td + '><b style="color:' + c + '">' + (r.a == null ? '—' : sg(r.a, 1) + '%') + '</b></td></tr>'; }).join('') + '</tbody></table>';
+    $('prtN').innerHTML = '<p style="margin:0 0 6px"><b style="color:var(--tx)">Cómo se lee</b></p><ul style="margin:0;padding-left:20px">' +
+      '<li><b style="color:var(--tx)">La cuenta</b>: con US$ 100 comprás un Bonar o los pasás a pesos y comprás un CER. Para terminar con los mismos dólares, el oficial tiene que moverse (1 + CER real) ÷ (1 + TIR del Bonar) − 1 por encima de la inflación. Negativo: el oficial tiene que subir <i>menos</i> que los precios (apreciación real).</li>' +
+      '<li><b style="color:var(--tx)">Dólar de equilibrio</b> = oficial de hoy × (1 + inflación esperada) × (1 + variación real implícita). La inflación esperada es el breakeven a 12 meses entre la curva de Lecaps y la de CER.</li>' +
+      '<li><b style="color:var(--tx)">El matiz</b>: el Bonar tiene riesgo de pago en dólares (una reestructuración) que el CER casi no tiene, porque el Tesoro siempre puede pagar pesos. Parte del diferencial es esa prima de crédito: la apreciación que se espera de verdad es algo menor. Para la devaluación sin riesgo de crédito de por medio, mirá arriba Lecap contra dollar linked.</li>' +
+      '<li><b style="color:var(--tx)">Qué entra</b>: Bonares de ley local con más de 0,3 años de duración y CER con más de 0,3 años; las curvas son las ajustadas de cada familia y la comparación es a la misma duración modificada.</li></ul>';
+    return true;
+  }
+  var tries = 0, go = function () { if (!$('expd') || !$('expd').classList.contains('active')) return; if (!draw() && tries++ < 25) setTimeout(go, 1200); };
+  var _sw = window.switchTab; window.switchTab = function (id) { var r = _sw.apply(this, arguments); if (id === 'expd') { tries = 0; setTimeout(go, 300); } return r; };
+  window.PRT = { draw: draw };
+})();
 /*@@CARRY_START@@*/
 /* =====================================================================
    PESTAÑA CARRY TRADE: cuánto rinde en dólares una Lecap o Boncap según dónde termine el dólar
