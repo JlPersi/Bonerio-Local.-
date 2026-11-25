@@ -153,12 +153,13 @@ def caucion():
     return out
 
 
-def oficial():
+def oficial(fecha=False):
+    """El spot de hoy (A3 o mayorista, de la corrida de la rueda); si no, el último A3500. Con fecha=True, la fecha de ese dato."""
     v = (_j("tasas.json").get("vivo") or {})
     if v.get("spot") and str(v.get("ts", ""))[:10] == dt.date.today().isoformat():
-        return float(v["spot"])
+        return str(v["ts"])[:10] if fecha else float(v["spot"])
     a = _j("dolar.json").get("A3500") or {}
-    return a[max(a)] if a else None
+    return (max(a) if fecha else a[max(a)]) if a else None
 
 
 def foto(P, B, path=os.path.join(D, "alertas_vivo.json")):
@@ -175,7 +176,7 @@ def foto(P, B, path=os.path.join(D, "alertas_vivo.json")):
     F = futuros()
     o = {"ts": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), "bon": bon,
          "fut": {k: [round(x["p"], 2), x["vto"], round(x["tna"], 2) if x["tna"] is not None else None] for k, x in F.items()},
-         "cau": {str(k): v for k, v in sorted(caucion().items())}, "ofi": oficial(),
+         "cau": {str(k): v for k, v in sorted(caucion().items())}, "ofi": oficial(), "ofiD": oficial(True),
          "al": {t: d for t, (k, d) in B.alias.items() if t != d and d in bon and t[:-1] + "D" != d and t + "D" != d}}  # BA37D -> BA7DD
     with open(path + ".tmp", "w") as f:
         json.dump(o, f, separators=(",", ":"))
