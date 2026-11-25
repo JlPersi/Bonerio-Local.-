@@ -375,7 +375,7 @@ function famFit(pts){const deg=pts.length>=7?2:1,cf=polyfit(pts.map(p=>[p.m,p.y]
 
 /* ---------- próxima licitación: cada instrumento del llamado sobre la curva de mercado de hoy (la misma de la pestaña Pesos) ---------- */
 let MKT=null;
-function mktNow(){if(MKT)return MKT;try{const X=parent!==window&&parent.PSX;if(!X)return null;const q=X.snap(1);MKT={X,S:q.S.filter(o=>!o.miss)};return MKT}catch(e){console.error(e);return null}}
+function mktNow(){if(MKT)return MKT;try{const X=parent!==window&&parent.PSX;if(!X)return null;const q=X.snap(1);MKT={X,s:q.s,S:q.S.filter(o=>!o.miss)};return MKT}catch(e){console.error(e);return null}}
 const REFX={fija:"c1",cer:"c2",tamar:"c3",dl:"c4",dual:"c5"};
 function views(){try{return parent!==window&&parent.PSX&&parent.PSX.views?parent.PSX.views():null}catch(e){console.error(e);return null}}
 // el mismo gráfico de Curva Pesos (métrica, curva, eje y plazo elegidos allá), con el instrumento del llamado resaltado
@@ -435,6 +435,39 @@ function proxSVG(x,V,M,W,cut){
   P.forEach(p=>{if(p.k===x.t)return;const cx=X(p.x),cy=Y(p.y)-9,hw=p.k.length*2.9;if(box&&cx+hw>box.x1&&cx-hw<box.x2&&cy>box.y1&&cy-9<box.y2)return;s+=`<text x="${cx}" y="${cy}" text-anchor="middle" style="font-size:9.5px;fill:var(--mu)">${p.k}</text>`});
   return s+"</svg>";
 }
+/* ---------- estimación del corte: el rendimiento de hoy (el mismo bono si ya cotiza; si es nuevo, la curva de su familia a ese plazo)
+   más el premio que convalidó el Tesoro en las últimas licitaciones de esa familia (mediana y rango intercuartil, en la misma medida que Resultados) ---------- */
+const EMET={fija:o=>o.tnas*100,cer:o=>o.realTna30*100,tamar:o=>o.dm,dual:o=>o.dm,dl:o=>o.usdTna30*100};
+const EUN={fija:"TNA",cer:"TNA real",tamar:"margen s/ TAMAR",dual:"margen s/ TAMAR",dl:"TNA en USD"};
+function eFit(pts,D){ // regresión lineal local en ln(plazo), con más peso a los bonos de plazo parecido
+  if(pts.length<3)return null;const ds=pts.map(p=>p[0]);D=Math.min(Math.max(D,Math.min(...ds)),Math.max(...ds));
+  let sw=0,sx=0,sy=0,sxx=0,sxy=0;pts.forEach(p=>{const x=Math.log(p[0]/D),w=Math.exp(-x*x/.245);sw+=w;sx+=w*x;sy+=w*p[1];sxx+=w*x*x;sxy+=w*x*p[1]});
+  if(!(sw>1e-6))return null;const mx=sx/sw,my=sy/sw,vx=sxx/sw-mx*mx;return vx>1e-9?my-(sxy/sw-mx*my)/vx*mx:my;
+}
+function premStats(g,reap){ // las últimas 8 colocaciones de la familia: contra el mismo bono si es reapertura, contra la curva si es nuevo
+  const cc=[];LD.AUC.filter(a=>dias(a.c)<0).slice().sort((a,b)=>a.c<b.c?1:-1).forEach(a=>a.cuts.forEach(z=>{if(z.g!==g||cc.length>=8)return;const v=reap&&z.po!=null?z.po:z.pc!=null?z.pc:z.po;if(v!=null&&isFinite(v))cc.push(v)}));
+  if(cc.length<2)return null;const s=cc.slice().sort((a,b)=>a-b),q=f=>{const i=(s.length-1)*f,lo=Math.floor(i);return s[lo]+(s[Math.ceil(i)]-s[lo])*(i-lo)};
+  return {m:q(.5),lo:q(.25),hi:q(.75),n:s.length};
+}
+function ePx(o,g,y0,y1,dq){ // precio a la liquidación de la licitación: se lleva el de hoy con su tasa y se descuenta la diferencia de rendimiento
+  const c=Math.pow(1+o.tea,Math.max(0,dq)/365),dl=Math.max(1,o.d-dq);
+  if(g==="tamar"||g==="dual")return o.md>0?o.P*c*(1-o.md*(y1-y0)/100):null;
+  const e=v=>g==="fija"?Math.pow(1+v/100*o.d/365,365/o.d)-1:Math.pow(1+v/100*30/365,365/30)-1;
+  return o.P*c*Math.pow((1+e(y0))/(1+e(y1)),dl/365);
+}
+function estTab(ll,M,c){
+  const liq=CAL.find(k=>k[1]===c)[2],dn=v=>{const d=parseVe(v);return Math.round(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/864e5)},[ly,lm,ld]=liq.split("-").map(Number),dq=M.s!=null?Math.round(Date.UTC(ly,lm-1,ld)/864e5)-M.s:0;
+  const sg=v=>(v>0?"+":"")+nf(v,0),fp=v=>v==null||!isFinite(v)?"—":nf(v,v>=1e4?0:2),rows=[];
+  ll.forEach(x=>{const met=EMET[x.f];if(!met)return;const o=M.S.find(q=>q.k===x.t),reap=!!o,y=o?met(o):null;
+    let y0=y!=null&&isFinite(y)?y:null,src="el mismo bono hoy";
+    if(y0==null){const D=M.s!=null?dn(x.ve)-M.s:null,pts=M.S.filter(q=>q.fam===x.f&&q.d>=20&&q.k!==x.t).map(q=>[q.d,met(q)]).filter(p=>p[1]!=null&&isFinite(p[1]));y0=D>0?eFit(pts,D):null;src=reap?"curva al plazo":"curva de "+(x.f==="fija"?"Lecaps y Boncaps":x.f==="dl"?"dólar linked":x.f==="cer"?"CER":x.f==="tamar"?"TAMAR":"duales")+" a "+nf(D)+" días"}
+    const P=premStats(x.f,reap);
+    if(y0==null){rows.push(`<tr><td class="tk">${x.t}<small>${x.k}</small></td><td colspan="4" class="na">Sin bonos de la familia para ubicarlo</td></tr>`);return}
+    const e=P?y0+P.m/100:null,el=P?y0+P.lo/100:null,eh=P?y0+P.hi/100:null,pm=o&&P?ePx(o,x.f,y0,e,dq):null,pl=o&&P?ePx(o,x.f,y0,eh,dq):null,ph=o&&P?ePx(o,x.f,y0,el,dq):null;
+    rows.push(`<tr><td class="tk">${x.t}<small>${x.k}${reap?" · reapertura":" · nuevo"}</small></td><td>${nf(y0,2)}%<small class="dim">${src}</small></td><td>${P?sg(P.m)+" pb":"—"}<small class="dim">${P?`rango ${sg(P.lo)} a ${sg(P.hi)} · ${P.n} cortes`:"pocas colocaciones"}</small></td><td><b>${e!=null?nf(e,2)+"%":"—"}</b><small class="dim">${e!=null?`${nf(Math.min(el,eh),2)}% a ${nf(Math.max(el,eh),2)}% · ${EUN[x.f]}`:EUN[x.f]}</small></td><td>${pm!=null?"<b>$"+fp(pm)+"</b><small class=\"dim\">$"+fp(Math.min(pl,ph))+" a $"+fp(Math.max(pl,ph))+"</small>":'<span class="na">—</span><small class="dim">'+(reap?"sin duración":"se fija con la tasa")+"</small>"}</td></tr>`)});
+  if(!rows.length)return"";
+  return `<div class="est" style="margin-top:18px"><h3 style="margin:0 0 4px;font-size:16px">A cuánto puede salir cada instrumento</h3><p class="note" style="margin:0 0 10px">Estimación: el rendimiento de hoy (si ya cotiza, el del mismo bono; si es nuevo, la curva de su familia a ese plazo) más el premio que convalidó el Tesoro en las últimas 8 colocaciones de la familia (la mediana; el rango va del cuartil bajo al alto). En reaperturas, el precio es a la liquidación (${fd(liq)}). Se mueve con el mercado; no es una recomendación.</p><div class="tw"><table style="min-width:760px"><thead><tr><th>Instrumento</th><th>Mercado hoy</th><th>Premio típico</th><th>Corte estimado</th><th>Precio estimado</th></tr></thead><tbody>${rows.join("")}</tbody></table></div></div>`;
+}
 window.goUlt=()=>{licTab("res");$("#licTabs").scrollIntoView({behavior:"smooth"});return false}; // abre la pestaña Resultados
 function prevNote(i){ // la licitación anterior ya pasó: un renglón que lleva al resultado (y avisa si todavía no liquidó)
   const p=CAL[i-1];if(!p||dias(p[2])<0)return"";const n=dias(p[2]),hay=!!LD.AUC.find(a=>a.c===p[1]);
@@ -457,6 +490,7 @@ function renderProx(){
     const M=mktNow();
     h+=`<div class="inst"><span class="mut" style="font-size:13px">A licitar:</span>${ll.map(x=>{const st=M?(M.S.some(o=>o.k===x.t&&!o.miss)?"reapertura":"nuevo"):"";return `<span class="chip">${x.t}<i>${x.k}${st?" · "+st:""}</i></span>`}).join("")}</div>`;
     const VS=M&&views(),hayR=dias(c)<=0&&!!(r||LD.AUC.find(a=>a.c===c));
+    if(M&&!hayR)try{h+=estTab(ll,M,c)}catch(e){console.error('est',e)}
     if(VS){const W=Math.max(260,Math.floor(($("#prox").clientWidth-40-(innerWidth>900?14:0))/(innerWidth>900?2:1)-26));
       h+=`<div class="sw" style="margin-top:16px"><span><i style="background:#34d399"></i>Rinde más que la curva (barato)</span><span><i style="background:#ff6b8b"></i>Rinde menos (caro)</span><span><i style="background:none;border:2.5px solid var(--ac)"></i>Instrumento del llamado${hayR?", hoy":""}</span>${hayR?'<span><i style="background:var(--ac)"></i>Corte de la licitación</span>':""}<span>▲ Dual</span></div><p class="note" style="margin:6px 0 10px">Cada gráfico es el de Curva Pesos con lo que tengas elegido allá (métrica, curva, eje X, plazo máximo y duales).${hayR?" Con el resultado cargado, el corte se compara con el precio de hoy del mismo bono y con la curva de hoy; se mueve con el mercado.":""}</p><div class="cg">`;
       ll.forEach(x=>{const V=VS[REFX[x.f]],cu=hayR&&V?cutIn(x,V,c):null;h+=`<div class="cc"><h3>${x.t} · ${x.k}</h3><div class="u">Vence ${x.ve}${V?" · "+V.yl+(V.fit?" · curva "+V.fit.name.toLowerCase():""):""}${cu&&cu.na?" · el corte se muestra con TEA, TEM, TNA o margen sobre TAMAR":""}</div>${V?proxSVG(x,V,M,W,cu):'<div class="empty">Sin gráfico en Curva Pesos para esta familia.</div>'}</div>`});
