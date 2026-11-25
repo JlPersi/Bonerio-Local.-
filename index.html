@@ -7122,8 +7122,18 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
         var hc = R.map(function (r) { var c = r.dt == null || Math.abs(r.dt) <= 0.5 ? NE : r.dt > 0 ? RD : GR; return mv > 0 ? rgba(c, 0.6) : c; }), rad = function (p, h) { return !p ? 7 : mv > 0 ? (p.vol > 0 ? 4 + 22 * Math.sqrt(p.vol / mv) : 3.5) + h : 7 + h; };
         var hoy = R.map(function (r) { return { x: r.d, y: r.t, k: sh(r.k), y0: r.t0 != null ? r.t0 : r.t, dv: (r.dt || 0) / 100, vol: r.vol, r: r }; });
         var ayer = R.map(function (r) { return { x: r.d, y: r.t0 != null ? r.t0 : NaN, k: sh(r.k), dv: (r.dt || 0) / 100, y0: r.t }; });
-        var sets = [{ type: 'line', label: 'antes', data: P0.map(function (r) { return { x: r.d, y: r.t0 }; }), borderColor: rgba(C_FUT, 0.6), borderDash: [6, 5], borderWidth: 2, pointRadius: 0, fill: false, cubicInterpolationMode: 'monotone', order: 5 },
-          { type: 'line', label: 'hoy', data: R.map(function (r) { return { x: r.d, y: r.t }; }), borderColor: C_FUT, borderWidth: 2.8, pointRadius: 0, fill: false, cubicInterpolationMode: 'monotone', order: 4 },
+        var fitL = function (pts) { // la curva ajustada (la misma de Curva Pesos), no la que une los puntos; si no ajusta, une los puntos
+          var q = null, n0 = pts.length, g = Math.min(3, n0 - 2); if (g >= 1) { // polinomio de grado 3 por mínimos cuadrados (la curva de futuros tiene forma de U: los ajustes de Curva Pesos no la siguen)
+            var M = [], v = [], i, j, k; for (i = 0; i <= g; i++) { M.push([]); v.push(0); for (j = 0; j <= g; j++) M[i].push(0); }
+            pts.forEach(function (p) { var t = p.x / 365; for (i = 0; i <= g; i++) { v[i] += p.y * Math.pow(t, i); for (j = 0; j <= g; j++) M[i][j] += Math.pow(t, i + j); } });
+            for (i = 0; i <= g; i++) { var pv = i; for (k = i + 1; k <= g; k++) if (Math.abs(M[k][i]) > Math.abs(M[pv][i])) pv = k; var tm = M[i]; M[i] = M[pv]; M[pv] = tm; tm = v[i]; v[i] = v[pv]; v[pv] = tm; if (Math.abs(M[i][i]) < 1e-12) { g = -1; break; }
+              for (k = 0; k <= g; k++) if (k !== i) { var fct = M[k][i] / M[i][i]; for (j = i; j <= g; j++) M[k][j] -= fct * M[i][j]; v[k] -= fct * v[i]; } }
+            if (g >= 1) { var c = v.map(function (x, i2) { return x / M[i2][i2]; }); q = { f: function (x) { var t = x / 365, y = 0; for (var e = 0; e < c.length; e++) y += c[e] * Math.pow(t, e); return y; } }; } }
+          if (!q) return { d: pts, m: 1 };
+          var x0 = pts[0].x, x1 = pts[pts.length - 1].x, o = []; for (var i = 0; i <= 80; i++) { var x = x0 + (x1 - x0) * i / 80; o.push({ x: x, y: q.f(x) }); } return { d: o, m: 0 }; };
+        var LA = fitL(P0.map(function (r) { return { x: r.d, y: r.t0, k: r.k }; })), LH = fitL(R.map(function (r) { return { x: r.d, y: r.t, k: r.k }; }));
+        var sets = [{ type: 'line', label: 'antes', data: LA.d, borderColor: rgba(C_FUT, 0.6), borderDash: [6, 5], borderWidth: 2, pointRadius: 0, fill: false, cubicInterpolationMode: LA.m ? 'monotone' : 'default', order: 5 },
+          { type: 'line', label: 'hoy', data: LH.d, borderColor: C_FUT, borderWidth: 2.8, pointRadius: 0, fill: false, cubicInterpolationMode: LH.m ? 'monotone' : 'default', order: 4 },
           { type: 'scatter', role: 'ayer', label: 'antes·p', data: ayer, ghostPts: true, noLabel: true, unitPb: true, unit: ' pb', backgroundColor: 'rgba(0,0,0,0)', borderColor: rgba(tx.charAt(0) === '#' ? tx : '#e4e4e7', 0.55), borderWidth: 1.5, pointRadius: 5, hoverRadius: 6, order: 3 },
           { type: 'scatter', role: 'hoy', tip: true, label: 'hoy·p', data: hoy, backgroundColor: hc, borderColor: hc, pointRadius: function (c) { return rad(c.raw, 0); }, hoverRadius: function (c) { return rad(c.raw, 2); }, order: 1 }];
         var link = { id: 'vdFutLk', beforeDatasetsDraw: function (ch) { var ma = ch.getDatasetMeta(2).data, mh = ch.getDatasetMeta(3).data, cx = ch.ctx; cx.save(); cx.setLineDash([2, 3]); cx.lineWidth = 1.3; cx.strokeStyle = rgba(tx.charAt(0) === '#' ? tx : '#e4e4e7', 0.7);
