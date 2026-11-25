@@ -6735,6 +6735,8 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     if (p[0] === 'USD') return (ib[p[1] + 'D'] || []).map(function (x) { return [x[0], x[1]]; });
     if (p[0] === 'DL') return (ib[p[1]] || []).map(function (x) { return [x[0], x[1] / 100]; });
     var P = ib[p[1]] || [], D = ib[p[1] + (p[0] === 'MEP' ? 'D' : 'C')] || [], i = 0, k = 0, a = null, b = null, out = [], ms = {};
+    var i2 = src && IB && IB[d], mg = function (x, y) { return y && y.length ? x.concat(y.filter(function (q) { return q[0] > 630; })).sort(function (u, v) { return u[0] - v[0]; }) : x; }; // tick a tick del Worker más la foto de cada 10 minutos: si una pata deja de grabarse (pasó con AL30D y AL30C), no queda clavada en su último precio
+    if (i2) { P = mg(P, i2[p[1]]); D = mg(D, i2[p[1] + (p[0] === 'MEP' ? 'D' : 'C')]); }
     P.concat(D).forEach(function (x) { ms[x[0]] = 1; });
     Object.keys(ms).map(Number).sort(function (x, y) { return x - y; }).forEach(function (m) { while (i < P.length && P[i][0] <= m) a = P[i++][1]; while (k < D.length && D[k][0] <= m) b = D[k++][1]; if (a > 0 && b > 0) out.push([m, a / b]); });
     return out;
@@ -6816,8 +6818,6 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
           x++;
         }
       } else { mb = Math.ceil(tk[0][0] / 5) * 5 - 5; xb = x; }
-      if (tk.length) { var bk = {}, bo = []; tk.forEach(function (q) { var m5 = Math.ceil(q[0] / 5) * 5; if (!(m5 in bk)) bo.push(m5); bk[m5] = q; }); /* los ticks, a la misma grilla de 5 minutos que el resto (el último de cada tramo); hoy, el último tramo a la hora del último dato */
-        tk = bo.map(function (m5, j) { var q = bk[m5]; return [hoy && j === bo.length - 1 ? q[0] : m5, q[1]]; }); }
       tk.forEach(function (q) { var xq = xb + (q[0] - mb) / 5; if (out.length && xq <= out[out.length - 1].x) return; if (out.length && out[out.length - 1].y != null && xq - out[out.length - 1].x > 3 && out[out.length - 1].lab.indexOf(dl) === 0) out.push({ x: (xq + out[out.length - 1].x) / 2, y: null, lab: '' }); /* un hueco de más de 15 minutos sin datos: sin recta */ out.push({ x: xq, y: q[1], lab: dl + hm(Math.floor(q[0])) + ':' + ('0' + Math.floor((q[0] % 1) * 60)).slice(-2) }); x = Math.max(x, Math.ceil(xq) + 1); });
       x += 6; // un hueco entre ruedas
     });
