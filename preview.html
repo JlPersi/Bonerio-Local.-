@@ -4713,8 +4713,9 @@ h = '<tr><th class="l">Ticker</th><th>Tipo</th><th>Vencimiento</th><th>Días</th
     var hist = ST.n > 1 || ST.b0 || ST.e1 || (typeof mktStarted === 'function' && !mktStarted()); // con varias ruedas (o sin rueda hoy): los cierres guardados en data/volumen.json
     try { if (ST.grp === 'on' && window.ONSQ) rows = rows.concat((hist ? corpHist(window.ONSQ, 'on') : window.ONSQ.vard ? window.ONSQ.vard(later) : []).map(finish)); } catch (e) { console.error('vard ons', e); }
     try { if (ST.grp === 'pv' && window.PVSQ) rows = rows.concat((hist ? corpHist(window.PVSQ, 'pv') : window.PVSQ.vard ? window.PVSQ.vard(later) : []).map(finish)); } catch (e) { console.error('vard pvs', e); } // las ONs se cargan solo si se eligen
-    return rows.filter(function (r) { return r.dpct != null && isFinite(r.dpct); }).map(fxOf);
+    return dropStale(rows).filter(function (r) { return r.dpct != null && isFinite(r.dpct); }).map(fxOf);
   }
+  function dropStale(a) { /* ONs y provinciales sin cotización reciente (YM1X: último precio de dic-2025): fuera, que no muestren como de hoy un precio viejo */ var m = 0; a.forEach(function (r) { if (CORP(r.grp) && r.t1 > m) m = r.t1; }); return a.filter(function (r) { return !CORP(r.grp) || r.t1 == null || r.t1 >= m - 14; }); }
   function fxOf(r) { // efecto tasa: lo que explica el cambio de tasa (−duración modificada × Δ tasa); efecto tiempo: el resto (devengamiento por el paso del tiempo y, en CER, TAMAR y dólar linked, el ajuste del índice)
     var md = r.md1 != null ? r.md1 : r.md0; r.eR = r.dpb != null && md != null && isFinite(md) ? -md * r.dpb / 100 : null; r.eT = r.eR != null ? r.dpct - r.eR : null; return r;
   }
