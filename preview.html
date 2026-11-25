@@ -6342,7 +6342,10 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     fetch('https://mercados.ambito.com//dolar/mayorista/variacion', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (o) {
       var f = String(o && o.fecha || '').match(/(\d{2})\/(\d{2})\/(\d{4})/), v = parseFloat(String(o && o.venta || '').replace(/\./g, '').replace(',', '.'));
       if (!f || !(v > 0)) return; var d = f[3] + '-' + f[2] + '-' + f[1]; if (MAY && MAY.d === d && MAY.v === v) return;
-      MAY = { d: d, v: v }; if (isAct() && VD) render();
+      if (MAY && MAY.p && MAY.d >= d) return; MAY = { d: d, v: v }; if (isAct() && VD) render();
+    }).catch(function () { });
+    fetch('data/alertas_vivo.json?v=' + Math.floor(Date.now() / 6e4)).then(function (r) { return r.json(); }).then(function (o) { // el A3 de Primary (la corrida de la rueda, cada 10 minutos): manda sobre Ámbito
+      var d = String(o && o.ofiD || ''), v = +(o && o.ofi); /* ofiD: la fecha del dato (sin spot de hoy, la del último A3500) */ if (!d || !(v > 0) || (MAY && MAY.d > d) || (MAY && MAY.p && MAY.d === d && MAY.v === v)) return; MAY = { d: d, v: v, p: 1 }; if (isAct() && VD) render();
     }).catch(function () { });
   }
 
@@ -11525,7 +11528,7 @@ window.USTX = (function () {
     var rp = window.RIESGO_PAIS; if (rp && rp.length) { var a = rp[rp.length - 1], b = rp[rp.length - 2]; tile('rp', nf(a[1]) + ' pb', b ? chgPb(a[1], b[1], true) + ' <span class="eq">vs ' + dmy(b[0]) + '</span>' : '', 'Dato del ' + dmy(a[0]), rp.slice(-90).map(function (x) { return x[1]; }), '#ff6b8b'); }
     if (dl && dl.d) {
       var dd = lastN(dl.d, 90), L = dd[dd.length - 1], Pv = dd[dd.length - 2], mp = function (x) { return x && x[1].mep && x[1].mep.AL30 && x[1].mep.AL30.close; }, cc = function (x) { return x && x[1].ccl && (x[1].ccl.vw || x[1].ccl.med); };
-      var of = lastN(dl.A3500, 90), o1 = of.length ? of[of.length - 1][1] : null, o0 = of.length > 1 ? of[of.length - 2][1] : null;
+      var of = lastN(dl.A3500, 90), o1 = of.length ? of[of.length - 1][1] : null, o0 = of.length > 1 ? of[of.length - 2][1] : null, oA = o1;
       if (MAYD && MAYD.d > (of.length ? of[of.length - 1][0] : '') && (!L || MAYD.d >= L[0])) o1 = MAYD.v; // la brecha, contra el oficial de hoy
       var q = window.PXQ || {}, qa = q.AL30, qd = q.AL30D, qc = q.AL30C, ok = function (x) { return x && x.c > 0; }, pv = function (x) { return x && x.pct != null && x.pct > -100 ? x.c / (1 + x.pct / 100) : null; };
       var mN = mp(L), mP = mp(Pv), cN = cc(L), cP = cc(Pv); // en vivo (data912, cada 30 s): MEP = AL30 / AL30D y CCL = AL30 / AL30C, como en la pestaña Dólar; contra el cierre anterior
@@ -11534,7 +11537,7 @@ window.USTX = (function () {
       if (mN) tile('mep', '$ ' + nf(mN, 2), chg(mN, mP), o1 ? 'Brecha con el oficial: ' + nf((mN / o1 - 1) * 100, 1) + '%' : '', dd.map(mp).concat(mN !== mp(L) ? [mN] : []), '#5cc8ff');
       if (cN) tile('ccl', '$ ' + nf(cN, 2), chg(cN, cP), mN ? 'Canje con el MEP: ' + nf((cN / mN - 1) * 100, 1) + '%' : '', dd.map(cc).concat(cN !== cc(L) ? [cN] : []), '#2fd4a7');
       var ofD = of.length ? of[of.length - 1][0] : '', ofs = 'Comunicación A3500 · ' + dmy(ofD);
-      if (MAYD && MAYD.d > ofD && (!L || MAYD.d >= L[0])) { o0 = o1; o1 = MAYD.v; ofs = 'Mayorista del ' + dmy(MAYD.d) + ' · el A3500 de hoy lo publica el BCRA a la noche'; } // sin el A3500 de hoy: el mayorista en vivo (Ámbito)
+      if (MAYD && MAYD.d > ofD && (!L || MAYD.d >= L[0])) { o0 = oA; o1 = MAYD.v; ofs = 'Mayorista del ' + dmy(MAYD.d) + ' · el A3500 de hoy lo publica el BCRA a la noche'; } // sin el A3500 de hoy: el mayorista en vivo (Ámbito)
       if (o1) tile('ofi', '$ ' + nf(o1, 2), chg(o1, o0), ofs, of.map(function (x) { return x[1]; }).concat(MAYD && MAYD.d > ofD ? [MAYD.v] : []), '#5cc8ff');
       if (L) $('hmSub').textContent = 'Cierre del ' + L[0].split('-').reverse().join('/') + ' (y lo que ya se mueva hoy). Tocá cualquier tarjeta para ver el detalle.';
     }
@@ -11719,7 +11722,10 @@ window.USTX = (function () {
   function may() { // el mayorista del día (Ámbito), hasta que el BCRA publique el A3500 de hoy
     fetch('https://mercados.ambito.com//dolar/mayorista/variacion', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (o) {
       var f = String(o && o.fecha || '').match(/(\d{2})\/(\d{2})\/(\d{4})/), v = parseFloat(String(o && o.venta || '').replace(/\./g, '').replace(',', '.'));
-      if (!f || !(v > 0)) return; var x = { d: f[3] + '-' + f[2] + '-' + f[1], v: v }; if (MAYD && MAYD.d === x.d && MAYD.v === x.v) return; MAYD = x; if (DATA) tiles();
+      if (!f || !(v > 0)) return; var x = { d: f[3] + '-' + f[2] + '-' + f[1], v: v }; if ((MAYD && MAYD.d === x.d && MAYD.v === x.v) || (MAYD && MAYD.p && MAYD.d >= x.d)) return; MAYD = x; if (DATA) tiles();
+    }).catch(function () { });
+    fetch('data/alertas_vivo.json?v=' + Math.floor(Date.now() / 6e4)).then(function (r) { return r.json(); }).then(function (o) { // el A3 de Primary (la corrida de la rueda, cada 10 minutos): manda sobre Ámbito
+      var d = String(o && o.ofiD || ''), v = +(o && o.ofi); /* ofiD: la fecha del dato (sin spot de hoy, la del último A3500) */ if (!d || !(v > 0) || (MAYD && MAYD.d > d) || (MAYD && MAYD.p && MAYD.d === d && MAYD.v === v)) return; MAYD = { d: d, v: v, p: 1 }; if (DATA) tiles();
     }).catch(function () { });
   }
   may(); setInterval(may, 120000);
