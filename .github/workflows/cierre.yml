@@ -18,6 +18,14 @@ jobs:
       - name: Volumen del día
         if: always()
         run: python3 scripts/save_volume.py
+      - name: Volumen de contado inmediato (Primary por websocket; data912 trae solo 24 hs)
+        if: always()
+        continue-on-error: true
+        env:
+          ROFEX_USER: ${{ secrets.ROFEX_USER }}
+          ROFEX_PASS: ${{ secrets.ROFEX_PASS }}
+          ROFEX_URL: ${{ secrets.ROFEX_URL }}
+        run: pip install -q pyRofex && python3 scripts/save_vol_ci.py
       - name: Relativos de un año (ley NY contra local, canje)
         if: always()
         continue-on-error: true

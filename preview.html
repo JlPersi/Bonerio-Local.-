@@ -5372,7 +5372,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   try { var mc0 = localStorage.getItem('vlMxC'); if (mc0 != null) ST.mxc = +mc0; } catch (e) { }
   var MINS = [0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1]; // % del monto del período: los bonos que pesan menos no se dibujan en Volumen contra precio (por defecto 0,05%)
   try { var mi0 = localStorage.getItem('vlMin'); if (mi0 != null && MINS[+mi0] != null) ST.mi = +mi0; } catch (e) { }
-  var D = null, T = {}, DATES = [], n = 0, MEP = null, CCL = null, loading = false, err = null, CHK = null, CHK2 = null, HORA = null, CHS = null, CHD = null, CHV = null, VSP = null, CHP = null, CHR = null, LIVEN = 0, DN = null, LAST = null;
+  var D = null, T = {}, DATES = [], n = 0, MEP = null, CCL = null, loading = false, err = null, CHK = null, CHK2 = null, HORA = null, CHS = null, CHD = null, CHV = null, VSP = null, VLQ = '24', VCI = null, CHP = null, CHR = null, LIVEN = 0, DN = null, LAST = null;
 
   /* ---------- carga y armado ---------- */
   function load() {
@@ -6007,16 +6007,22 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     var ss = ['P', 'D', 'C'].filter(function (k) { return by[k]; }); if (!ss.length) { box.innerHTML = ''; return; }
     var s = ss.indexOf(VSP) >= 0 ? VSP : ss.indexOf(ST.cur) >= 0 ? ST.cur : ss.indexOf('C') >= 0 ? 'C' : ss[0], u = s === 'P' ? '$' : 'US$';
     var NM = { P: 'Pesos', D: 'Dólar MEP', C: 'Dólar cable' }, tk = by[s].slice().sort(function (a, b) { return a.length - b.length; })[0];
-    var v = new Float64Array(n); by[s].forEach(function (t) { var o = T[t]; for (var k = 0; k < n; k++) v[k] += o.E[k] > 0 ? o.E[k] : 0; });
-    var a0 = 0; while (a0 < n - 1 && !(v[a0] > 0)) a0++;
+    if (VCI == null) { VCI = false; fetch('data/volumen_ci.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { VCI = (j && j.d) || {}; var b = document.getElementById('vlVs'); if (b && b.isConnected && VLQ !== '24') volSp(e); }, function () { VCI = {}; }); }
+    var CI = VCI || {}, cd = Object.keys(CI).sort(), ci0 = cd.length ? DATES.indexOf(cd[0]) : -1; /* contado inmediato: se guarda desde que se toma por Primary */
+    var v = new Float64Array(n); by[s].forEach(function (t) { var o = T[t]; for (var k = 0; k < n; k++) {
+      var h = o.E[k] > 0 ? o.E[k] : 0, c = CI[DATES[k]] && CI[DATES[k]][t] ? CI[DATES[k]][t][0] : 0; v[k] += VLQ === 'ci' ? c : VLQ === 'all' ? h + c : h; } });
+    var a0 = VLQ === 'ci' && ci0 >= 0 ? ci0 : 0; while (a0 < n - 1 && !(v[a0] > 0)) a0++;
     var lab = [], bars = []; for (i = a0; i < n; i++) { lab.push(DATES[i].split('-').reverse().join('/')); bars.push(v[i] / 1e6); }
     var last = bars.length - 1, today = DATES[n - 1] === bxDayStr(bxToday()), mx = 0; bars.forEach(function (x, k) { if (x > bars[mx]) mx = k; });
-    var m20 = 0, c20 = 0; for (i = Math.max(0, last - 20); i < last; i++) { m20 += bars[i]; c20++; } m20 = c20 ? m20 / c20 : 0;
+    var m20 = 0, c20 = 0; for (i = Math.max(0, last - 20, VLQ !== '24' ? (ci0 >= 0 ? ci0 - a0 : last) : 0); i < last; i++) { m20 += bars[i]; c20++; } m20 = c20 >= 5 ? m20 / c20 : 0; /* con CI, solo contra ruedas que tienen CI guardado */
     var fm = function (x) { return u + ' ' + nf(x, x >= 100 ? 0 : x >= 10 ? 1 : 2) + ' M'; };
+    var LQN = { '24': '24 hs', ci: 'CI', all: '24 hs + CI' }, lqb = function (k) { var on = k === VLQ; return '<button type="button" data-vq="' + k + '" style="font:inherit;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:99px;cursor:pointer;border:1px solid ' + (on ? 'var(--tx)' : 'var(--bd)') + ';background:' + (on ? 'var(--tx)' : 'var(--bg)') + ';color:' + (on ? 'var(--bg)' : 'var(--tx)') + '">' + LQN[k] + '</button>'; };
+    var ciN = VLQ === '24' ? '' : !cd.length ? ' · el contado inmediato se empieza a guardar con la rueda de hoy' : ' · contado inmediato desde el ' + cd[0].split('-').reverse().join('/');
     var btn = function (k) { var on = k === s; return '<button type="button" data-vs="' + k + '" style="font:inherit;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:99px;cursor:pointer;border:1px solid ' + (on ? 'var(--ac)' : 'var(--bd)') + ';background:' + (on ? 'var(--ac)' : 'var(--bg)') + ';color:' + (on ? 'var(--bg)' : 'var(--tx)') + '">' + NM[k] + '</button>'; };
-    box.innerHTML = '<div style="' + HD + ';flex-wrap:wrap"><div style="min-width:0"><h4 style="margin:0">Volumen operado · <span style="color:var(--tx)">' + tk + '</span></h4><p class="note" style="margin:4px 0 0">En millones de ' + (s === 'P' ? 'pesos' : 'dólares') + ' por rueda, desde el ' + lab[0] + ' · máximo ' + fm(bars[mx]) + ' el ' + lab[mx] + (bars[last] > 0 && m20 > 0 ? ' · ' + (today ? 'hoy, en curso, ' : 'la última rueda, ') + nf(bars[last] / m20, 1) + '× el promedio de las 20 anteriores' : '') + '</p></div>' +
-      '<div style="display:flex;gap:8px;align-items:center">' + ss.map(btn).join('') + dl('vlVs', 'Volumen_' + tk, 'Descargar el volumen de ' + tk + ' en HD') + '</div></div><div style="position:relative;height:320px"><canvas id="vlChV"></canvas></div>';
+    box.innerHTML = '<div style="' + HD + ';flex-wrap:wrap"><div style="min-width:0"><h4 style="margin:0">Volumen operado · <span style="color:var(--tx)">' + tk + '</span> <span style="color:var(--mu);font-weight:500">(' + LQN[VLQ] + ')</span></h4><p class="note" style="margin:4px 0 0">En millones de ' + (s === 'P' ? 'pesos' : 'dólares') + ' por rueda, desde el ' + lab[0] + ciN + ' · máximo ' + fm(bars[mx]) + ' el ' + lab[mx] + (bars[last] > 0 && m20 > 0 ? ' · ' + (today ? 'hoy, en curso, ' : 'la última rueda, ') + nf(bars[last] / m20, 1) + '× el promedio de las 20 anteriores' : '') + '</p></div>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' + ['24', 'ci', 'all'].map(lqb).join('') + '<span style="width:1px;height:22px;background:var(--bd);margin:0 4px"></span>' + ss.map(btn).join('') + dl('vlVs', 'Volumen_' + tk, 'Descargar el volumen de ' + tk + ' en HD') + '</div></div><div style="position:relative;height:320px"><canvas id="vlChV"></canvas></div>';
     box.querySelectorAll('[data-vs]').forEach(function (b) { b.onclick = function () { VSP = b.getAttribute('data-vs'); volSp(e); }; });
+    box.querySelectorAll('[data-vq]').forEach(function (b) { b.onclick = function () { VLQ = b.getAttribute('data-vq'); volSp(e); }; });
     var tx = css('--tx'), mu = css('--mu'), bd = css('--bd'), ac = css('--ac') || '#5b8def', hx = function (c, a) { return /^#[0-9a-f]{6}$/i.test(c) ? c + a : c; };
     var MARK = { id: 'vlMark', afterDatasetsDraw: function (ch) { /* el máximo y la última rueda: círculo sobre la barra y el dato al costado */
       var c = ch.ctx, A = ch.chartArea, me = ch.getDatasetMeta(0), pts = [mx]; if (last !== mx && bars[last] > 0) pts.push(last);
