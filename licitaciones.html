@@ -684,8 +684,46 @@ function renderPlz(){
   document.querySelectorAll("[data-ov]").forEach(b=>b.onclick=()=>{OVL=b.dataset.ov;renderPlz()});
   if(typeof endScroll==="function")endScroll();
 }
-let CERI=0, PV="n";
+let CERI=0, PV="n", PVW="m", VT=null;
+function perfLic(){ /* por licitación: cada pago futuro (Curva Pesos y el VN en circulación) va a la licitación que lo cubre, la primera que liquida ese día o después */
+  const P0=(()=>{try{return parent!==window&&parent.BLVTO?parent:null}catch(e){return null}})();
+  if(VT==null){if(!P0)return '<div class="empty">La vista por licitación usa los bonos de Curva Pesos: abrí esta sección desde la pestaña Licitaciones del sitio.</div>';VT=false;P0.BLVTO(F=>{VT=F||[];renderPerf()});return '<div class="empty">Cargando los pagos de cada bono…</div>'}
+  if(!VT)return '<div class="empty">Cargando los pagos de cada bono…</div>';
+  const dnum=v=>Math.round(Date.parse(v+"T00:00:00Z")/864e5),i0=idxProx(),C=CAL.slice(i0).map(x=>({c:x[1],q:x[2],qd:dnum(x[2]),v:{},it:{}})),pi=CERI/100,hoy=Math.floor(Date.now()/864e5);
+  if(!C.length)return '<div class="empty">Sin licitaciones por delante en el cronograma.</div>';
+  const nR=C.length,qL=C[nR-1].qd,lim=hoy+365; /* después del cronograma publicado: quincenas (dos licitaciones por mes), hasta un año */
+  for(let d=qL+1;d<=lim;d++){const z=new Date(d*864e5).toISOString().slice(0,10),dd=+z.slice(8,10),last=new Date(Date.UTC(+z.slice(0,4),+z.slice(5,7),0)).getUTCDate();if(dd===15||dd===last)C.push({c:z,q:z,qd:d,v:{},it:{},est:1})}
+  let fuera=0;VT.forEach(f=>{const j=C.findIndex(x=>x.qd>=f.t);if(j<0){fuera+=f.m;return}const g=f.g,k=Math.max(0,(f.t-hoy)/30.4),v=f.m/1e6*((g==="cer"||g==="dual")?Math.pow(1+pi,k):1),o=C[j];o.v[g]=(o.v[g]||0)+v;o.it[f.k]=(o.it[f.k]||0)+v});
+  const tot=x=>TYP.reduce((a,t)=>a+(x.v[t[0]]||0),0),mx=Math.max(10,Math.ceil(Math.max(...C.map(tot))/10)*10),W=Math.max(760,C.length*40+50),H=300,T=22,B=48,L=46,ch=H-T-B,bw=20,X=i=>L+8+(i+.5)*((W-L-14)/C.length);
+  let s=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${W}px" role="img" aria-label="Vencimientos por licitación">`;
+  for(let g=0;g<=mx;g+=10)s+=`<line x1="${L}" x2="${W-4}" y1="${T+ch-g/mx*ch}" y2="${T+ch-g/mx*ch}" stroke="var(--bd)"/><text x="${L-6}" y="${T+ch-g/mx*ch+3}" text-anchor="end">${g}</text>`;
+  s+=ytit("billones de $",T,ch);
+  C.forEach((x,i)=>{let y=T+ch;const its=Object.entries(x.it).sort((a,b)=>b[1]-a[1]).map(e=>e[0]+" $"+nf(e[1],1)).join(" · ");
+    TYP.forEach(t=>{const a=x.v[t[0]]||0;if(a>0){const hh=a/mx*ch;y-=hh;s+=`<rect x="${X(i)-bw/2}" y="${y}" width="${bw}" height="${hh}" fill="var(${t[2]})"${x.est?' fill-opacity=".72"':''}><title>${x.est?(+x.c.slice(8,10)===15?"1ª":"2ª")+" quincena de "+MC[+x.c.slice(5,7)-1]+" (sin cronograma todavía)":"Licitación "+fd(x.c)+" (liquida "+fd(x.q)+")"} · ${t[1]}: $${nf(a,1)} billones · ${its}</title></rect>`}});
+    const tt=tot(x);if(tt>0.05)s+=`<text x="${X(i)}" y="${y-5}" text-anchor="middle" class="tx" style="font-size:10px${i===0?';font-weight:700':''}">${nf(tt,tt<10?1:0)}</text>`;
+    s+=`<text x="${X(i)}" y="${H-30}" text-anchor="middle" style="font-size:9.5px${x.est?';opacity:.7':''}">${x.est?(+x.c.slice(8,10)===15?"1ª q.":"2ª q."):x.c.slice(8,10)+"/"+x.c.slice(5,7)}</text>`;
+    if(x.est&&i>0&&!C[i-1].est)s+=`<line x1="${(X(i)+X(i-1))/2}" x2="${(X(i)+X(i-1))/2}" y1="${T}" y2="${H-36}" stroke="var(--mu)" stroke-dasharray="3 3"/><text x="${(X(i)+X(i-1))/2+5}" y="${T+10}" style="font-size:9.5px;fill:var(--mu)">sin cronograma: por quincena</text>`;
+    if(i===0||x.c.slice(5,7)!==C[i-1].c.slice(5,7))s+=`<text x="${X(i)}" y="${H-14}" text-anchor="middle" style="font-size:10.5px;font-weight:600">${MC[+x.c.slice(5,7)-1]}${x.c.slice(5,7)==="01"||i===0?" "+x.c.slice(2,4):""}</text>`});
+  s+=`</svg>`;
+  const t0=tot(C[0]),t1=C[1]?tot(C[1]):null,six=C.slice(0,6).reduce((a,x)=>a+tot(x),0),top=Object.entries(C[0].it).sort((a,b)=>b[1]-a[1]).slice(0,3).map(e=>e[0]).join(", ");
+  return `<div class="kk">
+   <div class="kpi"><div class="t">Licitación del ${fd(C[0].c)} (liquida ${fd(C[0].q)})</div><div class="v">$${nf(t0,1)} bill.</div></div>
+   ${t1!=null?`<div class="kpi"><div class="t">La siguiente (${fd(C[1].c)})</div><div class="v">$${nf(t1,1)} bill.</div></div>`:""}
+   <div class="kpi"><div class="t">Próximas 6 (con quincenas estimadas)</div><div class="v">$${nf(six,1)} bill.</div></div>
+   <div class="kpi"><div class="t">Lo que más pesa en la próxima</div><div class="v" style="font-size:15px">${top||"—"}</div></div>
+  </div>${legend()}<div class="scr">${s}</div>
+  <p class="note"><b>Cómo se arma:</b> cada pago de capital e intereses de los bonos en pesos del Tesoro (con el CER y el dólar de hoy${pi?` más ${nf(CERI,1)}% mensual de inflación`:""}) por su VN en circulación, asignado a la primera licitación que liquida ese día o después. Donde Finanzas todavía no publicó el cronograma, va por quincena (dos licitaciones por mes). Incluye tenencias de organismos públicos.${fuera>0?` A más de un año vencen $${nf(fuera/1e6,1)} bill.`:""} Pasá el mouse por una barra para ver los bonos.</p>`;
+}
 function renderPerf(){
+  if(PVW==="l"){
+    $("#perf").innerHTML=`<div class="sxh"><div><h2 class="qh">Perfil de vencimientos del Tesoro en pesos</h2>
+  <p class="qs">Lo que vence en cada licitación del cronograma (capital más intereses, en billones), por tipo de instrumento.</p></div></div>
+  <div class="ctl"><div class="seg"><button data-pw="m">Por mes</button><button data-pw="l" class="on">Por licitación</button></div>
+   <label>Inflación mensual (CER y duales) <select id="cerI">${[0,1,1.5,2,2.5].map(v=>`<option value="${v}" ${v===CERI?"selected":""}>${v===0?"CER de hoy (sin inflación futura)":v+"% mensual"}</option>`).join("")}</select></label></div>`+perfLic();
+    document.querySelectorAll("[data-pw]").forEach(b=>b.onclick=()=>{PVW=b.dataset.pw;renderPerf()});
+    $("#cerI").onchange=e=>{CERI=+e.target.value;renderPerf()};
+    if(typeof endScroll==="function")endScroll();return;
+  }
   const pl=LD.ADJ[LD.ADJ.length-1].l,PFL=(LD.L2C[pl]||pl).slice(8,10)+"/"+(LD.L2C[pl]||pl).slice(5,7); // última licitación sumada al perfil (la de "new")
   const pi=CERI/100, ms=LD.PERFIL.filter(x=>x.m!=="2029+"), later=LD.PERFIL.find(x=>x.m==="2029+");
   const sc=(o,k,f)=>{const v=o[f]||0;return(f==="cer"||f==="dual")?v*Math.pow(1+pi,k):v};
@@ -711,7 +749,7 @@ function renderPerf(){
   const nuevo=ms.reduce((a,x,k)=>a+TYP.reduce((q,t)=>q+(PV==="n"?sc(x.new,k,t[0]):0),0),0);
   $("#perf").innerHTML=`<div class="sxh"><div><h2 class="qh">Perfil de vencimientos del Tesoro en pesos</h2>
   <p class="qs">Pagos mensuales (capital más intereses, en billones) por tipo de instrumento. En trama punteada, lo que sumó la licitación del ${PFL}.</p></div></div>
-  <div class="ctl"><div class="seg"><button data-pv="p" class="${PV==="p"?"on":""}">Antes del ${PFL}</button><button data-pv="n" class="${PV==="n"?"on":""}">Con licitación del ${PFL}</button></div>
+  <div class="ctl"><div class="seg"><button data-pw="m" class="on">Por mes</button><button data-pw="l">Por licitación</button></div><div class="seg"><button data-pv="p" class="${PV==="p"?"on":""}">Antes del ${PFL}</button><button data-pv="n" class="${PV==="n"?"on":""}">Con licitación del ${PFL}</button></div>
    <label>Inflación mensual (CER y duales) <select id="cerI">${[0,1,1.5,2,2.5].map(v=>`<option value="${v}" ${v===CERI?"selected":""}>${v===0?"CER de hoy (sin inflación futura)":v+"% mensual"}</option>`).join("")}</select></label></div>
   <div class="kk">
    <div class="kpi"><div class="t">Próximos 3 meses (oct-dic)</div><div class="v">$${nf(t3,1)} bill.</div></div>
@@ -722,6 +760,7 @@ function renderPerf(){
   </div>${legend()}<div class="scr">${s}</div>
   <p class="note"><b>Estimación propia</b> con colocaciones y canjes de la ONCP. Incluye tenencias de organismos públicos, por eso supera lo que informa Finanzas para privados.</p>`;
   document.querySelectorAll("[data-pv]").forEach(b=>b.onclick=()=>{PV=b.dataset.pv;renderPerf()});
+  document.querySelectorAll("[data-pw]").forEach(b=>b.onclick=()=>{PVW=b.dataset.pw;renderPerf()});
   $("#cerI").onchange=e=>{CERI=+e.target.value;renderPerf()};
 }
 function renderHis(){
