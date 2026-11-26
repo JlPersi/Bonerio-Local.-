@@ -1292,6 +1292,13 @@ window.curveFitUSD = function (pts, model, minN) {
       </div>
       <p class="note xp" style="margin-top: 14px;">Efecto capital = cambio del valor residual del bono entre la compra y la fecha de corte, con la TIR de hoy constante (converge a la par: pull to par). En los bonos que amortizan es negativo porque el capital devuelto se cuenta en el efecto flujo. En pesos: precio y flujos en pesos, con la TIR nominal de hoy (los CER con la inflación de la tarjeta CER de Curva Pesos) y sin reinvertir los cobros.</p>
   </div>
+  <div class="card sx" id="rollCard" style="margin-top:24px">
+    <style>#rollCard .rlchips{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}#rollCard .rlchip{flex:1 1 170px;min-width:0;border:1px solid var(--bd);border-radius:10px;padding:10px 14px;background:var(--bg)}#rollCard .rlchip small{display:block;color:var(--mu);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}#rollCard .rlchip b{font-size:19px;font-variant-numeric:tabular-nums}#rollCard .rlchip span{display:block;color:var(--mu);font-size:12px;margin-top:2px}</style>
+    <div class="sxh"><div style="min-width:0"><p class="qh" id="rollH">Carry y rolldown sobre la curva</p><p class="qs" id="rollS"></p></div><div class="sxb"><label data-html2canvas-ignore="true" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu)">Bono<select id="rollK" style="width:auto" onchange="try{localStorage.setItem('rollK',this.value)}catch(e){} if(window.rollRender) window.rollRender()"></select></label><button class="icon-btn" data-html2canvas-ignore="true" onclick="if(window.downloadSnapshotHD) window.downloadSnapshotHD('rollCard', 'Soberanos_Carry_Rolldown')" title="Descargar en HD"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button></div></div>
+    <div class="rlchips" id="rollChips"></div>
+    <div class="chart-wrap" style="height: 420px; margin-top: 12px;"><canvas id="rollChart"></canvas></div>
+    <p class="note xp" id="rollN" style="margin-top: 14px;"></p>
+  </div>
 </div>
 
 <!-- PESTAÑA 2: Proyección de TIR -->
@@ -1988,7 +1995,8 @@ function draw() {
 
 window.bdRender = function() { // atribución: los bonos en dólares de la tabla o los bonos en pesos con cupones (con la TIR de hoy constante, sin reinvertir)
     const ars = $('bdCcy') && $('bdCcy').value === 'ars', PS = window.PSX;
-    if (!ars || !PS || !PS.cfList) { updateBreakdownChart(window.bdUsd || [], false); return; }
+    if ($('rollCard')) $('rollCard').style.display = ars ? 'none' : '';
+    if (!ars || !PS || !PS.cfList) { updateBreakdownChart(window.bdUsd || [], false); try { window.rollRender(); } catch (e) { console.error('roll', e); } return; }
     const d1 = day($('d1').value);
     updateBreakdownChart(PS.cfList().map(function(k) {
         const c = PS.bondCF(k); if (!c || c.tea == null) return null;
@@ -1996,6 +2004,52 @@ window.bdRender = function() { // atribución: los bonos en dólares de la tabla
         const am = (c.rows || []).reduce(function(a, x) { return a + (x.t <= d1 ? x.amort || 0 : 0); }, 0);
         return { k: k, r: { tir: c.tea, entry_p: c.P, cash_out: cash, amort: am, mtm_exit: post.length ? PS.pvAt(post, d1, c.tea) : 0 } };
     }).filter(Boolean), true);
+};
+
+/* carry y rolldown hasta la fecha de corte: carry = la TIR propia constante (cupones, amortizaciones y devengado); rolldown = el reprecio porque al acortarse el bono pasa a rendir lo que hoy rinde la curva de su ley a ese plazo (la curva de hoy congelada, interpolada en años al vencimiento) */
+window.rollRender = function () {
+    const rows = (window.bdUsd || []).filter(function (x) { return x.r && x.r.tir != null && x.b && x.b.f && x.b.f.length; }), sel = $('rollK'), cv = $('rollChart');
+    if (!sel || !cv || !rows.length) return;
+    const d0 = day($('d0').value), d1 = day($('d1').value), yrs = (d1 - d0) / 365, fam = function (k) { return /^GD/.test(k) ? 'GD' : 'AL'; };
+    const it = rows.map(function (x) {
+        const ven = x.b.f[x.b.f.length - 1][0], post = x.b.f.filter(function (f) { return f[0] > d1; });
+        const y = x.r.tir, md1 = (function () { let a = 0, w = 0; post.forEach(function (f) { const t = (f[0] - d1) / 365, v = f[1] / Math.pow(1 + y, t); a += t * v; w += v; }); return w > 0 ? a / w / (1 + y) : null; })(); /* la duración modificada al corte, a su TIR */
+        return { k: x.k, f: fam(x.k), x0: x.r.modD, x1: ven > d1 ? md1 : null, y0: y, P: x.r.entry_p, cash: x.r.cash_out, post: post, carry: x.r.cst };
+    }).filter(function (o) { return o.x0 > 0; });
+    const pts = { AL: [], GD: [] }; it.forEach(function (o) { pts[o.f].push(o); }); Object.keys(pts).forEach(function (f) { pts[f].sort(function (a, b) { return a.x0 - b.x0; }); });
+    const at = function (f, x) { const p = pts[f]; if (!p.length) return null; if (x <= p[0].x0) return p[0].y0; if (x >= p[p.length - 1].x0) return p[p.length - 1].y0; for (let i = 1; i < p.length; i++) if (x <= p[i].x0) { const a = p[i - 1], b = p[i]; return a.y0 + (b.y0 - a.y0) * (x - a.x0) / (b.x0 - a.x0); } return null; };
+    const pv = function (o, y) { return o.post.reduce(function (s, f) { return s + f[1] / Math.pow(1 + y, (f[0] - d1) / 365); }, 0); };
+    it.forEach(function (o) { if (o.x1 == null || o.x1 <= 0 || !o.post.length) { o.y1 = null; o.tot = o.carry; o.roll = 0; return; } o.y1 = at(o.f, o.x1); o.tot = (o.cash + pv(o, o.y1)) / o.P - 1; o.roll = o.tot - o.carry; });
+    let k = sel.value; if (!k) { try { k = localStorage.getItem('rollK') || ''; } catch (e) {} }
+    if (!it.some(function (o) { return o.k === k; })) k = it.some(function (o) { return o.k === 'AL30'; }) ? 'AL30' : it[0].k;
+    sel.innerHTML = it.map(function (o) { return '<option value="' + o.k + '"' + (o.k === k ? ' selected' : '') + '>' + o.k + '</option>'; }).join('');
+    const S = it.filter(function (o) { return o.k === k; })[0], F = pts[S.f], fc = $('d1').value.split('-').reverse().join('/');
+    const st = getComputedStyle(document.body), cs = function (v, d) { return st.getPropertyValue(v).trim() || d; }, OK = cs('--ok', '#34d399'), BAD = cs('--bad', '#ff6b8b'), TX = cs('--tx', '#eee'), MU = cs('--mu', '#999'), BD = cs('--bd', '#333'), AC = cs('--ac', '#ffc542');
+    const pp = function (v) { return (v >= 0 ? '+' : '−') + Math.abs(v * 100).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'; }, py = function (v) { return (v * 100).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'; };
+    const chip = function (t, v, sub, c) { return '<div class="rlchip"><small>' + t + '</small><b' + (c ? ' style="color:' + c + '"' : '') + '>' + v + '</b><span>' + sub + '</span></div>'; };
+    $('rollH').textContent = 'Carry y rolldown de ' + S.k + ' hasta el ' + fc;
+    $('rollS').textContent = 'Retorno en USD de comprar hoy y vender el ' + fc + ' (' + yrs.toLocaleString('es-AR', { maximumFractionDigits: 2 }) + ' años) con la curva de ' + (S.f === 'GD' ? 'Globales' : 'Bonares') + ' de hoy congelada.';
+    $('rollChips').innerHTML = chip('Carry', pp(S.carry), 'cupones, amortizaciones y devengado a su TIR (' + py(S.y0) + ')') +
+        chip('Rolldown', S.y1 == null ? '—' : pp(S.roll), S.y1 == null ? 'vence antes del corte' : 'pasa a rendir ' + py(S.y1) + ' (la curva a ' + S.x1.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' años de duración)', S.roll > 0.0005 ? OK : S.roll < -0.0005 ? BAD : null) +
+        chip('Total', pp(S.tot), 'carry + rolldown', S.tot >= 0 ? OK : BAD) +
+        chip('Ranking', (F.slice().sort(function (a, b) { return b.tot - a.tot; }).indexOf(S) + 1) + '° de ' + F.length, 'por retorno total entre los ' + (S.f === 'GD' ? 'Globales' : 'Bonares'));
+    $('rollN').textContent = 'Carry = retorno con la TIR propia constante (el «Ret. TIR constante» de la tabla, ' + ((function () { try { return localStorage.getItem('reinv') !== 'NO'; } catch (e) { return true; } })() ? 'con los cobros reinvertidos' : 'sin reinvertir los cobros') + '). Rolldown = el reprecio al corte: al acortarse, el bono pasa a rendir lo que hoy rinde la curva de su ley a ese plazo (interpolada en duración modificada; la del bono al corte, a su TIR). Si la curva baja hacia los plazos cortos, rodar suma; si en los cortos rinde más (curva invertida, como hoy), resta. Condicional a pago normal; no es asesoramiento.';
+    if (window.rollChartObj) { window.rollChartObj.destroy(); window.rollChartObj = null; }
+    if (typeof Chart === 'undefined') return;
+    const ARW = { id: 'rollArw', afterDatasetsDraw: function (ch) {
+        const c = ch.ctx, xs = ch.scales.x, ys = ch.scales.y; c.save();
+        F.forEach(function (o) { if (o.y1 == null) return; const on = o === S, x0 = xs.getPixelForValue(o.x0), y0 = ys.getPixelForValue(o.y0 * 100), x1 = xs.getPixelForValue(o.x1), y1 = ys.getPixelForValue(o.y1 * 100), col = o.roll >= 0 ? OK : BAD, a = Math.atan2(y1 - y0, x1 - x0), L = on ? 11 : 7;
+            c.globalAlpha = on ? 1 : 0.45; c.strokeStyle = col; c.fillStyle = col; c.lineWidth = on ? 3 : 1.5; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+            c.beginPath(); c.moveTo(x1, y1); c.lineTo(x1 - L * Math.cos(a - 0.45), y1 - L * Math.sin(a - 0.45)); c.lineTo(x1 - L * Math.cos(a + 0.45), y1 - L * Math.sin(a + 0.45)); c.closePath(); c.fill();
+            if (on) { c.globalAlpha = 1; c.beginPath(); c.arc(x1, y1, 5, 0, 7); c.fill(); c.font = '600 13px Inter, sans-serif'; c.textAlign = x1 < x0 ? 'right' : 'left'; c.fillText('roll ' + pp(o.roll) + ' · ' + py(o.y1), x1 + (x1 < x0 ? -10 : 10), y1 + (y1 > y0 ? 20 : -10)); } });
+        c.globalAlpha = 1; c.font = '600 12px Inter, sans-serif'; c.fillStyle = TX; c.textAlign = 'center';
+        F.forEach(function (o) { c.fillStyle = o === S ? AC : TX; c.fillText(o.k, xs.getPixelForValue(o.x0), ys.getPixelForValue(o.y0 * 100) - 12); });
+        c.restore(); } };
+    window.rollChartObj = new Chart(cv.getContext('2d'), { type: 'scatter', plugins: [ARW],
+        data: { datasets: [{ label: 'Curva de hoy', data: F.map(function (o) { return { x: o.x0, y: o.y0 * 100 }; }), showLine: true, borderColor: MU, borderDash: [5, 5], borderWidth: 1.4, pointRadius: F.map(function (o) { return o === S ? 7 : 5; }), pointBackgroundColor: F.map(function (o) { return o === S ? AC : '#5b8def'; }), pointBorderWidth: 0 }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { top: 18, right: 16 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { const o = F[c.dataIndex]; return o.k + ' · TIR ' + py(o.y0) + ' · carry ' + pp(o.carry) + ' · roll ' + pp(o.roll) + ' · total ' + pp(o.tot); } } } },
+            scales: { x: { type: 'linear', min: 0, title: { display: true, text: 'Duración modificada (años)', color: MU }, ticks: { color: MU }, grid: { color: BD } },
+                y: { grace: '12%', title: { display: true, text: 'TIR en USD', color: MU }, ticks: { color: MU, callback: function (v) { return v.toLocaleString('es-AR') + '%'; } }, grid: { color: BD } } } } });
 };
 
 function updateBreakdownChart(rows, ars) {
