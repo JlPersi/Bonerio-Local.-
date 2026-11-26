@@ -13298,6 +13298,10 @@ window.USTX = (function () {
   var pfVN = function () { try { var P = pfSets(); if (CST.pfn && !(P && P.N.indexOf(CST.pfn) >= 0)) CST.pfn = ''; var o = CST.pfn && P && P.cur !== CST.pfn ? P.s[CST.pfn] : JSON.parse(localStorage.getItem('pfFav1') || '{}'), out = {}; Object.keys(o || {}).forEach(function (k) { if (+o[k] > 0) out[k] = +o[k]; }); return out; } catch (e) { return {}; } };
   var nextBiz = function (t) { var n = 0; while (!bxIsBiz(t) && n++ < 10) t++; return t; }; // si cae feriado o fin de semana, se cobra el hábil siguiente
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  window.BLVTO = function (cb) { /* para Licitaciones (perfil por licitación): cada pago futuro de los bonos del Tesoro en pesos, por su VN en circulación (millones, en su moneda) */
+    var go = function () { var f0 = CST.fam, out = []; CST.fam = 'all'; try { out = calFlows('all').filter(function (f) { return !f.pg && f.t >= bxToday() && COUT && COUT[f.k] && f.r && f.r.grp !== 'usd' && !f.r.corp; }).map(function (f) { var o = COUT[f.k]; return { t: f.t, k: f.k, g: f.r.grp, usd: f.usd, m: f.total / 100 * o.x / o.rf }; }); } catch (e) { console.error('BLVTO', e); } CST.fam = f0; cb(out); };
+    if (COUT) return go(); if (window.BLOUT) window.BLOUT(function (m) { COUT = m; go(); }); else cb([]);
+  };
   function calFlows(src) { // [{t, k, r, usd, renta, amort, total, vn}]
     uni(); var vn = pfVN(), out = [], t0 = bxToday() - 400;
     var keys = src === 'pf' ? Object.keys(vn) : src === 'fav' ? FAVS.slice() : Object.keys(MAP);
