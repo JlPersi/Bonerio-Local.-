@@ -7533,7 +7533,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   }
   function yLab(t) { // el título del eje y: la unidad del gráfico
     t = String(t || ''); var m = t.match(/\(([^)]*)\)\s*$/);
-    if (/devaluaci/i.test(t)) return 'Devaluación mensual (%)'; if (m && m[1] !== '%') return m[1].replace(/^TNA %$/, 'TNA (%)').replace(/^TEA %$/, 'TEA (%)'); if (/\(pb\)/.test(t)) return 'pb'; return /\(%\)|TNA/.test(t) ? 'TNA (%)' : '';
+    if (/devaluaci/i.test(t)) return 'Devaluación mensual (%)'; if (m && m[1] !== '%') return m[1].replace(/^TNA %$/, 'TNA (%)').replace(/^TEA %$/, 'TEA (%)').replace(/^TEM %$/, 'TEM (%)'); if (/\(pb\)/.test(t)) return 'pb'; return /\(%\)|TNA/.test(t) ? 'TNA (%)' : '';
   }
   function scatterOpt(xt, yt, yfmt, tip, maxX, xfmt, yl) { var tx = css('--tx'), bd = css('--bd'); yl = yl || yLab(yt); return { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: nearTip(), intersect: false },
     plugins: { legend: { labels: { color: tx, boxWidth: 12, usePointStyle: true, filter: function (it, d) { return !d.datasets[it.datasetIndex].noLeg; },
@@ -8050,7 +8050,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     var dp = function (x) { return bxDayNum(String(x).slice(0, 10)); };
     var fc = function () { return S.futV && S.futV.length ? S.futV : S.fut; };
     var sh = function (s) { return name(s).replace(/^DLR /, ''); };
-    var cw = function (id, h) { return '<div class="cw" style="height:' + h + 'px"><canvas id="' + id + '"></canvas><div class="ce" id="' + id + 'E"></div></div>'; };
+    var cw = function (id, h) { return '<div class="cw" style="' + (typeof h === 'string' ? h : 'height:' + h + 'px') + '"><canvas id="' + id + '"></canvas><div class="ce" id="' + id + 'E"></div></div>'; };
     var MODES = [['usd', 'Dólar sintético'], ['lec', 'Lecap sintética'], ['peso', 'Peso sintético']];
     var MDESC = { usd: 'Comprás una <b>Lecap</b> y <b>comprás futuro</b> de dólar: al vencimiento los pesos se vuelven dólares oficiales a un precio fijado hoy. Se compara con el <b>dollar linked</b> del mismo plazo.', lec: 'Comprás un <b>dollar linked</b> y <b>vendés futuro</b> de dólar: lo que cobra el bono en pesos queda fijo hoy, como una tasa fija. Se compara con la <b>Lecap</b> del mismo plazo.', peso: 'Comprás <b>dólar oficial</b> hoy y lo <b>vendés a futuro</b>: la diferencia entre el futuro y el spot es una tasa en pesos sin riesgo de tipo de cambio. Se compara con la <b>TAMAR</b> de bancos privados y con la <b>Lecap</b> del mismo plazo: si el sintético rinde más, el carry en pesos cubierto con futuros no paga.' };
     var kp = function (t, v, sub, c) { return '<div class="sp1"><small>' + t + '</small><b' + (c ? ' class="' + c + '"' : '') + '>' + v + '</b><span>' + (sub || '&nbsp;') + '</span></div>'; }; // las tarjetas chicas del resumen
@@ -8063,7 +8063,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
         '<p class="note" style="margin-top:4px" id="sySub"></p></div>' + dl('syCap', 'Sinteticos', 'Descargar la pestaña en HD') + '</div>' +
         '<div class="rs" id="syS"><div style="' + HD + '"><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="syM"></span><span id="syCfx"></span></span>' + dl('syS', 'Sinteticos_estrategia', 'Descargar en HD') + '</div>' +
         '<p class="syD" id="syD"></p><div class="syL" id="syL"></div><div class="spr" id="syK"></div>' +
-        '<div class="syP" style="margin-top:16px"><h5 id="syAT"></h5><p class="ft" id="syAS" style="margin:-4px 0 8px"></p>' + cw('syA', 360) + '</div><div class="rg" style="margin-top:16px"><div class="syP"><h5 id="syBT"></h5><p class="ft" id="syBS" style="margin:-4px 0 8px"></p>' + cw('syB', 290) + '</div><div class="syP"><h5>Dólar oficial esperado</h5><p class="ft" style="margin:-4px 0 8px">Futuros de A3, el REM y el A3500 con el que empata cada dollar linked contra la Lecap</p>' + cw('syC', 290) + '</div></div>' +
+        '<div class="syP" style="margin-top:16px"><h5 id="syAT"></h5><p class="ft" id="syAS" style="margin:-4px 0 8px"></p>' + cw('syA', 'aspect-ratio:2.4;min-height:340px;max-height:580px') + '</div><div class="rg" style="margin-top:16px"><div class="syP"><h5 id="syBT"></h5><p class="ft" id="syBS" style="margin:-4px 0 8px"></p>' + cw('syB', 'aspect-ratio:1.55;min-height:300px;max-height:470px') + '</div><div class="syP"><h5>Dólar oficial esperado</h5><p class="ft" style="margin:-4px 0 8px">Futuros de A3, el REM y el A3500 con el que empata cada dollar linked contra la Lecap</p>' + cw('syC', 'aspect-ratio:1.55;min-height:300px;max-height:470px') + '</div></div>' +
         '<h5 style="margin:22px 0 8px" id="syH"></h5><div class="sc"><table class="rt" id="syT"></table></div><div class="hl" style="margin:18px 0 0" id="syN"></div></div></div>';
       root.addEventListener('click', function (e) { var b = e.target.closest('[data-sm]'); if (!b || !root.contains(b) || !LAST) return; ST.m = b.getAttribute('data-sm'); draw(LAST); });
     }
@@ -8188,7 +8188,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       if (D.LR && pts.length) { var a = Math.max(pts[0].x, O + D.LR.x0), b = Math.min(pts[pts.length - 1].x, O + D.LR.x1); if (b > a) sets.push(ds('Curva de Lecaps (TEM)', smooth(function (x) { return tem(D.LR.f(x - O)); }, a, b), '#ffc542', { pointRadius: 0, borderWidth: 1.8, borderDash: [5, 4], order: 4, fill: false, backgroundColor: 'transparent', noTip: true })); }
       sets.push(dots('Peso sintético: spot + venta de futuro', pts, C_FUT, { pointRadius: 6 }));
       tt('syA', 'Tasa en pesos del peso sintético por vencimiento (TEM)', 'Cada contrato de futuro de dólar contra el spot: (futuro ÷ spot)^(30/días) − 1. La línea rosa es la TAMAR; la amarilla, la curva de Lecaps.');
-      var o = noT(dateOpt(D, 'TEM (%)', function (v) { return nf(v, 2) + '%'; }, 'r')); o.plugins.tooltip.callbacks.label = function (cc) { return 'TEM ' + nf(cc.raw.y, 2) + '% · vence el ' + fr(ds2(cc.raw.x)); };
+      var o = noT(dateOpt(D, 'Tasa (TEM %)', function (v) { return nf(v, 2) + '%'; }, 'r')); o.plugins.tooltip.callbacks.label = function (cc) { return 'TEM ' + nf(cc.raw.y, 2) + '% · vence el ' + fr(ds2(cc.raw.x)); };
       mk('syA', { type: 'scatter', data: { datasets: sets }, plugins: [].concat(LBL()), options: xEnd(o, pts.length ? pts : [{ x: D.x1 }]) });
       tt('syB', 'Peso sintético menos TAMAR', 'En pb de TEM. Verde: cubrirse con futuro rinde más que la TAMAR, el carry en pesos no paga. Rojo: el carry cubierto todavía rinde.');
       bars('syB', G.filter(function (r) { return r.dT != null; }).map(function (r) { return { l: sh(r.f.s), v: r.dT, r: r }; }), '', function (x) { return 'Sintético ' + P(x.r.tem) + ' · TAMAR ' + P(TM.tem); });
