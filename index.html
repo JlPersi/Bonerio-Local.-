@@ -5491,7 +5491,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   }
   function sameHour() { // la rueda anterior hasta esta misma hora, bono por bono (data/intra_bonos.json); si un bono no tiene intradiario, su monto se escala con el ritmo de todos
     var pj = frac(); if (!pj || !(pj.f > 0)) return null; var ib = window.BNIB ? window.BNIB(function () { if (isAct() && ST.live) render(); }) : null, D0 = ib && ib[pj.ds], j = DATES.indexOf(pj.ds); if (!D0 || j < 0) return null;
-    for (var t in T) { var r = D0[t], o = T[t]; if (o.acc) { o.E[j] *= pj.f; o.V[j] *= pj.f; continue; } var c = 0, v = 0, i; if (r) for (i = 0; i < r.length; i++) if (r[i].length > 2 && r[i][0] <= pj.M) { c = r[i][1]; v = r[i][2]; }
+    pj.j = j; for (var t in T) { var r = D0[t], o = T[t]; o.EF = o.E[j]; o.VF = o.V[j]; /* la rueda completa, para las barras por rueda */ if (o.acc) { o.E[j] *= pj.f; o.V[j] *= pj.f; continue; } var c = 0, v = 0, i; if (r) for (i = 0; i < r.length; i++) if (r[i].length > 2 && r[i][0] <= pj.M) { c = r[i][1]; v = r[i][2]; }
       if (r) { o.E[j] = v * c / 100; o.V[j] = v; } else { o.E[j] *= pj.f; o.V[j] *= pj.f; } }
     return pj;
   }
@@ -5567,6 +5567,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       e.tk.push(t); e.sp += (e.sp.indexOf(o.s) < 0 ? o.s : '');
       var fx = ST.cur === 'all' ? (o.s === 'D' ? MEP : o.s === 'C' ? CCL : null) : null;
       for (i = 0; i < n; i++) e.M[i] += ST.met === 'v' ? o.V[i] : (fx ? o.E[i] * fx[i] : o.E[i]);
+      if (HORA && HORA.j != null && o.EF != null) { var jh = HORA.j; e.MF = e.MF || {}; e.MF[jh] = (e.MF[jh] || 0) + (ST.met === 'v' ? o.VF : (fx ? o.EF * fx[jh] : o.EF)); } // la rueda anterior completa (la comparación usa la recortada a la misma hora)
       var rk = o.s === 'D' ? 3 : o.s === 'P' ? 2 : 1; if (rk > e.pr) { e.pr = rk; e.px = o.C; e.pxs = o.s; }
     }
     return Object.keys(map).map(function (k) { var e = map[k]; attachPay(e); return e; });
@@ -5685,7 +5686,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     document.getElementById('vlChips').innerHTML =
       c('Total del período', mon(totAll), (dlt == null ? (cmp ? 'sin ruedas en las fechas elegidas' : 'sin período previo comparable') : sg(dlt, 0) + '% vs. ' + (cmp ? (cmp.n === 1 ? 'la rueda del ' + cmp.txt.replace(/^del (\S+) al .*$/, '$1') : 'el promedio por rueda ' + cmp.txt) + (w > 1 ? ' (por rueda)' : '') : w === 1 ? 'la rueda anterior' : 'las ' + w + ' ruedas anteriores'))) +
       (cmp ? c(cmp.n === 1 ? 'Fecha elegida' : 'Fechas elegidas', cAvg ? mon(cAvg) : '—', !cmp.n ? 'no hubo rueda en esas fechas (feriado o fin de semana)' : cmp.n === 1 ? 'la rueda ' + cmp.txt.replace(/ al .*$/, '') + (hoyI ? ', contra la de hoy (incompleta)' : '') : 'promedio por rueda ' + cmp.txt + ' (' + cmp.n + ' ruedas)' + (hoyI ? ' · hoy va incompleta' : '')) : '') +
-      (cmp ? '' : w === 1 ? c('Rueda anterior', prevAll > 0 ? mon(prevAll) : '—', (DATES[M.a0 - 1] ? 'la del ' + fr(DATES[M.a0 - 1]) + ', contra la del ' : 'contra la del ') + fr(d1) + (d1 === bxDayStr(bxToday()) ? (liveOpen() ? ' (hoy, incompleta)' : ' (hoy)') : '')) : c('Promedio por rueda', mon(totAll / w), w + ' ruedas · ' + fr(d0) + ' al ' + fr(d1))) + // con una rueda, el promedio repetiría el total
+      (cmp ? '' : w === 1 ? c('Rueda anterior', prevAll > 0 ? mon(prevAll) : '—', (DATES[M.a0 - 1] ? 'la del ' + fr(DATES[M.a0 - 1]) + (HORA && HORA.M ? ' hasta las ' + Math.floor(HORA.M / 60) + ':' + ('0' + HORA.M % 60).slice(-2) : '') + ', contra la del ' : 'contra la del ') + fr(d1) + (d1 === bxDayStr(bxToday()) ? (liveOpen() ? ' (hoy, incompleta)' : ' (hoy)') : '')) : c('Promedio por rueda', mon(totAll / w), w + ' ruedas · ' + fr(d0) + ' al ' + fr(d1))) + // con una rueda, el promedio repetiría el total
       (fl ? c('Familia líder', '<i style="color:' + FAMS[fl][1] + ';font-style:normal">●</i> ' + FAMS[fl][0], nf(famTot[fl] / totAll * 100, 0) + '% del total') : '') +
       (lead[0] ? c('Más operado', lead[0].key, nf(lead[0].tot / totAll * 100, 1) + '% del total') : '') +
       c('Concentración', nf(top5 / totAll * 100, 0) + '%', 'de los 5 primeros bonos');
@@ -5732,7 +5733,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     for (b = a0 + ((span % bs) ? (span % bs) - bs : 0); b < n; b += bs) { // bloques contados desde la última rueda, y cada barra es el promedio por rueda: así la escala es la misma que con barras diarias
       var b0 = Math.max(a0, b), e1 = Math.min(n, b + bs); var dd = DATES[e1 - 1].split('-'); labels.push(span > 250 ? ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][+dd[1] - 1] + ' ' + dd[0].slice(2) : dd[2] + '/' + dd[1]); // más de un año: mes y año
       FORD.forEach(function (ff) { sets[ff].push(0); });
-      list.forEach(function (e) { var s = 0; for (i = b0; i < e1; i++) s += e.M[i]; sets[e.fam][sets[e.fam].length - 1] += s / (e1 - b0); });
+      list.forEach(function (e) { var s = 0; for (i = b0; i < e1; i++) s += e.MF && e.MF[i] != null ? e.MF[i] : e.M[i]; sets[e.fam][sets[e.fam].length - 1] += s / (e1 - b0); });
     }
     var tx = css('--tx'), bd = css('--bd'), div = ST.met === 'v' ? 1e6 : 1e6;
     document.getElementById('vlT1').textContent = 'Dónde estuvo el volumen · ' + (bs > 1 ? 'promedio por rueda, en bloques de ' + bs + ' ruedas' : 'por rueda');
