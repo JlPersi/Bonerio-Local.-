@@ -8892,9 +8892,9 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
 ;(function () {
   var root = document.getElementById('port'); if (!root || !window.PSX) return;
   var X = window.PSX, fm = X.fm, sg = X.sg, css = X.css;
-  var GN = { usd: 'Hard Dollar', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dl: 'Dólar linked', dual: 'Duales', acc: 'Acciones y CEDEARs', otro: 'Otros (no cotizan)' };
-  var ORDER = ['usd', 'fija', 'cer', 'tamar', 'dl', 'dual', 'acc', 'otro'];
-  var GC = { usd: '#c9a0ff', fija: '#ffc542', cer: '#2fd4a7', tamar: '#5cc8ff', dl: '#c9a0ff', dual: '#ff8fb3', acc: '#b8e986', otro: '#a1a1aa' };
+  var GN = { usd: 'Hard Dollar', fija: 'Tasa fija', cer: 'CER', tamar: 'TAMAR', dl: 'Dólar linked', dual: 'Duales', acc: 'Acciones y CEDEARs', fci: 'FCI', otro: 'Otros (no cotizan)' };
+  var ORDER = ['usd', 'fija', 'cer', 'tamar', 'dl', 'dual', 'acc', 'fci', 'otro'];
+  var GC = { usd: '#c9a0ff', fija: '#ffc542', cer: '#2fd4a7', tamar: '#5cc8ff', dl: '#c9a0ff', dual: '#ff8fb3', acc: '#b8e986', fci: '#ffb070', otro: '#a1a1aa' };
   var KR = [0.25, 0.5, 1, 2, 3, 5, 7, 10, 15, 20], KRL = ['3m', '6m', '1a', '2a', '3a', '5a', '7a', '10a', '15a', '20a']; // nodos de Fabozzi hasta 20 años (más 6m por la curva corta en pesos)
   var FKEY = 'pfFav1', SKEY = 'pfSt1', CKEY = 'pfCost1', COST = (function () { try { var o = JSON.parse(localStorage.getItem('pfCost1') || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } })(); // fecha y precio de compra de cada bono, por portfolio
   var PAY = (function () { try { var o = JSON.parse(localStorage.getItem('pfPay1') || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } })(), payOf = function () { return PAY[PS.cur] || (PAY[PS.cur] = { cash: 0, cc: 'ARS', L: [] }); }, savePay = function () { try { localStorage.setItem('pfPay1', JSON.stringify(PAY)); } catch (e) {} }; // pagos de la empresa por portfolio, para el calce
@@ -9015,6 +9015,13 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       out.push({ k: k, em: k, emC: 'Otros', grp: 'otro', fams: ['otro'], tipo: o.t || 'Otro activo', eq: 1, ot: 1, P: P, pccy: usd ? 'USD' : 'ARS', pars: usd ? (mep ? P * mep * 100 : null) : P * 100, mat: null, d: null, tir: null, tna: null, tem: null, md: null, krFl: null, fl: [], xr: 1, fccy: usd ? 'USD' : 'ARS', feat: [o.t || 'Otro activo', 'Cargado a mano: no cotiza · el monto total va en Precio y la cantidad en Nominales'], tl: '' }); });
     return out;
   }
+  function fciRows(rows) { // FCI con el valor de cuotaparte de CAFCI (el último publicado del mes): los del portfolio y los que coinciden con lo que buscás; Nominales = cuotapartes
+    var J = fciMonth(curMk()) || fciMonth(bxDayStr(bxToday() - 28).slice(0, 7)); if (!J || !J.v) return []; var has = {}, q = fNorm(ST.q || ''), out = [], mep = mepNow(); rows.forEach(function (r) { has[r.k] = 1; });
+    var ks = Object.keys(FAV).filter(function (k) { return isF(k); }); if (q.length >= 3) ks = ks.concat(Object.keys(J.v).filter(function (n) { return fNorm(n).indexOf(q) >= 0; }).sort().slice(0, 40).map(function (n) { return 'FCI:' + n; }));
+    ks.forEach(function (k) { if (has[k]) return; has[k] = 1; var nm = kn(k), c = fMatch(nm, J.v), P = c ? +J.v[c] : null, usd = /d[oó]lar|usd|u\$s/i.test(nm);
+      out.push({ k: k, kd: nm, em: nm, emC: 'FCI', grp: 'fci', fams: ['fci'], tipo: 'FCI' + (usd ? ' en dólares' : ''), eq: 1, P: P, pccy: usd ? 'USD' : 'ARS', pars: P != null ? (usd ? (mep ? P * mep * 100 : null) : P * 100) : null, mat: null, d: null, tir: null, tna: null, tem: null, md: null, krFl: null, fl: [], xr: 1, fccy: usd ? 'USD' : 'ARS', feat: ['FCI', 'Cuotapartes en Nominales · valor de cuotaparte de CAFCI del ' + String(J.d || '').split('-').reverse().join('/') + (usd ? ', en dólares (por el nombre del fondo)' : '')], tl: '' }); });
+    return out;
+  }
   function eqRows(rows) { // acciones y CEDEARs: las que están en el portfolio y las que coinciden con lo que buscás (no todas: son cientos); la cantidad va en Nominales y vale cantidad × precio
     eqLoad(); if (!EQ) return []; var has = {}, q = (ST.q || '').trim().toUpperCase(), out = []; rows.forEach(function (r) { has[r.k] = 1; });
     var ks = Object.keys(FAV).filter(function (k) { return isEq(k); }); if (q) ks = ks.concat(Object.keys(EQ).filter(function (k) { return k.indexOf(q) >= 0 && isEq(k); }).sort().slice(0, 40));
@@ -9028,6 +9035,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     try { var sn = X.snap(1); SCN = sn.sc; rows = rows.concat(psRows(sn)); } catch (e) { console.error('port pesos', e); }
     try { rows = rows.concat(xRows()); } catch (e) { console.error('port extra', e); }
     try { rows = rows.concat(eqRows(rows)); } catch (e) { console.error('port acciones', e); }
+    try { rows = rows.concat(fciRows(rows)); } catch (e) { console.error('port fci', e); }
     try { rows = rows.concat(otRows()); } catch (e) { console.error('port otros', e); }
     rows.forEach(function (r) { r.s = s; if (r.xr) return; var a = krd(r.krFl, s, r.krP, r.krY); r.kr = a.kr; r.conv = a.conv; if (r.flt) effDur(r); }); // ONs y provinciales: la duración por plazos recién cuando entran al portfolio (holdings)
     return rows;
@@ -9434,17 +9442,17 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   }
 
   var U = [];
-  function star(k) { return '<button class="pfs' + (FAV[k] != null ? ' on' : '') + '" data-k="' + k + '" title="' + (FAV[k] != null ? 'Sacar de tu portfolio' : 'Sumar a tu portfolio') + '" aria-label="' + (FAV[k] != null ? 'Sacar ' : 'Sumar ') + k + '">' + (FAV[k] != null ? '−' : '+') + '</button>'; }
+  function star(k) { return '<button class="pfs' + (FAV[k] != null ? ' on' : '') + '" data-k="' + esc(k) + '" title="' + (FAV[k] != null ? 'Sacar de tu portfolio' : 'Sumar a tu portfolio') + '" aria-label="' + (FAV[k] != null ? 'Sacar ' : 'Sumar ') + k + '">' + (FAV[k] != null ? '−' : '+') + '</button>'; }
   function rateCells(r) { if (r.eq) return '<td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>'; return '<td title="' + esc(r.tl) + '">' + pc(r.tir) + '</td><td>' + pc(r.tna) + '</td><td>' + pc(r.tem) + '</td><td>' + fm(r.md, 2) + '</td><td>' + (r.mat != null ? dfull(r.mat) : '—') + '</td><td>' + (r.d != null ? fm(r.d, 0) : '—') + '</td>'; }
   function renderPick() {
-    if (U) try { U = U.filter(function (r) { return !r.eq || FAV[r.k] != null; }); U = U.concat(eqRows(U)); } catch (e) { console.error('port acciones', e); } // las acciones que coinciden con lo que vas escribiendo
-    var q = (ST.q || '').trim().toUpperCase(), rows = U.filter(function (r) { return (ST.grp === 'all' || r.grp === ST.grp) && (!q || r.k.indexOf(q) >= 0 || r.tipo.toUpperCase().indexOf(q) >= 0) && (!r.xr || q || FAV[r.k] != null); }); // ONs y provinciales (son cientos): al buscarlas o si ya están en el portfolio
+    if (U) try { U = U.filter(function (r) { return !r.eq || FAV[r.k] != null; }); U = U.concat(eqRows(U)).concat(fciRows(U)); } catch (e) { console.error('port acciones', e); } // las acciones que coinciden con lo que vas escribiendo
+    var q = (ST.q || '').trim().toUpperCase(), rows = U.filter(function (r) { return (ST.grp === 'all' || r.grp === ST.grp) && (!q || r.k.indexOf(q) >= 0 || r.tipo.toUpperCase().indexOf(q) >= 0 || (r.kd && fNorm(r.kd).indexOf(fNorm(q)) >= 0)) && (!r.xr || q || FAV[r.k] != null); }); // ONs y provinciales (son cientos): al buscarlas o si ya están en el portfolio
     var s = ST.sort.replace('-', ''), dir = ST.sort.charAt(0) === '-' ? -1 : 1, val = function (r) { return s === 'k' ? r.k : s === 'grp' ? ORDER.indexOf(r.grp) * 1e6 + r.mat : r[s]; };
     rows.sort(function (a, b) { var x = val(a), y = val(b); if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * dir; });
     var H = [['', ''], ['k', 'Bono'], ['grp', 'Grupo'], ['P', 'Precio'], ['tir', 'TIR (TEA)'], ['tna', 'TNA'], ['tem', 'TEM'], ['md', 'MD'], ['mat', 'Vencimiento'], ['d', 'Días'], ['', 'Características']];
     var h = '<thead><tr>' + H.map(function (c, i) { return '<th' + (c[0] ? ' data-s="' + c[0] + '"' : '') + ' class="' + (i < 3 || i === 10 ? 'l' : '') + (c[0] && s === c[0] ? ' on' : '') + '">' + c[1] + (c[0] && s === c[0] ? (dir > 0 ? ' ▲' : ' ▼') : '') + '</th>'; }).join('') + '</tr></thead><tbody>';
     rows.forEach(function (r) {
-      h += '<tr><td class="l">' + star(r.k) + '</td><td class="k">' + r.k + '</td><td class="l"><i class="pfdot" style="background:' + GC[r.grp] + '"></i>' + r.tipo + '</td><td>' + (r.pccy === 'USD' ? 'US$ ' : '$ ') + fm(r.P, 2) + '</td>' + rateCells(r) + '<td class="f">' + esc(r.feat.slice(1).join(' · ')) + '</td></tr>';
+      h += '<tr><td class="l">' + star(r.k) + '</td><td class="k"' + (r.kd ? ' style="max-width:220px;white-space:normal"' : '') + '>' + esc(r.kd || r.k) + '</td><td class="l"><i class="pfdot" style="background:' + GC[r.grp] + '"></i>' + r.tipo + '</td><td>' + (r.pccy === 'USD' ? 'US$ ' : '$ ') + fm(r.P, 2) + '</td>' + rateCells(r) + '<td class="f">' + esc(r.feat.slice(1).join(' · ')) + '</td></tr>';
     });
     document.getElementById('pfAll').innerHTML = h + (rows.length ? '' : '<tr><td colspan="11" class="pfe">' + (ST.grp === 'otro' ? 'Cheques, pagarés, plazos fijos y lo que no cotiza: cargalos en «Otro activo que no cotiza», acá arriba.' : 'No hay bonos con ese filtro.') + '</td></tr>') + (q ? '' : '<tr><td colspan="11" class="pfe">Las ONs, los provinciales, las acciones y los CEDEARs aparecen cuando los buscás por ticker o emisor.</td></tr>') + '</tbody>';
   }
@@ -9470,14 +9478,14 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     var MH = [['', ''], ['k', 'Bono'], ['grp', 'Grupo'], ['n', 'Nominales'], ['P', 'Precio'], ['dv', 'Var. día'], ['val', 'Valor'], ['dr', 'Resultado día'], ['pv', 'Peso'], ['tir', 'TIR (TEA)'], ['tna', 'TNA'], ['tem', 'TEM'], ['md', 'MD'], ['mat', 'Vencimiento'], ['d', 'Días'], ['', 'Características']];
     var h = '<thead><tr>' + MH.map(function (c, i) { var on = c[0] && (ms ? ms === c[0] : c[0] === 'grp'); return '<th' + (c[0] ? ' data-m="' + c[0] + '"' : '') + ' class="' + (i < 3 || i === 15 ? 'l' : '') + (ms && on ? ' on' : '') + '">' + c[1] + (ms && on ? (md > 0 ? ' ▲' : ' ▼') : '') + '</th>'; }).join('') + '</tr></thead><tbody>';
     Hs.forEach(function (r) {
-      h += '<tr><td class="l">' + star(r.k) + '</td><td class="k">' + r.k + '</td><td class="l"><i class="pfdot" style="background:' + GC[r.grp] + '"></i>' + r.tipo + '</td>' +
-        '<td><input class="pfn" inputmode="decimal" data-k="' + r.k + '" value="' + (r.n ? fm(r.n, 0) : '') + '" placeholder="0"></td><td>' + (r.ot ? '<input class="pfom" inputmode="decimal" data-k="' + esc(r.k) + '" value="' + fm(OTq()[r.k].m, 0) + '" title="Monto total (' + (r.pccy === 'USD' ? 'US$' : '$') + '), cargado a mano" style="width:120px">' : (r.pccy === 'USD' ? 'US$ ' : '$ ') + fm(r.P, 2)) + '</td><td>' + dvc(r.dv, pc(r.dv, 2)) + '</td><td>' + (r.val ? money(r.val) : '—') + '</td><td>' + dvc(r.dr, r.dr != null ? (r.dr > 0 ? '+' : '') + money(r.dr) : '—') + '</td><td>' + (tot > 0 && r.val ? pc(r.val / tot, 1) : '—') + '</td>' + rateCells(r) + '<td class="f">' + esc(r.feat.slice(1).join(' · ')) + '</td></tr>';
+      h += '<tr><td class="l">' + star(r.k) + '</td><td class="k"' + (r.kd ? ' style="max-width:220px;white-space:normal"' : '') + '>' + esc(r.kd || r.k) + '</td><td class="l"><i class="pfdot" style="background:' + GC[r.grp] + '"></i>' + r.tipo + '</td>' +
+        '<td><input class="pfn" inputmode="decimal" data-k="' + esc(r.k) + '" value="' + (r.n ? fm(r.n, r.n % 1 ? 2 : 0) : '') + '" placeholder="0"></td><td>' + (r.ot ? '<input class="pfom" inputmode="decimal" data-k="' + esc(r.k) + '" value="' + fm(OTq()[r.k].m, 0) + '" title="Monto total (' + (r.pccy === 'USD' ? 'US$' : '$') + '), cargado a mano" style="width:120px">' : (r.pccy === 'USD' ? 'US$ ' : '$ ') + fm(r.P, 2)) + '</td><td>' + dvc(r.dv, pc(r.dv, 2)) + '</td><td>' + (r.val ? money(r.val) : '—') + '</td><td>' + dvc(r.dr, r.dr != null ? (r.dr > 0 ? '+' : '') + money(r.dr) : '—') + '</td><td>' + (tot > 0 && r.val ? pc(r.val / tot, 1) : '—') + '</td>' + rateCells(r) + '<td class="f">' + esc(r.feat.slice(1).join(' · ')) + '</td></tr>';
     });
     if (!Hh.length) h += '<tr><td colspan="16" class="pfe">Tu portfolio está vacío.</td></tr>';
     h += '</tbody>';
     if (H.length) {
       var wa = function (f) { var s = 0, w = 0; H.forEach(function (x) { if (x[f] != null && isFinite(x[f])) { s += x[f] * x.val; w += x.val; } }); return w ? s / w : null; };
-      h += '<tfoot><tr><td></td><td class="l" colspan="4">Total (' + H.length + ' posiciones con valor)</td><td>' + (dB > 0 ? dvc(dR, pc(dR / dB, 2)) : '—') + '</td><td>' + money(tot) + '</td><td>' + (dB > 0 ? dvc(dR, (dR > 0 ? '+' : '') + money(dR)) : '—') + '</td><td>100%</td><td colspan="3"></td><td>' + fm(wa('md'), 2) + '</td><td></td><td>' + fm(wa('d'), 0) + '</td><td></td></tr></tfoot>';
+      h += '<tfoot><tr><td></td><td class="l" colspan="4">Total (' + H.length + (H.length === 1 ? ' posición con valor)' : ' posiciones con valor)') + '</td><td>' + (dB > 0 ? dvc(dR, pc(dR / dB, 2)) : '—') + '</td><td>' + money(tot) + '</td><td>' + (dB > 0 ? dvc(dR, (dR > 0 ? '+' : '') + money(dR)) : '—') + '</td><td>100%</td><td colspan="3"></td><td>' + (wa('md') == null ? '—' : fm(wa('md'), 2)) + '</td><td></td><td>' + (wa('d') == null ? '—' : fm(wa('d'), 0)) + '</td><td></td></tr></tfoot>';
     }
     document.getElementById('pfTab').innerHTML = h;
     PIE = { H: H, tot: tot }; document.getElementById('pfDist').disabled = document.getElementById('pfShp').disabled = !H.length;
@@ -9489,7 +9497,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     var top = ORDER.filter(function (g) { return byG[g]; }).sort(function (a, b) { return byG[b] - byG[a]; })[0];
     var hhi = H.reduce(function (a, x) { var w = x.val / tot; return a + w * w; }, 0);
     document.getElementById('pfChips').innerHTML =
-      chip('Valor de mercado', money(tot), H.length + (sb ? ' posiciones · ' : ' bonos · ') + (ST.ccy === 'USD' ? 'en dólares MEP' : 'en pesos')) +
+      chip('Valor de mercado', money(tot), H.length + (sb ? (H.length === 1 ? ' posición · ' : ' posiciones · ') : ' bonos · ') + (ST.ccy === 'USD' ? 'en dólares MEP' : 'en pesos')) +
       chip('Duración modificada', Hb.length ? fm(md, 2) : '—', 'años, ponderada por valor' + sb) +
       chip('DV01', money(dv01), 'pierde esto si todas las curvas suben 1 pb a la vez') +
       chip('Convexidad', Hb.length ? fm(cv, 2) : '—', 'ponderada por valor' + sb + ' · suma ½ × C × Δy² al precio') +
