@@ -22,7 +22,8 @@
   };
   var NUM = /^[^\d−+-]*([−+-]?\s?[\d.]*\d(?:,\d+)?)/;
   var num = function (s) { var m = NUM.exec(String(s || '').trim()); if (!m) return null; var v = parseFloat(m[1].replace(/\s/g, '').replace('−', '-').replace(/\./g, '').replace(',', '.')); return isFinite(v) ? v : null; };
-  var TAB = null, TABT = 0, FL = 0;
+  var TAB = null, TABT = 0, FL = 0, UIT = 0;
+  ['input', 'change', 'click', 'keydown'].forEach(function (t) { document.addEventListener(t, function () { UIT = Date.now(); }, true); }); // lo que cambia porque tocaste algo no destella: solo los precios que llegan solos
   var flash = function (el, a, b) {
     if (!FL || !el || el.nodeType !== 1 || el.childNodes.length > 3) return; var x = num(a), y = num(b); if (x == null || y == null || x === y) return;
     if (FQ.length > 400) return; FQ.push([el, y > x ? 'tk-up' : 'tk-dn']); if (!FR) FR = requestAnimationFrame(fdo); // en tanda: un solo reflow por cuadro (antes uno por número, y las tablas grandes se trababan)
@@ -60,7 +61,7 @@
     var el = this;
     if (typeof v !== 'string' || !el.firstChild || !el.isConnected || el.namespaceURI !== 'http://www.w3.org/1999/xhtml' || FORM.test(el.tagName) || !el.closest('.tab-content') || el.closest('[data-nomorph]')) return D.set.call(el, v);
     try {
-      var t = document.querySelector('.tab-content.active'), now = Date.now(); if (t !== TAB) { TAB = t; TABT = now; } FL = now - TABT > 1500; // al entrar a una sección no destella nada
+      var t = document.querySelector('.tab-content.active'), now = Date.now(); if (t !== TAB) { TAB = t; TABT = now; } FL = now - TABT > 1500 && now - UIT > 3000; // al entrar a una sección no destella nada
       var T = tpl.cloneNode(); D.set.call(T, v); kids(el, T.content);
     } catch (e) { D.set.call(el, v); }
   } });
@@ -9353,8 +9354,8 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     g('pfLdR').onclick = function () { var n = this.getAttribute('data-n'), Lo = LED[n]; if (!Lo) return; ask('Traer el libro', '¿Copio a \u00ab' + PS.cur + '\u00bb las ' + (Lo.ops || []).length + ' operaciones y los cierres de \u00ab' + n + '\u00bb?', null, 'Traer', function () { LED[PS.cur] = JSON.parse(JSON.stringify(Lo)); saveLed(); render(); }); };
     g('pfLdZ').onclick = function () { var L = ledOf(); if (!L.ops.length && !Object.keys(L.vm || {}).length) return; ask('Vaciar el libro', '¿Borrar las ' + L.ops.length + ' operaciones y los precios cargados a mano de \u00ab' + PS.cur + '\u00bb? Los cierres guardados quedan (cada uno se borra con su ×). No se puede deshacer.', null, 'Vaciar', function () { L.ops = []; L.vm = {}; saveLed(); render(); }); };
     var ledKeep = function (el, fn) { // la pantalla queda donde estaba: el campo que tocaste no se mueve aunque la tabla se reordene
-      var sel = ['data-i', 'data-f', 'data-k', 'data-d', 'data-ac', 'data-vq'].filter(function (a) { return el.hasAttribute(a); }).map(function (a) { return '[' + a + '="' + String(el.getAttribute(a)).replace(/"/g, '\\"') + '"]'; }).join(''), y0 = el.getBoundingClientRect().top, sx = window.scrollY;
-      fn(); var n = sel && document.querySelector(el.tagName.toLowerCase() + sel); if (n && n.offsetParent) window.scrollBy(0, n.getBoundingClientRect().top - y0); else window.scrollTo(0, sx); };
+      var sel = ['data-i', 'data-f', 'data-k', 'data-d', 'data-ac', 'data-vq'].filter(function (a) { return el.hasAttribute(a); }).map(function (a) { return '[' + a + '="' + String(el.getAttribute(a)).replace(/"/g, '\\"') + '"]'; }).join(''), y0 = el.getBoundingClientRect().top, sx = window.scrollY, foc = document.activeElement === el;
+      fn(); var n = sel && document.querySelector(el.tagName.toLowerCase() + sel); if (n && n.offsetParent) { var d = n.getBoundingClientRect().top - y0, w = n.closest('.pfw'); if (w) { var s0 = w.scrollTop; w.scrollTop = s0 + d; d -= w.scrollTop - s0; } if (d) window.scrollBy(0, d); if (foc) try { n.focus({ preventScroll: true }); } catch (x) {} } else window.scrollTo(0, sx); }; // también dentro de la tabla con scroll propio: si cambiás la fecha, la operación se mueve y la vista va con ella
     root.addEventListener('change', function (e) { var vv = e.target.closest('.pfldv'); if (vv) { var L0 = ledOf(), nm = vv.dataset.k, dd = vv.dataset.d, nv = impNum(vv.value), VK = vv.dataset.vt ? 'vmt' : 'vm'; if (vv.dataset.ac != null) nm += '|' + vv.dataset.ac; L0[VK] = L0[VK] || {}; var o0 = L0[VK][nm] = L0[VK][nm] || {}; if (nv > 0) o0[dd] = nv; else delete o0[dd];
         if (nv > 0 && VK === 'vm') { var b0 = vv.dataset.k, a0 = vv.dataset.ac; L0.ops.forEach(function (q) { if (q.t === 'i' && q.d === dd && (isF(q.k) ? kn(q.k) : q.k) === b0 && (a0 == null || (q.ac || '') === a0)) { q.px = nv; q.m = 0; } }); } // el precio del día de la tenencia inicial es el de su operación: se cambian juntos
         saveLed(); ledKeep(vv, render); return; }
