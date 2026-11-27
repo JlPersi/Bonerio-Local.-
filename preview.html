@@ -11140,11 +11140,11 @@ window.USTX = (function () {
       var a = p[0], b = p[1], A = series(a, spn(a), from), B = series(b, spn(b), from), mb = {}, ma = margin(a), mbm = margin(b), lin = ma && mbm, fa = famK(a), fb = famK(b), mix = fa !== fb || ma !== mbm;
       B.forEach(function (r) { mb[r.t] = r; });
       var ya = function (r, m) { return m ? r.m : r.y; };
-      var d = [], dd = null; A.forEach(function (ra) { var rb = mb[ra.t]; if (!rb) return; var da = ra.D / 365, db = rb.D / 365; dd = [da, db]; if (!(db - da > 0.08)) return; // menos de un mes entre duraciones: la forward es puro ruido
+      var d = [], dd = null; A.forEach(function (ra) { var rb = mb[ra.t]; if (!rb) return; var da = ra.D / 365, db = rb.D / 365; dd = [da, db]; if (!(db - da > 7 / 365)) return; // menos de una semana entre duraciones: la forward es puro ruido (entre Lecaps seguidas hay 10 a 20 días; con pocos días se mueve mucho)
         var v = lin ? (rb.m * db - ra.m * da) / (db - da) * 100 : conv(Math.pow(Math.pow(1 + ya(rb, mbm), db) / Math.pow(1 + ya(ra, ma), da), 1 / (db - da)) - 1);
         if (v != null && isFinite(v) && Math.abs(v) < 200) d.push({ x: ra.t, y: v }); });
       var sp = spn(a) || spn(b), c = PAL[i % PAL.length];
-      if (!d.length) { bad.push(a + ' → ' + b + (matOf(a) === matOf(b) ? ' (vencen el mismo día)' : ' (duraciones casi iguales o sin precios en común)')); return; }
+      if (!d.length) { var nh = [A.length ? null : a, B.length > 1 ? null : b].filter(Boolean), isO = function (k) { var I = INST[k]; return I && I.iss > bxToday() - 3 ? ', se emite el ' + dfull(I.iss) : ''; }; bad.push(a + ' → ' + b + (matOf(a) === matOf(b) ? ' (vencen el mismo día)' : nh.length ? ' (' + nh.map(function (k) { return k + ' todavía no tiene historia de precios' + isO(k); }).join('; ') + ')' : ' (duraciones casi iguales o sin precios en común)')); return; }
       var tag = mix ? ' · mixto ' + unitOf(a) + ' / ' + unitOf(b) : lin ? ' · margen' : fa === 'cer' ? ' · real' : '';
       var main = sets.length; sets.push(line('Forward ' + a + ' → ' + b + (sp ? ' (' + (sp === 'C' ? 'Cable' : 'MEP') + ')' : '') + tag, d, c));
       var n = d.length, mu = d.reduce(function (s, q) { return s + q.y; }, 0) / n, sd = Math.sqrt(d.reduce(function (s, q) { return s + (q.y - mu) * (q.y - mu); }, 0) / Math.max(1, n - 1));
