@@ -7874,9 +7874,16 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       var pt = function (col, r) { return { type: 'scatter', showLine: false, pointRadius: r || 5, pointHoverRadius: 8, borderColor: card, borderWidth: 1.5, backgroundColor: col, legCol: col, order: 1 }; };
       var yr = null, split = function (pts, col, lab) { // el contrato que vence en días va aparte, hueco, y no estira el eje: si se sale del rango de la curva, queda clavado en el borde con su valor
         var lg = pts.filter(function (p) { return p.x >= FMIN; }); if (lg.length < 3) return [ds(lab, pts, col, pt(col))];
-        var lo = Math.min.apply(null, lg.map(function (p) { return p.y; })), hi = Math.max.apply(null, lg.map(function (p) { return p.y; })), pad = Math.max((hi - lo) * 0.08, Math.abs(hi) * 0.01, 0.02);
+        var inl = lg, F = null; try { F = window.PSX && window.PSX.fairFit && lg.length >= 5 ? window.PSX.fairFit(lg.map(function (p) { return { x: p.x, y: p.y }; }), 'ns') : null; } catch (e) { F = null; }
+        if (F) { // los contratos que se van lejos de la curva (los largos casi no operan) tampoco estiran el eje: quedan clavados en el borde con su valor
+          var md = function (a) { a = a.slice().sort(function (x, y) { return x - y; }); return a[a.length >> 1]; }, rs = lg.map(function (p) { return Math.abs(p.y - F.f(p.x)); }), th = Math.max(3 * 1.4826 * md(rs), 0.04 * Math.abs(md(lg.map(function (p) { return p.y; }))));
+          var ii = lg.filter(function (p, i) { return rs[i] <= th; }); if (ii.length >= 3) inl = ii;
+        }
+        var lo = Math.min.apply(null, inl.map(function (p) { return p.y; })), hi = Math.max.apply(null, inl.map(function (p) { return p.y; })), pad = Math.max((hi - lo) * 0.08, Math.abs(hi) * 0.01, 0.02);
         yr = [lo - pad, hi + pad];
-        var sh2 = pts.filter(function (p) { return p.x < FMIN; }).map(function (p) { var q = {}; for (var k in p) q[k] = p[k]; if (p.y > yr[1] || p.y < yr[0]) { q.yv = p.y; q.y = p.y > yr[1] ? yr[1] : yr[0]; q.k = p.k + ' ' + nf(p.y, 2) + '% ' + (p.y > yr[1] ? '↑' : '↓'); } return q; });
+        var clip = function (p) { var q = {}; for (var k in p) q[k] = p[k]; if (p.y > yr[1] || p.y < yr[0]) { q.yv = p.y; q.y = p.y > yr[1] ? yr[1] : yr[0]; q.k = p.k + ' ' + nf(p.y, 2) + '% ' + (p.y > yr[1] ? '↑' : '↓'); } return q; };
+        lg = lg.map(clip);
+        var sh2 = pts.filter(function (p) { return p.x < FMIN; }).map(clip);
         var out = [ds(lab, lg, col, pt(col))]; if (sh2.length) { var o = pt(col, 5); o.backgroundColor = card; o.borderColor = col; o.borderWidth = 2; out.push(ds('Vence en menos de ' + FMIN + ' días (fuera de la curva)', sh2, col, o)); }
         return out;
       };
