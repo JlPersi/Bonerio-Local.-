@@ -10771,9 +10771,10 @@ window.addEventListener('load', function(){ window.loadCloses(); });
   function hideSet(card, mode) {
     var out = [];
     if (mode !== 'both' && mode !== 'table') [].forEach.call(card.querySelectorAll('[data-dlx]'), function (x) { if (x.getClientRects().length) out.push(x); }); // textos que acompañan (descripción, tarjetas, conclusión): con «solo gráfico» no van
-    if (/^c\d+$/.test(mode)) { // un solo gráfico: se ocultan los demás (con lo que los envuelve, si no comparten contenedor con otro gráfico)
-      var me = charts(card)[+mode.slice(1)]; if (!me) return out;
-      [].forEach.call(card.querySelectorAll('canvas, table'), function (x) { if (x === me) return; var n = x; while (n.parentElement && n.parentElement !== card && !n.parentElement.contains(me)) n = n.parentElement; if (n !== card && !n.contains(me) && out.indexOf(n) < 0) { out.push(n); var nx = n.nextElementSibling; if (x.tagName === 'CANVAS' && nx && nx.matches('p.note') && out.indexOf(nx) < 0) out.push(nx); } }); // los otros gráficos (con su nota) y las tablas, con lo que los envuelve
+    if (/^c[\d.]+$/.test(mode)) { // uno o varios gráficos («c0» o «c0.3»): se ocultan los demás (con lo que los envuelve, si no comparten contenedor con uno de los elegidos)
+      var cs0 = charts(card), keep = mode.slice(1).split('.').map(function (i) { return cs0[+i]; }).filter(Boolean); if (!keep.length) return out;
+      var has = function (el) { return keep.some(function (k) { return el.contains(k); }); };
+      [].forEach.call(card.querySelectorAll('canvas, table'), function (x) { if (keep.indexOf(x) >= 0) return; var n = x; while (n.parentElement && n.parentElement !== card && !has(n.parentElement)) n = n.parentElement; if (n !== card && !has(n) && out.indexOf(n) < 0) { out.push(n); var nx = n.nextElementSibling; if (x.tagName === 'CANVAS' && nx && nx.matches('p.note') && out.indexOf(nx) < 0) out.push(nx); } }); // los otros gráficos (con su nota) y las tablas, con lo que los envuelve
       return out;
     }
     if (mode === 'chart') card.querySelectorAll('table').forEach(function (t) { var n = climb(t, card, 'canvas'); if (n && out.indexOf(n) < 0) out.push(n); });
@@ -10813,8 +10814,8 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     else {
       var card = document.getElementById(id), hid = [];
       if (mode !== 'both') hid = hideSet(card, mode);
-      var k = /^c\d+$/.test(mode) ? +mode.slice(1) : -1, cs = k >= 0 ? charts(card) : [];
-      job = { id: id, hid: hid, fname: name + (k >= 0 && cs[k] ? '_' + slug(cname(cs[k], k, card)) : mode === 'chart' ? '_grafico' : mode === 'table' ? '_tabla' : (card.querySelector('canvas') && card.querySelector('table') ? '_completo' : '')) };
+      var ks = /^c[\d.]+$/.test(mode) ? mode.slice(1).split('.') : [], k = ks.length === 1 ? +ks[0] : -1, cs = k >= 0 ? charts(card) : [];
+      job = { id: id, hid: hid, fname: name + (ks.length > 1 ? '_' + ks.length + '_graficos' : k >= 0 && cs[k] ? '_' + slug(cname(cs[k], k, card)) : mode === 'chart' ? '_grafico' : mode === 'table' ? '_tabla' : (card.querySelector('canvas') && card.querySelector('table') ? '_completo' : '')) };
     }
     var fname = job.fname, end = function () { if (job.tmp) job.tmp.removeAttribute('id'); if (job.p1) job.p1.removeAttribute('data-dlpad1'); };
     if (act === 'png') { Promise.resolve(orig(job.id, fname, scale, job.hid, job.cl)).then(end, end); return; }
@@ -10846,7 +10847,7 @@ window.addEventListener('load', function(){ window.loadCloses(); });
     closeMenu(); var r = last.getBoundingClientRect(), z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
     menu = document.createElement('div'); menu.className = 'dlmenu'; menu.setAttribute('data-html2canvas-ignore', 'true');
     menu.innerHTML = '<div class="hd">Imagen HD</div><div class="mode">' +
-      (multi ? '<div class="pick">' + [['both', 'Toda la sección']].concat(card.querySelector('table') ? [['chart', 'Los ' + cvs.length + ' gráficos, sin la tabla']] : [], cvs.map(function (c, i) { return ['c' + i, 'Solo: ' + cname(c, i, card)]; }), card.querySelector('table') ? [['table', 'Solo la tabla']] : []).map(function (m) { return '<button data-m="' + m[0] + '"' + (m[0] === mode ? ' class="on"' : '') + '>' + esc(m[1]) + '</button>'; }).join('') + '</div><div class="sep"></div>' : '') +
+      (multi ? '<div class="pick">' + [['both', 'Toda la sección']].concat(card.querySelector('table') ? [['chart', 'Los ' + cvs.length + ' gráficos, sin la tabla']] : [], cvs.map(function (c, i) { return ['c' + i, cname(c, i, card)]; }), card.querySelector('table') ? [['table', 'Solo la tabla']] : []).map(function (m) { return '<button data-m="' + m[0] + '"' + (m[0] === mode ? ' class="on"' : '') + '>' + esc(m[1]) + '</button>'; }).join('') + '</div><div class="hd" style="text-transform:none;letter-spacing:0;font-weight:500">Tocá varios gráficos para juntarlos en una imagen</div><div class="sep"></div>' : '') +
       (both ? '<div class="seg">' + [['chart', 'Gráfico'], ['table', 'Tabla'], ['both', 'Ambos']].map(function (m) { return '<button data-m="' + m[0] + '"' + (m[0] === mode ? ' class="on"' : '') + '>' + m[1] + '</button>'; }).join('') + '</div><div class="sep"></div>' : '') + '</div>' +
       (canJoin ? '<div class="join"><button data-x="open">Juntar con otras secciones<small>varias en una sola imagen</small></button></div><div class="sep"></div>' : '') +
       '<button data-a="png">Descargar PNG<small>guarda el archivo</small></button>' +
@@ -10873,7 +10874,15 @@ window.addEventListener('load', function(){ window.loadCloses(); });
         else if (x.getAttribute('data-x') === 'one') sel = [id];
         paint(); place(); return;
       }
-      var m = e.target.closest('button[data-m]'); if (m) { mode = m.getAttribute('data-m'); if (!multi) { MODE = mode; try { localStorage.setItem('dlMode', mode); } catch (x) { } } menu.querySelectorAll('button[data-m]').forEach(function (b) { b.classList.toggle('on', b === m); }); return; }
+      var m = e.target.closest('button[data-m]'); if (m) {
+        var nm = m.getAttribute('data-m');
+        if (multi && /^c\d+$/.test(nm) && /^c[\d.]+$/.test(mode)) { // varios gráficos: tocar otro lo suma a la imagen, tocar uno elegido lo saca (siempre queda al menos uno)
+          var L = mode.slice(1).split('.'), j = L.indexOf(nm.slice(1)); if (j >= 0) { if (L.length > 1) L.splice(j, 1); } else L.push(nm.slice(1));
+          mode = 'c' + L.sort(function (a, b) { return a - b; }).join('.');
+        } else mode = nm;
+        if (!multi) { MODE = mode; try { localStorage.setItem('dlMode', mode); } catch (x) { } }
+        var on = /^c[\d.]+$/.test(mode) ? mode.slice(1).split('.').map(function (i) { return 'c' + i; }) : [mode];
+        menu.querySelectorAll('button[data-m]').forEach(function (b) { b.classList.toggle('on', on.indexOf(b.getAttribute('data-m')) >= 0); }); return; }
       var a = e.target.closest('button[data-a]'); if (!a) return; closeMenu();
       var pick = sel.length > 1 ? secs.filter(function (y) { return sel.indexOf(y.id) >= 0; }) : null;
       run(id, name, scale, pick ? 'both' : mode, a.getAttribute('data-a'), pick);
