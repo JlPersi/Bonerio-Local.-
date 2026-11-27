@@ -3580,6 +3580,7 @@ const PSOLD = {"INST":{"S16E6":{"k":"cap","f":"fija","iss":20320,"r":[[20469,119
   }
   var REMP = buildRem(), remF = function (a) { return function (mi) { return a[Math.max(0, Math.min(a.length - 1, mi - MIN_M))]; }; };
   var REMSC = mkSc(remF(REMP.pi), remF(REMP.tam), remF(REMP.dev));
+  window.PSFLOW = function (ins, s) { try { return flowsOf(ins, s, ZERO); } catch (e) { return null; } }; // flujos de un bono en pesos desde la fecha s, con el CER/TAMAR/A3500 reales de cada pago (Resumen: retorno total con cupones cobrados)
   window.PSREM = { pi: REMP.pi, dev: REMP.dev, fx: REMP.fx, m0: MIN_M }; // el REM mes a mes (desde sep-26), para las implícitas de Tasas históricas
   function remCer(o, sc) { var T = bdBack(o.mat, 10), l = lastOf(IDX.CER); if (T <= l) return null; return Math.pow(cerAt(T, sc || REMSC) / IDX.CER.v[IDX.CER.v.length - 1], 30.4375 / (T - l)) - 1; }
   function remFx(o, sc) { var T = bdBack(o.mat, 3), l = lastOf(IDX.FX); if (T <= l) return null; return Math.pow(fxAt(T, sc || REMSC) / IDX.FX.v[IDX.FX.v.length - 1], 30.4375 / (T - l)) - 1; }
@@ -5166,7 +5167,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       if (o.fam !== fam || o.miss || o.tea == null || !isFinite(o.tea) || !(o.P > 0) || o.d < 3 || !o.fl) return;
       var nat = fam === 'fija' ? o.tea * 100 : fam === 'cer' ? (o.realTea == null ? null : o.realTea * 100) : fam === 'tamar' ? o.dm : fam === 'dl' ? (o.usdTea == null ? null : o.usdTea * 100) : fam === 'dual' ? o.dm : null;
       var qq = q[o.k] || {};
-      out.push({ k: o.k, fam: fam, grp: fam, P: o.P, bid: qq.bid, ask: qq.ask, qb: qq.qb, qa: qq.qa, fl: o.fl, s: sn.s, mat: o.mat, d: o.d, tea: o.tea, nat: nat, kind: o.ins.k, mac: o.mac, mdur: o.mdur });
+      out.push({ k: o.k, fam: fam, grp: fam, P: o.P, bid: qq.bid, ask: qq.ask, qb: qq.qb, qa: qq.qa, fl: o.fl, ins: o.ins, s: sn.s, mat: o.mat, d: o.d, tea: o.tea, nat: nat, kind: o.ins.k, mac: o.mac, mdur: o.mdur });
     });
     return out;
   }
@@ -16939,7 +16940,9 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
         var vk = f === 'usd' ? o.k + esp : o.k, s = ser(vk); if (!s) return;
         var P0 = pxAt(s, b0), P1 = live ? o.P : pxAt(s, e0); if (!(P0 > 0) || !(P1 > 0)) return;
         var r = { k: o.k, fam: f, grp: o.grp, P0: P0, P1: P1, ret: P1 / P0 - 1, mat: o.mat };
-        if (f === 'usd' || f === 'fija') { var fl = f === 'usd' && BB[o.k] ? bxFullFlows(BB[o.k]) : o.fl; r.cp = (fl || []).reduce(function (z, x) { return x[0] > s0 && x[0] <= s1 ? z + x[1] : z; }, 0); if (r.cp > 0) r.ret = (P1 + r.cp) / P0 - 1; /* retorno total: el precio más lo que cobró (cupón y amortización); sin esto, el que pagó en el período parece que bajó */ r.y0 = ytm(fl, s0, P0); r.y1 = ytm(fl, s1, P1); if (r.y1 == null && live) r.y1 = o.tea; r.yrs = (o.mat - s1) / 365; if (r.y0 != null && r.y1 != null) r.dy = (r.y1 - r.y0) * 1e4; }
+        var pfl = f !== 'usd' && o.ins && window.PSFLOW ? window.PSFLOW(o.ins, s0) : null; /* pesos: los flujos desde el inicio del período (o.fl arranca hoy y se perdía el cupón cobrado en el medio, ej. DICP en dic-25) */
+        if (f !== 'usd' && f !== 'fija' && pfl) { r.cp = pfl.reduce(function (z, x) { return x[0] > s0 && x[0] <= s1 ? z + x[1] : z; }, 0); if (r.cp > 0) r.ret = (P1 + r.cp) / P0 - 1; }
+        if (f === 'usd' || f === 'fija') { var fl = f === 'usd' && BB[o.k] ? bxFullFlows(BB[o.k]) : (pfl || o.fl); r.cp = (fl || []).reduce(function (z, x) { return x[0] > s0 && x[0] <= s1 ? z + x[1] : z; }, 0); if (r.cp > 0) r.ret = (P1 + r.cp) / P0 - 1; /* retorno total: el precio más lo que cobró (cupón y amortización); sin esto, el que pagó en el período parece que bajó */ r.y0 = ytm(fl, s0, P0); r.y1 = ytm(fl, s1, P1); if (r.y1 == null && live) r.y1 = o.tea; r.yrs = (o.mat - s1) / 365; if (r.y0 != null && r.y1 != null) r.dy = (r.y1 - r.y0) * 1e4; }
         var base = o.k, tot = 0;
         [[base, null], [base + 'D', MEP], [base + 'C', CCL]].forEach(function (x) { var sx = ser(x[0]); if (sx) tot += sumE(sx, v0, e0, x[1]); tot += lvE(x[0], x[1]); });
         var pre = 0; [[base, null], [base + 'D', MEP], [base + 'C', CCL]].forEach(function (x) { var sx = ser(x[0]); if (sx) pre += sumE(sx, Math.max(0, v0 - 60), v0 - 1, x[1]); });
