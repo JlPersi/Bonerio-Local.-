@@ -15327,8 +15327,12 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
     var P = []; IX.forEach(function (x) { if (!sel(x.t)) return; var F = fund(x.t); if (!F) return; var xv = xper(x.t, F, xk), yv = F[yk]; if (xv == null || yv == null || !(yv > 0) || yv > 80) return; P.push({ x: xv * 100, y: yv, t: x.t, s: secOf(x.t), F: F }); }); return P;
   }
   function fitL(P) { var n = P.length; if (n < 3) return null; var mx = mean(P.map(function (p) { return p.x; })), my = mean(P.map(function (p) { return p.y; })), sxy = 0, sxx = 0, syy = 0; P.forEach(function (p) { sxy += (p.x - mx) * (p.y - my); sxx += (p.x - mx) * (p.x - mx); syy += (p.y - my) * (p.y - my); }); if (!sxx) return null; var b = sxy / sxx; return { a: my - b * mx, b: b, r2: syy ? sxy * sxy / (sxx * syy) : null }; }
+  function fitInv(P) { // P/E: la relación con la rentabilidad no es una recta (P/E = P/VL ÷ ROE, se dispara cuando la ganancia es chica). Se ajusta la recta sobre el rendimiento E/P (100 / P/E) y se vuelve a P/E
+    var L = fitL(P.filter(function (p) { return p.y > 0; }).map(function (p) { return { x: p.x, y: 100 / p.y }; })); if (!L) return null;
+    L.inv = 1; L.f = function (x) { var e = L.a + L.b * x; return e > 0 ? 100 / e : null; }; return L; }
+  var Lf = function (L, x) { return !L ? null : L.f ? L.f(x) : L.a + L.b * x; };
   function potOf(p, yk, L) { // múltiplo según la recta y cuánto tendría que moverse el precio (con EV/EBITDA, por la deuda neta)
-    var fy = L ? L.a + L.b * p.x : null; if (!(fy > 0)) return { fy: null, up: null }; var F = p.F;
+    var fy = Lf(L, p.x); if (!(fy > 0)) return { fy: null, up: null }; var F = p.F;
     return { fy: fy, up: yk === 'ev' && F.eb > 0 && F.dn != null && F.cap > 0 ? (fy * F.eb - F.dn) / F.cap - 1 : fy / p.y - 1 };
   }
   var LBL2 = { id: 'accLbl2', afterDatasetsDraw: function (ch) { var c = ch.ctx; c.save(); c.textAlign = 'center'; ch.data.datasets.forEach(function (d, i) { if (d.type === 'line') return; ch.getDatasetMeta(i).data.forEach(function (pt, k) { var r = d.data[k]; if (!r || !r.t) return; c.font = (r.me ? '800 13.5px' : '600 12.5px') + ' Inter,system-ui,sans-serif'; c.fillStyle = r.me ? (css('--fc') || '#4ade80') : (css('--tx') || '#ddd'); c.fillText(r.t, pt.x, pt.y - (r.me ? 12 : 9)); }); }); c.restore(); } };
@@ -15340,7 +15344,8 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
     o.onClick = function (e, el) { if (el && el[0] && el[0].datasetIndex === 0 && P[el[0].index]) onPick(P[el[0].index].t); };
     var D2 = P.map(function (q) { return { x: q.x, y: q.y, t: q.t, me: q.t === me }; });
     var ds = [{ type: 'scatter', data: D2, pointRadius: D2.map(function (q) { return q.me ? 9 : 6; }), pointHoverRadius: 9, backgroundColor: P.map(function (q) { return q.t === me ? (css('--fc') || '#4ade80') : SC[q.s]; }), borderColor: P.map(function (q) { return q.t === me ? '#fff' : 'transparent'; }), borderWidth: 2 }];
-    if (L) { var xs = P.map(function (q) { return q.x; }), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs); ds.push({ type: 'line', data: [{ x: x0, y: L.a + L.b * x0 }, { x: x1, y: L.a + L.b * x1 }], borderColor: css('--fc') || '#4ade80', borderWidth: 1.6, pointRadius: 0, borderDash: [6, 4] }); }
+    if (/^P\/E/.test(yn)) { o.scales.y.min = 0; o.scales.y.grace = 0; o.scales.y.suggestedMax = Math.max.apply(null, P.map(function (q) { return q.y; }).concat([1])) * 1.1; } // un múltiplo de ganancia negativo no se grafica: el eje arranca en 0
+    if (L) { var xs = P.map(function (q) { return q.x; }), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), lp = []; for (var i = 0; i <= (L.inv ? 60 : 1); i++) { var xx = x0 + (x1 - x0) * i / (L.inv ? 60 : 1), yy = Lf(L, xx); if (yy != null && isFinite(yy)) lp.push({ x: xx, y: yy }); } ds.push({ type: 'line', data: lp, tension: 0.3, borderColor: css('--fc') || '#4ade80', borderWidth: 1.6, pointRadius: 0, borderDash: [6, 4] }); }
     mk(id, { type: 'scatter', data: { datasets: ds }, options: o, plugins: [LBL2] });
   }
   /* ---------- ficha: tarjetas de valuación, curva sectorial, trimestres, aceleración, ONs y competidores ---------- */
@@ -15790,13 +15795,13 @@ window.BLLAM = (function () { // lámina mínima y legislación de cada ON y pro
     if (bk) { if (yk === 'ev') yk = 'pvl'; if (xk !== 'roa') xk = 'roe'; } $('accVx').value = yk; $('accVy').value = xk;
     var rr = xk === 'roe' || xk === 'roa', xp = rr ? VRN[ST.vr || '12'] : '12 meses', xn = VYN[xk] + (rr ? ' ' + xp : ''); $('accVr').disabled = !rr;
     var pnl = {}; IX.forEach(function (x) { pnl[x.t] = x.panel; });
-    var P = vpts(function (t) { var s2 = secOf(t); if (ST.vp !== 'all' && pnl[t] !== ST.vp) return false; return g === 'ban' ? s2 === 'ban' : g === 'nof' ? s2 !== 'ban' : g === 'all' || s2 === g; }, xk, yk), L = fitL(P);
+    var P = vpts(function (t) { var s2 = secOf(t); if (ST.vp !== 'all' && pnl[t] !== ST.vp) return false; return g === 'ban' ? s2 === 'ban' : g === 'nof' ? s2 !== 'ban' : g === 'all' || s2 === g; }, xk, yk), L = yk === 'pe' ? fitInv(P) : fitL(P);
     scat('accVc', P, L, xn, VXN[yk], ST.sel, function (t) { pick(t, 1); });
     var weak = P.length < 5 || !L || L.r2 == null || L.r2 < 0.25; // con menos de 5 acciones o una recta que explica poco, el potencial no es confiable: no se muestra
     var T = P.map(function (p) { var q = potOf(p, yk, L); return { p: p, fy: q.fy, up: weak ? null : q.up }; }).sort(function (u, v) { return (v.up == null ? -9 : v.up) - (u.up == null ? -9 : u.up); });
     $('accVt').innerHTML = '<thead><tr><th>Acción</th><th class="l">Sector</th><th>' + xn + '</th><th>' + VXN[yk] + '</th><th>' + VXN[yk] + ' según la recta</th><th>Potencial del precio</th></tr></thead><tbody>' +
       T.map(function (r) { return '<tr data-t="' + r.p.t + '"><td>' + logo(r.p.t, 18) + ' ' + r.p.t + '</td><td class="l"><i class="sd" style="background:' + SC[r.p.s] + '"></i>' + SN[r.p.s] + '</td><td>' + nf(r.p.x, 1) + '%</td><td>' + nf(r.p.y, 2) + 'x</td><td>' + (r.fy != null && isFinite(r.fy) ? nf(r.fy, 2) + 'x' : '—') + '</td><td' + cl(r.up) + '>' + pc(r.up, 0) + '</td></tr>'; }).join('') + '</tbody>';
-    $('accVs').textContent = P.length + ' acciones' + (ST.vp === 'lider' ? ' del panel líder' : ST.vp === 'general' ? ' del panel general' : '') + ' · ' + VXN[yk] + ' = ' + (L ? nf(L.a, 2) + (L.b >= 0 ? ' + ' : ' − ') + nf(Math.abs(L.b), 3) + ' × ' + VYN[xk] + (L.r2 != null ? ' · R² ' + nf(L.r2, 2) : '') : '—') + ' · debajo de la recta: barata contra sus pares';
+    $('accVs').textContent = P.length + ' acciones' + (ST.vp === 'lider' ? ' del panel líder' : ST.vp === 'general' ? ' del panel general' : '') + ' · ' + (L && L.inv ? 'E/P (100 ÷ P/E)' : VXN[yk]) + ' = ' + (L ? nf(L.a, 2) + (L.b >= 0 ? ' + ' : ' − ') + nf(Math.abs(L.b), 3) + ' × ' + VYN[xk] + (L.r2 != null ? ' · R² ' + nf(L.r2, 2) : '') : '—') + ' · debajo de la recta: barata contra sus pares';
     $('accVn').textContent = (weak ? (P.length < 5 ? 'Con ' + P.length + ' acciones la recta no es confiable (mínimo 5): no se calcula el potencial. ' : 'La recta explica poco (R² ' + nf(L && L.r2, 2) + ', menos de 0,25): no se calcula el potencial. ') : '') + 'Como la curva soberana, pero con acciones: en X la rentabilidad del último balance (' + xp + '), en Y el múltiplo con el precio en vivo. La recta dice qué múltiplo "le corresponde" a cada rentabilidad; el potencial es cuánto tendría que moverse el precio para quedar sobre ella (con EV/EBITDA, contando la deuda neta). Una referencia, no una recomendación.';
   }
   /* ---------- evolución del múltiplo de un sector (series diarias de data/acciones/ratios.json) ---------- */
