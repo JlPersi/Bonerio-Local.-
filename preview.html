@@ -8032,7 +8032,9 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
   (function () {
     var T = tab('sint', render); if (!T) return;
     var root = T.root, CH = {}, S = null, bTry = 0, ST = { m: 'usd' }, LAST = null, O = 0;
-    var cline = function (pts, col) { return ds('', pts, col, { pointRadius: 0, pointHoverRadius: 0, borderWidth: 2, tension: 0, noTip: true, noLeg: true, order: 4, fill: false, backgroundColor: 'transparent' }); }; // línea nítida: sin brillo ni relleno
+    var gF = function (col) { var m = /^#([0-9a-f]{6})/i.exec(col || ''), rgb = m ? [0, 2, 4].map(function (i) { return parseInt(m[1].substr(i, 2), 16); }).join(',') : '161,161,170';
+      return function (c) { var a = c.chart.chartArea; if (!a) return 'transparent'; var n = c.chart.data.datasets.filter(function (d) { return d.$gf; }).length, g = c.chart.ctx.createLinearGradient(0, a.top, 0, a.bottom); g.addColorStop(0, 'rgba(' + rgb + (n > 1 ? ',.2)' : ',.3)')); g.addColorStop(1, 'rgba(' + rgb + ',0)'); return g; }; };
+    var cline = function (pts, col, fill) { var d = ds('', pts, col, { pointRadius: 0, pointHoverRadius: 0, borderWidth: 2, tension: 0, noTip: true, noLeg: true, order: 4, fill: fill ? 'start' : false, backgroundColor: fill ? gF(col) : 'transparent' }); if (fill) d.$gf = 1; return d; }; // línea nítida, sin brillo; con fill, el sombreado degradado hasta abajo (como en Historial y comparación)
     var dots = function (label, pts, col, extra) { var o = { type: 'scatter', showLine: false, pointRadius: 5, pointHoverRadius: 8, borderColor: css('--card') || '#0a0a0b', borderWidth: 1.5, backgroundColor: col, legCol: col, order: 1 }; for (var k in extra) o[k] = extra[k]; return ds(label, pts, col, o); };
     var fitLine = function (pts, col, fill, model) { // la curva ajustada por puntos {x: fecha, y}, en días desde la liquidación (O); con menos de 3 puntos, nada
       pts = pts.slice().sort(function (a, b) { return a.x - b.x; }); if (pts.length < 3 || !window.PSX || !window.PSX.fairFit) return null;
@@ -8127,7 +8129,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     function drawUsd(D) { // 1) dólar sintético: Lecap + compra de futuro, contra el dollar linked
       var up = D.usd.filter(function (r) { return r.o.d >= MIN; }).map(function (r) { return { x: r.o.mat, y: r.u, s: r.o.k + ' + futuro', k: r.o.k }; }), dpts = D.dls.filter(function (o) { return o.mat <= D.x1 && o.d >= MIN; }).map(function (o) { return { x: o.mat, y: o.usdTea * 100, s: o.k, k: o.k }; }), sets = [];
       var f1 = fitLine(up, '#ffc542', true); if (f1) sets.push(f1);
-      var f2 = fitOf(D.DR, dpts, C_DL, false); if (f2) { f2.borderDash = [5, 4]; f2.borderWidth = 1.8; f2.glow = null; sets.push(f2); }
+      var f2 = fitOf(D.DR, dpts, C_DL, true); if (f2) { f2.borderDash = [5, 4]; f2.borderWidth = 1.8; f2.glow = null; sets.push(f2); }
       sets.push(dots('Lecap + compra de futuro', up, '#ffc542'), dots('Dollar linked', dpts, C_DL, { pointRadius: 6, pointStyle: 'rectRot' }), zeroL(D));
       tt('syA', 'Tasa en dólares oficiales por vencimiento (TEA)', 'Puntos amarillos: cada Lecap cubierta con el futuro de su mes. Rombos celestes: los dollar linked. Las líneas son las curvas ajustadas.');
       mk('syA', { type: 'scatter', data: { datasets: sets }, plugins: [].concat(LBL()), options: noT(xEnd(dateOpt(D, 'Tasa en dólares oficiales por vencimiento (TEA %)', function (v) { return nf(v, 1) + '%'; }, 'r'), up.concat(dpts))) });
@@ -8149,7 +8151,7 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
       var hp = D.dlr.filter(function (x) { return x.o.mat <= D.x1 && x.tn != null; }).map(function (x) { return { x: x.o.mat, y: x.tn, s: x.o.k + ' + venta de futuro (neta de base)', k: x.o.k }; }), sets = []; // neta de base: sin la base, los cortos se inflan
       var lp = D.fija.filter(function (o) { return o.mat <= Math.max.apply(null, hp.map(function (p) { return p.x; }).concat([D.s0])) + 45; }).map(function (o) { return { x: o.mat, y: o.tea * 100, s: o.k, k: o.k }; });
       var f1 = fitLine(hp, C_DL, true); if (f1) sets.push(f1);
-      var f2 = fitOf(D.LR, lp, '#ffc542', false); if (f2) { f2.borderDash = [5, 4]; f2.borderWidth = 1.8; f2.glow = null; sets.push(f2); }
+      var f2 = fitOf(D.LR, lp, '#ffc542', true); if (f2) { f2.borderDash = [5, 4]; f2.borderWidth = 1.8; f2.glow = null; sets.push(f2); }
       sets.push(dots('Dollar linked + venta de futuro', hp, C_DL, { pointRadius: 6.5, pointStyle: 'rectRot' }), dots('Lecaps y Boncaps', lp, '#ffc542', { pointRadius: 4.5 }));
       tt('syA', 'Tasa fija en pesos por vencimiento (TEA)', 'Rombos celestes: cada dollar linked con el futuro vendido (neta de base). Puntos amarillos: Lecaps y Boncaps. Las líneas son las curvas ajustadas.');
       mk('syA', { type: 'scatter', data: { datasets: sets }, plugins: [].concat(LBL()), options: noT(xEnd(dateOpt(D, 'Tasa fija en pesos por vencimiento (TEA %)', function (v) { return nf(v, 1) + '%'; }, 'r'), hp.concat(lp))) });
@@ -8184,12 +8186,12 @@ window.MXNOTA = { '2026-11-06': 'Feriado bancario: hubo negociación pero no liq
     function drawPeso(D) { // 3) peso sintético: compra de dólar spot + venta de futuro, contra la TAMAR y la Lecap
       var TM = tamOf(), R = D.c.map(function (f) { var d = f.d, F = f.F, Sp = f.sp, tea = (Math.pow(F / Sp, 365 / d) - 1) * 100, lf = D.lecT(d), lt = tem(lf); return { f: f, d: d, x: dp(f.v), tna: f.t, tem: f.dev, tea: tea, lt: lt, dT: TM ? f.dev - TM.tem : null, dL: lt != null ? f.dev - lt : null }; });
       var G = R.filter(function (r) { return r.d >= MIN; }), pts = G.map(function (r) { return { x: r.x, y: r.tem, s: name(r.f.s) + ' · peso sintético', k: sh(r.f.s) }; }), sets = [];
-      if (pts.length > 1) sets.push(cline(pts, C_FUT));
+      if (pts.length > 1) sets.push(cline(pts, C_FUT, true));
       if (TM) sets.push(ds('TAMAR bancos privados (' + P(TM.tem) + ' mensual)', [{ x: D.s0, y: TM.tem }, { x: (pts.length ? pts[pts.length - 1].x : D.x1) + 30, y: TM.tem }], C_TAM, { pointRadius: 0, borderWidth: 2, borderDash: [6, 4], order: 3, fill: false, backgroundColor: 'transparent', noTip: true }));
       var xr = pts.length ? pts[pts.length - 1].x + 10 : D.x1, d2 = function (tna) { return (Math.pow(1 + tna / 36500, 30) - 1) * 100; }; // caución y sus futuros: TNA a 1 día, su TEM capitalizando a diario
       var lcp = D.fija.filter(function (o) { return O + o.d <= xr; }).map(function (o) { return { x: O + o.d, y: tem(o.tea * 100), s: o.k + ' · Lecap', k: o.k }; });
       var cau = inst('CAUCION'), cfd = S.dcf ? dp(S.dcf) : 0, cfp = (S.cfut || []).map(function (q) { return { x: q[1] ? dp(q[1]) : null, y: q[2] > 0 ? d2(q[2]) : null, s: name(q[0]) + ' · caución a 1 día esperada', k: 'Cau. ' + name(q[0]).replace('Caución ', '') }; }).filter(function (p) { return p.x > D.s0 && p.x <= xr && p.y > 0; });
-      if (D.LR && pts.length) { var a = O + D.LR.x0, b = Math.min(xr, O + D.LR.x1); if (b > a) sets.push(ds('Curva de Lecaps (TEM)', smooth(function (x) { return tem(D.LR.f(x - O)); }, a, b), '#ffc542', { pointRadius: 0, borderWidth: 1.8, borderDash: [5, 4], order: 4, fill: false, backgroundColor: 'transparent', noTip: true })); }
+      if (D.LR && pts.length) { var a = O + D.LR.x0, b = Math.min(xr, O + D.LR.x1); if (b > a) sets.push(ds('Curva de Lecaps (TEM)', smooth(function (x) { return tem(D.LR.f(x - O)); }, a, b), '#ffc542', { pointRadius: 0, borderWidth: 1.8, borderDash: [5, 4], order: 4, fill: 'start', $gf: 1, backgroundColor: gF('#ffc542'), noTip: true })); }
       if (lcp.length) sets.push(dots('Lecaps y Boncaps', lcp, '#ffc542', { pointRadius: 4.5, order: 2 }));
       if (cau && cau.v > 0 && cau.v < 150) sets.push(dots('Caución 1 día', [{ x: D.s0 + 1, y: d2(cau.v), s: 'Caución en pesos · TNA ' + nf(cau.v, 2) + '%', k: 'Caución' }], C_CAU, { pointRadius: 7, order: 2 }));
       if (cfp.length) sets.push(dots('Futuros de caución', cfp, C_CF, { pointRadius: 5, pointStyle: 'rectRounded', order: 2 }));
