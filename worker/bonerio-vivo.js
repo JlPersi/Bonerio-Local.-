@@ -73,7 +73,7 @@ async function snapshot(env, syms, ms, ents) {
     });
     ws.addEventListener('close', () => { clearTimeout(end); done(); });
     for (let i = 0; i < syms.length; i += 1000) {
-      ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ents || ['BI', 'OF', 'LA', 'CL', 'EV'], products: syms.slice(i, i + 1000).map((s) => ({ symbol: s, marketId: 'ROFX' })) }));
+      ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ents || ['BI', 'OF', 'LA', 'CL', 'EV', 'NV'], products: syms.slice(i, i + 1000).map((s) => ({ symbol: s, marketId: 'ROFX' })) }));
     }
   });
   try { ws.close(1000, 'ok'); } catch (x) {}
@@ -125,7 +125,8 @@ function patch(r, m) {
   if (!m) return r;
   const bi = (m.BI || [])[0], of = (m.OF || [])[0], la = deHoy(m.LA && m.LA.date) ? px(m.LA) : null, cl = px(m.CL), o = Object.assign({}, r, { src: 'primary' });
   if (la) { o.c = la; if (cl) o.pct_change = (la / cl - 1) * 100; } else if (!(r.c > 0) && cl) { o.c = cl; o.pct_change = 0; } // papel que data912 no tiene: sin operaciones hoy, el cierre anterior
-  const ev = la ? num(m.EV) : 0; if (ev && r.v > 0 && ev > r.v && ev / r.v < 1.5) o.v = ev; // monto de Primary solo si confirma el de data912 (en deuda puede venir en otra escala: por cada 100 nominales o en la moneda del bono)
+  const nv = la ? num(m.NV) : 0, ev = la ? num(m.EV) : 0; if (nv && nv > (r.v || 0)) o.v = nv; // volumen nominal de Primary (la misma escala que el v de data912); si data912 no tiene o va atrasado, manda Primary
+  else if (ev && r.v > 0 && ev > r.v && ev / r.v < 1.5) o.v = ev; // monto de Primary solo si confirma el de data912 (en deuda puede venir en otra escala: por cada 100 nominales o en la moneda del bono)
   if (bi) { o.px_bid = bi.price; o.q_bid = bi.size; }
   if (of) { o.px_ask = of.price; o.q_ask = of.size; }
   return o;
@@ -146,7 +147,7 @@ export class Feed {
     this.lists_t = Date.now(); this.by = {}; EPS.forEach((ep) => (this.rows[ep] || []).forEach((x) => (this.by[x.symbol] = x)));
     if (this.ws && nu.length) this.sub(nu);
   }
-  sub(list) { for (let i = 0; i < list.length; i += 1000) this.ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ['BI', 'OF', 'LA', 'CL', 'EV'], products: list.slice(i, i + 1000).map((s) => ({ symbol: s, marketId: 'ROFX' })) })); }
+  sub(list) { for (let i = 0; i < list.length; i += 1000) this.ws.send(JSON.stringify({ type: 'smd', level: 1, depth: 1, entries: ['BI', 'OF', 'LA', 'CL', 'EV', 'NV'], products: list.slice(i, i + 1000).map((s) => ({ symbol: s, marketId: 'ROFX' })) })); }
   async connect() {
     let ws;
     for (const force of [false, true]) { const r = await fetch(base(this.env) + '/', { headers: { Upgrade: 'websocket', 'X-Auth-Token': await token(this.env, force) } }); if (r.webSocket) { ws = r.webSocket; break; } }
@@ -191,7 +192,7 @@ export class Feed {
   }
   flush() {
     this.tm = null; const u = {};
-    this.dirty.forEach((k) => { const t = this.idx[k], r = t && this.by[t]; if (!r) return; const o = patch(r, this.md[k]); u[t] = [o.c, o.pct_change, o.px_bid, o.q_bid, o.px_ask, o.q_ask]; });
+    this.dirty.forEach((k) => { const t = this.idx[k], r = t && this.by[t]; if (!r) return; const o = patch(r, this.md[k]); u[t] = [o.c, o.pct_change, o.px_bid, o.q_bid, o.px_ask, o.q_ask, o.v]; });
     this.dirty.clear(); if (!Object.keys(u).length) return;
     const msg = JSON.stringify({ u }); this.cl.forEach((c) => { try { c.send(msg); } catch (e) { this.cl.delete(c); } });
   }
